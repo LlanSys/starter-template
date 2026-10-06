@@ -1,7 +1,7 @@
 # StarterTemplate domain neutral refactor plan
 
 Date: 2026-10-06
-Status: Phases 0–4 implemented. Automated certification is complete. The application hosts are running in Visual Studio. Configured bootstrap password login is verified against the live API; authenticated browser smoke remains pending.
+Status: Phases 0–5 complete for the core starter. Automated certification passed; Visual Studio hosts run, live bootstrap API login passed, and the user confirmed browser sign-in and viewing items. Optional external-provider certification is recorded separately.
 
 ## Objective and repository decision
 
@@ -95,13 +95,15 @@ Gate: both providers migrate an empty database; no pending model changes; migrat
 
 ### Phase 5 Starter certification
 
-Run API/Web builds, unit, architecture and SQL Server/PostgreSQL integration tests. Browser/email smoke: bootstrap login, account invite/activation, password recovery, MFA/passkey/SSO where configured, permission changes, forbidden direct URL, logout, disabled user and refresh/session revocation. Verify rename/start using a disposable clean checkout. Add a test-only neutral vertical slice to prove API-to-application-to-persistence flow without shipping a new demonstration business domain.
+Run API/Web builds, unit, architecture and SQL Server/PostgreSQL integration tests. Certification combines user-confirmed browser sign-in/navigation with automated API and real-email checks for account invite/activation, password recovery, configured MFA, forbidden access, logout, disabled users and refresh/session revocation. Physical passkeys, external SSO and external payment providers require separate configured integration checks; their absence does not reopen core refactor certification. Verify rename/start using a disposable clean checkout. Add a test-only neutral vertical slice to prove API-to-application-to-persistence flow without shipping a new demonstration business domain.
 
 Gate: a downstream developer can rename, configure, migrate, run, sign in and introduce a POS slice without editing IAM. Document any optional capabilities that were not exercised.
 
 ## Existing readiness items
 
 Passkey registration/assertion now require user verification and validate active verified account state, global credential uniqueness, tenant ownership and user handles. Persisted tenant-scoped challenges expire and are consumed once atomically; tests cover malformed requests, foreign tenants and concurrent replay. Physical authenticator ceremonies remain unverified. External SSO and mobile runtime are optional capabilities not exercised in this certification.
+
+Stripe and M-Pesa sandbox/live payment execution and callbacks remain unverified. Their configuration fields are initialized in API user-secrets without overwriting existing values; blank credentials deliberately leave providers unconfigured.
 
 Retain a readiness item for deployment-specific forwarded-header proxy trust. Preserve the existing targeted-review findings note and resolve its operational items separately. Dependency/analyzer warnings and mobile runtime checks must be reported honestly.
 
@@ -125,6 +127,6 @@ Run focused checks per slice and full provider/browser certification at the fina
 - All six provider migration scripts and Linux migration bundles generated successfully. Local isolated SQL Server was migrated for Visual Studio host verification. Azure deployment remains disabled.
 - A test-only neutral vertical slice verifies permission protection, tenant isolation and API/Application/Persistence flow without adding a production business module.
 - Automated HTTP and real Mailpit SMTP verify invitation acceptance/replay, bearer sign-in, forbidden access, logout, OTP password recovery, disabled accounts and session/refresh revocation. Configured TOTP and persisted provider concurrency are included in final checks.
-- Final full suites: 131 unit tests, 73 architecture tests and 23 integration tests passed; the normal integration run skipped one opt-in RabbitMQ test, which passed separately against the local broker. API and Blazor builds passed. Configured TOTP enrollment/login/disabled-account rejection and persisted concurrency passed for both providers. A clean committed checkout renamed ST -> CS -> DX, regenerated independent host secret identities, restored and built both hosts, and passed the same full unit, architecture and provider/HTTP/email suites. GitHub backend, frontend and architecture CI passed for implementation commit 350e11d. The hosts now listen on their configured ports. Live API bootstrap sign-in passed and correctly requires administrator MFA enrollment. The stale hardcoded administrator email hint was removed; credentials come from API user-secrets. Authenticated browser smoke remains pending.
+- Final full suites: 131 unit tests, 73 architecture tests and 23 integration tests passed; the normal integration run skipped one opt-in RabbitMQ test, which passed separately against the local broker. API and Blazor builds passed. Configured TOTP enrollment/login/disabled-account rejection and persisted concurrency passed for both providers. A clean committed checkout renamed ST -> CS -> DX, regenerated independent host secret identities, restored and built both hosts, and passed the same full unit, architecture and provider/HTTP/email suites. GitHub backend, frontend and architecture CI passed for implementation commit 350e11d. The hosts now listen on their configured ports. Live API bootstrap sign-in passed and correctly requires administrator MFA enrollment. The stale hardcoded administrator email hint was removed; credentials come from API user-secrets. The user confirmed successful browser sign-in and viewing items. This browser acceptance, together with the automated changed-flow tests, completes core Phase 5.
 
 No merge or deployment is authorized by this plan. Existing package/analyzer warnings, deployment-specific proxy trust and the targeted review operational findings remain documented limitations.

@@ -149,6 +149,8 @@ if ($IncludeSeq) {
     $profiles += @('--profile', 'observability')
 }
 
+& (Join-Path $PSScriptRoot 'initialize-payment-settings.ps1')
+
 $composeArguments = @('compose', '--env-file', $envFile, '-f', $composeFile)
 $composeArguments += $profiles
 if (-not $SkipPull) {

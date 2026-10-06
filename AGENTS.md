@@ -158,3 +158,5 @@ Keep these files short and aligned with this file. Do not let them become indepe
 
 - Each application host must have its own UserSecretsId; clones must regenerate identities and allocate distinct host ports and Compose project/volume names.
 - Run scripts/check-local-endpoints.ps1 before starting local infrastructure; supply new Compose files explicitly. See docs/development/workstation-endpoints.md.
+
+- Local platform setup initializes missing optional payment fields through `scripts/initialize-payment-settings.ps1`. Preserve existing API user-secrets; keep provider credentials blank until supplied and record external-provider certification separately from core starter certification.

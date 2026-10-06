@@ -90,3 +90,7 @@ The invitation URL must use the clone's EmailSettings:ClientBaseUrl. Configure t
 The sign-in page does not advertise a fixed administrator identity. In Visual Studio, right-click the API project and select **Manage User Secrets**. Use `DevelopmentSeed:AdminUserName` or `DevelopmentSeed:AdminEmail` with `DevelopmentSeed:AdminPassword` for a newly created bootstrap account. These are API settings; Web user-secrets do not define the bootstrap account. Existing accounts retain their password on ordinary bootstrap reruns unless the explicit reset option is enabled.
 
 An account or passkey from another application database is not imported into a fresh clone. Sign in with this clone's configured administrator, complete required MFA enrollment, and register a new passkey for the account and origin before using passkey sign-in.
+
+## Configure optional payment providers
+
+Run `./scripts/initialize-payment-settings.ps1` to add every configurable Stripe and M-Pesa field to API user-secrets. Local platform setup invokes it automatically. Existing values are preserved; newly added credential fields are blank, M-Pesa uses Sandbox, and the default provider is NoOp. Fill provider-issued values through **ST.Api → Manage User Secrets**. See [the payment configuration checklist](environment-configuration-checklist.md) for the exact callback routes and public API origin requirements. The helper does not issue payments or register callbacks.

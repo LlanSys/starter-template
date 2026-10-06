@@ -37,7 +37,7 @@ Docker Desktop must be running. From the repository root:
 The script:
 
 1. Generates random local-only RabbitMQ, Redis, SQL Server, and Azurite credentials in ignored `ops/local/.env`.
-2. Writes matching RabbitMQ, Redis, and Mailpit provider values to API user-secrets.
+2. Writes matching RabbitMQ, Redis, and Mailpit provider values to API user-secrets, and adds missing payment fields without overwriting existing credentials.
 3. Pulls and starts RabbitMQ, Redis, Mailpit, and Azurite.
 4. Waits for container health checks.
 

@@ -95,6 +95,23 @@ Do not use personal mailbox SMTP credentials as the production email path. Produ
 SendGrid is Twilio SendGrid. It is managed from the Twilio/SendGrid platform, but it is separate from Twilio SMS or WhatsApp credentials.
 The local setup script removes legacy SMTP-style secrets such as `EmailSettings:Username`, `EmailSettings:Password`, and `SmtpSettings:Password` so old personal-mailbox settings cannot accidentally confuse local testing.
 
+Populate the complete local payment configuration in API user-secrets without overwriting existing values:
+
+```powershell
+./scripts/initialize-payment-settings.ps1
+```
+
+Local platform setup also calls this helper. Credential fields remain blank until replaced with provider-issued values. `Payments:Provider` defaults to `NoOp`; existing selections and credentials are preserved. The UI can select either configured provider per request. Stripe return URLs point to the existing `/features/payments` page; the History and Status Lookup tabs show payment outcomes.
+
+`Payments:Mpesa:Environment` selects `Sandbox` or `Live`. `Payments:Mpesa:CallbackUrlBase` is the publicly reachable API origin, without a route. The adapter appends these implemented callback routes:
+
+- Stripe: `/api/v1/shared/payments/stripe/webhook` (register this complete URL for the Stripe webhook and store its signing secret).
+- M-Pesa STK: `/api/v1/shared/payments/mobile-money/stk-callback`.
+- M-Pesa C2B validation: `/api/v1/shared/payments/mobile-money/c2b-validation`.
+- M-Pesa C2B confirmation: `/api/v1/shared/payments/mobile-money/c2b-confirmation`.
+
+Provider callbacks must reach the API host, not the Blazor host. Stripe also supports local webhook forwarding through its CLI; use the signing secret emitted by that listener for local verification ([Stripe webhook documentation](https://docs.stripe.com/webhooks)). M-Pesa needs a public API origin for its callbacks. No payment is submitted by the initialization helper. Restart the API from Visual Studio after editing provider configuration.
+
 Payment providers are selected explicitly:
 
 ```powershell
@@ -104,8 +121,8 @@ dotnet user-secrets set "Payments:Provider" "NoOp" --project src\Backend\Api\ST.
 dotnet user-secrets set "Payments:Provider" "Stripe" --project src\Backend\Api\ST.Api\ST.Api.csproj
 dotnet user-secrets set "Payments:Stripe:SecretKey" "<stripe-secret-key>" --project src\Backend\Api\ST.Api\ST.Api.csproj
 dotnet user-secrets set "Payments:Stripe:WebhookSigningSecret" "<stripe-webhook-signing-secret>" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "Payments:Stripe:SuccessUrl" "https://localhost:7149/payments/success" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "Payments:Stripe:CancelUrl" "https://localhost:7149/payments/cancel" --project src\Backend\Api\ST.Api\ST.Api.csproj
+dotnet user-secrets set "Payments:Stripe:SuccessUrl" "https://localhost:7149/features/payments" --project src\Backend\Api\ST.Api\ST.Api.csproj
+dotnet user-secrets set "Payments:Stripe:CancelUrl" "https://localhost:7149/features/payments" --project src\Backend\Api\ST.Api\ST.Api.csproj
 
 # M-Pesa Daraja
 dotnet user-secrets set "Payments:Provider" "Mpesa" --project src\Backend\Api\ST.Api\ST.Api.csproj
@@ -116,7 +133,7 @@ dotnet user-secrets set "Payments:Mpesa:PassKey" "<daraja-passkey>" --project sr
 dotnet user-secrets set "Payments:Mpesa:AuthEndpoint" "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials" --project src\Backend\Api\ST.Api\ST.Api.csproj
 dotnet user-secrets set "Payments:Mpesa:StkPushEndpoint" "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest" --project src\Backend\Api\ST.Api\ST.Api.csproj
 dotnet user-secrets set "Payments:Mpesa:StkQueryEndpoint" "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "Payments:Mpesa:CallbackUrl" "https://<public-callback-host>/api/v1/payments/mpesa/callback" --project src\Backend\Api\ST.Api\ST.Api.csproj
+dotnet user-secrets set "Payments:Mpesa:CallbackUrlBase" "https://<public-api-host>" --project src\Backend\Api\ST.Api\ST.Api.csproj
 ```
 
 Entra ID SSO is off by default. Enable it only after registering the application in Microsoft Entra ID and adding the redirect URI matching `EntraId:CallbackPath`:
@@ -205,8 +222,8 @@ PasswordRecovery__ResetPath=/iam/reset-password
 Payments__Provider=NoOp|Stripe|Mpesa
 Payments__Stripe__SecretKey=<key-vault-reference>
 Payments__Stripe__WebhookSigningSecret=<key-vault-reference>
-Payments__Stripe__SuccessUrl=https://your-app/payments/success
-Payments__Stripe__CancelUrl=https://your-app/payments/cancel
+Payments__Stripe__SuccessUrl=https://your-app/features/payments
+Payments__Stripe__CancelUrl=https://your-app/features/payments
 
 Payments__Mpesa__ConsumerKey=<key-vault-reference>
 Payments__Mpesa__ConsumerSecret=<key-vault-reference>
@@ -215,7 +232,7 @@ Payments__Mpesa__PassKey=<key-vault-reference>
 Payments__Mpesa__AuthEndpoint=https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials
 Payments__Mpesa__StkPushEndpoint=https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest
 Payments__Mpesa__StkQueryEndpoint=https://api.safaricom.co.ke/mpesa/stkpushquery/v1/query
-Payments__Mpesa__CallbackUrl=https://your-api/api/v1/payments/mpesa/callback
+Payments__Mpesa__CallbackUrlBase=https://your-api
 
 # Entra ID SSO
 EntraId__Enabled=false
