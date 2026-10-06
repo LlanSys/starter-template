@@ -127,7 +127,7 @@ Phase 0 verified: independent private repository; host secret IDs, JSON/script s
 - [x] Remove bootstrap deletion of unrelated accounts and seed only the platform administrator role.
 - [x] Verify 12 focused cases; full unit suite 49/49 and architecture suite 80/80; API and Web builds passed.
 
-Remaining Phase 1: AppUser business fields and legacy factories, account response/search/profile contracts, authentication/session/claims mappings, independent activation/invitation and business-linked access handlers, Department scope in roles/menus, and neutral permission/menu/catalog seeds. Phase 1 is not closed. Banking/HR fixtures and migrations are retained until their removal phases. SQL Server/PostgreSQL integration and browser/email smoke are pending.
+Remaining Phase 1 at the bootstrap checkpoint included response/authentication decoupling, now completed by the neutral-account checkpoint below. The current remaining work is listed in the latest checkpoint. Phase 1 is not closed. Banking/HR fixtures and migrations are retained until their removal phases. SQL Server/PostgreSQL integration and browser/email smoke are pending.
 
 ### Phase 1 checkpoint: standalone account administration
 
@@ -142,3 +142,17 @@ Remaining Phase 1: AppUser business fields and legacy factories, account respons
 Verification uses real SQLite transactions for role, profile and event-publication rollback and tenant/identity conflicts. SQL Server/PostgreSQL integration, browser/email flows and fresh migration certification remain separate gates. No entity columns or physical schema were removed in this slice. Existing response fields and legacy account activation paths remain on the checklist.
 
 Verification: API and Blazor builds passed; 62 unit tests (including 13 standalone-account cases) and 80 architecture tests passed. A disposable copy renamed its solution and namespace ST -> CS -> DX, updated prefix metadata and regenerated both host secret identities without ORIGIN.md. Provider/browser certification remains pending.
+
+### Phase 1 checkpoint: neutral account responses and authentication state
+
+- [x] Remove Employee/Customer/Staff identifiers, national ID and HR Gender from account/current-user/admin-list responses.
+- [x] Use one backend account mapper for password, OTP, TOTP, passkey, SSO, refresh and administration; correct the previous positional field mismatch.
+- [x] Preserve actual email confirmation, MFA enrollment, tenant, session, permissions, roles and private profile-image routing in login/current-user state.
+- [x] Remove employee/customer claims and business identity context; retain platform account and tenant identifiers.
+- [x] Remove linked-record labels and category filters from account administration.
+
+Intentional contract change: API and clients use the same StarterTemplate baseline revision. No persisted columns or migrations changed. Existing token/session lifecycle and authentication checks are retained. Full browser/email/passkey/SSO certification remains pending.
+
+Remaining Phase 1: legacy AppUser fields/factories, employee/customer ID search parameters used by temporary employee administration, access-event contracts and grant/revoke/link handlers, independent activation/invitation, Department scope and neutral catalogs. Banking/HR module removal and fresh provider migrations follow in later phases.
+
+Verification for neutral authentication: API and Blazor builds passed; full unit suite 74/74, architecture suite 80/80 and whitespace checks passed. Twelve new mapping/claims/current-user cases cover distinct identity fields, neutral wire shape, platform permissions/session/tenant/MFA state and private image routes. Existing analyzer/package warnings remain. Browser authentication ceremonies and fresh migration certification are pending.

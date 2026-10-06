@@ -3,13 +3,9 @@ using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.SharedKernel.Extensions;
 using ST.Application.Features.IAM.Users.Commands;
-using ST.Application.Features.Banking.Customers.Mappings;
-using ST.Application.Features.HR.Employees.Mappings;
 using ST.Application.Features.IAM.Users.Mappings;
 using ST.Application.Features.Shared.EmailTemplates.Mappings;
 using ST.Application.Utilities;
-using ST.Domain.Features.Banking.Contracts;
-using ST.Domain.Features.HR.Contracts;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
@@ -164,29 +160,8 @@ internal sealed class VerifyTotpCode(
             await signInManager.SignInAsync(user, request.RememberMe).ConfigureAwait(false);
 
             var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-            var twoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(user).ConfigureAwait(false);
 
-            var appUserResponse = new AppUserResponse(
-                user.Id,
-                user.UserName ?? string.Empty,
-                user.FirstName,
-                user.LastName,
-                $"{user.FirstName} {user.LastName}".Trim(),
-                user.PhoneNumber,
-                user.NationalId,
-                user.Email ?? string.Empty,
-                user.Gender.ToDisplayString(),
-                ProfilePictureUrlMapping.ToCurrentUserRoute(user.ProfilePictureUrl),
-                user.IsActive,
-                twoFactorEnabled,
-                user.RequirePasswordChange,
-                user.CreatedAt,
-                user.LastLoginAt,
-                [.. roles],
-                user.TenantId,
-                user.EmployeeId,
-                user.CustomerId
-            );
+            var appUserResponse = user.ToAppUserResponse(roles);
 
             var claimsResponse = userClaims.Select(c => new UserClaimsResponse
             {

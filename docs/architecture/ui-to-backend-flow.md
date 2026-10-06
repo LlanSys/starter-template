@@ -39,3 +39,11 @@ For this base template, the HTTP boundary is the enterprise default.
 Direct in-process Application calls are allowed only when a module is explicitly designed as one deployable unit and does not need to expose the same capability to API, mobile, external clients, or API Management.
 
 Document the exception before using it.
+
+## IAM transport and authentication state
+
+Account/login/current-user/admin-list responses describe platform identity and contact data. They do not expose Employee/Customer links, national ID numbers or HR Gender. Current-user state includes the account's TenantId alongside session, permissions, roles and MFA enrollment status.
+
+All backend account responses use AppUserMapping so password, OTP, TOTP, passkey, SSO, refresh and account administration agree on identity fields and actual account flags. Profile picture URLs remain API-mediated private asset routes. Blazor login fallbacks use LoginResponseMapping, preserving email confirmation and authenticated/permission state instead of manufacturing successful flags.
+
+The response changes are intentional for the in-progress fresh StarterTemplate baseline. API and clients must use the same contract revision. Existing downstream database or client upgrades require their own compatibility decisions; no transitional business fields are shipped in these responses.

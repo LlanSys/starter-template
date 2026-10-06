@@ -165,26 +165,7 @@ internal sealed class LoginWithPasskey(
 
         var rolesResponse = await userManager.GetRolesAsync(user).ConfigureAwait(false);
 
-        var appUserResponse = new AppUserResponse(
-                user.Id,
-                user.UserName ?? string.Empty,
-                user.FirstName ?? string.Empty,
-                user.LastName ?? string.Empty,
-                $"{user.FirstName ?? string.Empty} {user.LastName ?? string.Empty}".Trim(),
-                user.PhoneNumber,
-                user.NationalId,
-                user.Email ?? string.Empty,
-                user.Gender.ToDisplayString(),
-                ProfilePictureUrlMapping.ToCurrentUserRoute(user.ProfilePictureUrl),
-                true,
-                false, // twoFactorEnabled = false for now since Passkey can be MFA itself
-                user.RequirePasswordChange,
-                user.CreatedAt,
-                user.LastLoginAt,
-                [..rolesResponse],
-                user.TenantId,
-                user.EmployeeId,
-                user.CustomerId);
+        var appUserResponse = user.ToAppUserResponse(rolesResponse);
 
         var tokenExpiry = timeProvider.GetUtcNow().AddMinutes(_jwtSettings.AccessTokenExpiryMinutes);
 

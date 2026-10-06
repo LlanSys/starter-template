@@ -66,7 +66,7 @@ internal sealed class UpdateAdminUser(
                     user.Id, user.UserName ?? string.Empty, $"{user.FirstName} {user.LastName}".Trim(),
                     user.Email ?? string.Empty, user.PhoneNumber, user.IsActive, user.EmailConfirmed,
                     user.TwoFactorEnabled, user.RequirePasswordChange, user.CreatedAt, user.LastLoginAt,
-                    user.EmployeeId, user.CustomerId, [.. roles.Order(StringComparer.OrdinalIgnoreCase)]));
+                    [.. roles.Order(StringComparer.OrdinalIgnoreCase)]));
             }, cancellationToken).ConfigureAwait(false);
         }
         catch (AccountUpdateRejectedException ex)

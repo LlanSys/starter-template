@@ -1,9 +1,6 @@
 using ST.SharedKernel.Extensions;
 using ST.Application.Features.IAM.Users.Commands;
-using ST.Application.Features.Banking.Customers.Mappings;
-using ST.Application.Features.HR.Employees.Mappings;
 using ST.Application.Features.IAM.Users.Mappings;
-using ST.Application.Features.Shared.EmailTemplates.Mappings;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Infrastructure.Logging;
 using ST.Infrastructure.Configuration;
@@ -45,14 +42,6 @@ internal sealed class GetCurrentUser(
             var emailConfirmed = await userManager.IsEmailConfirmedAsync(appUser).ConfigureAwait(false);
             await userManager.IsPhoneNumberConfirmedAsync(appUser).ConfigureAwait(false);
 
-            var lastLoginClaim = httpContextAccessor.HttpContext?.User?.FindFirst("LastLogin");
-
-            DateTimeOffset? lastLoginAt = null;
-            if (lastLoginClaim?.Value != null && DateTimeOffset.TryParse(lastLoginClaim.Value, out var lastLogin))
-            {
-                lastLoginAt = lastLogin;
-            }
-
             bool? isAuthenticated = httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated ?? false;
             var permissions = httpContextAccessor.HttpContext?.User.Claims
                 .Where(static claim => string.Equals(claim.Type, "permission", StringComparison.OrdinalIgnoreCase))
@@ -67,9 +56,7 @@ internal sealed class GetCurrentUser(
 
             return AppResponses.Success("CurrentUser", new CurrentUserResponse(
                 userId,
-                appUser.EmployeeId ?? Guid.Empty,
-                appUser.CustomerId ?? Guid.Empty,
-                appUser.NationalId ?? string.Empty,
+                appUser.TenantId,
                 appUser.UserName ?? string.Empty,
                 appUser.Email ?? string.Empty,
                 appUser.FirstName ?? string.Empty,
@@ -77,9 +64,8 @@ internal sealed class GetCurrentUser(
                 appUser.PhoneNumber ?? string.Empty,
                 emailConfirmed,
                 twoFactorEnabled,
-                appUser.Gender.ToDisplayString(),
                 isAuthenticated,
-                lastLoginAt,
+                appUser.LastLoginAt,
                 rolesList,
                 permissions,
                 sessionId,

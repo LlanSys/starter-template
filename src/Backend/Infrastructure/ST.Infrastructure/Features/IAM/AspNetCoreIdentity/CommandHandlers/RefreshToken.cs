@@ -1,12 +1,8 @@
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.Application.Features.IAM.Users.Commands;
-using ST.Application.Features.Banking.Customers.Mappings;
-using ST.Application.Features.HR.Employees.Mappings;
 using ST.Application.Features.IAM.Users.Mappings;
 using ST.Application.Features.Shared.EmailTemplates.Mappings;
-using ST.Domain.Features.Banking.Contracts;
-using ST.Domain.Features.HR.Contracts;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
@@ -178,28 +174,8 @@ internal sealed class RefreshToken(
             await userManager.UpdateAsync(user).ConfigureAwait(false);
 
             var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-            var twoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(user).ConfigureAwait(false);
 
-            var userInfo = new AppUserResponse(
-                user.Id,
-                user.UserName ?? string.Empty,
-                user.FirstName ?? string.Empty,
-                user.LastName ?? string.Empty,
-                $"{user.FirstName ?? string.Empty} {user.LastName ?? string.Empty}".Trim(),
-                user.PhoneNumber,
-                user.NationalId,
-                user.Email ?? string.Empty,
-                user.Gender.ToDisplayString(),
-                ProfilePictureUrlMapping.ToCurrentUserRoute(user.ProfilePictureUrl),
-                user.IsActive,
-                twoFactorEnabled,
-                user.RequirePasswordChange,
-                user.CreatedAt,
-                user.LastLoginAt,
-                [.. roles],
-                user.TenantId,
-                user.EmployeeId,
-                user.CustomerId);
+            var userInfo = user.ToAppUserResponse(roles);
 
             ServiceLogDefinitions.LogTokenRefreshed(logger, userId);
 

@@ -1,3 +1,8 @@
+using System.Security.Claims;
+using ST.Application.Features.IAM.Users.Mappings;
+using ST.Infrastructure.Configuration;
+using ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Services;
+using Microsoft.AspNetCore.Http;
 using System.Diagnostics.CodeAnalysis;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Contracts;
@@ -217,6 +222,88 @@ public sealed class IndependentAccountTests
         Assert.True(new UpdateAdminUserRequestValidator().Validate(EditCommand("id").Request).IsValid);
     }
 
+    [Fact]
+    public async Task PlatformClaimsRetainTenantSessionRolesAndPermissionsWithoutBusinessLinks()
+    {
+        using var fixture = new Fixture();
+        await fixture.AddRoleAsync("Operator");
+        var user = await fixture.AddUserAsync();
+        user.EmployeeId = Guid.CreateVersion7();
+        user.CustomerId = Guid.CreateVersion7();
+        user.TwoFactorEnabled = true;
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        Assert.True((await fixture.Users.AddToRolesAsync(user, ["Operator"])).Succeeded);
+        var role = await fixture.Roles.FindByNameAsync("Operator");
+        Assert.True((await fixture.Roles.AddClaimAsync(role!, new Claim("permission", "Accounts.View"))).Succeeded);
+        Assert.True((await fixture.Users.AddClaimAsync(user, new Claim("permission", "Accounts.View"))).Succeeded);
+        Assert.True((await fixture.Users.AddClaimAsync(user, new Claim("employee_id", user.EmployeeId.Value.ToString()))).Succeeded);
+        var sessionId = Guid.CreateVersion7();
+        var service = new ClaimsService(fixture.Users, fixture.Roles, NullLogger<ClaimsService>.Instance);
+
+        var claims = await service.GetUserClaimsAsync(user, sessionId);
+
+        Assert.Contains(claims, claim => claim.Type == ClaimTypes.NameIdentifier && claim.Value == user.Id);
+        Assert.Contains(claims, claim => claim.Type == "tenant_id" && claim.Value == TenantId.ToString());
+        Assert.Contains(claims, claim => claim.Type == "session_id" && claim.Value == sessionId.ToString());
+        Assert.Contains(claims, claim => claim.Type == ClaimTypes.Role && claim.Value == "Operator");
+        Assert.Contains(claims, claim => claim.Type == "mfa_enrolled" && claim.Value == "true");
+        Assert.Single(claims, claim => claim.Type == "permission" && claim.Value == "Accounts.View");
+        Assert.DoesNotContain(claims, claim => claim.Type is "employee_id" or "customer_id" or "active_context");
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task CurrentUserPreservesPlatformStateAndMfaEnrollmentPolicy(bool enrolled, bool required)
+    {
+        using var fixture = new Fixture();
+        await fixture.AddRoleAsync("System Administrator");
+        var user = await fixture.AddUserAsync();
+        user.TwoFactorEnabled = enrolled;
+        user.LastLoginAt = DateTimeOffset.UtcNow.AddMinutes(-2);
+        user.EmailConfirmed = true;
+        user.SetProfilePicture(new Uri("https://private-storage.example.test/private-image"), ActorId);
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        Assert.True((await fixture.Users.AddToRolesAsync(user, ["System Administrator"])).Succeeded);
+        var sessionId = Guid.CreateVersion7().ToString();
+        var http = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([
+                    new Claim(ClaimTypes.NameIdentifier, user.Id),
+                    new Claim("tenant_id", TenantId.ToString()),
+                    new Claim("session_id", sessionId),
+                    new Claim("permission", "Accounts.View")], "test"))
+            }
+        };
+        var handler = new GetCurrentUser(http, fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance);
+
+        var response = await handler.Handle(new GetCurrentUserCommand(), CancellationToken.None);
+
+        Assert.True(response.IsSuccess);
+        Assert.Equal(TenantId, response.Data!.TenantId);
+        Assert.Equal(user.Id, response.Data.AppUserId);
+        Assert.Equal(sessionId, response.Data.SessionId);
+        Assert.Equal(user.LastLoginAt, response.Data.LastLoginAt);
+        Assert.True(response.Data.EmailConfirmed);
+        Assert.True(response.Data.IsAuthenticated);
+        Assert.Equal(enrolled, response.Data.TwoFactorEnabled);
+        Assert.Equal(required, response.Data.MfaEnrollmentRequired);
+        Assert.Equal("Accounts.View", Assert.Single(response.Data.Permissions!));
+        Assert.Equal("/api/v1/iam/users/me/profile-picture/content", response.Data.ProfilePictureUrl!.OriginalString);
+    }
+
+    [Fact]
+    public async Task CurrentUserWithoutIdentityReturnsExpectedFailure()
+    {
+        using var fixture = new Fixture();
+        var handler = new GetCurrentUser(new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
+            fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance);
+        var response = await handler.Handle(new GetCurrentUserCommand(), CancellationToken.None);
+        Assert.False(response.IsSuccess);
+        Assert.Null(response.Data);
+    }
     private static CreateAppUserCommand Command(ICollection<string>? roles = null) => new(
         new CreateAppUserRequest("user", "user@example.test", Password, "First", "Last", null, roles), ActorId);
 

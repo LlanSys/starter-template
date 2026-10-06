@@ -7,7 +7,6 @@ public sealed record AdminUserSearchRequest(
     string? Status = null,
     string? Role = null,
     string? TwoFactorStatus = null,
-    string? LinkedRecordType = null,
     Guid? EmployeeId = null,
     Guid? CustomerId = null,
     string? Cursor = null,
@@ -20,7 +19,6 @@ public sealed record AdminUserSearchRequest(
         Add(parameters, nameof(Status), Status);
         Add(parameters, nameof(Role), Role);
         Add(parameters, nameof(TwoFactorStatus), TwoFactorStatus);
-        Add(parameters, nameof(LinkedRecordType), LinkedRecordType);
         Add(parameters, nameof(EmployeeId), EmployeeId?.ToString());
         Add(parameters, nameof(CustomerId), CustomerId?.ToString());
         Add(parameters, nameof(Cursor), Cursor);

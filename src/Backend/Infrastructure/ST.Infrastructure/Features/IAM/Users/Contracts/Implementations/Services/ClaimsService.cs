@@ -65,12 +65,6 @@ internal sealed class ClaimsService(
             if (sessionId.HasValue && sessionId.Value != Guid.Empty)
                 claims.Add(new("session_id", sessionId.Value.ToString()));
 
-            if (user.EmployeeId.HasValue)
-                claims.Add(new("employee_id", user.EmployeeId.Value.ToString()));
-
-            if (user.CustomerId.HasValue)
-                claims.Add(new("customer_id", user.CustomerId.Value.ToString()));
-
             var roles = await _userManager.GetRolesAsync(user).ConfigureAwait(false);
 
             foreach (var roleName in roles)

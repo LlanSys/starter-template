@@ -131,14 +131,8 @@ internal sealed class VerifyEmailOtp(
         await signInManager.SignInAsync(user, req.RememberMe).ConfigureAwait(false);
 
         var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-        var twoFactor = await userManager.GetTwoFactorEnabledAsync(user).ConfigureAwait(false);
 
-        var appUser = new AppUserResponse(
-            user.Id, user.UserName ?? "", user.FirstName, user.LastName,
-            $"{user.FirstName} {user.LastName}".Trim(), user.PhoneNumber, user.NationalId,
-            user.Email ?? "", user.Gender.ToDisplayString(), ProfilePictureUrlMapping.ToCurrentUserRoute(user.ProfilePictureUrl),
-            user.IsActive, twoFactor, user.RequirePasswordChange, user.CreatedAt,
-            user.LastLoginAt, [.. roles], user.TenantId, user.EmployeeId, user.CustomerId);
+        var appUser = user.ToAppUserResponse(roles);
 
         var claimsResp = claims.Select(c => new UserClaimsResponse
         {

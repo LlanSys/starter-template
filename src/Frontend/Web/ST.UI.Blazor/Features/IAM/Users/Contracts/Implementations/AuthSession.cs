@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.IAM.Users.Mappings;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.UI.Blazor.Features.Shared.Messaging;
@@ -114,27 +115,7 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
 
         if (CurrentUser is null && response.Data.UserInfo is not null)
         {
-            var roles = response.Data.UserInfo.Roles ?? [];
-
-            CurrentUser = new CurrentUserResponse(
-                response.Data.UserInfo.Id,
-                response.Data.UserInfo.EmployeeId ?? Guid.Empty,
-                response.Data.UserInfo.CustomerId ?? Guid.Empty,
-                response.Data.UserInfo.IdNumber ?? string.Empty,
-                response.Data.UserInfo.Username,
-                response.Data.UserInfo.Email,
-                response.Data.UserInfo.FirstName,
-                response.Data.UserInfo.LastName,
-                response.Data.UserInfo.PhoneNumber ?? string.Empty,
-                true,
-                response.Data.UserInfo.TwoFactorEnabled,
-                response.Data.UserInfo.Gender,
-                true,
-                response.Data.UserInfo.LastLoginAt,
-                [.. roles],
-                SessionId: response.Data.SessionId,
-                MfaEnrollmentRequired: response.Data.MfaEnrollmentRequired,
-                ProfilePictureUrl: response.Data.UserInfo.ProfilePictureUrl);
+            CurrentUser = response.Data.ToCurrentUserResponse();
 
             LastError = null;
         }
@@ -165,27 +146,7 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
 
         if (CurrentUser is null && response.Data.UserInfo is not null)
         {
-            var roles = response.Data.UserInfo.Roles ?? [];
-
-            CurrentUser = new CurrentUserResponse(
-                response.Data.UserInfo.Id,
-                response.Data.UserInfo.EmployeeId ?? Guid.Empty,
-                response.Data.UserInfo.CustomerId ?? Guid.Empty,
-                response.Data.UserInfo.IdNumber ?? string.Empty,
-                response.Data.UserInfo.Username,
-                response.Data.UserInfo.Email,
-                response.Data.UserInfo.FirstName,
-                response.Data.UserInfo.LastName,
-                response.Data.UserInfo.PhoneNumber ?? string.Empty,
-                true,
-                response.Data.UserInfo.TwoFactorEnabled,
-                response.Data.UserInfo.Gender,
-                true,
-                response.Data.UserInfo.LastLoginAt,
-                [.. roles],
-                SessionId: response.Data.SessionId,
-                MfaEnrollmentRequired: response.Data.MfaEnrollmentRequired,
-                ProfilePictureUrl: response.Data.UserInfo.ProfilePictureUrl);
+            CurrentUser = response.Data.ToCurrentUserResponse();
 
             LastError = null;
         }
@@ -216,27 +177,7 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
 
         if (CurrentUser is null && response.Data.UserInfo is not null)
         {
-            var roles = response.Data.UserInfo.Roles ?? [];
-
-            CurrentUser = new CurrentUserResponse(
-                response.Data.UserInfo.Id,
-                response.Data.UserInfo.EmployeeId ?? Guid.Empty,
-                response.Data.UserInfo.CustomerId ?? Guid.Empty,
-                response.Data.UserInfo.IdNumber ?? string.Empty,
-                response.Data.UserInfo.Username,
-                response.Data.UserInfo.Email,
-                response.Data.UserInfo.FirstName,
-                response.Data.UserInfo.LastName,
-                response.Data.UserInfo.PhoneNumber ?? string.Empty,
-                true,
-                response.Data.UserInfo.TwoFactorEnabled,
-                response.Data.UserInfo.Gender,
-                true,
-                response.Data.UserInfo.LastLoginAt,
-                [.. roles],
-                SessionId: response.Data.SessionId,
-                MfaEnrollmentRequired: response.Data.MfaEnrollmentRequired,
-                ProfilePictureUrl: response.Data.UserInfo.ProfilePictureUrl);
+            CurrentUser = response.Data.ToCurrentUserResponse();
 
             LastError = null;
         }
