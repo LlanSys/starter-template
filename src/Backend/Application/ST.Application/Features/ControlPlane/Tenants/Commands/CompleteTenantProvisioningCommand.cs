@@ -52,7 +52,7 @@ internal sealed partial class CompleteTenantProvisioningCommandHandler : IReques
         }
 
         tenant.DatabaseConnectionString = _encryptionService.Encrypt(request.DatabaseConnectionString);
-        tenant.Status = TenantStatus.Active;
+        tenant.MarkAsActive();
 
         await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 

@@ -13,7 +13,7 @@ public sealed class UpdatePermissionRequestValidator : Validator<UpdatePermissio
 
         RuleFor(x => new CreatePermissionRequest
         {
-            DepartmentId = x.DepartmentId,
+
             Context = x.Context,
             Resource = x.Resource,
             Action = x.Action,

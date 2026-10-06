@@ -1,6 +1,4 @@
 using ST.Domain.Shared.Contracts.Common;
-using ST.Domain.Features.Banking.Customers.Contracts.Repositories;
-using ST.Domain.Features.HR.Employees.Contracts.Repositories;
 using ST.Domain.Features.IAM.Users.Contracts.Repositories;
 using ST.Domain.Shared.Contracts.Repositories;
 

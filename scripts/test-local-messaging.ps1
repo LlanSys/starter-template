@@ -30,11 +30,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "RabbitMQ startup failed with exit code $LASTEXITCODE."
 }
 
-$env:BT_RUN_RABBITMQ_TESTS = 'true'
-$env:BT_RABBITMQ_HOST = 'localhost'
-$env:BT_RABBITMQ_VIRTUAL_HOST = '/'
-$env:BT_RABBITMQ_USERNAME = $environment.RABBITMQ_USER
-$env:BT_RABBITMQ_PASSWORD = $environment.RABBITMQ_PASSWORD
+$env:ST_RUN_RABBITMQ_TESTS = 'true'
+$env:ST_RABBITMQ_HOST = 'localhost'
+$env:ST_RABBITMQ_PORT = '5675'
+$env:ST_RABBITMQ_VIRTUAL_HOST = '/'
+$env:ST_RABBITMQ_USERNAME = $environment.RABBITMQ_USER
+$env:ST_RABBITMQ_PASSWORD = $environment.RABBITMQ_PASSWORD
 
 try {
     dotnet test $testProject --filter 'Category=ExternalRabbitMq' -p:UseSharedCompilation=false
@@ -43,9 +44,10 @@ try {
     }
 }
 finally {
-    Remove-Item Env:BT_RUN_RABBITMQ_TESTS -ErrorAction SilentlyContinue
-    Remove-Item Env:BT_RABBITMQ_HOST -ErrorAction SilentlyContinue
-    Remove-Item Env:BT_RABBITMQ_VIRTUAL_HOST -ErrorAction SilentlyContinue
-    Remove-Item Env:BT_RABBITMQ_USERNAME -ErrorAction SilentlyContinue
-    Remove-Item Env:BT_RABBITMQ_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:ST_RUN_RABBITMQ_TESTS -ErrorAction SilentlyContinue
+    Remove-Item Env:ST_RABBITMQ_PORT -ErrorAction SilentlyContinue
+    Remove-Item Env:ST_RABBITMQ_HOST -ErrorAction SilentlyContinue
+    Remove-Item Env:ST_RABBITMQ_VIRTUAL_HOST -ErrorAction SilentlyContinue
+    Remove-Item Env:ST_RABBITMQ_USERNAME -ErrorAction SilentlyContinue
+    Remove-Item Env:ST_RABBITMQ_PASSWORD -ErrorAction SilentlyContinue
 }

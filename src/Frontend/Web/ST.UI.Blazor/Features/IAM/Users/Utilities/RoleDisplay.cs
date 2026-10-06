@@ -8,12 +8,9 @@ internal static class RoleDisplay
         ["Administrator"] = 10,
         ["IAM Administrator"] = 20,
         ["Security Administrator"] = 30,
-        ["HR Administrator"] = 40,
-        ["Banking Administrator"] = 50,
-        ["Manager"] = 100,
-        ["Supervisor"] = 110,
-        ["Employee"] = 900,
-        ["Customer"] = 1000
+
+
+
     };
 
     public static string SelectPrimaryRole(IEnumerable<string>? roles, string fallback = "Signed in")

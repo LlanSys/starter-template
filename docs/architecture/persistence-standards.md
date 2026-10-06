@@ -49,13 +49,13 @@ If a feature operation can be handled cleanly by these methods plus a specificat
 Concrete repositories should be feature-bound and usually thin:
 
 ```csharp
-internal sealed class HrEmployeeRepository(HrDBContext context)
-    : Repository<Employee>(context), IEmployeeRepository
+internal sealed class IamMenuRepository(IamDBContext context)
+    : Repository<MenuItem>(context), IMenuRepository
 {
 }
 ```
 
-This is the preferred shape for normal aggregate repositories such as Customers, Employees, Email Templates, and Failed Messages.
+This is the preferred shape for normal aggregate repositories such as Menus, Permissions, Email Templates, and Failed Messages.
 
 Concrete repositories may add methods only for persistence concerns that the generic repository cannot express cleanly.
 
@@ -112,7 +112,7 @@ For list screens and searchable APIs:
 - Avoid N+1 query patterns. Do not run repository, `UserManager`, or lookup calls per row in a result loop; batch identifiers and map results in memory.
 - Use `AsNoTracking` for read-only queries and tracked queries only when the entity will be mutated in the same unit of work.
 
-The Customer list is the current UI/API reference flow for search, filters, pagination, table actions, dialogs, and confirmation flows.
+The account administration list is the current UI/API reference flow for search, filters, pagination, table actions, dialogs, and confirmation flows.
 
 ---
 
@@ -178,3 +178,13 @@ If the answer is unclear, start with the generic repository and add a concrete m
 
 ### PostgreSQL JSONB
 When using PostgreSQL as the primary database provider, you can safely utilize jsonb columns for unstructured or highly dynamic data (e.g., audit trails, untyped webhook payloads, or form submissions) when appropriate. PostgreSQL handles jsonb extremely efficiently and allows GIN indexing on these columns, providing excellent performance for complex queries. Ensure that business-critical relational data remains strongly typed.
+
+## Fresh starter baseline and concurrency
+
+Only IAM, Shared and ControlPlane ship in the starter. Generate separate SQL Server and PostgreSQL migrations in Features/{Context}/Migrations/{SqlServer|PostgreSql}; each context has its own migration history. InitialStarter targets an empty database. Existing downstream database upgrades require a separate migration strategy.
+
+SQL Server uses native rowversion. PostgreSQL stores a required byte concurrency token and assigns a new cryptographically random value on every added/modified row through DBContextHelper. EF includes the original value in update predicates; conflicting writers fail rather than overwrite silently. ControlPlane applies this convention even though its registry is deliberately not tenant-filtered.
+
+PasskeyChallenge is an explicit exception to soft delete. It is transient, tenant-scoped ceremony state with five-minute expiry. Atomic conditional deletion gives one consumer ownership; failed and malformed attempts consume the challenge. Do not replace this with a distributed-cache read/remove pair.
+
+Shared's initial baseline also installs the provider-specific Quartz schema without the historical reset/drop statements. EF's context history protects repeat execution. Quartz reads DefaultConnection, which must point to the database containing those tables.

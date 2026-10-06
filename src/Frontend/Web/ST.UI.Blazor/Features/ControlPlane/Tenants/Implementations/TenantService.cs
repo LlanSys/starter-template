@@ -76,13 +76,13 @@ internal class TenantService(IBackendApiClient client) : ITenantService
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<AppResponse<TenantResponse>> ApproveKYCAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<AppResponse<TenantResponse>> ApproveAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await client.SendAsync<TenantResponse>(
             HttpMethod.Post,
-            $"{BasePath}/{id}/approve-kyc",
+            $"{BasePath}/{id}/approve",
             requiresAuthentication: true,
-            unavailableMessage: "Unable to approve KYC.",
+            unavailableMessage: "Unable to approve tenant.",
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 

@@ -4,7 +4,6 @@ public sealed record UpdatePermissionRequest
 {
     public required Guid Id { get; init; }
 
-    public Guid? DepartmentId { get; init; }
 
     public required string Context { get; init; }
 

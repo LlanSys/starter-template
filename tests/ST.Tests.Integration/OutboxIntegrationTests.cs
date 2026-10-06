@@ -1,5 +1,4 @@
-using ST.Domain.Features.Banking.Customers.Enums;
-using ST.Domain.Features.Banking.Customers.Events;
+using ST.Domain.Features.IAM.Users.Events;
 using ST.Persistence.Features.Shared.DataContext;
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
@@ -58,7 +57,7 @@ public class OutboxIntegrationTests
 
         await db.Database.EnsureCreatedAsync();
 
-        var message = new CustomerCreatedEvent(Guid.CreateVersion7(), "", "", "", CustomerType.Individual);
+        var message = new AppUserCreatedEvent(Guid.CreateVersion7().ToString(), Guid.CreateVersion7(), "user", "Test User", "user@example.test");
 
         // Act
         await using var tx = await db.Database.BeginTransactionAsync();
@@ -106,7 +105,7 @@ public class OutboxIntegrationTests
 
         await db.Database.EnsureCreatedAsync();
 
-        var clientEvent = new CustomerCreatedEvent(Guid.CreateVersion7(), "Test", "User", "test@example.com", CustomerType.Individual);
+        var clientEvent = new AppUserCreatedEvent(Guid.CreateVersion7().ToString(), Guid.CreateVersion7(), "user", "Test User", "test@example.test");
 
         await using var tx = await db.Database.BeginTransactionAsync();
 
@@ -115,7 +114,7 @@ public class OutboxIntegrationTests
         await tx.CommitAsync();
 
         var existsInOutbox = await db.Set<OutboxMessage>()
-            .AnyAsync(m => m.MessageType.Contains(nameof(CustomerCreatedEvent)));
+            .AnyAsync(m => m.MessageType.Contains(nameof(AppUserCreatedEvent)));
 
         Assert.True(existsInOutbox);
     }

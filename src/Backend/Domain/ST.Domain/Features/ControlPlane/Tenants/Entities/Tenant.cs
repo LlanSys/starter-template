@@ -16,12 +16,13 @@ public class Tenant : IAuditable, IHasDomainEvents
     public string? ContactEmail { get; set; }
     public int MaxUsers { get; set; }
     public SubscriptionTier SubscriptionTier { get; set; }
-    public TenantStatus Status { get; set; } = TenantStatus.PendingKYC;
+    public TenantStatus Status { get; set; } = TenantStatus.PendingApproval;
 
-    public void ApproveKYC(string actorId)
+    public void Approve(string actorId)
     {
-        if (Status != TenantStatus.PendingKYC)
-            throw new InvalidOperationException($"Cannot approve KYC from status {Status}");
+        ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
+        if (Status != TenantStatus.PendingApproval)
+            throw new InvalidOperationException($"Cannot approve tenant from status {Status}");
 
         Status = TenantStatus.PendingProvisioning;
         UpdatedBy = actorId;
@@ -38,11 +39,17 @@ public class Tenant : IAuditable, IHasDomainEvents
 
     public void MarkAsActive()
     {
+        if (Status is not (TenantStatus.PendingProvisioning or TenantStatus.Provisioning or TenantStatus.Suspended))
+            throw new InvalidOperationException($"Cannot activate tenant from status {Status}");
+
         Status = TenantStatus.Active;
     }
 
     public void Suspend()
     {
+        if (Status != TenantStatus.Active)
+            throw new InvalidOperationException($"Cannot suspend tenant from status {Status}");
+
         Status = TenantStatus.Suspended;
     }
 

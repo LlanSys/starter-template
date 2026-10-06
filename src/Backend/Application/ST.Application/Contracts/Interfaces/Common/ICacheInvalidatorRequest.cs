@@ -22,7 +22,7 @@ public interface ICacheInvalidatorRequest
     /// <summary>
     /// Exact cache keys to delete immediately after the command succeeds.
     /// Use for entity-level entries whose key is known at command time.
-    /// Example: CacheKeys.Entity("customers", command.CustomerId.ToString())
+    /// Example: CacheKeys.Entity("iam-admin-users", command.UserId)
     /// </summary>
     IReadOnlyList<string> DirectInvalidationKeys => [];
 

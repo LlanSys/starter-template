@@ -11,7 +11,7 @@ public static class PermissionMapping
 
         return new PermissionResponse(
             permission.Id,
-            permission.DepartmentId,
+
             permission.Key,
             permission.Context,
             permission.Resource,

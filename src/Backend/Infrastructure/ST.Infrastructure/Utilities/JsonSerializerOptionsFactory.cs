@@ -1,4 +1,3 @@
-using ST.Domain.Features.HR.Employees.Enums;
 using ST.SharedKernel.Dtos.Utilities;
 using System;
 using System.Collections.Generic;
@@ -23,8 +22,6 @@ public static class JsonSerializerOptionsFactory
             WriteIndented = true
         };
 
-        options.Converters.Add(new EnumConverter<Gender>());
-        options.Converters.Add(new NullableEnumConverter<Gender>());
 
         return options;
     }

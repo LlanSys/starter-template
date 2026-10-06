@@ -9,22 +9,24 @@ internal static class IamReferenceDataSeed
 
     internal static IReadOnlyList<PermissionContext> PermissionContexts =>
     [
-        CreateContext("018fd81d-2c94-7ad0-a4a3-f1edb9d10101", "Banking", "Banking", "Customer, accounts, loans, and financial operations."),
-        CreateContext("018fd81d-2c94-7ad0-a4a3-f1edb9d10102", "HR", "Human Resources", "Departments, employees, and staff operations."),
+
+
         CreateContext("018fd81d-2c94-7ad0-a4a3-f1edb9d10103", "IAM", "Identity and Access", "Users, roles, permissions, sessions, and devices."),
         CreateContext("018fd81d-2c94-7ad0-a4a3-f1edb9d10104", "Platform", "Platform", "Cross-cutting platform configuration and navigation."),
+        CreateContext("018fd81d-2c94-7ad0-a4a3-f1edb9d10106", "ControlPlane", "Control Plane", "Tenant approval and deployment administration."),
         CreateContext("018fd81d-2c94-7ad0-a4a3-f1edb9d10105", "Shared", "Shared", "Cross-cutting platform services and reusable capability showcases.")
     ];
 
     internal static IReadOnlyList<PermissionResource> PermissionResources =>
     [
-        CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10201", "customers", "Customers", "Banking", "Customer records and onboarding."),
-        CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10202", "departments", "Departments", "HR", "Department catalog and staff grouping."),
-        CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10203", "employees", "Employees", "HR", "Employee records and IAM linkage."),
+
+
+
         CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10204", "menus", "Menus", "Platform", "Navigation registry and menu visibility."),
         CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10205", "permissions", "Permissions", "IAM", "Permission catalog and assignment surface."),
         CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10206", "roles", "Roles", "IAM", "Role catalog and permission bundles."),
         CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10207", "users", "Users", "IAM", "Application user accounts."),
+        CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10209", "control_plane", "Control Plane", "ControlPlane", "Tenant and stamp administration."),
         CreateResource("018fd81d-2c94-7ad0-a4a3-f1edb9d10208", "payments", "Payments", "Shared", "Payment checkout, status, and provider administration." )
     ];
 
@@ -37,6 +39,7 @@ internal static class IamReferenceDataSeed
         CreateAction("018fd81d-2c94-7ad0-a4a3-f1edb9d10305", "deactivate", "Deactivate", "Disable active records or accounts."),
         CreateAction("018fd81d-2c94-7ad0-a4a3-f1edb9d10306", "manage_permissions", "Manage permissions", "Assign or revoke permissions."),
         CreateAction("018fd81d-2c94-7ad0-a4a3-f1edb9d10307", "manage_roles", "Manage roles", "Assign or revoke roles."),
+        CreateAction("018fd81d-2c94-7ad0-a4a3-f1edb9d10309", "manage", "Manage", "Manage a platform capability."),
         CreateAction("018fd81d-2c94-7ad0-a4a3-f1edb9d10308", "admin", "Administer", "Perform restricted provider administration actions.")
     ];
 
@@ -70,9 +73,9 @@ internal static class IamReferenceDataSeed
         CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10601", "dashboard", "Dashboard", "/dashboard", "Sidebar"),
         CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10602", "admin-center", "Admin Center", "/admin", "Sidebar"),
         CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10603", "solution-overview", "Solution Overview", "/overview", "Sidebar"),
-        CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10604", "admin-customers", "Customers", "/admin/customers", "AdminCenter"),
-        CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10605", "admin-departments", "Departments", "/admin/departments", "AdminCenter"),
-        CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10606", "admin-employees", "Employees", "/admin/employees", "AdminCenter"),
+
+
+
         CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10607", "admin-menus", "Menus", "/admin/menus", "AdminCenter"),
         CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10608", "admin-permissions", "Permissions", "/admin/permissions", "AdminCenter"),
         CreateRoute("018fd81d-2c94-7ad0-a4a3-f1edb9d10609", "admin-roles", "Roles", "/admin/roles", "AdminCenter"),

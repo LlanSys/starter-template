@@ -1,6 +1,6 @@
-using ST.Domain.Features.HR.Departments.Entities;
+using ST.Domain.Features.IAM.Menus.Entities;
 using ST.Domain.Shared.Contracts.Common;
-using ST.Persistence.Features.HR.DataContext;
+using ST.Persistence.Features.IAM.DataContext;
 using Microsoft.EntityFrameworkCore;
 
 namespace ST.Tests.Unit.Persistence.Audit;
@@ -14,14 +14,14 @@ public sealed class AuditStampingTests
     {
         await using var context = CreateContext("create-audit", "actor-1");
 
-        var department = Department.Create("qa", "Quality Assurance", "Test department", "initial");
-        context.Departments.Add(department);
+        var menu = MenuItem.Create(null, "qa", "Quality Assurance", "Test menu", "/qa", "Menu", "Sidebar", null, null, 1, "initial");
+        context.MenuItems.Add(menu);
 
         await context.SaveChangesAsync();
 
-        Assert.Equal("actor-1", department.CreatedBy);
-        Assert.Equal(TenantId, department.TenantId);
-        Assert.Null(department.UpdatedBy);
+        Assert.Equal("actor-1", menu.CreatedBy);
+        Assert.Equal(TenantId, menu.TenantId);
+        Assert.Null(menu.UpdatedBy);
     }
 
     [Fact]
@@ -30,27 +30,27 @@ public sealed class AuditStampingTests
         var databaseName = $"update-audit-{Guid.CreateVersion7()}";
         await using var createContext = CreateContext(databaseName, "creator");
 
-        var department = Department.Create("ops", "Operations", "Operations", "initial");
-        createContext.Departments.Add(department);
+        var menu = MenuItem.Create(null, "ops", "Operations", "Operations", "/ops", "Menu", "Sidebar", null, null, 1, "initial");
+        createContext.MenuItems.Add(menu);
         await createContext.SaveChangesAsync();
 
         await using var updateContext = CreateContext(databaseName, "updater");
-        var savedDepartment = await updateContext.Departments.SingleAsync(department => department.Code == "OPS");
-        savedDepartment.Update("ops", "Operations", "Updated", true, "domain");
+        var savedMenu = await updateContext.MenuItems.SingleAsync(menu => menu.Key == "ops");
+        savedMenu.Update(null, "ops", "Operations", "Updated", "/ops", "Menu", "Sidebar", null, null, 1, true, "domain");
 
         await updateContext.SaveChangesAsync();
 
-        Assert.Equal("updater", savedDepartment.UpdatedBy);
-        Assert.NotNull(savedDepartment.UpdatedAt);
+        Assert.Equal("updater", savedMenu.UpdatedBy);
+        Assert.NotNull(savedMenu.UpdatedAt);
     }
 
-    private static HrDBContext CreateContext(string databaseName, string actorId)
+    private static IamDBContext CreateContext(string databaseName, string actorId)
     {
-        var options = new DbContextOptionsBuilder<HrDBContext>()
+        var options = new DbContextOptionsBuilder<IamDBContext>()
             .UseInMemoryDatabase(databaseName)
             .Options;
 
-        return new HrDBContext(
+        return new IamDBContext(
             options,
             new FixedTenantProvider(TenantId),
             new FixedActorProvider(actorId));

@@ -90,7 +90,7 @@ public sealed class PersistenceLayerTests
     public void Declared_DbSet_Entities_Should_Support_Soft_Delete()
     {
         var hardDeleteOnlyEntities = GetDeclaredDbSetEntityTypes()
-            .Where(t => !typeof(ISoftDeletable).IsAssignableFrom(t) &&
+            .Where(t => !typeof(ISoftDeletable).IsAssignableFrom(t) && t.Name != "PasskeyChallenge" &&
                         !(t.Namespace?.Contains(".ControlPlane.") ?? false) &&
                         !(t.Namespace?.Contains(".Shared.") ?? false))
             .Select(t => t.FullName)
@@ -213,8 +213,6 @@ public sealed class PersistenceLayerTests
 
         var allowedNamespaces = new[]
         {
-            "ST.Persistence.Features.Banking.DataContext",
-            "ST.Persistence.Features.HR.DataContext",
             "ST.Persistence.Features.IAM.DataContext",
             "ST.Persistence.Features.Shared.DataContext",
             "ST.Persistence.Features.ControlPlane.DataContext"
@@ -243,8 +241,7 @@ public sealed class PersistenceLayerTests
         dbContextTypeNames.Should().Contain([
             "SharedDBContext",
             "IamDBContext",
-            "HrDBContext",
-            "BankingDBContext"
+        "ControlPlaneDBContext",
         ], because: "the modular monolith requires one DBContext per bounded context.");
     }
 

@@ -41,7 +41,12 @@ public class SuspendTenantCommandHandler : IRequestHandler<SuspendTenantCommand,
             return AppResponses.Failure<TenantResponse>("Tenant not found.");
         }
 
-        tenant.Status = TenantStatus.Suspended;
+        if (tenant.Status != TenantStatus.Active)
+        {
+            return AppResponses.Failure<TenantResponse>("Only an active tenant can be suspended.");
+        }
+
+        tenant.Suspend();
         tenant.UpdatedAt = DateTimeOffset.UtcNow;
         tenant.UpdatedBy = _actorProvider.ActorId;
 

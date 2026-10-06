@@ -140,10 +140,16 @@ if ($IncludeSqlServer) {
     $profiles += @('--profile', 'database')
     $sqlConnection = "Server=localhost,14335;Database=ST;User Id=sa;Password=$($environment.MSSQL_SA_PASSWORD);Encrypt=True;TrustServerCertificate=True;"
     dotnet user-secrets set 'ConnectionStrings:DefaultConnection' $sqlConnection --project $apiProject
+    dotnet user-secrets set 'DatabaseSettings:Provider' 'SqlServer' --project $apiProject
+    foreach ($name in @('ControlPlaneConnection', 'IamConnection', 'SharedConnection', 'DefaultSqlConnection')) {
+        dotnet user-secrets set "ConnectionStrings:$name" $sqlConnection --project $apiProject
+    }
 }
 if ($IncludeSeq) {
     $profiles += @('--profile', 'observability')
 }
+
+& (Join-Path $PSScriptRoot 'initialize-payment-settings.ps1')
 
 $composeArguments = @('compose', '--env-file', $envFile, '-f', $composeFile)
 $composeArguments += $profiles

@@ -6,6 +6,4 @@ public sealed record UpdateAdminUserRequest(
     string FirstName,
     string LastName,
     string? PhoneNumber,
-    string? IdNumber,
-    string Gender,
     IReadOnlyList<string> Roles);

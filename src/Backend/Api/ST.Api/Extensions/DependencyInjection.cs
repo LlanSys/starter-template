@@ -441,7 +441,10 @@ internal static partial class DependencyInjection
             // EF Outbox
             x.AddEntityFrameworkOutbox<SharedDBContext>(o =>
             {
-                o.UseSqlServer();
+                var provider = configuration.GetValue<string>("DatabaseSettings:Provider") ?? "SqlServer";
+                if (provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase)) o.UsePostgres();
+                else if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase)) o.UseSqlServer();
+                else throw new InvalidOperationException("Unsupported database provider for the messaging outbox.");
                 o.UseBusOutbox();
                 o.DuplicateDetectionWindow = TimeSpan.FromHours(24);
                 o.QueryDelay = TimeSpan.FromSeconds(30);

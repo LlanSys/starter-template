@@ -2,8 +2,6 @@ using ST.SharedKernel.Features.Shared.Notifications.Dtos;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.SharedKernel.Extensions;
-using ST.Application.Features.Banking.Customers.Mappings;
-using ST.Application.Features.HR.Employees.Mappings;
 using ST.Application.Features.IAM.Users.Mappings;
 using ST.Application.Features.Shared.EmailTemplates.Mappings;
 using ST.Application.Utilities;

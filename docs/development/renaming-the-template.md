@@ -9,7 +9,7 @@ cd E:\Repos\StarterTemplate
 
 This produces project and namespace names such as `IH.Domain`, `IH.Application`, and `IH.Api`. `NewName` is the product identity; `NamespacePrefix` is the short technical prefix and is required so the script never guesses an acronym incorrectly.
 
-Use `-WhatIf` first to preview changes. The script updates product-name variants in text files, changes dotted `BT` technical prefixes, handles the known compact `STApi` local-data path, and renames matching files and folders. It deliberately does not replace every standalone `BT`, because `BT` is also valid unrelated data such as Bhutan's ISO country code. It skips Git metadata, generated build output, logs, dependencies, and `ops/local/.env`.
+Use `-WhatIf` first to preview changes. The script updates product-name variants in text files, reads the current prefix from AGENTS.md, changes dotted technical prefixes and updates the declared root prefix, handles the known compact `STApi` local-data path, and renames matching files and folders. It deliberately does not replace every standalone `BT`, because `BT` is also valid unrelated data such as Bhutan's ISO country code. It skips Git metadata, generated build output, logs, verification artifacts, dependencies, and `ops/local/.env`.
 
 After the script runs:
 

@@ -1,92 +1,78 @@
 using ST.Application.Features.IAM.Users.Commands;
-using ST.Domain.Features.HR.Employees.Enums;
+using ST.Domain.Features.IAM.Contracts;
+using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
-internal sealed class UpdateAdminUser(UserManager<AppUser> userManager, ILogger<UpdateAdminUser> logger)
-    : IRequestHandler<UpdateAdminUserCommand, AppResponse<AdminUserListResponse>>
+internal sealed class UpdateAdminUser(
+    UserManager<AppUser> userManager,
+    RoleManager<AppRole> roleManager,
+    IIamUnitOfWork iamUnitOfWork,
+    ICurrentTenantProvider tenantProvider,
+    ILogger<UpdateAdminUser> logger) : IRequestHandler<UpdateAdminUserCommand, AppResponse<AdminUserListResponse>>
 {
     public async Task<AppResponse<AdminUserListResponse>> Handle(UpdateAdminUserCommand command, CancellationToken cancellationToken)
     {
         try
         {
-            var req = command.Request;
             var user = await userManager.FindByIdAsync(command.UserId).ConfigureAwait(false);
-            if (user is null)
+            if (user is null || user.IsDeleted || tenantProvider.TenantId == Guid.Empty || user.TenantId != tenantProvider.TenantId)
             {
-                return AppResponses.Failure<AdminUserListResponse>("User not found.");
+                return AppResponses.NotFound<AdminUserListResponse>("User not found.");
             }
 
-            var gender = Enum.TryParse<Gender>(req.Gender, true, out var parsedGender) ? parsedGender : Gender.Other;
-            user.UpdateAdminProfile(
-                req.UserName,
-                req.Email,
-                req.FirstName,
-                req.LastName,
-                req.PhoneNumber,
-                req.IdNumber,
-                gender,
-                command.UpdatedBy);
-
-            var updateResult = await userManager.UpdateAsync(user).ConfigureAwait(false);
-            if (!updateResult.Succeeded)
+            var requestedRoles = command.Request.Roles.Where(static role => !string.IsNullOrWhiteSpace(role))
+                .Select(static role => role.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var normalizedRoles = requestedRoles.Select(roleManager.NormalizeKey).ToArray();
+            if (normalizedRoles.Length > 0 && await roleManager.Roles
+                .CountAsync(role => normalizedRoles.Contains(role.NormalizedName), cancellationToken).ConfigureAwait(false) != normalizedRoles.Length)
             {
-                return AppResponses.Failure<AdminUserListResponse>(string.Join(", ", updateResult.Errors.Select(static error => error.Description)));
+                return AppResponses.Failure<AdminUserListResponse>("One or more requested roles do not exist.");
             }
 
-            var currentRoles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-            var desiredRoles = req.Roles
-                .Where(static role => !string.IsNullOrWhiteSpace(role))
-                .Select(static role => role.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var rolesToRemove = currentRoles.Except(desiredRoles, StringComparer.OrdinalIgnoreCase).ToList();
-            var rolesToAdd = desiredRoles.Except(currentRoles, StringComparer.OrdinalIgnoreCase).ToList();
-
-            if (rolesToRemove.Count > 0)
+            return await iamUnitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                var removeResult = await userManager.RemoveFromRolesAsync(user, rolesToRemove).ConfigureAwait(false);
-                if (!removeResult.Succeeded)
+                var request = command.Request;
+                user.UpdateAdminProfile(request.UserName, request.Email, request.FirstName, request.LastName,
+                    request.PhoneNumber, command.UpdatedBy);
+                EnsureSucceeded(await userManager.UpdateAsync(user).ConfigureAwait(false), "The user profile could not be updated. Check the account details.");
+
+                var currentRoles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
+                var desiredRoles = requestedRoles;
+                var rolesToRemove = currentRoles.Except(desiredRoles, StringComparer.OrdinalIgnoreCase).ToArray();
+                var rolesToAdd = desiredRoles.Except(currentRoles, StringComparer.OrdinalIgnoreCase).ToArray();
+                if (rolesToRemove.Length > 0)
                 {
-                    return AppResponses.Failure<AdminUserListResponse>(string.Join(", ", removeResult.Errors.Select(static error => error.Description)));
+                    EnsureSucceeded(await userManager.RemoveFromRolesAsync(user, rolesToRemove).ConfigureAwait(false), "The requested role changes could not be saved.");
                 }
-            }
-
-            if (rolesToAdd.Count > 0)
-            {
-                var addResult = await userManager.AddToRolesAsync(user, rolesToAdd).ConfigureAwait(false);
-                if (!addResult.Succeeded)
+                if (rolesToAdd.Length > 0)
                 {
-                    return AppResponses.Failure<AdminUserListResponse>(string.Join(", ", addResult.Errors.Select(static error => error.Description)));
+                    EnsureSucceeded(await userManager.AddToRolesAsync(user, rolesToAdd).ConfigureAwait(false), "The requested role changes could not be saved.");
                 }
-            }
 
-            var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-            var response = new AdminUserListResponse(
-                user.Id,
-                user.UserName ?? string.Empty,
-                $"{user.FirstName} {user.LastName}".Trim(),
-                user.Email ?? string.Empty,
-                user.PhoneNumber,
-                user.IsActive,
-                user.EmailConfirmed,
-                user.TwoFactorEnabled,
-                user.RequirePasswordChange,
-                user.CreatedAt,
-                user.LastLoginAt,
-                user.EmployeeId,
-                user.CustomerId,
-                [.. roles.Order(StringComparer.OrdinalIgnoreCase)]);
-
-            return AppResponses.Success("User updated.", response);
+                var profile = AppUserProfile.Create(user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UpdatedBy);
+                await iamUnitOfWork.AppUserProfileRepository.CreateOrUpdateAsync(user.Id, profile, cancellationToken).ConfigureAwait(false);
+                await iamUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
+                var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
+                return AppResponses.Success("User updated.", new AdminUserListResponse(
+                    user.Id, user.UserName ?? string.Empty, $"{user.FirstName} {user.LastName}".Trim(),
+                    user.Email ?? string.Empty, user.PhoneNumber, user.IsActive, user.EmailConfirmed,
+                    user.TwoFactorEnabled, user.RequirePasswordChange, user.CreatedAt, user.LastLoginAt,
+                    [.. roles.Order(StringComparer.OrdinalIgnoreCase)]));
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (AccountUpdateRejectedException ex)
+        {
+            ServiceLogDefinitions.LogUpdateUserError(logger, command.UserId, ex);
+            return AppResponses.Failure<AdminUserListResponse>(ex.Message);
         }
         catch (Exception ex)
         {
@@ -94,4 +80,14 @@ internal sealed class UpdateAdminUser(UserManager<AppUser> userManager, ILogger<
             throw;
         }
     }
+
+    private static void EnsureSucceeded(IdentityResult result, string message)
+    {
+        if (!result.Succeeded)
+        {
+            throw new AccountUpdateRejectedException(message);
+        }
+    }
+
+    private sealed class AccountUpdateRejectedException(string message) : Exception(message) { }
 }

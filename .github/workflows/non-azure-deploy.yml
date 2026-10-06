@@ -127,11 +127,19 @@ jobs:
             PROVIDER="SqlServer"
           fi
           echo "Building migration bundles for provider: $PROVIDER"
+          if [ "$PROVIDER" == "PostgreSql" ]; then
+            DESIGN_CONNECTION="Host=localhost;Database=starterdesign;Username=postgres;Password=DesignOnly123!"
+          else
+            DESIGN_CONNECTION="Server=localhost;Database=starterdesign;User Id=sa;Password=DesignOnly123!;TrustServerCertificate=True"
+          fi
+          export ConnectionStrings__IamConnection="$DESIGN_CONNECTION"
+          export ConnectionStrings__SharedConnection="$DESIGN_CONNECTION"
+          export ConnectionStrings__ControlPlaneConnection="$DESIGN_CONNECTION"
+
 
           dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Iam${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-iam --configuration Release
-          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Hr${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-hr --configuration Release
           dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Shared${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-shared --configuration Release
-          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Banking${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-banking --configuration Release
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context ControlPlane${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-controlplane --configuration Release
         env:
           DatabaseSettings__Provider: "PostgreSql"
           ConnectionStrings__DefaultConnection: "Host=localhost;Database=postgres;Username=postgres;Password=password"
@@ -167,10 +175,9 @@ jobs:
         run: |
           set -euo pipefail
 
+          chmod +x ./db-migrations/efbundle-controlplane
           chmod +x ./db-migrations/efbundle-iam
-          chmod +x ./db-migrations/efbundle-hr
           chmod +x ./db-migrations/efbundle-shared
-          chmod +x ./db-migrations/efbundle-banking
 
           run_bundle() {
             local bundle="$1"
@@ -206,17 +213,15 @@ jobs:
             done
           }
 
+          run_bundle efbundle-controlplane
           run_bundle efbundle-iam
-          run_bundle efbundle-hr
           run_bundle efbundle-shared
-          run_bundle efbundle-banking
         env:
           POSTGRES_CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
           DatabaseSettings__Provider: "PostgreSql"
+          ConnectionStrings__ControlPlaneConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
           ConnectionStrings__IamConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
-          ConnectionStrings__HrConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
           ConnectionStrings__SharedConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
-          ConnectionStrings__BankingConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
           ConnectionStrings__DefaultConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
 
   deploy-digitalocean:

@@ -15,14 +15,14 @@
 
     <MudPaper Class="poc-panel" Elevation="0">
         <div class="panel-heading">
-            <h2 style="color: var(--bt-moss); font-weight: 700;">Access Catalog</h2>
+            <h2 style="color: var(--st-moss); font-weight: 700;">Access Catalog</h2>
             <div class="d-flex align-center gap-3">
                 <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateAsync">
                     Create item
                 </MudButton>
             </div>
         </div>
-        <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="bt-catalog-tabs">
+        <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="st-catalog-tabs">
             @foreach (var definition in _catalogs)
             {
                 <MudTabPanel Text="@definition.Label" />
@@ -44,7 +44,7 @@
             <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable @ref="_table" Items="FilteredItems" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="100" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh>Key</MudTh>

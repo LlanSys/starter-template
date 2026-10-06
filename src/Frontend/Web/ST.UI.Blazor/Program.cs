@@ -2,9 +2,6 @@ using ST.UI.Blazor.Components;
 using ST.UI.Blazor.Components.Security;
 using Microsoft.AspNetCore.Components.Authorization;
 using ST.UI.Blazor.Configuration;
-using ST.UI.Blazor.Features.Banking.Customers.Contracts.Implementations;
-using ST.UI.Blazor.Features.HR.Departments.Contracts.Implementations;
-using ST.UI.Blazor.Features.HR.Employees.Contracts.Implementations;
 using ST.UI.Blazor.Features.IAM.Users.Contracts.Implementations;
 using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 using ST.UI.Blazor.Features.IAM.Users.Implementations;
@@ -19,9 +16,6 @@ using ST.UI.Blazor.Features.ControlPlane.Auditing.Implementations;
 using ST.UI.Blazor.Features.ControlPlane.Stamps.Contracts;
 using ST.UI.Blazor.Features.ControlPlane.Stamps.Implementations;
 using ST.UI.Blazor.Features.Shared.Payments.Contracts.Implementations;
-using ST.UI.Rcl.Features.Banking.Customers.Contracts.Interfaces;
-using ST.UI.Rcl.Features.HR.Departments.Contracts.Interfaces;
-using ST.UI.Rcl.Features.HR.Employees.Contracts.Interfaces;
 using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
 using ST.UI.Rcl.Features.Shared.Lookups.Contracts.Interfaces;
 using ST.UI.Rcl.Features.Shared.Payments.Contracts.Interfaces;
@@ -51,7 +45,7 @@ builder.Services.AddMudServices();
 builder.Services.AddAuthorizationCore(options =>
 {
     options.AddPolicy("ControlPlane.Manage", policy =>
-        policy.RequireClaim("permission", "controlplane.manage"));
+        policy.RequireClaim("permission", "control_plane.manage"));
 });
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
@@ -82,9 +76,6 @@ builder.Services.AddScoped<IServerTokenStore, ServerTokenStore>();
 builder.Services.AddScoped<IAuthSession, AuthSession>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ST.UI.Blazor.Features.IAM.Users.State.PasswordRecoveryState>();
-builder.Services.AddScoped<ICustomerService, CustomerService>();
-builder.Services.AddScoped<IDepartmentService, DepartmentService>();
-builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IIamAdminService, IamAdminService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IPaymentCheckoutService, PaymentCheckoutService>();

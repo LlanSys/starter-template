@@ -10,7 +10,7 @@ public class SharedSqlServerDBContextFactory : IDesignTimeDbContextFactory<Share
     {
         var configuration = DesignTimeConfigurationFactory.Create();
         var optionsBuilder = new DbContextOptionsBuilder<SharedSqlServerDBContext>();
-        var connectionString = DesignTimeConfigurationFactory.GetConnectionString(configuration, "SharedConnection");
+        var connectionString = DesignTimeConfigurationFactory.GetConnectionString(configuration, "SharedConnection", fallbackConnectionName: "DefaultSqlConnection");
 
         optionsBuilder.UseSqlServer(
             connectionString,

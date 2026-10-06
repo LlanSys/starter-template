@@ -1,0 +1,89 @@
+@page "/iam/accept-invitation"
+@layout AuthLayout
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject NavigationManager Navigation
+@inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient ApiClient
+@inject Microsoft.Extensions.Options.IOptions<ST.UI.Blazor.Configuration.BackendApiSettings> ApiSettings
+
+<PageTitle>Account setup | StarterTemplate</PageTitle>
+<HeadContent><meta name="referrer" content="no-referrer" /></HeadContent>
+<section class="auth-shell">
+    <div class="auth-copy"><h1>Complete account setup.</h1><p>Choose your password to confirm your email and prepare your account for sign-in.</p></div>
+    <div class="auth-card">
+        @if (_completed)
+        {
+            <p role="status">Account setup complete. Sign in with the invited account's username or email and the password you just chose.</p>
+            @if (AuthSession.IsAuthenticated)
+            {
+                <p>You are currently signed in as <strong>@AuthSession.CurrentUser?.Email</strong>. Completing this invitation does not switch the signed-in account.</p>
+                <p>Use a private browser window to keep that session, or sign out here to use the invited account.</p>
+            }
+            <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="ContinueToSignInAsync">
+                @(AuthSession.IsAuthenticated ? "Sign out and sign in" : "Sign in")
+            </button>
+        }
+        else
+        {
+            <div class="form-stack">
+                <label for="invitation-password">Password</label>
+                <input id="invitation-password" type="password" class="form-control" @bind="_password" autocomplete="new-password" maxlength="128" />
+                <label for="invitation-confirm">Confirm password</label>
+                <input id="invitation-confirm" type="password" class="form-control" @bind="_confirmPassword" autocomplete="new-password" maxlength="128" />
+                @if (!string.IsNullOrWhiteSpace(_message)) { <div role="alert" class="alert alert-danger">@_message</div> }
+                <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="AcceptAsync">@(_busy ? "Completing..." : "Complete setup")</button>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "userId")] public string? UserId { get; set; }
+    [SupplyParameterFromQuery(Name = "token")] public string? Token { get; set; }
+    private string _password = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private string? _message;
+    private bool _busy;
+    private bool _completed;
+
+    private async Task ContinueToSignInAsync()
+    {
+        _busy = true;
+        try
+        {
+            if (AuthSession.IsAuthenticated) await AuthSession.SignOutAsync();
+            Navigation.NavigateTo("/iam/sign-in", forceLoad: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task AcceptAsync()
+    {
+        if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Token) || _password.Length < 8
+            || !string.Equals(_password, _confirmPassword, StringComparison.Ordinal))
+        {
+            _message = "Use the invitation link and enter matching passwords of at least eight characters.";
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var response = await ApiClient.SendAsync<bool>(HttpMethod.Post,
+                ST.UI.Blazor.Features.Shared.BackendApi.EndpointFormatter.Format(ApiSettings.Value.Endpoints.Iam.Auth.AcceptInvitation, ApiSettings.Value.Version),
+                new AcceptAccountInvitationRequest(UserId, Token, _password, _confirmPassword), requiresAuthentication: false,
+                unavailableMessage: "Account setup is unavailable. Please try again.");
+            _completed = response.IsSuccess;
+            if (_completed) await AuthSession.InitializeAsync();
+            _message = response.IsSuccess ? null : UserMessageSanitizer.Normalize(response.Message, "The invitation could not be accepted.");
+        }
+        finally
+        {
+            _password = string.Empty;
+            _confirmPassword = string.Empty;
+            _busy = false;
+        }
+    }
+}

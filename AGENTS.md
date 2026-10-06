@@ -1,6 +1,8 @@
 # StarterTemplate Agent Instructions
 
-> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Extraction settings and verification limits: [starter-extraction.md](docs/development/starter-extraction.md). BaseTemplate is the preserved business reference; inherited roadmap and readiness statements are not StarterTemplate certification.
+> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
+
+Work only in this repository and its configured remote. Downstream setup and ongoing implementation do not depend on another repository or an extraction SHA.
 
 This file is the canonical source of truth and working contract for AI coding tools in this repository. If another tool-specific file conflicts with this one, this file wins and the other file should be updated.
 
@@ -30,7 +32,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - After protected data has been issued, `DataProtection:ApplicationName` is immutable without an explicit migration or security reset.
 - Target framework: `.NET 10`
 - Architecture: modular monolith with Clean Architecture boundaries and bounded-context feature folders.
-- Current bounded contexts: `IAM`, `Banking`, `HR`, and `Shared`.
+- Retained platform contexts: `IAM`, `Shared`, and `ControlPlane`. Application business contexts belong in downstream clones.
 
 ## Architecture Rules
 
@@ -54,7 +56,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - All user-facing errors from the UI must be sanitized through the shared messaging pattern.
 - Provider-specific integration DTOs belong beside the provider adapter. Shared contracts should stay provider-neutral and should not expose Stripe, M-Pesa, Azure, or other provider wire payloads.
 - When a capability supports multiple runtime providers per operation, use a router/factory over isolated provider adapters. Do not make one provider adapter understand another provider's DTOs, credentials, or callbacks.
-- Application-layer command/query handlers must use bounded-context Unit of Work interfaces (`ISharedUnitOfWork`, `IBankingUnitOfWork`, etc.) for persistence orchestration, not raw `IRepository<T>`. Always call `CompleteAsync` with a `CancellationToken` after write operations.
+- Application-layer command/query handlers must use bounded-context Unit of Work interfaces (`ISharedUnitOfWork`, `IIamUnitOfWork`, etc.) for persistence orchestration, not raw `IRepository<T>`. Always call `CompleteAsync` with a `CancellationToken` after write operations.
 - Pass `CancellationToken` to all async I/O calls (`ReadAsStringAsync`, `CompleteAsync`, `SaveChangesAsync`, etc.) where the parameter is available.
 - Use `StringComparison.OrdinalIgnoreCase` for case-insensitive comparisons. Reserve `ToUpperInvariant()`/`ToLowerInvariant()` for value normalization (stored keys, wire formats, display strings) — never for equality checks. C# `switch` on normalized strings is acceptable when `StringComparison` is not supported by the expression.
 - Always use `Guid.CreateVersion7()` instead of `Guid.NewGuid()` to ensure time-ordered identifiers.
@@ -71,9 +73,13 @@ This file is the canonical source of truth and working contract for AI coding to
 - Use `CountAsync` only when the count is returned, logged, or used for a decision.
 - Avoid N+1 query patterns. Batch identifiers and map results in memory.
 - Cursor pagination must fetch `pageSize + 1` before trimming.
-- **StarterTemplate supports multiple database providers (PostgreSQL and SQL Server).** When adding EF Core migrations, you MUST generate separate migrations for each provider's DbContext and specify the correct output directory. For example, for the IAM bounded context: `dotnet ef migrations add <Name> -c IamSqlServerDBContext -o Migrations/IAM` and `dotnet ef migrations add <Name> -c IamPostgreSqlDBContext -o Migrations/IamPostgreSqlDB`. Do not rely on default output directories.
+- **StarterTemplate supports multiple database providers (PostgreSQL and SQL Server).** When adding EF Core migrations, you MUST generate separate migrations for each provider's DbContext and specify the correct output directory. For example, for the IAM bounded context: `dotnet ef migrations add <Name> -c IamSqlServerDBContext -o Features/IAM/Migrations/SqlServer` and `dotnet ef migrations add <Name> -c IamPostgreSqlDBContext -o Features/IAM/Migrations/PostgreSql`. Do not rely on default output directories.
 - **Database Context Factories:** When creating `IDesignTimeDbContextFactory<T>` implementations, always specify a provider-specific fallback connection string using `DesignTimeConfigurationFactory.GetConnectionString(..., fallbackConnectionName: "DefaultPostgreSqlConnection")` (or `"DefaultSqlConnection"`) to prevent parsing crashes from incompatible connection string parameters.
 - **Idempotent Migrations:** EF Core index creations are globally intercepted by custom SQL generators (`IdempotentSqlServerMigrationsSqlGenerator` and `IdempotentNpgsqlMigrationsSqlGenerator`) to inject `IF NOT EXISTS` logic. Do not write manual raw SQL for idempotency on index creation—the generator handles this automatically.
+
+- The six InitialStarter migrations target fresh databases only. Never apply them as upgrades to an existing application database. Shared baselines include the provider-specific Quartz tables.
+- PostgreSQL uses application-stamped byte concurrency tokens; SQL Server uses native rowversion.
+- Passkey challenges are temporary tenant-scoped records, deliberately hard-deleted on consumption/expiry. Credential ceremonies require user verification and persisted ownership/uniqueness checks.
 
 ## Validation, Logging, And Caching
 
@@ -86,9 +92,12 @@ This file is the canonical source of truth and working contract for AI coding to
 ## IAM And Security
 
 - IAM is a core platform capability, not an application-specific feature.
+- Account responses and token claims are domain-neutral. Use AppUserMapping for backend account DTOs and LoginResponseMapping for UI login fallbacks; preserve tenant, session, permission and MFA state.
 - Administrative endpoints require permission-based authorization, not only `[Authorize]`.
 - Admin MFA enforcement is intentional; non-admin MFA can be policy-driven.
 - Session lifecycle must expire cleanly, warn before timeout, and avoid stale UI state.
+- Account access changes target the IAM account in the resolved tenant. Admin deactivation must atomically rotate the security stamp and revoke sessions/refresh tokens. Activation preserves credentials and email verification; invitation delivery is separate.
+- Session validation uses a signed session_id claim before client session headers/cookies.
 - Blazor tokens use protected browser storage with a circuit-scoped in-memory fallback; do not mirror bearer or refresh tokens into Redis.
 - Profile images are private assets. Use API-mediated access, not direct public blob URLs.
 - Local secrets belong in `dotnet user-secrets`; production secrets belong in Azure Key Vault/App Service configuration.
@@ -101,7 +110,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - Use `wwwroot/css` for app CSS.
 - Avoid JavaScript unless Blazor cannot access the browser capability directly.
 - Tables should support compact layout, horizontal overflow, pagination/search/filter patterns, and consistent actions.
-- Listing pages follow the Customer hierarchy: create actions occupy a separate top-right page action row, shown-count badges occupy the list heading's right edge, and search/filter controls occupy a full-width row below the heading.
+- Listing pages follow the shared compact layout: create actions occupy a separate top-right page action row, shown-count badges occupy the list heading's right edge, and search/filter controls occupy a full-width row below the heading.
 - New route guards must use native Blazor authorization: `@attribute [Authorize]`, `@layout` with a policy-protected layout, or `<AuthorizeView>`. Do not add new ad-hoc `HasPermission()` checks for route-level gating; leave existing `HasPermission()` calls for inline UI visibility unchanged.
 - Control Plane pages must use `ControlPlaneLayout` (`@layout ControlPlaneLayout`), which enforces the `ControlPlane.Manage` policy at the layout level before `OnInitializedAsync` fires.
 
@@ -149,3 +158,5 @@ Keep these files short and aligned with this file. Do not let them become indepe
 
 - Each application host must have its own UserSecretsId; clones must regenerate identities and allocate distinct host ports and Compose project/volume names.
 - Run scripts/check-local-endpoints.ps1 before starting local infrastructure; supply new Compose files explicitly. See docs/development/workstation-endpoints.md.
+
+- Local platform setup initializes missing optional payment fields through `scripts/initialize-payment-settings.ps1`. Preserve existing API user-secrets; keep provider credentials blank until supplied and record external-provider certification separately from core starter certification.

@@ -36,5 +36,5 @@ jobs:
       - name: Upload API artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bt-api-${{ inputs.environment }}
+          name: st-api-${{ inputs.environment }}
           path: artifacts/api

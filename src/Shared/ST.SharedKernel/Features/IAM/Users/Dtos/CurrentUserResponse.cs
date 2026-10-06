@@ -1,10 +1,8 @@
 namespace ST.SharedKernel.Features.IAM.Users.Dtos;
 
-public record CurrentUserResponse(
+public sealed record CurrentUserResponse(
     string AppUserId,
-    Guid StaffId,
-    Guid CustomerId,
-    string IdNumber,
+    Guid TenantId,
     string UserName,
     string Email,
     string FirstName,
@@ -12,7 +10,6 @@ public record CurrentUserResponse(
     string PhoneNumber,
     bool EmailConfirmed,
     bool TwoFactorEnabled,
-    string Gender,
     bool? IsAuthenticated,
     DateTimeOffset? LastLoginAt,
     List<string> Roles,

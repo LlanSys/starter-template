@@ -1,18 +1,17 @@
 # StarterTemplate domain neutral refactor plan
 
 Date: 2026-10-06
-Status: Phase 0 extraction in progress. Business removal has not started.
-Selected source revision: BaseTemplate b25fc820202a7d5d3686624fbd8f80ce9800b834 (merged baseline and isolation/deployment-gate follow-ups).
+Status: Phases 0–5 complete for the core starter. Automated certification passed; Visual Studio hosts run, live bootstrap API login passed, and the user confirmed browser sign-in and viewing items. Optional external-provider certification is recorded separately.
 
 ## Objective and repository decision
 
-Create StarterTemplate as a new repository. Preserve BaseTemplate as the worked reference for Banking, HR, and cross-context patterns. A clone of StarterTemplate must support independent account administration and adding a POS feature without editing IAM internals.
+StarterTemplate is the sole template repository for future application clones. A clone must support independent account administration and adding a POS feature without editing IAM internals. Its code, setup documentation and tests must be self-contained; no separate repository or extraction SHA is part of the downstream workflow.
 
 Keep .NET 10, the modular monolith, Clean Architecture boundaries, bounded-context feature folders, and API-mediated Blazor flows. Do not add a Person/Party framework, new mediator, module loader, or package split during this refactor.
 
-Commit the pending BaseTemplate work and build fixes first. Review the baseline PR before selecting the exact source revision for StarterTemplate. Do not merge or deploy automatically. Start the new repository from a reviewed clean export, excluding Git metadata, ignored files, bin/obj, local secrets, environment dumps, publish settings, and workstation state. Keep an ORIGIN.md with source repository and full source SHA. Never copy user-secrets or production identities into the starter.
+Work exclusively in StarterTemplate. Do not merge or deploy automatically. Keep credentials in user-secrets or deployed secret stores, and give every clone its own repository identity, host secret IDs, ports, infrastructure resources and configuration.
 
-Repository owner/visibility and namespace prefix must be settled before remote creation and renaming. Default recommendation: same owner, private initially; choose a dedicated technical prefix during setup. Use the existing rename script and verify it rather than introducing another packaging system now.
+Approved identity: private `odhiamboally/starter-template`, namespace `ST`, directory `E:\Repos\StarterTemplate`. Use the existing rename script for downstream clones.
 
 ## Retention inventory
 
@@ -55,14 +54,14 @@ Resolve remaining references by code inspection, not global text deletion. Payme
 
 ## Execution phases and gates
 
-### Phase 0 Preserve and create
+### Phase 0 Independent template foundation
 
-- [x] Commit pending work and Fido2 compatibility fixes in BaseTemplate (ed3df7d).
-- [x] Inspect merged baseline PR checks and record source revision; no submitted GitHub review exists.
-- [x] Export clean source into E:\Repos\StarterTemplate and initialize its independent repository.
-- [x] Confirm odhiamboally/starter-template, private visibility, ST prefix; rename, sanitize source settings and document origin.
+- [x] Establish the private StarterTemplate repository and ST namespace.
+- [x] Keep local secret stores, ports, volumes and deployment identities independent.
+- [x] Verify API/Web builds, unit/architecture tests and a disposable namespace rename.
+- [x] Provide self-contained clone setup guidance; remove extraction SHA from downstream setup.
 
-Gate: BaseTemplate recoverable, new working directory isolated, no copied local secrets or original deployment credentials.
+Gate: the template stands on its own, contains no local secrets and has independently configurable runtime/deployment identities.
 
 ### Phase 1 Independent IAM
 
@@ -88,7 +87,7 @@ Gate: transition, unauthorized, forbidden and tenant routing tests pass; no path
 
 ### Phase 4 Fresh database and delivery baseline
 
-StarterTemplate initially targets fresh databases, not upgrades of deployed BaseTemplate databases. Preserve BaseTemplate migration history. Once the retained model settles, generate clean initial migrations separately for each retained provider-specific context into Features/{Context}/Migrations/{SqlServer|PostgreSql}. Verify design-time factories use provider-compatible fallback configuration.
+StarterTemplate initially targets fresh databases. Upgrades of existing application databases are outside this refactor. Once the retained model settles, generate clean initial migrations separately for each retained provider-specific context into Features/{Context}/Migrations/{SqlServer|PostgreSql}. Verify design-time factories use provider-compatible fallback configuration.
 
 Align history tables, bundles, workflow execution, connection names, fixtures, health checks and optional provider settings. Rewire repository/environment/OIDC identifiers for the new repository; do not reuse original production targets.
 
@@ -96,13 +95,15 @@ Gate: both providers migrate an empty database; no pending model changes; migrat
 
 ### Phase 5 Starter certification
 
-Run API/Web builds, unit, architecture and SQL Server/PostgreSQL integration tests. Browser/email smoke: bootstrap login, account invite/activation, password recovery, MFA/passkey/SSO where configured, permission changes, forbidden direct URL, logout, disabled user and refresh/session revocation. Verify rename/start using a disposable clean checkout. Add a test-only neutral vertical slice to prove API-to-application-to-persistence flow without shipping a new demonstration business domain.
+Run API/Web builds, unit, architecture and SQL Server/PostgreSQL integration tests. Certification combines user-confirmed browser sign-in/navigation with automated API and real-email checks for account invite/activation, password recovery, configured MFA, forbidden access, logout, disabled users and refresh/session revocation. Physical passkeys, external SSO and external payment providers require separate configured integration checks; their absence does not reopen core refactor certification. Verify rename/start using a disposable clean checkout. Add a test-only neutral vertical slice to prove API-to-application-to-persistence flow without shipping a new demonstration business domain.
 
 Gate: a downstream developer can rename, configure, migrate, run, sign in and introduce a POS slice without editing IAM. Document any optional capabilities that were not exercised.
 
 ## Existing readiness items
 
-The Fido2 4 migration fixes compilation and options generation; it does not certify real authenticator ceremonies. Current credential uniqueness and user-handle ownership callbacks return true. Before passkeys are declared ready in StarterTemplate, replace them with validated credential ownership/uniqueness checks and cover failure cases. Track malformed input, challenge consumption/replay, user verification and tenant scope in that focused follow-up.
+Passkey registration/assertion now require user verification and validate active verified account state, global credential uniqueness, tenant ownership and user handles. Persisted tenant-scoped challenges expire and are consumed once atomically; tests cover malformed requests, foreign tenants and concurrent replay. Physical authenticator ceremonies remain unverified. External SSO and mobile runtime are optional capabilities not exercised in this certification.
+
+Stripe and M-Pesa sandbox/live payment execution and callbacks remain unverified. Their configuration fields are initialized in API user-secrets without overwriting existing values; blank credentials deliberately leave providers unconfigured.
 
 Retain a readiness item for deployment-specific forwarded-header proxy trust. Preserve the existing targeted-review findings note and resolve its operational items separately. Dependency/analyzer warnings and mobile runtime checks must be reported honestly.
 
@@ -117,4 +118,15 @@ Retain a readiness item for deployment-specific forwarded-header proxy trust. Pr
 
 Run focused checks per slice and full provider/browser certification at the final gate. Each phase ends in a focused commit/PR with evidence and remaining limits. Do not call the new starter ready based on compilation alone.
 
-Phase 0 remaining: create/verify private remote, verify renamed build/tests and disposable clone rename, commit and push initial baseline. No infrastructure or databases have been started. See ORIGIN.md for provenance and limitations.
+## Current implementation and certification evidence
+
+- Independent bootstrap and IAM account creation/editing, activation, disabling, invitation and recovery have no business-record dependency. Passwords are never included in invitation emails. Identity failures and event failures roll back supported account writes.
+- Banking and HR source, contracts, services, UI, catalogs, registrations and historical migrations are removed. Department scope is removed from IAM. The retained contexts are IAM, Shared and ControlPlane.
+- Tenant approval is administrative, permission protected and audited. Suspended or unapproved tenants cannot route through cached connection metadata.
+- Six provider-specific InitialStarter migrations target **fresh databases only**. Both providers migrate empty databases, rerun migrations and execute generated idempotent scripts. Shared includes Quartz tables. PostgreSQL uses persisted application concurrency tokens; SQL Server retains native rowversion.
+- All six provider migration scripts and Linux migration bundles generated successfully. Local isolated SQL Server was migrated for Visual Studio host verification. Azure deployment remains disabled.
+- A test-only neutral vertical slice verifies permission protection, tenant isolation and API/Application/Persistence flow without adding a production business module.
+- Automated HTTP and real Mailpit SMTP verify invitation acceptance/replay, bearer sign-in, forbidden access, logout, OTP password recovery, disabled accounts and session/refresh revocation. Configured TOTP and persisted provider concurrency are included in final checks.
+- Final full suites: 131 unit tests, 73 architecture tests and 23 integration tests passed; the normal integration run skipped one opt-in RabbitMQ test, which passed separately against the local broker. API and Blazor builds passed. Configured TOTP enrollment/login/disabled-account rejection and persisted concurrency passed for both providers. A clean committed checkout renamed ST -> CS -> DX, regenerated independent host secret identities, restored and built both hosts, and passed the same full unit, architecture and provider/HTTP/email suites. GitHub backend, frontend and architecture CI passed for implementation commit 350e11d. The hosts now listen on their configured ports. Live API bootstrap sign-in passed and correctly requires administrator MFA enrollment. The stale hardcoded administrator email hint was removed; credentials come from API user-secrets. The user confirmed successful browser sign-in and viewing items. This browser acceptance, together with the automated changed-flow tests, completes core Phase 5.
+
+No merge or deployment is authorized by this plan. Existing package/analyzer warnings, deployment-specific proxy trust and the targeted review operational findings remain documented limitations.

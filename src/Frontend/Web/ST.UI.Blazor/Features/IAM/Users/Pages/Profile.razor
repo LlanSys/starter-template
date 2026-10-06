@@ -107,7 +107,7 @@
             }
 
             var email = AuthSession.CurrentUser?.Email;
-            return string.IsNullOrWhiteSpace(email) ? "BT" : email[..1].ToUpperInvariant();
+            return string.IsNullOrWhiteSpace(email) ? "ST" : email[..1].ToUpperInvariant();
         }
     }
 

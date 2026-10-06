@@ -27,10 +27,6 @@
                     <MudText Typo="Typo.caption" Class="detail-label">Two-factor</MudText>
                     <MudText Typo="Typo.body2">@(User.TwoFactorEnabled ? "Enabled" : "Recommended")</MudText>
                 </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudText Typo="Typo.caption" Class="detail-label">Linked record</MudText>
-                    <MudText Typo="Typo.body2">@LinkedRecord</MudText>
-                </MudItem>
                 <MudItem xs="12">
                     <MudText Typo="Typo.caption" Class="detail-label">Roles</MudText>
                     <MudText Typo="Typo.body2">@RoleText</MudText>
@@ -67,10 +63,6 @@
     }
 
     private string RoleText => User.Roles.Count == 0 ? "No roles" : string.Join(", ", User.Roles);
-
-    private string LinkedRecord => User.EmployeeId.HasValue ? "Employee"
-        : User.CustomerId.HasValue ? "Customer"
-        : "System";
 
     private void Close() => MudDialog.Close(DialogResult.Ok(true));
 }

@@ -14,7 +14,7 @@ public sealed class UpdateMenuRequestValidator : Validator<UpdateMenuRequest>
         RuleFor(x => new CreateMenuRequest
         {
             ParentId = x.ParentId,
-            DepartmentId = x.DepartmentId,
+
             Title = x.Title,
             Description = x.Description,
             Url = x.Url,

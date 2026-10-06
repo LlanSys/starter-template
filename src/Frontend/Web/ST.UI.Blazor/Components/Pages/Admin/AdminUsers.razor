@@ -51,14 +51,6 @@
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="6" lg="3">
-                    <MudSelect T="string" Value="_linkedRecordFilter" ValueChanged="@(async (string? val) => { _linkedRecordFilter = val; await ApplyFiltersAsync(); })" Label="Linked Record" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                        @foreach (var item in LinkedRecordOptions)
-                        {
-                            <MudSelectItem Value="@item">@item</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
             </MudGrid>
         }
 
@@ -72,7 +64,7 @@
             <MudAlert Severity="@_messageSeverity" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable Items="_users" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="PageSize" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh Style="width: 15rem;">Name</MudTh>
@@ -80,7 +72,6 @@
                     <MudTh Style="width: 14rem;">Roles</MudTh>
                     <MudTh Style="width: 8rem;">Status</MudTh>
                     <MudTh Style="width: 8rem;">2FA</MudTh>
-                    <MudTh Style="width: 10rem;">Linked Record</MudTh>
                     <MudTh Style="width: 8rem;">Actions</MudTh>
                 </HeaderContent>
                 <RowTemplate>
@@ -93,14 +84,13 @@
                     <MudTd DataLabel="2FA">
                         <MudChip T="string" Size="Size.Small" Color="@(context.TwoFactorEnabled ? Color.Success : Color.Info)">@(context.TwoFactorEnabled ? "Enabled" : "Recommended")</MudChip>
                     </MudTd>
-                    <MudTd DataLabel="Linked Record">@LinkedRecord(context)</MudTd>
                     <MudTd DataLabel="Actions">
                         <TableRowActions OnView="@(() => ShowUserDetailsAsync(context))"
                                          OnEdit="@(() => OpenUserDialogAsync(context))"
                                          OnDelete="@(() => ConfirmDeactivateAsync(context))"
                                          CanView="@AuthSession.HasPermission("users.view")"
                                          CanEdit="@AuthSession.HasPermission("users.edit")"
-                                         CanDelete="@AuthSession.HasPermission("users.deactivate")"
+                                         CanDelete="@(context.IsActive && AuthSession.HasPermission("users.deactivate"))"
                                          ExtraActions="@UserExtraActions(context)"
                                          OnExtraAction="@((action) => HandleExtraActionAsync(context, action))" />
                     </MudTd>
@@ -125,7 +115,6 @@
 
     private static readonly string[] StatusOptions = ["Active", "Inactive"];
     private static readonly string[] TwoFactorOptions = ["Enabled", "Recommended"];
-    private static readonly string[] LinkedRecordOptions = ["Employee", "Customer", "System"];
     private const int PageSize = 50;
 
     private readonly List<AdminUserListResponse> _users = [];
@@ -142,7 +131,6 @@
     private string? _statusFilter;
     private string? _roleFilter;
     private string? _twoFactorFilter;
-    private string? _linkedRecordFilter;
     private string? _message;
     private Severity _messageSeverity = Severity.Info;
 
@@ -153,8 +141,7 @@
         !string.IsNullOrWhiteSpace(_searchText)
         || !string.IsNullOrWhiteSpace(_statusFilter)
         || !string.IsNullOrWhiteSpace(_roleFilter)
-        || !string.IsNullOrWhiteSpace(_twoFactorFilter)
-        || !string.IsNullOrWhiteSpace(_linkedRecordFilter);
+        || !string.IsNullOrWhiteSpace(_twoFactorFilter);
 
 
 
@@ -190,7 +177,6 @@
         _statusFilter = null;
         _roleFilter = null;
         _twoFactorFilter = null;
-        _linkedRecordFilter = null;
         _showFilters = false;
         ResetPagination();
         await LoadUsersAsync();
@@ -248,7 +234,6 @@
             Status: _statusFilter,
             Role: _roleFilter,
             TwoFactorStatus: _twoFactorFilter,
-            LinkedRecordType: _linkedRecordFilter,
             Cursor: _currentCursor,
             PageSize: PageSize);
 
@@ -290,7 +275,7 @@
     {
         var parameters = new DialogParameters
         {
-            { nameof(AdminUserFormDialog.Roles), AvailableRoles.Count > 0 ? AvailableRoles : ["Admin", "User"] },
+            { nameof(AdminUserFormDialog.Roles), AvailableRoles },
             { nameof(AdminUserFormDialog.ExistingUser), user }
         };
 
@@ -356,9 +341,47 @@
         await LoadUsersAsync();
     }
 
+    private async Task ConfirmActivateAsync(AdminUserListResponse user)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Activate {DisplayName(user)}? The existing password is retained. Email verification is still required before sign-in." },
+            { nameof(ConfirmDialog.ConfirmText), "Activate" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Activate Account", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result is not { Canceled: false }) return;
+        var response = await IamAdminService.ActivateUserAsync(user.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "User activation failed.", Severity.Error);
+            return;
+        }
+        Snackbar.Add($"{DisplayName(user)} activated.", Severity.Success);
+        await LoadUsersAsync();
+    }
+    private async Task ConfirmInviteAsync(AdminUserListResponse user)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Send an account setup link to {user.Email}? The recipient will confirm their email and choose a password." },
+            { nameof(ConfirmDialog.ConfirmText), "Send invitation" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Account Invitation", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+        if (await dialog.Result is not { Canceled: false }) return;
+        var response = await IamAdminService.InviteUserAsync(user.Id);
+        Snackbar.Add(UserMessageSanitizer.Normalize(response.Message,
+            response.IsSuccess ? "Invitation sent." : "Invitation delivery failed."),
+            response.IsSuccess ? Severity.Success : Severity.Error);
+    }
+
     private Task HandleExtraActionAsync(AdminUserListResponse user, string action)
         => action switch
         {
+            "Send Invitation" => ConfirmInviteAsync(user),
+            "Activate" => ConfirmActivateAsync(user),
             "Deactivate" => ConfirmDeactivateAsync(user),
             "Manage Roles" => OpenUserRolesDialogAsync(user),
             "Manage Permissions" => OpenUserPermissionsDialogAsync(user),
@@ -377,6 +400,16 @@
         if (AuthSession.HasPermission("users.manage_permissions"))
         {
             actions.Add("Manage Permissions");
+        }
+
+        if (!user.IsActive && AuthSession.HasPermission("users.edit"))
+        {
+            actions.Add("Activate");
+        }
+
+        if (user.IsActive && !user.EmailConfirmed && AuthSession.HasPermission("users.edit"))
+        {
+            actions.Add("Send Invitation");
         }
 
         if (user.IsActive && AuthSession.HasPermission("users.deactivate"))
@@ -425,8 +458,4 @@
     private static string RoleText(AdminUserListResponse user)
         => user.Roles.Count == 0 ? "No roles" : string.Join(", ", user.Roles);
 
-    private static string LinkedRecord(AdminUserListResponse user)
-        => user.EmployeeId.HasValue ? "Employee"
-            : user.CustomerId.HasValue ? "Customer"
-            : "System";
 }

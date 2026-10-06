@@ -14,12 +14,12 @@ public sealed class RabbitMqOutboxTransportTests
     [Trait("Category", "ExternalRabbitMq")]
     public async Task Ef_outbox_should_deliver_message_to_real_rabbitmq_consumer()
     {
-        var hostName = GetRequiredEnvironmentVariable("BT_RABBITMQ_HOST");
-        var virtualHost = GetRequiredEnvironmentVariable("BT_RABBITMQ_VIRTUAL_HOST");
-        var username = GetRequiredEnvironmentVariable("BT_RABBITMQ_USERNAME");
-        var password = GetRequiredEnvironmentVariable("BT_RABBITMQ_PASSWORD");
-        var queueName = $"bt-outbox-certification-{Guid.CreateVersion7():N}";
-        var databasePath = Path.Combine(Path.GetTempPath(), $"bt-outbox-{Guid.CreateVersion7():N}.db");
+        var hostName = GetRequiredEnvironmentVariable("ST_RABBITMQ_HOST");
+        var virtualHost = GetRequiredEnvironmentVariable("ST_RABBITMQ_VIRTUAL_HOST");
+        var username = GetRequiredEnvironmentVariable("ST_RABBITMQ_USERNAME");
+        var password = GetRequiredEnvironmentVariable("ST_RABBITMQ_PASSWORD");
+        var queueName = $"st-outbox-certification-{Guid.CreateVersion7():N}";
+        var databasePath = Path.Combine(Path.GetTempPath(), $"st-outbox-{Guid.CreateVersion7():N}.db");
         var connectionString = $"Data Source={databasePath};Pooling=False";
         var messageId = Guid.CreateVersion7();
 
@@ -40,7 +40,7 @@ public sealed class RabbitMqOutboxTransportTests
 
             configurator.UsingRabbitMq((context, rabbit) =>
             {
-                rabbit.Host(hostName, virtualHost, host =>
+                rabbit.Host(hostName, ushort.Parse(Environment.GetEnvironmentVariable("ST_RABBITMQ_PORT") ?? "5675", System.Globalization.CultureInfo.InvariantCulture), virtualHost, host =>
                 {
                     host.Username(username);
                     host.Password(password);
@@ -154,7 +154,7 @@ internal sealed class RabbitMqFactAttribute : FactAttribute
     public RabbitMqFactAttribute()
     {
         if (!string.Equals(
-                Environment.GetEnvironmentVariable("BT_RUN_RABBITMQ_TESTS"),
+                Environment.GetEnvironmentVariable("ST_RUN_RABBITMQ_TESTS"),
                 "true",
                 StringComparison.OrdinalIgnoreCase))
         {

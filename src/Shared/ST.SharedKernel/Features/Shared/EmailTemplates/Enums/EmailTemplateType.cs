@@ -22,25 +22,13 @@ public enum EmailTemplateType
     [Description("Tenant Notification Email")]
     TenantNotification,
 
-    [Description("Customer Created Email")]
-    CustomerCreated,
 
-    [Description("Customer Approved Email")]
-    CustomerApproved,
 
-    [Description("Customer Welcome Email")]
-    CustomerWelcome,
 
-    [Description("Employee Created Email")]
-    EmployeeCreated,
 
-    [Description("Employee Approved Email")]
-    EmployeApproved,
 
-    [Description("Employee Welcome Email")]
-    EmployeeWelcome,
 
-    [Description("Member Welcome Email")]
+    [Description("Password Reset Request Email")]
     PasswordResetRequest,
 
     [Description("Password Reset Code Email")]
@@ -50,20 +38,10 @@ public enum EmailTemplateType
     PasswordResetSuccess,
 
     [Description("Security Settings Changed Email")]
-    SecuritySettingsChanged,
+    SecuritySettingsChanged
 
-    [Description("Institutional")]
-    Institutional,
 
-    [Description("Corporate")]
-    Corporate,
 
-    [Description("Small Medium Enterprise")]
-    SmallMediumEnterprise,
 
-    [Description("Individual Welcome")]
-    IndividualWelcome,
 
-    [Description("Enterprise Welcome")]
-    EnterpriseWelcome
 }

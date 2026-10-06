@@ -11,7 +11,7 @@ Before writing code, debugging, or reviewing changes:
 
 Core reminders:
 
-- Target `.NET 10`; root namespace prefix is `BT`.
+- Target `.NET 10`; root namespace prefix is `ST`.
 - Keep the modular monolith and bounded-context feature-folder structure.
 - Do not break Clean Architecture dependencies.
 - Keep Application free of Infrastructure/Persistence implementation details.

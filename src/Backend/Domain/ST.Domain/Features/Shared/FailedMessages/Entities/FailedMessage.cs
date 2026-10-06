@@ -11,7 +11,7 @@ public class FailedMessage : BaseEntity, ISoftDeletable
 {
     public string MessageId { get; private set; } = string.Empty;
     public string MessageType { get; private set; } = string.Empty;
-    public string? EntityId { get; private set; } // Generic - could be CustomerId, OrderId, etc.
+    public string? EntityId { get; private set; } // Optional identifier supplied by the producing feature.
     public string Payload { get; private set; } = string.Empty;
     public string ErrorMessage { get; private set; } = string.Empty;
     public string? ErrorStackTrace { get; private set; }

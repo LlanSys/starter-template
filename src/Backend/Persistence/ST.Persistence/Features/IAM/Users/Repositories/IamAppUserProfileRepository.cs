@@ -1,5 +1,3 @@
-using ST.Domain.Features.Banking.Customers.Contracts.Repositories;
-using ST.Domain.Features.HR.Employees.Contracts.Repositories;
 using ST.Domain.Features.IAM.Users.Contracts.Repositories;
 using ST.Domain.Shared.Contracts.Repositories;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -13,7 +11,7 @@ internal sealed class IamAppUserProfileRepository(IamDBContext context) : Reposi
 {
     public async Task<AppUserProfile> CreateOrUpdateAsync(string userId, AppUserProfile profile, CancellationToken cancellationToken)
     {
-        var existing = await GetByUserIdAsync(userId).ConfigureAwait(false);
+        var existing = await GetByUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
 
         if (existing == null)
         {
@@ -29,10 +27,10 @@ internal sealed class IamAppUserProfileRepository(IamDBContext context) : Reposi
         return profile;
     }
 
-    public async Task<AppUserProfile?> GetByUserIdAsync(string userId)
+    public async Task<AppUserProfile?> GetByUserIdAsync(string userId, CancellationToken cancellationToken = default)
     {
         return await context.AppUserProfiles
-            .FirstOrDefaultAsync(x => x.AppUserId == userId && !x.IsDeleted)
+            .FirstOrDefaultAsync(x => x.AppUserId == userId && !x.IsDeleted, cancellationToken)
             .ConfigureAwait(false);
     }
 }

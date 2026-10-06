@@ -3,12 +3,9 @@ using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.SharedKernel.Extensions;
 using ST.Application.Features.IAM.Users.Commands;
-using ST.Application.Features.Banking.Customers.Mappings;
-using ST.Application.Features.HR.Employees.Mappings;
 using ST.Application.Features.IAM.Users.Mappings;
 using ST.Application.Features.Shared.EmailTemplates.Mappings;
 using ST.Application.Utilities;
-using ST.Domain.Features.HR.Employees.Entities;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Infrastructure.Configuration;
@@ -44,17 +41,17 @@ internal sealed class Login(
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
     private readonly MfaSettings _mfaSettings = mfaSettings.Value;
 
-        public async Task<AppResponse<LoginResponse>> Handle(LoginCommand command, CancellationToken cancellationToken)
+    public async Task<AppResponse<LoginResponse>> Handle(LoginCommand command, CancellationToken cancellationToken)
+    {
+        var loginRequest = command.LoginRequest;
+
+        AppUser? user = null;
+
+        try
         {
-            var loginRequest = command.LoginRequest;
-
-            AppUser? user = null;
-
-            try
-            {
-                user = await userManager.Users
-                    .FirstOrDefaultAsync(u => u.UserName == loginRequest.UserName, cancellationToken)
-                    .ConfigureAwait(false);
+            user = await userManager.Users
+                .FirstOrDefaultAsync(u => u.UserName == loginRequest.UserName, cancellationToken)
+                .ConfigureAwait(false);
 
             if (user == null)
             {
@@ -104,26 +101,7 @@ internal sealed class Login(
                 ServiceLogDefinitions.LogUsingTempSecret(logger, user.Id);
             }
 
-            var appUserResponse = new AppUserResponse(
-                user.Id,
-                user.UserName ?? string.Empty,
-                user.FirstName ?? string.Empty,
-                user.LastName ?? string.Empty,
-                $"{user.FirstName ?? string.Empty} {user.LastName ?? string.Empty}".Trim(),
-                user.PhoneNumber,
-                user.NationalId,
-                user.Email ?? string.Empty,
-                user.Gender.ToDisplayString(),
-                ProfilePictureUrlMapping.ToCurrentUserRoute(user.ProfilePictureUrl),
-                true,
-                twoFactorEnabled,
-                user.RequirePasswordChange,
-                user.CreatedAt,
-                user.LastLoginAt,
-                [],
-                user.TenantId,
-                user.EmployeeId,
-                user.CustomerId);
+            var appUserResponse = user.ToAppUserResponse();
 
             var rememberedTwoFactorClient = twoFactorEnabled
                 && await signInManager.IsTwoFactorClientRememberedAsync(user).ConfigureAwait(false);

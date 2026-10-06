@@ -1,7 +1,5 @@
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Features.IAM.Users.Commands;
-using ST.Domain.Features.Banking.Contracts;
-using ST.Domain.Features.HR.Contracts;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
@@ -31,7 +29,7 @@ internal sealed class InitiateTotpSetupCommandHandler(
         try
         {
             var user = await userManager.FindByIdAsync(userId).ConfigureAwait(false);
-            if (user == null)
+            if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
             {
                 return AppResponses.Failure<TwoFactorSetupInfo>("User not found.");
             }

@@ -1,8 +1,11 @@
 # StarterTemplate - Living Architecture And Delivery Plan
 
-> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Extraction settings and verification limits: [starter-extraction.md](docs/development/starter-extraction.md). BaseTemplate is the preserved business reference; inherited roadmap and readiness statements are not StarterTemplate certification.
+> Current starter baseline: IAM, Shared and ControlPlane only. The historical roadmap below records earlier implementation decisions; it does not require retention of removed business contexts. The active refactor/certification status is [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Six InitialStarter migrations target fresh databases only.
 
-> Last updated: 2026-07-03
+
+> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
+
+> Last updated: 2026-10-06
 >
 > This file is the canonical roadmap for the StarterTemplate solution.
 > It defines the architectural guardrails, execution order, and production-hardening specifications.
@@ -260,4 +263,41 @@ EventIds are structured by architectural layer to simplify searching in logs:
 
 ## StarterTemplate direction approved 2026-10-06
 
-The user selected a new StarterTemplate repository, preserving StarterTemplate as the business-domain reference. The implementation inventory and phase gates are in [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Customer-reference gates below describe the existing reference application; they must not require Banking/HR retention in StarterTemplate. Preserve the current architecture and platform infrastructure. Create the new repository from a reviewed baseline before performing business removal.
+StarterTemplate is the independent, domain-neutral template for future application clones. The implementation inventory and phase gates are in [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Historical Customer-reference gates below are pending replacement and must not require Banking/HR retention. Preserve the architecture and platform infrastructure while removing business dependencies in the approved order.
+
+## StarterTemplate checkpoint 2026-10-06
+
+Phase 0 is complete: independent private repository, ST identity, independent host secret IDs/ports, deployment pause and disposable rename verification. Phase 1 has started with an independent configured bootstrap administrator; 49 unit tests and 80 architecture tests pass, and API/Web build. Remaining account/domain decoupling is tracked in docs/architecture/domain-neutral-refactor-plan.md. This checkpoint does not certify providers, browser flows, mobile or fresh database migrations.
+
+## Independent account administration checkpoint
+
+Clone setup is self-contained in docs/development/starter-setup.md; no source repository or extraction SHA is required. Create/edit inputs, handlers and account-created events are now business-neutral, with resolved tenant/audit identity and one IAM transaction. Account response/auth mappings, independent activation and remaining business-model removal still require follow-through in the refactor plan.
+
+Verification: API and Blazor builds passed; 62 unit tests (including 13 standalone-account cases) and 80 architecture tests passed. A disposable copy renamed its solution and namespace ST -> CS -> DX, updated prefix metadata and regenerated both host secret identities without ORIGIN.md. Provider/browser certification remains pending.
+
+### Phase 1 checkpoint: neutral account responses and authentication state
+
+- [x] Remove Employee/Customer/Staff identifiers, national ID and HR Gender from account/current-user/admin-list responses.
+- [x] Use one backend account mapper for password, OTP, TOTP, passkey, SSO, refresh and administration; correct the previous positional field mismatch.
+- [x] Preserve actual email confirmation, MFA enrollment, tenant, session, permissions, roles and private profile-image routing in login/current-user state.
+- [x] Remove employee/customer claims and business identity context; retain platform account and tenant identifiers.
+- [x] Remove linked-record labels and category filters from account administration.
+
+Intentional contract change: API and clients use the same StarterTemplate baseline revision. No persisted columns or migrations changed. Existing token/session lifecycle and authentication checks are retained. Full browser/email/passkey/SSO certification remains pending.
+
+Remaining Phase 1: legacy AppUser fields/factories, employee/customer ID search parameters used by temporary employee administration, access-event contracts and grant/revoke/link handlers, independent activation/invitation, Department scope and neutral catalogs. Banking/HR module removal and fresh provider migrations follow in later phases.
+
+Verification for neutral authentication: API and Blazor builds passed; full unit suite 74/74, architecture suite 80/80 and whitespace checks passed. Twelve new mapping/claims/current-user cases cover distinct identity fields, neutral wire shape, platform permissions/session/tenant/MFA state and private image routes. Existing analyzer/package warnings remain. Browser authentication ceremonies and fresh migration certification are pending.
+
+### Phase 1 checkpoint: independent account access lifecycle
+
+- [x] Add activation by IAM account ID through the API, typed client and account actions; use users.edit permission for activation and users.deactivate for deactivation.
+- [x] Require a resolved matching tenant and a non-deleted account for both operations.
+- [x] Preserve password, email verification and memberships when activating; set the existing password-change flag and rotate the security stamp. Repeated activation preserves active sessions and lifecycle audit.
+- [x] Atomically deactivate the account, rotate its security stamp, terminate sessions and revoke refresh tokens. Clean stale access even when the account is already inactive without replacing its original deactivation actor.
+- [x] Use account/tenant/actor access-event contracts without Employee/Customer links and dispatch them before transaction commit.
+- [x] Validate the signed JWT session claim ahead of client headers; revoked API sessions return 401 without cookie sign-out.
+
+Verification: API and Blazor builds passed; unit suite 91/91, architecture suite 80/80, JSON parsing and whitespace checks passed. Seventeen new tests cover lifecycle/credential preservation, tenant/deleted-account rejection, Identity/event failure rollback, session/token cleanup, endpoint permission requirements and revoked/valid bearer sessions. Existing analyzer/package warnings remain.
+
+Remaining Phase 1: invitation/email-confirmation delivery and browser certification, legacy AppUser fields/factories, employee/customer ID search bridge and employee grant/revoke/link handlers, Department scope and neutral catalogs. No invitation was sent, no passwords were emailed or reset by the new activation flow, and no schema or migration changed. Banking/HR removal and fresh provider migration certification remain later phases.

@@ -1,11 +1,8 @@
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Utilities;
-using ST.Domain.Features.Banking.Contracts;
-using ST.Domain.Features.HR.Contracts;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
-using ST.Domain.Features.Banking.Customers.Enums;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.Shared.Dashboard.Dtos;
 using MediatR;

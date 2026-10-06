@@ -45,6 +45,21 @@ internal sealed class IamAdminService(IBackendApiClient apiClient, IOptions<Back
             unavailableMessage: "The IAM administration service is unavailable. Please try again.",
             timeoutMessage: "The IAM administration service timed out. Please try again.");
 
+    public Task<AppResponse<bool>> InviteUserAsync(string userId)
+        => apiClient.SendAsync<bool>(HttpMethod.Post,
+            EndpointFormatter.Format(_apiSettings.Endpoints.Iam.Admin.UserInvite, _apiSettings.Version,
+                new Dictionary<string, string> { ["userId"] = userId }),
+            unavailableMessage: "Invitation delivery is unavailable. Please try again.");
+
+    public Task<AppResponse<bool>> ActivateUserAsync(string userId)
+        => apiClient.SendAsync<bool>(
+            HttpMethod.Patch,
+            EndpointFormatter.Format(
+                _apiSettings.Endpoints.Iam.Admin.UserActivate,
+                _apiSettings.Version,
+                new Dictionary<string, string> { ["userId"] = userId }),
+            unavailableMessage: "The IAM administration service is unavailable. Please try again.",
+            timeoutMessage: "The IAM administration service timed out. Please try again.");
     public Task<AppResponse<bool>> DeactivateUserAsync(string userId, DeactivateUserRequest request)
         => apiClient.SendAsync<bool>(
             HttpMethod.Patch,
@@ -98,27 +113,7 @@ internal sealed class IamAdminService(IBackendApiClient apiClient, IOptions<Back
             unavailableMessage: "The IAM administration service is unavailable. Please try again.",
             timeoutMessage: "The IAM administration service timed out. Please try again.");
 
-    public Task<AppResponse<bool>> GrantEmployeeSystemAccessAsync(Guid employeeId, GrantEmployeeSystemAccessRequest request)
-        => apiClient.SendAsync<bool>(
-            HttpMethod.Post,
-            EndpointFormatter.Format(
-                _apiSettings.Endpoints.Iam.Admin.EmployeeGrantAccess,
-                _apiSettings.Version,
-                new Dictionary<string, string> { ["employeeId"] = employeeId.ToString() }),
-            request,
-            unavailableMessage: "The IAM administration service is unavailable. Please try again.",
-            timeoutMessage: "The IAM administration service timed out. Please try again.");
 
-    public Task<AppResponse<bool>> RevokeEmployeeSystemAccessAsync(Guid employeeId, DeactivateUserRequest request)
-        => apiClient.SendAsync<bool>(
-            HttpMethod.Patch,
-            EndpointFormatter.Format(
-                _apiSettings.Endpoints.Iam.Admin.EmployeeRevokeAccess,
-                _apiSettings.Version,
-                new Dictionary<string, string> { ["employeeId"] = employeeId.ToString() }),
-            request,
-            unavailableMessage: "The IAM administration service is unavailable. Please try again.",
-            timeoutMessage: "The IAM administration service timed out. Please try again.");
 
     public Task<AppResponse<IReadOnlyList<AdminRoleListResponse>>> GetRolesAsync()
         => GetAsync<AdminRoleListResponse>(_apiSettings.Endpoints.Iam.Admin.Roles);

@@ -1,3 +1,5 @@
+using ST.Infrastructure.Logging;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +22,7 @@ internal sealed class RegisterPasskey(
     IUserContextService userContext,
     UserManager<AppUser> userManager,
     IIamUnitOfWork unitOfWork,
-    IDistributedCache cacheService) : IRequestHandler<RegisterPasskeyCommand, AppResponse<bool>>
+    ILogger<RegisterPasskey> logger) : IRequestHandler<RegisterPasskeyCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(RegisterPasskeyCommand request, CancellationToken cancellationToken)
     {
@@ -33,38 +35,30 @@ internal sealed class RegisterPasskey(
             .FirstOrDefaultAsync(u => u.Id == userContext.GetCurrentContext().AppUserId, cancellationToken)
             .ConfigureAwait(false);
 
-        if (user == null)
+        if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
         {
             return AppResponses.Failure<bool>("User not found.");
         }
 
-        var cacheKey = $"Fido2RegistrationOptions:{user.Id}";
-        var originalOptionsStr = await cacheService.GetStringAsync(cacheKey, cancellationToken).ConfigureAwait(false);
-        JsonElement originalOptions = default;
-
+        var originalOptionsStr = await unitOfWork.PasskeyChallengeRepository.ConsumeAsync(
+            PasskeyChallengeKeys.Registration(user.Id), DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrEmpty(originalOptionsStr))
-        {
             return AppResponses.Failure<bool>("Registration options have expired or do not exist.");
-        }
-        else
-        {
-            originalOptions = JsonSerializer.Deserialize<JsonElement>(originalOptionsStr);
-        }
 
         try
         {
+            var originalOptions = JsonSerializer.Deserialize<JsonElement>(originalOptionsStr);
             var credential = await passkeyService.MakeNewCredentialAsync(user, request.AttestationResponse, originalOptions, cancellationToken).ConfigureAwait(false);
 
             await unitOfWork.Fido2CredentialRepository.CreateAsync(credential, cancellationToken).ConfigureAwait(false);
             await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
-            await cacheService.RemoveAsync(cacheKey, cancellationToken).ConfigureAwait(false);
-
             return AppResponses.Success("Passkey registered successfully.", true);
         }
         catch (System.Exception ex)
         {
-            return AppResponses.Failure<bool>($"Failed to register passkey: {ex.Message}");
+            ServiceLogDefinitions.LogPasskeyAssertionException(logger, user.UserName ?? string.Empty, ex);
+            return AppResponses.Failure<bool>("Passkey registration failed. Request new options and try again.");
         }
     }
 }

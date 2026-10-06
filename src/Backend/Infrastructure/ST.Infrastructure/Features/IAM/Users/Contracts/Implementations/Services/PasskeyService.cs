@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Contracts;
+using ST.Domain.Shared.Contracts.Common;
 using System;
 using System.Linq;
 using System.Text.Json;
@@ -13,10 +15,12 @@ namespace ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Service
 public class PasskeyService : IPasskeyService
 {
     private readonly IFido2 _fido2;
+    private readonly PasskeyCredentialPolicy _credentialPolicy;
 
-    public PasskeyService(IFido2 fido2)
+    public PasskeyService(IFido2 fido2, IIamUnitOfWork unitOfWork, ICurrentTenantProvider tenantProvider)
     {
         _fido2 = fido2;
+        _credentialPolicy = new PasskeyCredentialPolicy(unitOfWork, tenantProvider);
     }
 
     public Task<JsonElement> RequestNewCredentialAsync(AppUser user, System.Collections.Generic.IEnumerable<Fido2Credential> existingCredentials, CancellationToken cancellationToken = default)
@@ -36,7 +40,7 @@ public class PasskeyService : IPasskeyService
             {
                 User = fidoUser,
                 ExcludeCredentials = excludeCredentials,
-                AuthenticatorSelection = AuthenticatorSelection.Default,
+                AuthenticatorSelection = new AuthenticatorSelection { UserVerification = UserVerificationRequirement.Required },
                 AttestationPreference = AttestationConveyancePreference.None,
                 Extensions = new AuthenticationExtensionsClientInputs()
             }
@@ -50,17 +54,18 @@ public class PasskeyService : IPasskeyService
     public async Task<Fido2Credential> MakeNewCredentialAsync(AppUser user, JsonElement attestationResponse, JsonElement originalOptions, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user, nameof(user));
+        if (!_credentialPolicy.CanUseAccount(user)) throw new ArgumentException("Account is unavailable.");
         var response = attestationResponse.Deserialize<AuthenticatorAttestationRawResponse>()
             ?? throw new ArgumentException("Invalid attestation response.");
 
         var options = originalOptions.Deserialize<CredentialCreateOptions>()
             ?? throw new ArgumentException("Invalid original options.");
+        if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(options.User.Id, System.Text.Encoding.UTF8.GetBytes(user.Id)))
+            throw new ArgumentException("Registration account does not match the challenge.");
 
         IsCredentialIdUniqueToUserAsyncDelegate callback = async (args, token) =>
         {
-            // In a real implementation we would check the DB if this credential ID is already registered to a DIFFERENT user.
-            // For now we assume true as FIDO2 ensures uniqueness per authenticator.
-            return await Task.FromResult(true).ConfigureAwait(false);
+            return await _credentialPolicy.IsUniqueAsync(user, args.CredentialId, token).ConfigureAwait(false);
         };
 
         var success = await _fido2.MakeNewCredentialAsync(
@@ -75,6 +80,7 @@ public class PasskeyService : IPasskeyService
         var credential = new Fido2Credential
         {
             UserId = user.Id,
+            TenantId = user.TenantId,
             CredentialId = success.Id,
             PublicKey = success.PublicKey,
             UserHandle = System.Text.Encoding.UTF8.GetBytes(user.Id),
@@ -95,7 +101,7 @@ public class PasskeyService : IPasskeyService
             new GetAssertionOptionsParams
             {
                 AllowedCredentials = [],
-                UserVerification = UserVerificationRequirement.Preferred
+                UserVerification = UserVerificationRequirement.Required
             }
         );
 
@@ -106,6 +112,7 @@ public class PasskeyService : IPasskeyService
 
     public async Task<uint?> MakeAssertionAsync(AppUser user, JsonElement assertionResponse, JsonElement originalOptions, byte[] storedPublicKey, uint storedSignCount, CancellationToken cancellationToken = default)
     {
+        if (!_credentialPolicy.CanUseAccount(user)) throw new ArgumentException("Account is unavailable.");
         var response = assertionResponse.Deserialize<AuthenticatorAssertionRawResponse>()
             ?? throw new ArgumentException("Invalid assertion response.");
 
@@ -114,8 +121,7 @@ public class PasskeyService : IPasskeyService
 
         IsUserHandleOwnerOfCredentialIdAsync callback = async (args, token) =>
         {
-            // Verify if the user handle matches the registered credential.
-            return await Task.FromResult(true).ConfigureAwait(false);
+            return await _credentialPolicy.IsOwnerAsync(user, args.CredentialId, args.UserHandle, token).ConfigureAwait(false);
         };
 
         var res = await _fido2.MakeAssertionAsync(

@@ -25,7 +25,7 @@ namespace ST.Tests.Architecture;
 /// MAUI.BlazorHybrid       → SharedKernel, RCL               (HTTP → API)
 /// </code>
 ///
-/// BlazorWebApp calls Application directly via MediatR to avoid HTTP overhead.
+/// BlazorWebApp calls the backend API over HTTP.
 /// MAUI and future Angular clients go through the API over HTTP.
 /// RCL components receive data as parameters — they never dispatch MediatR commands.
 /// If RCL referenced Application, components would be coupled to MediatR and
@@ -41,8 +41,6 @@ public sealed class ProjectDependencyTests
     private const string NsSharedKernel = "ST.SharedKernel";
     private const string NsApi = "ST.Api";
 
-    private static readonly string[] BankingForbiddenDependencies = ["ST.Application.Features.HR", "ST.Application.Features.IAM"];
-    private static readonly string[] HrForbiddenDependencies = ["ST.Application.Features.Banking", "ST.Application.Features.IAM"];
     private static readonly string[] IamForbiddenDependencies = ["ST.Application.Features.Banking", "ST.Application.Features.HR"];
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -170,39 +168,14 @@ public sealed class ProjectDependencyTests
     // ═════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public void Banking_Module_ShouldNot_DependOn_HR_Or_IAM()
+    public void StarterAssembliesShouldNotShipBankingOrHrFeatures()
     {
-        var result = Types.InAssembly(AssemblyReferences.Application)
-            .That()
-            .ResideInNamespace("ST.Application.Features.Banking")
-            .ShouldNot()
-            .HaveDependencyOnAny(BankingForbiddenDependencies)
-            .GetResult();
-
-        var failingTypeNames = result.FailingTypes is { Count: > 0 }
-            ? string.Join(", ", result.FailingTypes.Select(t => t.FullName))
-            : string.Empty;
-
-        result.IsSuccessful.Should().BeTrue(
-            because: $"Banking feature module must not depend on HR or IAM modules directly. Failing types: {failingTypeNames}");
-    }
-
-    [Fact]
-    public void HR_Module_ShouldNot_DependOn_Banking_Or_IAM()
-    {
-        var result = Types.InAssembly(AssemblyReferences.Application)
-            .That()
-            .ResideInNamespace("ST.Application.Features.HR")
-            .ShouldNot()
-            .HaveDependencyOnAny(HrForbiddenDependencies)
-            .GetResult();
-
-        var failingTypeNames = result.FailingTypes is { Count: > 0 }
-            ? string.Join(", ", result.FailingTypes.Select(t => t.FullName))
-            : string.Empty;
-
-        result.IsSuccessful.Should().BeTrue(
-            because: $"HR feature module must not depend on Banking or IAM modules directly. Failing types: {failingTypeNames}");
+        var assemblies = new[] { AssemblyReferences.Domain, AssemblyReferences.Application,
+            AssemblyReferences.Persistence, AssemblyReferences.Api, AssemblyReferences.SharedKernel };
+        var businessTypes = assemblies.SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type.Namespace?.Contains(".Features.Banking", StringComparison.Ordinal) == true
+                || type.Namespace?.Contains(".Features.HR", StringComparison.Ordinal) == true);
+        businessTypes.Should().BeEmpty("application business contexts belong in downstream repositories");
     }
 
     [Fact]

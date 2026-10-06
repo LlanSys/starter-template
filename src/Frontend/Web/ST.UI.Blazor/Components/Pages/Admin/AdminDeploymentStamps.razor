@@ -16,9 +16,9 @@
 
     <MudPaper Class="poc-panel" Elevation="0">
         <div class="panel-heading">
-            <h2 style="color: var(--bt-moss); font-weight: 700;">Deployment Stamps</h2>
+            <h2 style="color: var(--st-moss); font-weight: 700;">Deployment Stamps</h2>
             <div class="d-flex align-center gap-3">
-                @if (AuthSession.HasPermission("controlplane.manage"))
+                @if (AuthSession.HasPermission("control_plane.manage"))
                 {
                     <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Dns" OnClick="@(() => OpenFormDialogAsync(null))">Create stamp</MudButton>
                 }
@@ -35,7 +35,7 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable @ref="_table" Items="_stamps" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="100" Height="calc(100vh - 25rem)" Style="min-width: 760px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh Style="width: 15rem;">Name</MudTh>
@@ -53,7 +53,7 @@
                     </MudTd>
                     <MudTd DataLabel="Actions">
                         <TableRowActions OnEdit="@(() => OpenFormDialogAsync(context))"
-                                         CanEdit="@AuthSession.HasPermission("controlplane.manage")"
+                                         CanEdit="@AuthSession.HasPermission("control_plane.manage")"
                                          CanView="true"
                                          OnView="@(() => Snackbar.Add($"Stamp: {context.Name} ({context.IsolationTier})", Severity.Info))"
                                          CanDelete="false" />

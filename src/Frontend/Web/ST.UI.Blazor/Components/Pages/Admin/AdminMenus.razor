@@ -2,7 +2,6 @@
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject IIamAdminService IamAdminService
-@inject IDepartmentService DepartmentService
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -16,7 +15,7 @@
 
     <MudPaper Class="poc-panel" Elevation="0">
         <div class="panel-heading">
-            <h2 style="color: var(--bt-moss); font-weight: 700;">Menu Catalog</h2>
+            <h2 style="color: var(--st-moss); font-weight: 700;">Menu Catalog</h2>
             <div class="d-flex align-center gap-3">
                 @if (AuthSession.HasPermission("menus.create"))
                 {
@@ -38,13 +37,6 @@
                 <MudSelectItem Value="@("AdminCenter")">Admin Center</MudSelectItem>
                 <MudSelectItem Value="@("ControlPanel")">Control Panel</MudSelectItem>
             </MudSelect>
-            <MudSelect T="Guid?" @bind-Value="_departmentFilter" Label="Department" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                <MudSelectItem T="Guid?" Value="null">Global</MudSelectItem>
-                @foreach (var department in _departments)
-                {
-                    <MudSelectItem T="Guid?" Value="@department.Id">@department.Name</MudSelectItem>
-                }
-            </MudSelect>
         </div>
 
         @if (_isLoading)
@@ -57,12 +49,12 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable @ref="_table" Items="FilteredMenus" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="100" Height="calc(100vh - 25rem)" Style="min-width: 1100px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh>Title</MudTh>
                     <MudTh>Placement</MudTh>
-                    <MudTh>Department</MudTh>
+
                     <MudTh>Parent</MudTh>
                     <MudTh>Url</MudTh>
                     <MudTh>Permission</MudTh>
@@ -75,7 +67,7 @@
                         @context.Title
                     </MudTd>
                     <MudTd DataLabel="Placement">@context.Placement</MudTd>
-                    <MudTd DataLabel="Department">@DepartmentName(context.DepartmentId)</MudTd>
+
                     <MudTd DataLabel="Parent">@ParentTitle(context.ParentId)</MudTd>
                     <MudTd DataLabel="Url">@context.Url</MudTd>
                     <MudTd DataLabel="Permission">@(context.RequiredPermissionKey ?? "Open")</MudTd>
@@ -109,18 +101,17 @@
 
 @code {
     private readonly List<MenuResponse> _menus = [];
-    private readonly List<DepartmentResponse> _departments = [];
+
     private bool _isLoading = true;
     private string? _message;
     private string? _searchText;
     private string? _placementFilter;
-    private Guid? _departmentFilter;
+
     private MudTable<MenuResponse>? _table;
 
     private IReadOnlyList<MenuResponse> FilteredMenus =>
         [.. _menus.Where(menu =>
             (string.IsNullOrWhiteSpace(_placementFilter) || menu.Placement.Equals(_placementFilter, StringComparison.OrdinalIgnoreCase))
-            && (!_departmentFilter.HasValue || menu.DepartmentId == _departmentFilter)
             && (string.IsNullOrWhiteSpace(_searchText)
                 || menu.Key.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
                 || menu.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
@@ -143,21 +134,7 @@
             return;
         }
 
-        await LoadDepartmentsAsync();
         await LoadMenusAsync();
-    }
-
-    private async Task LoadDepartmentsAsync()
-    {
-        var response = await DepartmentService.GetAsync();
-        if (!response.IsSuccess || response.Data is null)
-        {
-            Snackbar.Add(response.Message ?? "We could not load departments.", Severity.Warning);
-            return;
-        }
-
-        _departments.Clear();
-        _departments.AddRange(response.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
     }
 
     private async Task LoadMenusAsync()
@@ -240,8 +217,4 @@
             ? _menus.FirstOrDefault(menu => menu.Id == parentId.Value)?.Title ?? "Unknown"
             : "Root";
 
-    private string DepartmentName(Guid? departmentId)
-        => departmentId.HasValue
-            ? _departments.FirstOrDefault(department => department.Id == departmentId.Value)?.Name ?? "Unknown"
-            : "Global";
 }

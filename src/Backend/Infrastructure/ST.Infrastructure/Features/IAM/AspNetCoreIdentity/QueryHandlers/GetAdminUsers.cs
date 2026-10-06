@@ -54,29 +54,6 @@ internal sealed class GetAdminUsers(UserManager<AppUser> userManager, IamDBConte
             query = query.Where(static user => !user.TwoFactorEnabled);
         }
 
-        if (req.LinkedRecordType?.Equals("Employee", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            query = query.Where(static user => user.EmployeeId != null);
-        }
-        else if (req.LinkedRecordType?.Equals("Customer", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            query = query.Where(static user => user.CustomerId != null);
-        }
-        else if (req.LinkedRecordType?.Equals("System", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            query = query.Where(static user => user.EmployeeId == null && user.CustomerId == null);
-        }
-
-        if (req.EmployeeId.HasValue)
-        {
-            query = query.Where(user => user.EmployeeId == req.EmployeeId.Value);
-        }
-
-        if (req.CustomerId.HasValue)
-        {
-            query = query.Where(user => user.CustomerId == req.CustomerId.Value);
-        }
-
         if (!string.IsNullOrWhiteSpace(req.Role))
         {
             var normalizedRole = userManager.NormalizeName(req.Role);
@@ -123,9 +100,7 @@ internal sealed class GetAdminUsers(UserManager<AppUser> userManager, IamDBConte
                 user.TwoFactorEnabled,
                 user.RequirePasswordChange,
                 user.CreatedAt,
-                user.LastLoginAt,
-                user.EmployeeId,
-                user.CustomerId))
+                user.LastLoginAt))
             .Take(pageSize + 1)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -168,8 +143,6 @@ internal sealed class GetAdminUsers(UserManager<AppUser> userManager, IamDBConte
                 user.RequirePasswordChange,
                 user.CreatedAt,
                 user.LastLoginAt,
-                user.EmployeeId,
-                user.CustomerId,
                 rolesByUser.GetValueOrDefault(user.Id, [])))
             .ToList();
 
@@ -197,7 +170,5 @@ internal sealed class GetAdminUsers(UserManager<AppUser> userManager, IamDBConte
         bool TwoFactorEnabled,
         bool RequirePasswordChange,
         DateTimeOffset CreatedAt,
-        DateTimeOffset? LastLoginAt,
-        Guid? EmployeeId,
-        Guid? CustomerId);
+        DateTimeOffset? LastLoginAt);
 }

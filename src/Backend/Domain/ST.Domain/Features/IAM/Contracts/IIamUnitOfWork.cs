@@ -1,6 +1,4 @@
 using ST.Domain.Shared.Contracts;
-using ST.Domain.Features.Banking.Customers.Contracts.Repositories;
-using ST.Domain.Features.HR.Employees.Contracts.Repositories;
 using ST.Domain.Features.IAM.Menus.Contracts.Repositories;
 using ST.Domain.Features.IAM.Permissions.Contracts.Repositories;
 using ST.Domain.Features.IAM.ReferenceData.Entities;
@@ -25,5 +23,6 @@ public interface IIamUnitOfWork : ITransactionalUnitOfWork
     IRepository<MenuPlacement> MenuPlacementRepository { get; }
     IRepository<MenuIcon> MenuIconRepository { get; }
     IRepository<MenuRoute> MenuRouteRepository { get; }
+    IPasskeyChallengeRepository PasskeyChallengeRepository { get; }
     IRepository<Fido2Credential> Fido2CredentialRepository { get; }
 }

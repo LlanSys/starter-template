@@ -104,9 +104,12 @@ internal sealed class SessionValidationMiddleware(RequestDelegate next, ILogger<
 
     private string? GetSessionId(HttpContext context)
     {
-        // For APIs, only check headers and cookies (not session storage)
+        // Prefer the authenticated session; retain headers/cookies for existing clients.
 
-        var sessionId = context.Request.Headers["X-Session-Id"].FirstOrDefault() ?? context.Request.Cookies["session_id"];
+        // The validated token owns the session. A client header cannot substitute a different session.
+        var sessionId = context.User.FindFirstValue("session_id")
+            ?? context.Request.Headers["X-Session-Id"].FirstOrDefault()
+            ?? context.Request.Cookies["session_id"];
 
 
         // Only check session storage for non-API requests
@@ -129,15 +132,18 @@ internal sealed class SessionValidationMiddleware(RequestDelegate next, ILogger<
 
     private async Task HandleSessionInvalid(HttpContext context, string? reason)
     {
-        // Clear any existing authentication
-        try
+        // Bearer API requests have no cookie sign-out handler. Return 401 directly for those requests.
+        if (!IsApiRequest(context.Request))
         {
-            await context.SignOutAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            MiddlewareLogDefinitions.LogSignOutError(logger, ex);
-            throw;
+            try
+            {
+                await context.SignOutAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                MiddlewareLogDefinitions.LogSignOutError(logger, ex);
+                throw;
+            }
         }
 
         // Determine if this is an API request or web request

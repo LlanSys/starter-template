@@ -37,7 +37,7 @@ Docker Desktop must be running. From the repository root:
 The script:
 
 1. Generates random local-only RabbitMQ, Redis, SQL Server, and Azurite credentials in ignored `ops/local/.env`.
-2. Writes matching RabbitMQ, Redis, and Mailpit provider values to API user-secrets.
+2. Writes matching RabbitMQ, Redis, and Mailpit provider values to API user-secrets, and adds missing payment fields without overwriting existing credentials.
 3. Pulls and starts RabbitMQ, Redis, Mailpit, and Azurite.
 4. Waits for container health checks.
 
@@ -53,10 +53,10 @@ It is a repository script, not a globally installed PowerShell command. You may 
 Optional profiles:
 
 ```powershell
-# Add Seq when port 5341 is not already used by a local Seq installation.
+# Add Seq when port 5344 is not already used by a local Seq installation.
 ./scripts/setup-local-platform.ps1 -IncludeSeq
 
-# Add SQL Server on localhost,14333 and update the API connection-string secret.
+# Add SQL Server on localhost,14335 and update the API connection-string secret.
 ./scripts/setup-local-platform.ps1 -IncludeSqlServer
 
 # Start every local dependency.
@@ -82,10 +82,10 @@ From the repository root:
 By default, the app containers expect `APP_SQL_CONNECTION_STRING` in ignored `ops/local/.env`. This should point to the SQL Server that containers can reach. For SQL Server installed on the host machine, Docker Desktop exposes the host as `host.docker.internal`, for example:
 
 ```text
-APP_SQL_CONNECTION_STRING=Server=host.docker.internal;Database=BT;User Id=sa;Password=<your-local-password>;Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True
+APP_SQL_CONNECTION_STRING=Server=host.docker.internal;Database=ST;User Id=sa;Password=<your-local-password>;Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True
 ```
 
-The SQL password in `APP_SQL_CONNECTION_STRING` is not the StarterTemplate sign-in password. The development admin user is seeded from `DevelopmentSeed:AdminEmail` and `DevelopmentSeed:AdminPassword`; by default that is `aamodhiambo@gmail.com` / `Admin@12345`.
+The SQL password in `APP_SQL_CONNECTION_STRING` is not the StarterTemplate sign-in password. The development admin user is seeded from `DevelopmentSeed:AdminEmail` and `DevelopmentSeed:AdminPassword`; both are blank by default and seeding is disabled. Configure DevelopmentSeed values in user-secrets before enabling it.
 
 If you want a fully containerized stack including SQL Server, run:
 
@@ -122,14 +122,14 @@ The full app deployment is for deployability confidence and local smoke tests. F
 
 | Service | Endpoint | Purpose |
 | --- | --- | --- |
-| RabbitMQ | `localhost:5672` | AMQP transport |
-| RabbitMQ Management | `http://localhost:15672` | Exchanges, queues, consumers, and message rates |
+| RabbitMQ | `localhost:5675` | AMQP transport |
+| RabbitMQ Management | `http://localhost:15675` | Exchanges, queues, consumers, and message rates |
 | Redis | `localhost:6380` | HybridCache distributed layer; avoids common existing port `6379` |
-| Mailpit | `http://localhost:8025` | Captured email UI |
+| Mailpit | `http://localhost:8030` | Captured email UI |
 | Mailpit SMTP | `localhost:1025` | Local-only capture relay used by `EmailSettings:Provider=LocalMailpit` |
-| Seq | `http://localhost:5341` | Structured logs, optional profile |
-| Azurite Blob | `http://localhost:10000` | Storage emulator, optional profile |
-| SQL Server | `localhost,14333` | Containerized database, optional profile |
+| Seq | `http://localhost:5344` | Structured logs, optional profile |
+| Azurite Blob | `http://localhost:10020` | Storage emulator, optional profile |
+| SQL Server | `localhost,14335` | Containerized database, optional profile |
 | Containerized API | `http://localhost:8080` | Optional local deployment profile |
 | Containerized Blazor | `http://localhost:8081` | Optional local deployment profile |
 

@@ -12,6 +12,4 @@ public sealed record AdminUserListResponse(
     bool RequirePasswordChange,
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastLoginAt,
-    Guid? EmployeeId,
-    Guid? CustomerId,
     IReadOnlyList<string> Roles);

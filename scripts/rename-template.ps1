@@ -12,12 +12,29 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$currentPrefixMatch = [regex]::Match(
+    [System.IO.File]::ReadAllText((Join-Path $repoRoot 'AGENTS.md')),
+    'Root namespace prefix: `([A-Z][A-Z0-9]*)`')
+if (-not $currentPrefixMatch.Success) {
+    throw 'AGENTS.md must declare the current root namespace prefix before renaming.'
+}
+$currentPrefix = $currentPrefixMatch.Groups[1].Value
+$currentProductMatch = [regex]::Match(
+    [System.IO.File]::ReadAllText((Join-Path $repoRoot 'AGENTS.md')),
+    '(?m)^- Product: (.+)$')
+if (-not $currentProductMatch.Success) {
+    throw 'AGENTS.md must declare the current product before renaming.'
+}
+$currentDisplayName = $currentProductMatch.Groups[1].Value.Trim()
+$currentCompactName = $currentDisplayName -replace '[^A-Za-z0-9]', ''
+$currentKebabName = (($currentDisplayName -creplace '([a-z0-9])([A-Z])', '$1-$2') -replace '\s+', '-').ToLowerInvariant()
+$currentLowerCompactName = $currentCompactName.ToLowerInvariant()
 $displayName = $NewName.Trim()
 $compactName = $displayName -replace '[^A-Za-z0-9]', ''
 $kebabName = (($displayName -creplace '([a-z0-9])([A-Z])', '$1-$2') -replace '\s+', '-').ToLowerInvariant()
 $lowerCompactName = $compactName.ToLowerInvariant()
 
-$excludedDirectoryNames = @('.git', '.vs', '.idea', 'bin', 'obj', 'node_modules', 'Logs')
+$excludedDirectoryNames = @('.git', '.vs', '.idea', 'bin', 'obj', 'node_modules', 'Logs', 'artifacts')
 $excludedFiles = @(
     (Join-Path $repoRoot 'ops/local/.env')
 )
@@ -72,15 +89,21 @@ foreach ($project in Get-ChildItem -LiteralPath $repoRoot -Recurse -Filter '*.cs
 }
 
 function Get-ReplacedText([string]$value) {
-    $updated = $value.Replace('StarterTemplate', $displayName)
-    $updated = $updated.Replace('StarterTemplate', $compactName)
-    $updated = $updated.Replace('starter-template', $kebabName)
-    $updated = $updated.Replace('startertemplate', $lowerCompactName)
+    # Compact product tokens may occur inside C# identifiers and paths.
+    $updated = $value.Replace($currentCompactName, $compactName)
+    if ($currentDisplayName -ne $currentCompactName) {
+        $updated = $updated.Replace($currentDisplayName, $displayName)
+    }
+    $updated = $updated.Replace($currentKebabName, $kebabName)
+    $updated = $updated.Replace($currentLowerCompactName, $lowerCompactName)
+    $updated = $updated.Replace('- Product: ' + $compactName, '- Product: ' + $displayName)
 
     # Replace only technical prefix forms. A global standalone-BT replacement
     # would corrupt legitimate values such as Bhutan's ISO country code, "BT".
-    $updated = $updated -creplace '(?<![A-Za-z0-9_])ST(?=\.)', $NamespacePrefix
-    $updated = $updated.Replace('STApi', "${NamespacePrefix}Api")
+    $technicalPrefixPattern = '(?<![A-Za-z0-9_])' + [regex]::Escape($currentPrefix) + '(?=\.)'
+    $updated = $updated -creplace $technicalPrefixPattern, $NamespacePrefix
+    $updated = $updated.Replace("${currentPrefix}Api", "${NamespacePrefix}Api")
+    $updated = $updated.Replace('Root namespace prefix: `' + $currentPrefix + '`', 'Root namespace prefix: `' + $NamespacePrefix + '`')
 
     foreach ($oldId in $userSecretsReplacements.Keys) {
         $updated = $updated.Replace($oldId, $userSecretsReplacements[$oldId])

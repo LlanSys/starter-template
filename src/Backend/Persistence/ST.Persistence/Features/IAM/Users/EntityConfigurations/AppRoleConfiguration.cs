@@ -12,15 +12,11 @@ internal sealed class AppRoleConfiguration : IEntityTypeConfiguration<AppRole>
 
         builder.ToTable("AspNetRoles");
 
-        builder.Property(role => role.DepartmentId);
 
         builder.Property(role => role.DeletedBy)
             .HasMaxLength(100);
 
         builder.HasIndex(role => role.IsDeleted)
             .HasDatabaseName("IX_AspNetRoles_IsDeleted");
-
-        builder.HasIndex(role => role.DepartmentId)
-            .HasDatabaseName("IX_AspNetRoles_DepartmentId");
     }
 }

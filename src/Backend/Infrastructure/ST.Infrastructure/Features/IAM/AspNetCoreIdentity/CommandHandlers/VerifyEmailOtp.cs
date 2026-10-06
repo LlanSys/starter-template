@@ -38,7 +38,10 @@ internal sealed class VerifyEmailOtp(
     {
         var req = command.Request;
         var user = await userManager.FindByIdAsync(req.UserId).ConfigureAwait(false);
-        if (user == null) return AppResponses.Failure<VerifyEmailOtpResponse>("User not found");
+        if (user is null || !user.IsActive || user.IsDeleted)
+            return AppResponses.Failure<VerifyEmailOtpResponse>("Account unavailable.");
+        if (string.Equals(req.Purpose, "Login", StringComparison.OrdinalIgnoreCase) && !user.EmailConfirmed)
+            return AppResponses.Failure<VerifyEmailOtpResponse>("Confirm your email before signing in.");
 
         var attemptKey = CacheKeys.EmailOtpAttempts(user.Id);
         var attemptsStr = await cache.GetStringAsync(attemptKey, ct).ConfigureAwait(false);
@@ -71,7 +74,8 @@ internal sealed class VerifyEmailOtp(
             if (!user.EmailConfirmed)
             {
                 user.EmailConfirmed = true;
-                await userManager.UpdateAsync(user).ConfigureAwait(false);
+                var confirmation = await userManager.UpdateAsync(user).ConfigureAwait(false);
+                if (!confirmation.Succeeded) return AppResponses.Failure<VerifyEmailOtpResponse>("Email confirmation could not be completed.");
                 ServiceLogDefinitions.LogEmailConfirmedViaOtp(logger, user.Id);
             }
             return AppResponses.Success("Email confirmed",
@@ -131,14 +135,8 @@ internal sealed class VerifyEmailOtp(
         await signInManager.SignInAsync(user, req.RememberMe).ConfigureAwait(false);
 
         var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-        var twoFactor = await userManager.GetTwoFactorEnabledAsync(user).ConfigureAwait(false);
 
-        var appUser = new AppUserResponse(
-            user.Id, user.UserName ?? "", user.FirstName, user.LastName,
-            $"{user.FirstName} {user.LastName}".Trim(), user.PhoneNumber, user.NationalId,
-            user.Email ?? "", user.Gender.ToDisplayString(), ProfilePictureUrlMapping.ToCurrentUserRoute(user.ProfilePictureUrl),
-            user.IsActive, twoFactor, user.RequirePasswordChange, user.CreatedAt,
-            user.LastLoginAt, [.. roles], user.TenantId, user.EmployeeId, user.CustomerId);
+        var appUser = user.ToAppUserResponse(roles);
 
         var claimsResp = claims.Select(c => new UserClaimsResponse
         {

@@ -47,12 +47,24 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new UpdateAdminUserCommand(userId, request, updatedBy)).ConfigureAwait(false));
     }
 
+    [HttpPost("users/{userId}/invite")]
+    [RequirePermission("users.edit")]
+    public async Task<IActionResult> InviteUser(string userId, CancellationToken cancellationToken)
+        => HandleResponse(await sender.Send(new InviteAdminUserCommand(userId), cancellationToken).ConfigureAwait(false));
+
+    [HttpPatch("users/{userId}/activate")]
+    [RequirePermission("users.edit")]
+    public async Task<IActionResult> ActivateUser(string userId, CancellationToken cancellationToken)
+    {
+        var activatedBy = GetActorId();
+        return HandleResponse(await sender.Send(new ActivateAdminUserCommand(userId, activatedBy), cancellationToken).ConfigureAwait(false));
+    }
     [HttpPatch("users/{userId}/deactivate")]
     [RequirePermission("users.deactivate")]
-    public async Task<IActionResult> DeactivateUser(string userId, DeactivateUserRequest request)
+    public async Task<IActionResult> DeactivateUser(string userId, DeactivateUserRequest request, CancellationToken cancellationToken)
     {
         var deactivatedBy = GetActorId();
-        return HandleResponse(await sender.Send(new DeactivateAdminUserCommand(userId, request, deactivatedBy)).ConfigureAwait(false));
+        return HandleResponse(await sender.Send(new DeactivateAdminUserCommand(userId, request, deactivatedBy), cancellationToken).ConfigureAwait(false));
     }
 
     [HttpGet("users/{userId}/roles")]
@@ -120,25 +132,9 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new DeleteRoleCommand(roleId, userId)).ConfigureAwait(false));
     }
 
-    [HttpPost("employees/{employeeId:guid}/grant-access")]
-    [RequirePermission("users.create")]
-    public async Task<IActionResult> GrantEmployeeSystemAccess(Guid employeeId, GrantEmployeeSystemAccessRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
 
-        var userId = GetActorId();
-        return HandleResponse(await sender.Send(new GrantEmployeeSystemAccessCommand(employeeId, request.Roles, userId)).ConfigureAwait(false));
-    }
 
-    [HttpPatch("employees/{employeeId:guid}/revoke-access")]
-    [RequirePermission("users.deactivate")]
-    public async Task<IActionResult> RevokeEmployeeSystemAccess(Guid employeeId, DeactivateUserRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
 
-        var userId = GetActorId();
-        return HandleResponse(await sender.Send(new RevokeEmployeeSystemAccessCommand(employeeId, request, userId)).ConfigureAwait(false));
-    }
 
     [HttpGet("roles/{roleId}/permissions")]
     [RequirePermission("roles.manage_permissions")]

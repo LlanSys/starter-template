@@ -38,7 +38,7 @@ internal sealed class UpdateRolePermissions(
             var validKeys = await context.Permissions
                 .AsNoTracking()
                 .Where(permission => requestedKeys.Contains(permission.Key) && permission.IsActive)
-                .Where(permission => permission.DepartmentId == null || permission.DepartmentId == role.DepartmentId)
+
                 .Select(static permission => permission.Key)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);

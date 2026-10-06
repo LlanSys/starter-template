@@ -1,4 +1,3 @@
-using ST.Domain.Features.Banking.Customers.Contracts.Specifications;
 using ST.Domain.Shared.Contracts.Specifications;
 using System;
 using System.Collections.Generic;
