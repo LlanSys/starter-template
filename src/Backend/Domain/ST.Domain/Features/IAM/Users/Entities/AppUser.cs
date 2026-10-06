@@ -390,7 +390,7 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         _domainEvents.Clear();
     }
 
-    public void GrantAccess(string grantedBy, IEnumerable<string> defaultRoles)
+    public void GrantAccess(string grantedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(grantedBy);
 
@@ -409,7 +409,7 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         DeactivationReason = null;
         RequirePasswordChange = true; // Force password set on first login
 
-        RaiseDomainEvent(new AppUserAccessGrantedEvent(Id, EmployeeId, CustomerId, grantedBy));
+        RaiseDomainEvent(new AppUserAccessGrantedEvent(Id, TenantId, grantedBy));
     }
 
     public void RevokeAccess(string revokedBy, string reason)
@@ -429,6 +429,6 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         UpdatedAt = now;
         UpdatedBy = revokedBy;
 
-        RaiseDomainEvent(new AppUserAccessRevokedEvent(Id, EmployeeId, CustomerId, revokedBy, reason));
+        RaiseDomainEvent(new AppUserAccessRevokedEvent(Id, TenantId, revokedBy, reason));
     }
 }

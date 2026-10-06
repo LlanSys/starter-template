@@ -90,7 +90,7 @@
                                          OnDelete="@(() => ConfirmDeactivateAsync(context))"
                                          CanView="@AuthSession.HasPermission("users.view")"
                                          CanEdit="@AuthSession.HasPermission("users.edit")"
-                                         CanDelete="@AuthSession.HasPermission("users.deactivate")"
+                                         CanDelete="@(context.IsActive && AuthSession.HasPermission("users.deactivate"))"
                                          ExtraActions="@UserExtraActions(context)"
                                          OnExtraAction="@((action) => HandleExtraActionAsync(context, action))" />
                     </MudTd>
@@ -341,9 +341,30 @@
         await LoadUsersAsync();
     }
 
+    private async Task ConfirmActivateAsync(AdminUserListResponse user)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Activate {DisplayName(user)}? The existing password is retained. Email verification is still required before sign-in." },
+            { nameof(ConfirmDialog.ConfirmText), "Activate" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Activate Account", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result is not { Canceled: false }) return;
+        var response = await IamAdminService.ActivateUserAsync(user.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "User activation failed.", Severity.Error);
+            return;
+        }
+        Snackbar.Add($"{DisplayName(user)} activated.", Severity.Success);
+        await LoadUsersAsync();
+    }
     private Task HandleExtraActionAsync(AdminUserListResponse user, string action)
         => action switch
         {
+            "Activate" => ConfirmActivateAsync(user),
             "Deactivate" => ConfirmDeactivateAsync(user),
             "Manage Roles" => OpenUserRolesDialogAsync(user),
             "Manage Permissions" => OpenUserPermissionsDialogAsync(user),
@@ -362,6 +383,11 @@
         if (AuthSession.HasPermission("users.manage_permissions"))
         {
             actions.Add("Manage Permissions");
+        }
+
+        if (!user.IsActive && AuthSession.HasPermission("users.edit"))
+        {
+            actions.Add("Activate");
         }
 
         if (user.IsActive && AuthSession.HasPermission("users.deactivate"))

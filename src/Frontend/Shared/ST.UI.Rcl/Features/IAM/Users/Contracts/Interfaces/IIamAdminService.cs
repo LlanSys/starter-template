@@ -14,6 +14,8 @@ public interface IIamAdminService
 
     Task<AppResponse<AdminUserListResponse>> UpdateUserAsync(string userId, UpdateAdminUserRequest request);
 
+    Task<AppResponse<bool>> ActivateUserAsync(string userId);
+
     Task<AppResponse<bool>> DeactivateUserAsync(string userId, DeactivateUserRequest request);
 
     Task<AppResponse<UserRolesResponse>> GetUserRolesAsync(string userId);

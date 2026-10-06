@@ -91,7 +91,7 @@ internal sealed class GrantEmployeeSystemAccess(
                 }
             }
 
-            user.GrantAccess(command.GrantedBy, command.Roles);
+            user.GrantAccess(command.GrantedBy);
             user.EmailConfirmed = true;
 
             var updateResult = await userManager.UpdateAsync(user).ConfigureAwait(false);

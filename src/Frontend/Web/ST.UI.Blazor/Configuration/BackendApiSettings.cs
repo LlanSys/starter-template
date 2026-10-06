@@ -100,6 +100,8 @@ internal sealed class IamAdminEndpointSettings
 
     public string UserUpdate { get; init; } = "api/v{version}/iam/admin/users/{userId}";
 
+    public string UserActivate { get; init; } = "api/v{version}/iam/admin/users/{userId}/activate";
+
     public string UserDeactivate { get; init; } = "api/v{version}/iam/admin/users/{userId}/deactivate";
 
     public string UserRoles { get; init; } = "api/v{version}/iam/admin/users/{userId}/roles";

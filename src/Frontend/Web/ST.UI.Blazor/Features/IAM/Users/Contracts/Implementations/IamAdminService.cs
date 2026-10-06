@@ -45,6 +45,15 @@ internal sealed class IamAdminService(IBackendApiClient apiClient, IOptions<Back
             unavailableMessage: "The IAM administration service is unavailable. Please try again.",
             timeoutMessage: "The IAM administration service timed out. Please try again.");
 
+    public Task<AppResponse<bool>> ActivateUserAsync(string userId)
+        => apiClient.SendAsync<bool>(
+            HttpMethod.Patch,
+            EndpointFormatter.Format(
+                _apiSettings.Endpoints.Iam.Admin.UserActivate,
+                _apiSettings.Version,
+                new Dictionary<string, string> { ["userId"] = userId }),
+            unavailableMessage: "The IAM administration service is unavailable. Please try again.",
+            timeoutMessage: "The IAM administration service timed out. Please try again.");
     public Task<AppResponse<bool>> DeactivateUserAsync(string userId, DeactivateUserRequest request)
         => apiClient.SendAsync<bool>(
             HttpMethod.Patch,

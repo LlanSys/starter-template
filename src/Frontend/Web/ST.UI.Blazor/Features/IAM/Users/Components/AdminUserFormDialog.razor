@@ -117,7 +117,7 @@
                 return;
             }
 
-            Snackbar.Add("User created.", Severity.Success);
+            Snackbar.Add("Account created. Activate it from the account actions before sign-in.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(createResponse.Data));
             return;
         }

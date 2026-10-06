@@ -304,6 +304,187 @@ public sealed class IndependentAccountTests
         Assert.False(response.IsSuccess);
         Assert.Null(response.Data);
     }
+    [Fact]
+    public async Task ActivateStandaloneAccountPreservesCredentialsVerificationAndMemberships()
+    {
+        using var fixture = new Fixture();
+        await fixture.AddRoleAsync("Operator");
+        var user = await fixture.AddUserAsync();
+        user.EmailConfirmed = true;
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        Assert.True((await fixture.Users.AddToRolesAsync(user, ["Operator"])).Succeeded);
+        var hash = user.PasswordHash;
+        var oldStamp = user.SecurityStamp;
+        var response = await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None);
+        Assert.True(response.IsSuccess);
+        fixture.Context.ChangeTracker.Clear();
+        var persisted = await fixture.Context.Users.SingleAsync();
+        Assert.True(persisted.IsActive);
+        Assert.Equal(ActorId, persisted.ActivatedBy);
+        Assert.Equal(hash, persisted.PasswordHash);
+        Assert.True(persisted.EmailConfirmed);
+        Assert.True(persisted.RequirePasswordChange);
+        Assert.NotEqual(oldStamp, persisted.SecurityStamp);
+        Assert.Equal("Operator", Assert.Single(await fixture.Users.GetRolesAsync(persisted)));
+        var accessEvent = fixture.Publisher.ReceivedCalls().SelectMany(call => call.GetArguments()).OfType<AppUserAccessGrantedEvent>().Single();
+        Assert.Equal(TenantId, accessEvent.TenantId);
+        Assert.Equal(ActorId, accessEvent.GrantedBy);
+    }
+
+    [Fact]
+    public async Task ActivateDoesNotInventEmailVerificationOrResetPassword()
+    {
+        using var fixture = new Fixture();
+        var user = await fixture.AddUserAsync();
+        var hash = user.PasswordHash;
+        await SeedAccessAsync(fixture, user);
+        Assert.True((await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None)).IsSuccess);
+        fixture.Context.ChangeTracker.Clear();
+        var persisted = await fixture.Context.Users.SingleAsync();
+        Assert.False(persisted.EmailConfirmed);
+        Assert.Equal(hash, persisted.PasswordHash);
+        Assert.All(await fixture.Context.AppUserSessions.ToListAsync(), session => Assert.True(session.IsRevoked));
+        Assert.All(await fixture.Context.RefreshTokens.ToListAsync(), token => Assert.NotNull(token.RevokedAt));
+    }
+
+    [Fact]
+    public async Task RepeatedActivationPreservesLifecycleAndExistingSessions()
+    {
+        using var fixture = new Fixture();
+        var user = await fixture.AddUserAsync();
+        user.IsActive = true;
+        user.ActivatedBy = "previous-actor";
+        user.ActivatedAt = DateTimeOffset.UtcNow.AddDays(-1);
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        var stamp = user.SecurityStamp;
+        await SeedAccessAsync(fixture, user);
+        var response = await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None);
+        Assert.True(response.IsSuccess);
+        fixture.Context.ChangeTracker.Clear();
+        var persisted = await fixture.Context.Users.SingleAsync();
+        Assert.Equal("previous-actor", persisted.ActivatedBy);
+        Assert.Equal(stamp, persisted.SecurityStamp);
+        Assert.All(await fixture.Context.AppUserSessions.ToListAsync(), session => Assert.True(session.IsActive));
+        Assert.Empty(fixture.Publisher.ReceivedCalls());
+    }
+
+    [Theory]
+    [InlineData("tenant")]
+    [InlineData("deleted")]
+    [InlineData("unresolved")]
+    public async Task AccessChangesRejectUnresolvedDeletedAndOtherTenantAccounts(string scenario)
+    {
+        using var fixture = new Fixture();
+        var user = await fixture.AddUserAsync();
+        if (scenario == "tenant") user.TenantId = Guid.CreateVersion7();
+        if (scenario == "deleted") user.IsDeleted = true;
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        if (scenario == "unresolved") fixture.Tenant.TenantId.Returns(Guid.Empty);
+        var activation = await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None);
+        var deactivation = await fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("reason"), ActorId), CancellationToken.None);
+        Assert.False(activation.IsSuccess);
+        Assert.False(deactivation.IsSuccess);
+        Assert.Empty(fixture.Publisher.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task DeactivationAtomicallyTerminatesSessionsTokensAndRotatesStampWithNeutralEvent()
+    {
+        using var fixture = new Fixture();
+        var user = await fixture.AddUserAsync();
+        user.IsActive = true;
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        var stamp = user.SecurityStamp;
+        await SeedAccessAsync(fixture, user);
+        var response = await fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("  Access removed  "), ActorId), CancellationToken.None);
+        Assert.True(response.IsSuccess);
+        fixture.Context.ChangeTracker.Clear();
+        var persisted = await fixture.Context.Users.SingleAsync();
+        Assert.False(persisted.IsActive);
+        Assert.Equal(ActorId, persisted.DeactivatedBy);
+        Assert.Equal("Access removed", persisted.DeactivationReason);
+        Assert.NotEqual(stamp, persisted.SecurityStamp);
+        var session = await fixture.Context.AppUserSessions.SingleAsync();
+        Assert.True(session.IsRevoked);
+        Assert.False(session.IsActive);
+        Assert.Equal(ActorId, session.UpdatedBy);
+        var token = await fixture.Context.RefreshTokens.SingleAsync();
+        Assert.NotNull(token.RevokedAt);
+        Assert.Equal(ActorId, token.UpdatedBy);
+        Assert.Equal("Access removed", token.RevokedReason);
+        var accessEvent = fixture.Publisher.ReceivedCalls().SelectMany(call => call.GetArguments()).OfType<AppUserAccessRevokedEvent>().Single();
+        Assert.Equal(TenantId, accessEvent.TenantId);
+        Assert.Equal(ActorId, accessEvent.RevokedBy);
+    }
+
+    [Fact]
+    public async Task AlreadyInactiveAccountStillCleansStaleAccessWithoutRewritingDeactivationActor()
+    {
+        using var fixture = new Fixture();
+        var user = await fixture.AddUserAsync();
+        user.DeactivatedBy = "previous-actor";
+        user.DeactivationReason = "Previous reason";
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        await SeedAccessAsync(fixture, user);
+        Assert.True((await fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("Cleanup"), ActorId), CancellationToken.None)).IsSuccess);
+        fixture.Context.ChangeTracker.Clear();
+        Assert.Equal("previous-actor", (await fixture.Context.Users.SingleAsync()).DeactivatedBy);
+        Assert.True((await fixture.Context.AppUserSessions.SingleAsync()).IsRevoked);
+        Assert.NotNull((await fixture.Context.RefreshTokens.SingleAsync()).RevokedAt);
+        Assert.Empty(fixture.Publisher.ReceivedCalls());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AccessIdentityFailureRollsBackLifecycleAndDoesNotExposeProviderDetails(bool activate)
+    {
+        using var fixture = new Fixture();
+        var user = await fixture.AddUserAsync();
+        user.IsActive = !activate;
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        await SeedAccessAsync(fixture, user);
+        fixture.Users.RejectStampChanges = true;
+        var response = activate
+            ? await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None)
+            : await fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("Reason"), ActorId), CancellationToken.None);
+        Assert.False(response.IsSuccess);
+        Assert.DoesNotContain("InternalProviderDetail", response.Message ?? string.Empty, StringComparison.Ordinal);
+        fixture.Context.ChangeTracker.Clear();
+        Assert.Equal(!activate, (await fixture.Context.Users.SingleAsync()).IsActive);
+        Assert.True((await fixture.Context.AppUserSessions.SingleAsync()).IsActive);
+        Assert.Null((await fixture.Context.RefreshTokens.SingleAsync()).RevokedAt);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AccessEventFailureRollsBackAccountStampSessionsAndTokens(bool activate)
+    {
+        using var fixture = new Fixture();
+        var user = await fixture.AddUserAsync();
+        user.IsActive = !activate;
+        Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
+        var stamp = user.SecurityStamp;
+        await SeedAccessAsync(fixture, user);
+        fixture.Publisher.Publish(Arg.Any<ST.Domain.Shared.Contracts.Common.IDomainEvent>(), Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException("Event failure")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => activate
+            ? fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None)
+            : fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("Reason"), ActorId), CancellationToken.None));
+        fixture.Context.ChangeTracker.Clear();
+        var persisted = await fixture.Context.Users.SingleAsync();
+        Assert.Equal(!activate, persisted.IsActive);
+        Assert.Equal(stamp, persisted.SecurityStamp);
+        Assert.True((await fixture.Context.AppUserSessions.SingleAsync()).IsActive);
+        Assert.Null((await fixture.Context.RefreshTokens.SingleAsync()).RevokedAt);
+    }
+
+    private static async Task SeedAccessAsync(Fixture fixture, AppUser user)
+    {
+        fixture.Context.AppUserSessions.Add(AppUserSession.Create(Guid.CreateVersion7(), user.Id, "127.0.0.1", "test-agent", DateTimeOffset.UtcNow.AddHours(1), ActorId));
+        fixture.Context.RefreshTokens.Add(ST.Domain.Features.IAM.Users.Entities.RefreshToken.Create(user.Id, Guid.CreateVersion7().ToString(), DateTimeOffset.UtcNow.AddDays(1), ActorId));
+        await fixture.Context.SaveChangesAsync();
+    }
     private static CreateAppUserCommand Command(ICollection<string>? roles = null) => new(
         new CreateAppUserRequest("user", "user@example.test", Password, "First", "Last", null, roles), ActorId);
 
@@ -320,6 +501,8 @@ public sealed class IndependentAccountTests
         public RoleManager<AppRole> Roles { get; }
         public CreateAppUser Create { get; }
         public UpdateAdminUser Update { get; }
+        public ActivateAdminUser Activate { get; }
+        public DeactivateAdminUser Deactivate { get; }
 
         [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
             Justification = "UserManager and RoleManager own their stores and Fixture.Dispose disposes both managers.")]
@@ -336,12 +519,14 @@ public sealed class IndependentAccountTests
             Roles = new RoleManager<AppRole>(new RoleStore<AppRole, TestIamDBContext>(Context),
                 [new RoleValidator<AppRole>()], new UpperInvariantLookupNormalizer(),
                 new IdentityErrorDescriber(), NullLogger<RoleManager<AppRole>>.Instance);
-            var uow = new IamUnitOfWork(Context, Substitute.For<IUserRepository>(), Substitute.For<ISessionRepository>(),
-                Substitute.For<ITokenRepository>(), profiles ?? new IamAppUserProfileRepository(Context),
+            var uow = new IamUnitOfWork(Context, Substitute.For<IUserRepository>(), new IamSessionRepository(Context),
+                new IamTokenRepository(Context), profiles ?? new IamAppUserProfileRepository(Context),
                 Substitute.For<IAppUserTotpSecretRepository>(), Substitute.For<ITempTotpSecretRepository>(),
                 Substitute.For<IPermissionRepository>(), Substitute.For<IMenuRepository>(), Publisher, NullLogger<IamUnitOfWork>.Instance);
             Create = new CreateAppUser(Users, Roles, uow, Tenant, NullLogger<CreateAppUser>.Instance);
             Update = new UpdateAdminUser(Users, Roles, uow, Tenant, NullLogger<UpdateAdminUser>.Instance);
+            Activate = new ActivateAdminUser(Users, uow, Tenant, NullLogger<ActivateAdminUser>.Instance);
+            Deactivate = new DeactivateAdminUser(Users, uow, Tenant, NullLogger<DeactivateAdminUser>.Instance);
         }
 
         public async Task AddRoleAsync(string name)
@@ -387,6 +572,11 @@ public sealed class IndependentAccountTests
         null!, NullLogger<UserManager<AppUser>>.Instance)
     {
         public bool RejectRoleChanges { get; set; }
+        public bool RejectStampChanges { get; set; }
+
+        public override Task<IdentityResult> UpdateSecurityStampAsync(AppUser user)
+            => RejectStampChanges ? Task.FromResult(IdentityResult.Failed(new IdentityError { Description = "InternalProviderDetail" }))
+                : base.UpdateSecurityStampAsync(user);
 
         public override Task<IdentityResult> AddToRolesAsync(AppUser user, IEnumerable<string> roles)
             => RejectRoleChanges

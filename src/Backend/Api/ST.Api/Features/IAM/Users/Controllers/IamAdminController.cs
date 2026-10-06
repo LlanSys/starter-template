@@ -47,12 +47,19 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new UpdateAdminUserCommand(userId, request, updatedBy)).ConfigureAwait(false));
     }
 
+    [HttpPatch("users/{userId}/activate")]
+    [RequirePermission("users.edit")]
+    public async Task<IActionResult> ActivateUser(string userId, CancellationToken cancellationToken)
+    {
+        var activatedBy = GetActorId();
+        return HandleResponse(await sender.Send(new ActivateAdminUserCommand(userId, activatedBy), cancellationToken).ConfigureAwait(false));
+    }
     [HttpPatch("users/{userId}/deactivate")]
     [RequirePermission("users.deactivate")]
-    public async Task<IActionResult> DeactivateUser(string userId, DeactivateUserRequest request)
+    public async Task<IActionResult> DeactivateUser(string userId, DeactivateUserRequest request, CancellationToken cancellationToken)
     {
         var deactivatedBy = GetActorId();
-        return HandleResponse(await sender.Send(new DeactivateAdminUserCommand(userId, request, deactivatedBy)).ConfigureAwait(false));
+        return HandleResponse(await sender.Send(new DeactivateAdminUserCommand(userId, request, deactivatedBy), cancellationToken).ConfigureAwait(false));
     }
 
     [HttpGet("users/{userId}/roles")]

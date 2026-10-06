@@ -156,3 +156,16 @@ Intentional contract change: API and clients use the same StarterTemplate baseli
 Remaining Phase 1: legacy AppUser fields/factories, employee/customer ID search parameters used by temporary employee administration, access-event contracts and grant/revoke/link handlers, independent activation/invitation, Department scope and neutral catalogs. Banking/HR module removal and fresh provider migrations follow in later phases.
 
 Verification for neutral authentication: API and Blazor builds passed; full unit suite 74/74, architecture suite 80/80 and whitespace checks passed. Twelve new mapping/claims/current-user cases cover distinct identity fields, neutral wire shape, platform permissions/session/tenant/MFA state and private image routes. Existing analyzer/package warnings remain. Browser authentication ceremonies and fresh migration certification are pending.
+
+### Phase 1 checkpoint: independent account access lifecycle
+
+- [x] Add activation by IAM account ID through the API, typed client and account actions; use users.edit permission for activation and users.deactivate for deactivation.
+- [x] Require a resolved matching tenant and a non-deleted account for both operations.
+- [x] Preserve password, email verification and memberships when activating; set the existing password-change flag and rotate the security stamp. Repeated activation preserves active sessions and lifecycle audit.
+- [x] Atomically deactivate the account, rotate its security stamp, terminate sessions and revoke refresh tokens. Clean stale access even when the account is already inactive without replacing its original deactivation actor.
+- [x] Use account/tenant/actor access-event contracts without Employee/Customer links and dispatch them before transaction commit.
+- [x] Validate the signed JWT session claim ahead of client headers; revoked API sessions return 401 without cookie sign-out.
+
+Verification: API and Blazor builds passed; unit suite 91/91, architecture suite 80/80, JSON parsing and whitespace checks passed. Seventeen new tests cover lifecycle/credential preservation, tenant/deleted-account rejection, Identity/event failure rollback, session/token cleanup, endpoint permission requirements and revoked/valid bearer sessions. Existing analyzer/package warnings remain.
+
+Remaining Phase 1: invitation/email-confirmation delivery and browser certification, legacy AppUser fields/factories, employee/customer ID search bridge and employee grant/revoke/link handlers, Department scope and neutral catalogs. No invitation was sent, no passwords were emailed or reset by the new activation flow, and no schema or migration changed. Banking/HR removal and fresh provider migration certification remain later phases.

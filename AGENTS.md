@@ -92,6 +92,8 @@ This file is the canonical source of truth and working contract for AI coding to
 - Administrative endpoints require permission-based authorization, not only `[Authorize]`.
 - Admin MFA enforcement is intentional; non-admin MFA can be policy-driven.
 - Session lifecycle must expire cleanly, warn before timeout, and avoid stale UI state.
+- Account access changes target the IAM account in the resolved tenant. Admin deactivation must atomically rotate the security stamp and revoke sessions/refresh tokens. Activation preserves credentials and email verification; invitation delivery is separate.
+- Session validation uses a signed session_id claim before client session headers/cookies.
 - Blazor tokens use protected browser storage with a circuit-scoped in-memory fallback; do not mirror bearer or refresh tokens into Redis.
 - Profile images are private assets. Use API-mediated access, not direct public blob URLs.
 - Local secrets belong in `dotnet user-secrets`; production secrets belong in Azure Key Vault/App Service configuration.
