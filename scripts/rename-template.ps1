@@ -19,6 +19,16 @@ if (-not $currentPrefixMatch.Success) {
     throw 'AGENTS.md must declare the current root namespace prefix before renaming.'
 }
 $currentPrefix = $currentPrefixMatch.Groups[1].Value
+$currentProductMatch = [regex]::Match(
+    [System.IO.File]::ReadAllText((Join-Path $repoRoot 'AGENTS.md')),
+    '(?m)^- Product: (.+)$')
+if (-not $currentProductMatch.Success) {
+    throw 'AGENTS.md must declare the current product before renaming.'
+}
+$currentDisplayName = $currentProductMatch.Groups[1].Value.Trim()
+$currentCompactName = $currentDisplayName -replace '[^A-Za-z0-9]', ''
+$currentKebabName = (($currentDisplayName -creplace '([a-z0-9])([A-Z])', '$1-$2') -replace '\s+', '-').ToLowerInvariant()
+$currentLowerCompactName = $currentCompactName.ToLowerInvariant()
 $displayName = $NewName.Trim()
 $compactName = $displayName -replace '[^A-Za-z0-9]', ''
 $kebabName = (($displayName -creplace '([a-z0-9])([A-Z])', '$1-$2') -replace '\s+', '-').ToLowerInvariant()
@@ -79,10 +89,14 @@ foreach ($project in Get-ChildItem -LiteralPath $repoRoot -Recurse -Filter '*.cs
 }
 
 function Get-ReplacedText([string]$value) {
-    $updated = $value.Replace('StarterTemplate', $displayName)
-    $updated = $updated.Replace('StarterTemplate', $compactName)
-    $updated = $updated.Replace('starter-template', $kebabName)
-    $updated = $updated.Replace('startertemplate', $lowerCompactName)
+    # Compact product tokens may occur inside C# identifiers and paths.
+    $updated = $value.Replace($currentCompactName, $compactName)
+    if ($currentDisplayName -ne $currentCompactName) {
+        $updated = $updated.Replace($currentDisplayName, $displayName)
+    }
+    $updated = $updated.Replace($currentKebabName, $kebabName)
+    $updated = $updated.Replace($currentLowerCompactName, $lowerCompactName)
+    $updated = $updated.Replace('- Product: ' + $compactName, '- Product: ' + $displayName)
 
     # Replace only technical prefix forms. A global standalone-BT replacement
     # would corrupt legitimate values such as Bhutan's ISO country code, "BT".
