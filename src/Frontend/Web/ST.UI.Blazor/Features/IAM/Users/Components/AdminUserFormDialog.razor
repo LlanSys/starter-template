@@ -18,15 +18,6 @@
                                                                                     CountryColumns="6"
                                                                                     PhoneColumns="6" />
                 </MudItem>
-                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.IdNumber" Label="ID Number" Margin="Margin.Dense" Variant="Variant.Outlined" /></MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudSelect @bind-Value="_model.Gender" Label="Gender" Variant="Variant.Outlined" Margin="Margin.Dense">
-                        @foreach (var option in GenderOptions)
-                        {
-                            <MudSelectItem Value="@option">@option</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
                 <MudItem xs="12" sm="4">
                     @if (ExistingUser is null)
                     {
@@ -56,7 +47,6 @@
 </MudDialog>
 
 @code {
-    private static readonly string[] GenderOptions = ["Male", "Female", "Other"];
     private AdminUserFormModel _model = new();
     private bool _isSaving;
 

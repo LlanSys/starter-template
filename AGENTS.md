@@ -1,6 +1,8 @@
 # StarterTemplate Agent Instructions
 
-> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Extraction settings and verification limits: [starter-extraction.md](docs/development/starter-extraction.md). BaseTemplate is the preserved business reference; inherited roadmap and readiness statements are not StarterTemplate certification.
+> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
+
+Work only in this repository and its configured remote. Downstream setup and ongoing implementation do not depend on another repository or an extraction SHA.
 
 This file is the canonical source of truth and working contract for AI coding tools in this repository. If another tool-specific file conflicts with this one, this file wins and the other file should be updated.
 
@@ -101,7 +103,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - Use `wwwroot/css` for app CSS.
 - Avoid JavaScript unless Blazor cannot access the browser capability directly.
 - Tables should support compact layout, horizontal overflow, pagination/search/filter patterns, and consistent actions.
-- Listing pages follow the Customer hierarchy: create actions occupy a separate top-right page action row, shown-count badges occupy the list heading's right edge, and search/filter controls occupy a full-width row below the heading.
+- Listing pages follow the shared compact layout: create actions occupy a separate top-right page action row, shown-count badges occupy the list heading's right edge, and search/filter controls occupy a full-width row below the heading.
 - New route guards must use native Blazor authorization: `@attribute [Authorize]`, `@layout` with a policy-protected layout, or `<AuthorizeView>`. Do not add new ad-hoc `HasPermission()` checks for route-level gating; leave existing `HasPermission()` calls for inline UI visibility unchanged.
 - Control Plane pages must use `ControlPlaneLayout` (`@layout ControlPlaneLayout`), which enforces the `ControlPlane.Manage` policy at the layout level before `OnInitializedAsync` fires.
 

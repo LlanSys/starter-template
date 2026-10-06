@@ -12,12 +12,19 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$currentPrefixMatch = [regex]::Match(
+    [System.IO.File]::ReadAllText((Join-Path $repoRoot 'AGENTS.md')),
+    'Root namespace prefix: `([A-Z][A-Z0-9]*)`')
+if (-not $currentPrefixMatch.Success) {
+    throw 'AGENTS.md must declare the current root namespace prefix before renaming.'
+}
+$currentPrefix = $currentPrefixMatch.Groups[1].Value
 $displayName = $NewName.Trim()
 $compactName = $displayName -replace '[^A-Za-z0-9]', ''
 $kebabName = (($displayName -creplace '([a-z0-9])([A-Z])', '$1-$2') -replace '\s+', '-').ToLowerInvariant()
 $lowerCompactName = $compactName.ToLowerInvariant()
 
-$excludedDirectoryNames = @('.git', '.vs', '.idea', 'bin', 'obj', 'node_modules', 'Logs')
+$excludedDirectoryNames = @('.git', '.vs', '.idea', 'bin', 'obj', 'node_modules', 'Logs', 'artifacts')
 $excludedFiles = @(
     (Join-Path $repoRoot 'ops/local/.env')
 )
@@ -79,8 +86,10 @@ function Get-ReplacedText([string]$value) {
 
     # Replace only technical prefix forms. A global standalone-BT replacement
     # would corrupt legitimate values such as Bhutan's ISO country code, "BT".
-    $updated = $updated -creplace '(?<![A-Za-z0-9_])ST(?=\.)', $NamespacePrefix
-    $updated = $updated.Replace('STApi', "${NamespacePrefix}Api")
+    $technicalPrefixPattern = '(?<![A-Za-z0-9_])' + [regex]::Escape($currentPrefix) + '(?=\.)'
+    $updated = $updated -creplace $technicalPrefixPattern, $NamespacePrefix
+    $updated = $updated.Replace("${currentPrefix}Api", "${NamespacePrefix}Api")
+    $updated = $updated.Replace('Root namespace prefix: `' + $currentPrefix + '`', 'Root namespace prefix: `' + $NamespacePrefix + '`')
 
     foreach ($oldId in $userSecretsReplacements.Keys) {
         $updated = $updated.Replace($oldId, $userSecretsReplacements[$oldId])

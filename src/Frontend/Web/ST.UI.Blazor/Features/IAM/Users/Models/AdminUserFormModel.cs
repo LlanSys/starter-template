@@ -21,11 +21,9 @@ internal sealed class AdminUserFormModel
 
     public string PhoneNationalNumber { get; set; } = string.Empty;
 
-    public string? IdNumber { get; set; }
+    public string Role { get; set; } = string.Empty;
 
-    public string Gender { get; set; } = "Other";
-
-    public string Role { get; set; } = "User";
+    private IReadOnlyList<string> _existingRoles = [];
 
     public static AdminUserFormModel From(AdminUserListResponse user)
     {
@@ -39,7 +37,8 @@ internal sealed class AdminUserFormModel
             FirstName = names.Length > 0 ? names[0] : user.FullName,
             LastName = names.Length > 1 ? names[1] : string.Empty,
             PhoneNumber = user.PhoneNumber,
-            Role = user.Roles.Count > 0 ? user.Roles[0] : "User"
+            Role = user.Roles.Count > 0 ? user.Roles[0] : string.Empty,
+            _existingRoles = [.. user.Roles]
         };
 
         if (!string.IsNullOrWhiteSpace(user.PhoneNumber))
@@ -62,10 +61,6 @@ internal sealed class AdminUserFormModel
         FirstName,
         LastName,
         PhoneNumber,
-        IdNumber,
-        Gender,
-        EmployeeId: null,
-        CustomerId: null,
         Roles: string.IsNullOrWhiteSpace(Role) ? [] : [Role]);
 
     public UpdateAdminUserRequest ToUpdateRequest() => new(
@@ -74,7 +69,5 @@ internal sealed class AdminUserFormModel
         FirstName,
         LastName,
         PhoneNumber,
-        IdNumber,
-        Gender,
-        string.IsNullOrWhiteSpace(Role) ? [] : [Role]);
+        _existingRoles);
 }

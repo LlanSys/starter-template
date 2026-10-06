@@ -1,16 +1,15 @@
 # StarterTemplate domain neutral refactor plan
 
 Date: 2026-10-06
-Status: Phase 0 complete. Phase 1 bootstrap administrator slice implemented; account decoupling and business removal are still pending.
-Selected source revision: BaseTemplate b25fc820202a7d5d3686624fbd8f80ce9800b834 (merged baseline and isolation/deployment-gate follow-ups).
+Status: Phase 0 complete. Phase 1 bootstrap and independent account creation/editing implemented; remaining account/auth state and business removal are pending.
 
 ## Objective and repository decision
 
-Create StarterTemplate as a new repository. Preserve BaseTemplate as the worked reference for Banking, HR, and cross-context patterns. A clone of StarterTemplate must support independent account administration and adding a POS feature without editing IAM internals.
+StarterTemplate is the sole template repository for future application clones. A clone must support independent account administration and adding a POS feature without editing IAM internals. Its code, setup documentation and tests must be self-contained; no separate repository or extraction SHA is part of the downstream workflow.
 
 Keep .NET 10, the modular monolith, Clean Architecture boundaries, bounded-context feature folders, and API-mediated Blazor flows. Do not add a Person/Party framework, new mediator, module loader, or package split during this refactor.
 
-Commit the pending BaseTemplate work and build fixes first. Review the baseline PR before selecting the exact source revision for StarterTemplate. Do not merge or deploy automatically. Start the new repository from a reviewed clean export, excluding Git metadata, ignored files, bin/obj, local secrets, environment dumps, publish settings, and workstation state. Keep an ORIGIN.md with source repository and full source SHA. Never copy user-secrets or production identities into the starter.
+Work exclusively in StarterTemplate. Do not merge or deploy automatically. Keep credentials in user-secrets or deployed secret stores, and give every clone its own repository identity, host secret IDs, ports, infrastructure resources and configuration.
 
 Repository owner/visibility and namespace prefix must be settled before remote creation and renaming. Default recommendation: same owner, private initially; choose a dedicated technical prefix during setup. Use the existing rename script and verify it rather than introducing another packaging system now.
 
@@ -55,14 +54,14 @@ Resolve remaining references by code inspection, not global text deletion. Payme
 
 ## Execution phases and gates
 
-### Phase 0 Preserve and create
+### Phase 0 Independent template foundation
 
-- [x] Commit pending work and Fido2 compatibility fixes in BaseTemplate (ed3df7d).
-- [x] Inspect merged baseline PR checks and record source revision; no submitted GitHub review exists.
-- [x] Export clean source into E:\Repos\StarterTemplate and initialize its independent repository.
-- [x] Confirm odhiamboally/starter-template, private visibility, ST prefix; rename, sanitize source settings and document origin.
+- [x] Establish the private StarterTemplate repository and ST namespace.
+- [x] Keep local secret stores, ports, volumes and deployment identities independent.
+- [x] Verify API/Web builds, unit/architecture tests and a disposable namespace rename.
+- [x] Provide self-contained clone setup guidance; remove extraction SHA from downstream setup.
 
-Gate: BaseTemplate recoverable, new working directory isolated, no copied local secrets or original deployment credentials.
+Gate: the template stands on its own, contains no local secrets and has independently configurable runtime/deployment identities.
 
 ### Phase 1 Independent IAM
 
@@ -88,7 +87,7 @@ Gate: transition, unauthorized, forbidden and tenant routing tests pass; no path
 
 ### Phase 4 Fresh database and delivery baseline
 
-StarterTemplate initially targets fresh databases, not upgrades of deployed BaseTemplate databases. Preserve BaseTemplate migration history. Once the retained model settles, generate clean initial migrations separately for each retained provider-specific context into Features/{Context}/Migrations/{SqlServer|PostgreSql}. Verify design-time factories use provider-compatible fallback configuration.
+StarterTemplate initially targets fresh databases. Upgrades of existing application databases are outside this refactor. Once the retained model settles, generate clean initial migrations separately for each retained provider-specific context into Features/{Context}/Migrations/{SqlServer|PostgreSql}. Verify design-time factories use provider-compatible fallback configuration.
 
 Align history tables, bundles, workflow execution, connection names, fixtures, health checks and optional provider settings. Rewire repository/environment/OIDC identifiers for the new repository; do not reuse original production targets.
 
@@ -117,7 +116,7 @@ Retain a readiness item for deployment-specific forwarded-header proxy trust. Pr
 
 Run focused checks per slice and full provider/browser certification at the final gate. Each phase ends in a focused commit/PR with evidence and remaining limits. Do not call the new starter ready based on compilation alone.
 
-Phase 0 verified: private remote main contains extraction commit 0386bdc800a9c67c1e0b1cf8fe4be7c20410cecd; host IDs, JSON and script syntax, API/Web builds, 80 architecture tests, and a disposable RS-prefix rename passed. The baseline unit suite passed 37 tests. Azure deployment remains disabled. No infrastructure or databases were started. See ORIGIN.md for provenance.
+Phase 0 verified: independent private repository; host secret IDs, JSON/script syntax, API/Web builds, architecture/unit tests and a disposable namespace rename passed. Azure deployment remains disabled. Setup depends only on StarterTemplate.
 
 ### Phase 1 checkpoint: independent bootstrap administrator
 
@@ -128,4 +127,18 @@ Phase 0 verified: private remote main contains extraction commit 0386bdc800a9c67
 - [x] Remove bootstrap deletion of unrelated accounts and seed only the platform administrator role.
 - [x] Verify 12 focused cases; full unit suite 49/49 and architecture suite 80/80; API and Web builds passed.
 
-Remaining Phase 1: AppUser business fields and factories, account create/update/search/profile contracts, all authentication/session/claims mappings, business-linked access handlers, Department scope in roles/menus, and neutral permission/menu/catalog seeds. Phase 1 is not closed. Banking/HR fixtures and migrations are retained until their removal phases. SQL Server/PostgreSQL integration and browser/email smoke are pending.
+Remaining Phase 1: AppUser business fields and legacy factories, account response/search/profile contracts, authentication/session/claims mappings, independent activation/invitation and business-linked access handlers, Department scope in roles/menus, and neutral permission/menu/catalog seeds. Phase 1 is not closed. Banking/HR fixtures and migrations are retained until their removal phases. SQL Server/PostgreSQL integration and browser/email smoke are pending.
+
+### Phase 1 checkpoint: standalone account administration
+
+- [x] Create/edit request contracts and form no longer accept Employee/Customer links, ID numbers or HR Gender.
+- [x] Creation uses the resolved tenant and calling actor; the handler needs only IAM services.
+- [x] Account, membership and contact profile writes share one IAM transaction; expected Identity failures trigger rollback before returning sanitized responses.
+- [x] Profile editing refuses another tenant's account and preserves lifecycle and audit creator.
+- [x] Validate write requests through shared FluentValidation validators and batch-check selected roles.
+- [x] Account-created domain/integration events carry account/tenant/contact data only.
+- [x] Profile form edits retain all existing memberships; new accounts have no implicit default role.
+
+Verification uses real SQLite transactions for role, profile and event-publication rollback and tenant/identity conflicts. SQL Server/PostgreSQL integration, browser/email flows and fresh migration certification remain separate gates. No entity columns or physical schema were removed in this slice. Existing response fields and legacy account activation paths remain on the checklist.
+
+Verification: API and Blazor builds passed; 62 unit tests (including 13 standalone-account cases) and 80 architecture tests passed. A disposable copy renamed its solution and namespace ST -> CS -> DX, updated prefix metadata and regenerated both host secret identities without ORIGIN.md. Provider/browser certification remains pending.

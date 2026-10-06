@@ -1,6 +1,4 @@
 using ST.Application.Contracts.Interfaces.Common;
-using ST.Application.Features.Banking.Customers.IntegrationEvents;
-using ST.Application.Features.HR.Employees.IntegrationEvents;
 using ST.Application.Features.IAM.Users.IntegrationEvents;
 using ST.Application.Utilities;
 using ST.Domain.Features.IAM.Users.Events;
@@ -24,7 +22,6 @@ internal sealed class AppUserCreatedEventHandler(IIntegrationEventPublisher inte
             var integrationEvent = new AppUserCreatedIntegrationEvent(
                 evt.UserId,
                 evt.TenantId,
-                evt.EmployeeId,
                 evt.UserName,
                 evt.FullName,
                 evt.Email);

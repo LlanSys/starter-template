@@ -85,6 +85,24 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
 
+    public static AppUser CreateAccount(
+        Guid tenantId, string userName, string firstName, string lastName,
+        string email, string? phoneNumber, string createdBy)
+    {
+        if (tenantId == Guid.Empty)
+        {
+            throw new ArgumentException("An account requires a tenant identity.", nameof(tenantId));
+        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(firstName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(lastName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(userName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(email);
+        var user = CreateSystemUser(tenantId, userName.Trim(), email.Trim(), createdBy);
+        user.FirstName = firstName.Trim();
+        user.LastName = lastName.Trim();
+        user.PhoneNumber = phoneNumber?.Trim();
+        return user;
+    }
     public static AppUser Create(
         Guid tenantId,
         Guid? employeeId,
@@ -280,7 +298,6 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         RaiseDomainEvent(new AppUserCreatedEvent(
             Id,
             TenantId,
-            EmployeeId,
             UserName!,
             $"{FirstName} {LastName}",
             Email ?? string.Empty));
@@ -336,8 +353,6 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         string firstName,
         string lastName,
         string? phoneNumber,
-        string? nationalId,
-        Gender gender,
         string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userName);
@@ -351,8 +366,6 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         FirstName = firstName.Trim();
         LastName = lastName.Trim();
         PhoneNumber = phoneNumber?.Trim();
-        NationalId = nationalId?.Trim() ?? string.Empty;
-        Gender = gender;
         MarkUpdated(updatedBy);
     }
 

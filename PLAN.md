@@ -1,8 +1,8 @@
 # StarterTemplate - Living Architecture And Delivery Plan
 
-> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Extraction settings and verification limits: [starter-extraction.md](docs/development/starter-extraction.md). BaseTemplate is the preserved business reference; inherited roadmap and readiness statements are not StarterTemplate certification.
+> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
 
-> Last updated: 2026-07-03
+> Last updated: 2026-10-06
 >
 > This file is the canonical roadmap for the StarterTemplate solution.
 > It defines the architectural guardrails, execution order, and production-hardening specifications.
@@ -260,8 +260,14 @@ EventIds are structured by architectural layer to simplify searching in logs:
 
 ## StarterTemplate direction approved 2026-10-06
 
-The user selected a new StarterTemplate repository, preserving StarterTemplate as the business-domain reference. The implementation inventory and phase gates are in [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Customer-reference gates below describe the existing reference application; they must not require Banking/HR retention in StarterTemplate. Preserve the current architecture and platform infrastructure. Create the new repository from a reviewed baseline before performing business removal.
+StarterTemplate is the independent, domain-neutral template for future application clones. The implementation inventory and phase gates are in [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Historical Customer-reference gates below are pending replacement and must not require Banking/HR retention. Preserve the architecture and platform infrastructure while removing business dependencies in the approved order.
 
 ## StarterTemplate checkpoint 2026-10-06
 
-Phase 0 is complete: independent private repository, ST identity, clean-source provenance, independent host secret IDs/ports, deployment pause and disposable rename verification. Phase 1 has started with an independent configured bootstrap administrator; 49 unit tests and 80 architecture tests pass, and API/Web build. Remaining account/domain decoupling is tracked in docs/architecture/domain-neutral-refactor-plan.md. This checkpoint does not certify providers, browser flows, mobile or fresh database migrations.
+Phase 0 is complete: independent private repository, ST identity, independent host secret IDs/ports, deployment pause and disposable rename verification. Phase 1 has started with an independent configured bootstrap administrator; 49 unit tests and 80 architecture tests pass, and API/Web build. Remaining account/domain decoupling is tracked in docs/architecture/domain-neutral-refactor-plan.md. This checkpoint does not certify providers, browser flows, mobile or fresh database migrations.
+
+## Independent account administration checkpoint
+
+Clone setup is self-contained in docs/development/starter-setup.md; no source repository or extraction SHA is required. Create/edit inputs, handlers and account-created events are now business-neutral, with resolved tenant/audit identity and one IAM transaction. Account response/auth mappings, independent activation and remaining business-model removal still require follow-through in the refactor plan.
+
+Verification: API and Blazor builds passed; 62 unit tests (including 13 standalone-account cases) and 80 architecture tests passed. A disposable copy renamed its solution and namespace ST -> CS -> DX, updated prefix metadata and regenerated both host secret identities without ORIGIN.md. Provider/browser certification remains pending.

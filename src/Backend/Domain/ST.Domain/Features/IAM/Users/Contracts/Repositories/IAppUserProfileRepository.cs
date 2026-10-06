@@ -8,6 +8,6 @@ namespace ST.Domain.Features.IAM.Users.Contracts.Repositories;
 
 public interface IAppUserProfileRepository : IRepository<AppUserProfile>
 {
-    Task<AppUserProfile?> GetByUserIdAsync(string userId);
+    Task<AppUserProfile?> GetByUserIdAsync(string userId, CancellationToken cancellationToken = default);
     Task<AppUserProfile> CreateOrUpdateAsync(string userId, AppUserProfile profile, CancellationToken cancellationToken);
 }

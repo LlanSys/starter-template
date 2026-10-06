@@ -1,6 +1,6 @@
 # StarterTemplate
 
-> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Extraction settings and verification limits: [starter-extraction.md](docs/development/starter-extraction.md). BaseTemplate is the preserved business reference; inherited roadmap and readiness statements are not StarterTemplate certification.
+> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
 
 StarterTemplate is a reusable enterprise .NET template for building production-minded systems from a modular monolith starting point.
 
@@ -49,7 +49,7 @@ Read [Renaming the template](docs/development/renaming-the-template.md) before c
 
 3. Configure SQL Server connection and required secrets with `dotnet user-secrets`.
 4. Run `ST.Api` and `ST.UI.Blazor` from Visual Studio.
-5. Open Mailpit at `http://localhost:8025` to inspect captured local emails.
+5. Open Mailpit at `http://localhost:8030` to inspect captured local emails.
 
 The local setup uses:
 
@@ -106,7 +106,7 @@ See:
 
 ## Clone Readiness
 
-StarterTemplate is reusable now for local-first application development when you:
+The domain-neutral refactor is still in progress. The final clone certification gate is tracked in the refactor plan. To configure a clone:
 
 1. Clone and rename before first run.
 2. Configure local secrets and SQL.
