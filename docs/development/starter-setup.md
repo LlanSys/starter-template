@@ -84,3 +84,9 @@ For PostgreSQL substitute PostgreSql for SqlServer in all three context names. E
 Create an account in IAM account administration with selected roles and an explicit initial password. Activate the account, then use Send Invitation. Email delivery must be configured; NoOp delivery deliberately cannot report invitation success. The recipient follows the protected, expiring link and chooses a password. Acceptance confirms email, replaces the initial password, clears the forced password-change flag and revokes prior sessions/refresh tokens. Reusing the link fails. Activation alone preserves the existing password and email confirmation state.
 
 The invitation URL must use the clone's EmailSettings:ClientBaseUrl. Configure the Blazor AcceptInvitation and IAM UserInvite backend endpoints consistently. LocalMailpit captures local email; no credentials are sent by email. ResetExistingAdminPassword remains an explicit bootstrap operation, separate from account invitation.
+
+## Find the local administrator credentials
+
+The sign-in page does not advertise a fixed administrator identity. In Visual Studio, right-click the API project and select **Manage User Secrets**. Use `DevelopmentSeed:AdminUserName` or `DevelopmentSeed:AdminEmail` with `DevelopmentSeed:AdminPassword` for a newly created bootstrap account. These are API settings; Web user-secrets do not define the bootstrap account. Existing accounts retain their password on ordinary bootstrap reruns unless the explicit reset option is enabled.
+
+An account or passkey from another application database is not imported into a fresh clone. Sign in with this clone's configured administrator, complete required MFA enrollment, and register a new passkey for the account and origin before using passkey sign-in.

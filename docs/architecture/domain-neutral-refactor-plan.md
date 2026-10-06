@@ -1,7 +1,7 @@
 # StarterTemplate domain neutral refactor plan
 
 Date: 2026-10-06
-Status: Phases 0–4 implemented. Automated certification is complete. The final browser smoke test is waiting for the application hosts to be started in Visual Studio.
+Status: Phases 0–4 implemented. Automated certification is complete. The application hosts are running in Visual Studio. Configured bootstrap password login is verified against the live API; authenticated browser smoke remains pending.
 
 ## Objective and repository decision
 
@@ -125,6 +125,6 @@ Run focused checks per slice and full provider/browser certification at the fina
 - All six provider migration scripts and Linux migration bundles generated successfully. Local isolated SQL Server was migrated for Visual Studio host verification. Azure deployment remains disabled.
 - A test-only neutral vertical slice verifies permission protection, tenant isolation and API/Application/Persistence flow without adding a production business module.
 - Automated HTTP and real Mailpit SMTP verify invitation acceptance/replay, bearer sign-in, forbidden access, logout, OTP password recovery, disabled accounts and session/refresh revocation. Configured TOTP and persisted provider concurrency are included in final checks.
-- Final full suites: 131 unit tests, 73 architecture tests and 23 integration tests passed; the normal integration run skipped one opt-in RabbitMQ test, which passed separately against the local broker. API and Blazor builds passed. Configured TOTP enrollment/login/disabled-account rejection and persisted concurrency passed for both providers. A clean committed checkout renamed ST -> CS -> DX, regenerated independent host secret identities, restored and built both hosts, and passed the same full unit, architecture and provider/HTTP/email suites. GitHub backend, frontend and architecture CI passed for implementation commit 350e11d. Browser smoke remains pending: the configured host ports were not listening and the browser returned connection refused.
+- Final full suites: 131 unit tests, 73 architecture tests and 23 integration tests passed; the normal integration run skipped one opt-in RabbitMQ test, which passed separately against the local broker. API and Blazor builds passed. Configured TOTP enrollment/login/disabled-account rejection and persisted concurrency passed for both providers. A clean committed checkout renamed ST -> CS -> DX, regenerated independent host secret identities, restored and built both hosts, and passed the same full unit, architecture and provider/HTTP/email suites. GitHub backend, frontend and architecture CI passed for implementation commit 350e11d. The hosts now listen on their configured ports. Live API bootstrap sign-in passed and correctly requires administrator MFA enrollment. The stale hardcoded administrator email hint was removed; credentials come from API user-secrets. Authenticated browser smoke remains pending.
 
 No merge or deployment is authorized by this plan. Existing package/analyzer warnings, deployment-specific proxy trust and the targeted review operational findings remain documented limitations.
