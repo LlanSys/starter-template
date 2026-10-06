@@ -1,0 +1,50 @@
+
+<MudDialog>
+    <DialogContent>
+        <div class="user-detail-dialog">
+            <div class="user-detail-header">
+                <MudAvatar Size="Size.Large" Class="profile-avatar">
+                    <MudIcon Icon="@Icons.Material.Filled.LockPerson" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h6">@Permission.Key</MudText>
+                    <MudText Typo="Typo.caption" Class="text-muted">@Permission.Context permission</MudText>
+                </div>
+            </div>
+
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <div class="detail-label">Resource</div>
+                    <div>@Permission.Resource</div>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <div class="detail-label">Action</div>
+                    <div>@Permission.Action</div>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <div class="detail-label">Status</div>
+                    <MudChip T="string" Size="Size.Small" Color="@(Permission.IsActive ? Color.Success : Color.Default)">
+                        @(Permission.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudItem>
+                <MudItem xs="12">
+                    <div class="detail-label">Description</div>
+                    <div>@(string.IsNullOrWhiteSpace(Permission.Description) ? "No description captured." : Permission.Description)</div>
+                </MudItem>
+            </MudGrid>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public PermissionResponse Permission { get; set; } = default!;
+
+    private void Close() => MudDialog.Close();
+}

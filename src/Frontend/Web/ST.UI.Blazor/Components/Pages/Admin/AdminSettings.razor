@@ -1,0 +1,253 @@
+@page "/admin/settings"
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject ILookupService LookupService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Settings | StarterTemplate</PageTitle>
+
+<section class="dashboard-page">
+    <div class="mb-4">
+        <MudButton Href="/admin" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Admin Center</MudButton>
+    </div>
+
+    <MudGrid Spacing="3" Class="mb-3">
+        <MudItem xs="12" md="4">
+            <MudPaper Class="admin-tile" Elevation="0">
+                <MudIcon Icon="@Icons.Material.Filled.Api" Class="tile-icon" />
+                <div>
+                    <strong>Backend API</strong>
+                    <span>UI-to-API base address, endpoint catalog, and timeout configuration.</span>
+                </div>
+                <MudChip T="string" Size="Size.Small" Color="Color.Success">Configured</MudChip>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="admin-tile" Elevation="0">
+                <MudIcon Icon="@Icons.Material.Filled.Key" Class="tile-icon" />
+                <div>
+                    <strong>Key Vault</strong>
+                    <span>Production secret provider integration point.</span>
+                </div>
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning">Planned</MudChip>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="admin-tile" Elevation="0">
+                <MudIcon Icon="@Icons.Material.Filled.Flag" Class="tile-icon" />
+                <div>
+                    <strong>Feature Flags</strong>
+                    <span>Central toggle provider for gradual rollout.</span>
+                </div>
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning">Planned</MudChip>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="poc-panel" Elevation="0">
+        <div class="panel-heading">
+            <h2 style="color: var(--bt-moss); font-weight: 700;">Reference Data</h2>
+            <div class="d-flex align-center gap-3">
+                <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenLookupDialogAsync(null))" Disabled="@string.IsNullOrWhiteSpace(_typeFilter)">Create lookup</MudButton>
+            </div>
+        </div>
+
+        <div class="list-toolbar">
+            <MudTextField @bind-Value="_searchText"
+                          Placeholder="Search lookup type, code, description..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Margin="Margin.Dense"
+                          Variant="Variant.Outlined"
+                          Immediate="true" />
+            <MudSelect @bind-Value="_typeFilter" T="string" Label="Lookup Type" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                @foreach (var lookupType in _lookupTypes)
+                {
+                    <MudSelectItem T="string" Value="@lookupType.Key">@lookupType.Label</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable @ref="_table" Items="FilteredLookups" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="100" Height="calc(100vh - 29rem)" Style="min-width: 860px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Id</MudTh>
+                    <MudTh>Code</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Type">@context.Type</MudTd>
+                    <MudTd DataLabel="Id">@context.Lookup.Id</MudTd>
+                    <MudTd DataLabel="Code">@context.Lookup.Code</MudTd>
+                    <MudTd DataLabel="Description">@context.Lookup.Description</MudTd>
+                    <MudTd DataLabel="Actions">
+                        <TableRowActions OnView="@(() => ShowLookupSummary(context))"
+                                         OnEdit="@(() => OpenLookupDialogAsync(context))"
+                                         OnDelete="@(() => ConfirmDeleteAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
+                                      TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
+                                      PageSize="_table?.RowsPerPage ?? 100"
+                                      OnFirstPage="@(() => _table?.NavigateTo(0))"
+                                      OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
+                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+                </PagerContent>
+            </MudTable>
+        </div>
+    </MudPaper>
+</section>
+
+@code {
+    private readonly List<LookupCatalogTypeResponse> _lookupTypes = [];
+    private readonly List<LookupRow> _lookups = [];
+    private bool _isLoading = true;
+    private string? _message;
+    private string? _searchText;
+    private string? _typeFilter;
+    private MudTable<LookupRow>? _table;
+
+    private IReadOnlyList<LookupRow> FilteredLookups =>
+        [.. _lookups.Where(row =>
+            (string.IsNullOrWhiteSpace(_typeFilter) || row.Type.Equals(_typeFilter, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrWhiteSpace(_searchText)
+                || row.Type.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || row.Lookup.Code.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || (row.Lookup.Description?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) == true)))];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        await LoadLookupsAsync();
+    }
+
+    private async Task LoadLookupsAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        _lookupTypes.Clear();
+        _lookups.Clear();
+        StateHasChanged();
+
+        var catalogResponse = await LookupService.GetCatalogTypesAsync();
+        if (!catalogResponse.IsSuccess || catalogResponse.Data is null)
+        {
+            _message = catalogResponse.Message ?? "We could not load lookup catalog types.";
+            Snackbar.Add(_message, Severity.Error);
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _lookupTypes.AddRange(catalogResponse.Data);
+
+        foreach (var lookupType in _lookupTypes.Select(type => type.Key))
+        {
+            var response = await LookupService.GetAsync(lookupType);
+            if (!response.IsSuccess || response.Data is null)
+            {
+                _message = response.Message ?? $"We could not load {lookupType}.";
+                Snackbar.Add(_message, Severity.Error);
+                _isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            _lookups.AddRange(response.Data.Select(lookup => new LookupRow(lookupType, lookup)));
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task OpenLookupDialogAsync(LookupRow? row)
+    {
+        var lookupType = row?.Type ?? _typeFilter;
+        if (string.IsNullOrWhiteSpace(lookupType))
+        {
+            Snackbar.Add("Select a lookup type before creating a record.", Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(LookupFormDialog.LookupType), lookupType },
+            { nameof(LookupFormDialog.ExistingLookup), row?.Lookup }
+        };
+
+        var dialog = await DialogService.ShowAsync<LookupFormDialog>(
+            row is null ? $"Create {lookupType}" : $"Edit - {row.Lookup.Code}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadLookupsAsync();
+        }
+    }
+
+    private void ShowLookupSummary(LookupRow row)
+        => Snackbar.Add($"{row.Type}: {row.Lookup.Code} - {row.Lookup.Description}", Severity.Info);
+
+    private async Task ConfirmDeleteAsync(LookupRow row)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Delete lookup {row.Lookup.Code} from {row.Type}? This will remove it from active lists." },
+            { nameof(ConfirmDialog.ConfirmText), "Delete" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm Lookup Delete",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false })
+        {
+            return;
+        }
+
+        var response = await LookupService.DeleteAsync(row.Type, row.Lookup.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Lookup delete failed.", Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("Lookup deleted.", Severity.Success);
+        await LoadLookupsAsync();
+    }
+
+    private sealed record LookupRow(string Type, LookupResponse Lookup);
+}

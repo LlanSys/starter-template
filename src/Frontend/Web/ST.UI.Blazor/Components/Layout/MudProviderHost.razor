@@ -1,0 +1,51 @@
+@rendermode InteractiveServer
+
+<MudThemeProvider Theme="_enterpriseTheme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@code {
+    private MudTheme _enterpriseTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = Colors.Blue.Darken4,
+            Secondary = Colors.BlueGray.Darken4,
+            Tertiary = Colors.Green.Darken4,
+            Warning = Colors.Orange.Darken4,
+            Error = Colors.Red.Darken4,
+            Info = Colors.LightBlue.Darken4,
+            Success = Colors.Green.Darken4,
+            AppbarBackground = "#FFFFFF",
+            AppbarText = "#1E293B",
+            Background = "#F1F5F9",       // Light Slate Background
+            DrawerBackground = "#FFFFFF",
+            Surface = "#FFFFFF",
+            TextPrimary = "#1E293B",      // Deep Slate for text
+            TextSecondary = "#64748B",
+            ActionDefault = "#94A3B8",
+            Divider = "#E2E8F0",
+            TableLines = "#E2E8F0"
+        },
+        LayoutProperties = new LayoutProperties()
+        {
+            DefaultBorderRadius = "10px" // Softer, modern corners
+        },
+        Typography = new Typography()
+        {
+            Default = new DefaultTypography() { FontFamily = new[] { "Inter", "sans-serif" }, FontSize = ".8125rem", LineHeight = "1.5" },
+            H1 = new H1Typography() { FontWeight = "700", FontSize = "2.25rem" },
+            H2 = new H2Typography() { FontWeight = "600", FontSize = "1.875rem" },
+            H3 = new H3Typography() { FontWeight = "600", FontSize = "1.5rem" },
+            H4 = new H4Typography() { FontWeight = "600", FontSize = "1.25rem" },
+            H5 = new H5Typography() { FontWeight = "600", FontSize = "1.125rem" },
+            H6 = new H6Typography() { FontWeight = "600", FontSize = "1rem" },
+            Subtitle1 = new Subtitle1Typography() { FontSize = ".875rem" },
+            Subtitle2 = new Subtitle2Typography() { FontSize = ".8125rem" },
+            Body1 = new Body1Typography() { FontSize = ".875rem" },
+            Body2 = new Body2Typography() { FontSize = ".8125rem" },
+            Button = new ButtonTypography() { TextTransform = "capitalize", FontWeight = "500", FontSize = ".8125rem" }
+        }
+    };
+}

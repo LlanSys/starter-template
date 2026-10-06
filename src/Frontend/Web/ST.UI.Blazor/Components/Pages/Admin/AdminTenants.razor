@@ -1,0 +1,312 @@
+@page "/control-panel/tenants"
+@layout ControlPlaneLayout
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject ITenantService TenantService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@using ST.UI.Blazor.Features.ControlPlane.Auditing.Components
+
+<PageTitle>Tenants | StarterTemplate</PageTitle>
+
+<section class="dashboard-page">
+    <div class="mb-4">
+        <MudButton Href="/control-panel" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Control Panel</MudButton>
+    </div>
+
+    <MudPaper Class="poc-panel" Elevation="0">
+        <div class="panel-heading">
+            <h2 style="color: var(--bt-moss); font-weight: 700;">Tenant List</h2>
+            <div class="d-flex align-center gap-3">
+                @if (AuthSession.HasPermission("controlplane.manage"))
+                {
+                    <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Business" OnClick="@(() => OpenFormDialogAsync(null))">Create tenant</MudButton>
+                }
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable @ref="_table" Items="_tenants" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 25rem)" Style="min-width: 900px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh Style="width: 15rem;">Name</MudTh>
+                    <MudTh>Hostname</MudTh>
+                    <MudTh>Stamp</MudTh>
+                    <MudTh Style="width: 10rem;">Status</MudTh>
+                    <MudTh Style="width: 10rem;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">@context.DisplayName</MudTd>
+                    <MudTd DataLabel="Hostname">@context.HostName</MudTd>
+                    <MudTd DataLabel="Stamp">@context.DeploymentStampId</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Active" ? Color.Success : Color.Error)">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <TableRowActions OnEdit="@(() => OpenFormDialogAsync(context))"
+                                         CanEdit="@AuthSession.HasPermission("controlplane.manage")"
+                                         CanView="true"
+                                         OnView="@(() => Snackbar.Add($"Tenant: {context.DisplayName} ({context.Status})", Severity.Info))"
+                                         CanDelete="false"
+                                         ExtraActions="@GetExtraActions(context)"
+                                         OnExtraAction="@((action) => HandleExtraActionAsync(action, context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
+                                      TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
+                                      PageSize="_table?.RowsPerPage ?? 50"
+                                      OnFirstPage="@(() => _table?.NavigateTo(0))"
+                                      OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
+                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+                </PagerContent>
+            </MudTable>
+        </div>
+    </MudPaper>
+</section>
+
+@code {
+    private readonly List<TenantResponse> _tenants = [];
+    private bool _isLoading = true;
+    private string? _message;
+    private MudTable<TenantResponse>? _table;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthSession.InitializeAsync();
+
+        await LoadTenantsAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadTenantsAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        var response = await TenantService.GetAllAsync();
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _message = response.Message ?? "We could not load tenants.";
+            Snackbar.Add(_message, Severity.Error);
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _tenants.Clear();
+        _tenants.AddRange(response.Data);
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task OpenFormDialogAsync(TenantResponse? tenant)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(TenantDialog.ExistingTenant), tenant }
+        };
+
+        var title = tenant is null ? "Create Tenant" : $"Edit - {tenant.DisplayName}";
+        var dialog = await DialogService.ShowAsync<TenantDialog>(
+            title,
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadTenantsAsync();
+        }
+    }
+
+    private async Task HandleExtraActionAsync(string action, TenantResponse tenant)
+    {
+        if (action == "Manage modules")
+        {
+            await OpenModulesDialogAsync(tenant);
+        }
+        else if (action == "Suspend tenant")
+        {
+            await ConfirmSuspendAsync(tenant);
+        }
+        else if (action == "Activate tenant")
+        {
+            await ConfirmActivateAsync(tenant);
+        }
+        else if (action == "Impersonate tenant")
+        {
+            await OpenImpersonateDialogAsync(tenant);
+        }
+        else if (action == "Verify KYC")
+        {
+            await ConfirmVerifyKYCAsync(tenant);
+        }
+    }
+
+    private IReadOnlyList<string> GetExtraActions(TenantResponse tenant)
+    {
+        var actions = new List<string>();
+        if (AuthSession.HasPermission("controlplane.manage"))
+        {
+            actions.Add("Manage modules");
+
+            if (tenant.Status == "PendingKYC")
+            {
+                actions.Add("Verify KYC");
+            }
+            else if (tenant.Status == "Active")
+            {
+                actions.Add("Suspend tenant");
+                actions.Add("Impersonate tenant");
+            }
+            else if (tenant.Status == "Suspended")
+            {
+                actions.Add("Activate tenant");
+            }
+        }
+        return actions;
+    }
+
+    private async Task OpenModulesDialogAsync(TenantResponse tenant)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(TenantModulesDialog.ExistingTenant), tenant }
+        };
+
+        var dialog = await DialogService.ShowAsync<TenantModulesDialog>(
+            $"Modules - {tenant.DisplayName}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadTenantsAsync();
+        }
+    }
+
+    private async Task ConfirmSuspendAsync(TenantResponse tenant)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Suspend tenant {tenant.DisplayName}? They will no longer be able to access the system." },
+            { nameof(ConfirmDialog.ConfirmText), "Suspend" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm Suspend",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false }) return;
+
+        var response = await TenantService.SuspendAsync(tenant.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Tenant suspend failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add($"{tenant.DisplayName} suspended.", Severity.Success);
+        await LoadTenantsAsync();
+    }
+
+    private async Task ConfirmActivateAsync(TenantResponse tenant)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Activate tenant {tenant.DisplayName}?" },
+            { nameof(ConfirmDialog.ConfirmText), "Activate" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm Activate",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false }) return;
+
+        var response = await TenantService.ActivateAsync(tenant.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Tenant activation failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add($"{tenant.DisplayName} activated.", Severity.Success);
+        await LoadTenantsAsync();
+    }
+
+    private async Task ConfirmVerifyKYCAsync(TenantResponse tenant)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Verify KYC for tenant {tenant.DisplayName}? This will approve them for infrastructure provisioning." },
+            { nameof(ConfirmDialog.ConfirmText), "Verify" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm KYC Verification",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false }) return;
+
+        var response = await TenantService.ApproveKYCAsync(tenant.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Tenant KYC verification failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add($"KYC verified for {tenant.DisplayName}. Provisioning started.", Severity.Success);
+        await LoadTenantsAsync();
+    }
+
+    private async Task OpenImpersonateDialogAsync(TenantResponse tenant)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(StartImpersonationDialog.Tenant), tenant }
+        };
+
+        var dialog = await DialogService.ShowAsync<StartImpersonationDialog>(
+            "Impersonate Tenant",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            // Usually we might redirect to a dashboard or refresh state here.
+            // For now, let's just trigger a full app reload to reinitialize AuthSession with the new impersonation token if it's set via cookies.
+            // Wait, does the API return an impersonation token that we need to store?
+            // The API command `StartImpersonation` returns a record. The actual impersonation usually requires the client to swap the token,
+            // or the server sets an impersonation cookie. If the token is swapped, we might need a page reload.
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+    }
+}

@@ -1,0 +1,22 @@
+name: Full Solution CI
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    uses: ./.github/workflows/backend-ci.yml
+
+  frontend:
+    name: Frontend
+    uses: ./.github/workflows/frontend-ci.yml
+
+  mobile:
+    name: Mobile
+    uses: ./.github/workflows/mobile-ci.yml

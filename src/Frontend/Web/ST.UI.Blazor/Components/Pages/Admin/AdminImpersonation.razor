@@ -1,0 +1,157 @@
+@page "/control-panel/impersonation"
+@layout ControlPlaneLayout
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IAuditService AuditService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@using ST.UI.Blazor.Features.ControlPlane.Auditing.Contracts
+@using ST.SharedKernel.Dtos.Common
+@using ST.SharedKernel.Features.ControlPlane.Auditing.Dtos
+@using MudBlazor
+
+<PageTitle>Impersonation Records | StarterTemplate</PageTitle>
+
+<section class="dashboard-page">
+    <div class="mb-4">
+        <MudButton Href="/control-panel" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Control Panel</MudButton>
+    </div>
+
+    <MudPaper Class="poc-panel" Elevation="0">
+        <div class="panel-heading">
+            <h2 style="color: var(--bt-moss); font-weight: 700;">Impersonation History</h2>
+            <div class="d-flex align-center gap-3">
+                <MudSwitch @bind-Value="_activeOnly" Color="Color.Primary" Label="Active only" />
+                <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadRecordsAsync">Refresh</MudButton>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable Items="_records" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 25rem)" Style="min-width: 900px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh>Started</MudTh>
+                    <MudTh>Actor</MudTh>
+                    <MudTh>Target Tenant</MudTh>
+                    <MudTh>Reason</MudTh>
+                    <MudTh>Expiry</MudTh>
+                    <MudTh Style="width: 10rem;">Status</MudTh>
+                    <MudTh Style="width: 10rem;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Started">@context.StartTime.ToLocalTime().ToString("g")</MudTd>
+                    <MudTd DataLabel="Actor">@context.ActorId</MudTd>
+                    <MudTd DataLabel="Target Tenant">@context.TargetTenantName (@context.TargetTenantId)</MudTd>
+                    <MudTd DataLabel="Reason">@context.Reason</MudTd>
+                    <MudTd DataLabel="Expiry">@context.ExpiryTime.ToLocalTime().ToString("g")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Active" ? Color.Success : Color.Default)">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        @if (context.Status == "Active" && context.ActorId == AuthSession.CurrentUser?.AppUserId)
+                        {
+                            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="@(() => ConfirmEndAsync(context))">End</MudButton>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        </div>
+    </MudPaper>
+</section>
+
+@code {
+    private readonly List<ImpersonationRecordDto> _records = [];
+    private bool _isLoading = true;
+    private string? _message;
+    private bool _activeOnly = false;
+
+    // Use a backing field to trigger reload on switch change
+    private bool ActiveOnly
+    {
+        get => _activeOnly;
+        set
+        {
+            if (_activeOnly != value)
+            {
+                _activeOnly = value;
+                _ = LoadRecordsAsync();
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthSession.InitializeAsync();
+
+        await LoadRecordsAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadRecordsAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        var response = await AuditService.GetImpersonationRecordsAsync(_activeOnly);
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _message = response.Message ?? "We could not load impersonation records.";
+            Snackbar.Add(_message, Severity.Error);
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _records.Clear();
+        _records.AddRange(response.Data);
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmEndAsync(ImpersonationRecordDto record)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"End impersonation for {record.TargetTenantName}?" },
+            { nameof(ConfirmDialog.ConfirmText), "End Session" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm End",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false }) return;
+
+        var response = await AuditService.EndImpersonationAsync(record.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Failed to end impersonation session.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add($"Session ended.", Severity.Success);
+        await LoadRecordsAsync();
+    }
+}

@@ -1,0 +1,132 @@
+.session-lifecycle-host {
+    position: fixed;
+    inset: 0;
+    z-index: 1600;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background:
+        radial-gradient(circle at center, rgba(255, 250, 240, 0.42), rgba(23, 51, 34, 0.16)),
+        rgba(23, 51, 34, 0.20);
+    backdrop-filter: blur(2px);
+    pointer-events: auto;
+}
+
+.session-lifecycle-dialog {
+    width: min(27rem, calc(100vw - 2rem));
+}
+
+::deep .session-lifecycle-warning {
+    width: 100%;
+    padding: 1.5rem;
+    border: 1px solid rgba(35, 72, 49, 0.18);
+    border-radius: 1.25rem;
+    background:
+        linear-gradient(145deg, rgba(255, 250, 240, 0.98) 0%, rgba(249, 243, 232, 0.98) 100%);
+    box-shadow: 0 2rem 5rem rgba(18, 43, 28, 0.28);
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+::deep .session-lifecycle-header {
+    min-width: 0;
+}
+
+.session-lifecycle-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 999px;
+    color: #6f4700;
+    background: #ffe3a3;
+    box-shadow: 0 0.75rem 1.5rem rgba(111, 71, 0, 0.16);
+}
+
+.session-lifecycle-heading {
+    min-width: 0;
+    flex: 1;
+}
+
+::deep .session-lifecycle-title {
+    color: #173322;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+::deep .session-lifecycle-kicker {
+    display: block;
+    color: #6b7a70;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.session-lifecycle-countdown {
+    flex: 0 0 auto;
+    display: grid;
+    justify-items: end;
+    gap: 0.1rem;
+    min-width: 5.75rem;
+    padding: 0.35rem 0.65rem 0.3rem;
+    border: 1px solid rgba(111, 71, 0, 0.18);
+    border-radius: 999px;
+    color: #6f4700;
+    background: rgba(255, 227, 163, 0.72);
+    line-height: 1.1;
+}
+
+.session-lifecycle-countdown small {
+    font-size: 0.64rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.session-lifecycle-countdown strong {
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+::deep .session-lifecycle-copy {
+    color: #526458;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+::deep .session-lifecycle-actions {
+    align-items: center;
+}
+
+::deep .session-lifecycle-primary {
+    color: #fffaf0 !important;
+    background: #244a32 !important;
+    box-shadow: 0 0.5rem 1rem rgba(36, 74, 50, 0.18);
+}
+
+::deep .session-lifecycle-secondary {
+    color: #244a32 !important;
+}
+
+@media (max-width: 640px) {
+    .session-lifecycle-host {
+        padding: 1rem;
+    }
+
+    ::deep .session-lifecycle-warning {
+        padding: 1.15rem;
+    }
+
+    .session-lifecycle-countdown {
+        display: none;
+    }
+
+    ::deep .session-lifecycle-actions {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .session-lifecycle-actions ::deep .mud-button-root {
+        width: 100%;
+    }
+}

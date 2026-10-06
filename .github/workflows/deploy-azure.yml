@@ -1,0 +1,556 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deployment_target:
+        description: "Deployment target"
+        required: true
+        default: app-service
+        type: choice
+        options:
+          - app-service
+          - aca-acr
+          - aca-ghcr
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}
+  API_IMAGE: starter-template-api
+  BLAZOR_IMAGE: starter-template-blazor
+
+jobs:
+  setup:
+    name: Setup deployment target
+    runs-on: ubuntu-latest
+    environment: starter-azure-prod
+    outputs:
+      target: ${{ steps.resolve.outputs.target }}
+      deployment_enabled: ${{ steps.resolve.outputs.deployment_enabled }}
+      image_tag: latest
+    steps:
+      - id: resolve
+        env:
+          AZURE_DEPLOYMENT_ENABLED: ${{ vars.AZURE_DEPLOYMENT_ENABLED }}
+        run: |
+          TARGET="${{ inputs.deployment_target }}"
+          if [ -z "$TARGET" ]; then
+            TARGET="${{ vars.AZURE_DEPLOYMENT_TARGET || 'app-service' }}"
+          fi
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          if [ "$AZURE_DEPLOYMENT_ENABLED" = "true" ]; then
+            echo "deployment_enabled=true" >> "$GITHUB_OUTPUT"
+            echo "### Azure deployment enabled" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "deployment_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "### Azure deployment paused" >> "$GITHUB_STEP_SUMMARY"
+            echo "Builds/tests and GHCR publishing continue. Azure migrations, deployment and ACR publishing are skipped. Set the repository variable AZURE_DEPLOYMENT_ENABLED=true to resume." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  build-and-test:
+    name: Build & Test
+    needs: setup
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Password123!"
+        ports:
+          - 1433:1433
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore projects
+        run: |
+          dotnet restore src/Backend/Api/ST.Api/ST.Api.csproj
+          dotnet restore src/Frontend/Web/ST.UI.Blazor/ST.UI.Blazor.csproj
+          dotnet restore tests/ST.Tests.Architecture/ST.Tests.Architecture.csproj
+          dotnet restore tests/ST.Tests.Unit/ST.Tests.Unit.csproj
+          dotnet restore tests/ST.Tests.Integration/ST.Tests.Integration.csproj
+
+      - name: Build projects
+        run: |
+          dotnet build src/Backend/Api/ST.Api/ST.Api.csproj --configuration Release --no-restore
+          dotnet build src/Frontend/Web/ST.UI.Blazor/ST.UI.Blazor.csproj --configuration Release --no-restore
+          dotnet build tests/ST.Tests.Architecture/ST.Tests.Architecture.csproj --configuration Release --no-restore
+          dotnet build tests/ST.Tests.Unit/ST.Tests.Unit.csproj --configuration Release --no-restore
+          dotnet build tests/ST.Tests.Integration/ST.Tests.Integration.csproj --configuration Release --no-restore
+
+      - name: Run Architecture Tests
+        run: dotnet test tests/ST.Tests.Architecture/ST.Tests.Architecture.csproj --configuration Release --no-restore --no-build
+
+      - name: Run Unit Tests
+        run: dotnet test tests/ST.Tests.Unit/ST.Tests.Unit.csproj --configuration Release --no-restore --no-build
+
+      - name: Run Integration Tests
+        run: dotnet test tests/ST.Tests.Integration/ST.Tests.Integration.csproj --configuration Release --no-restore --no-build
+        env:
+          ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=BT;User Id=sa;Password=Password123!;TrustServerCertificate=True;"
+          CacheSettings__ConnectionString: "localhost:6379"
+
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+
+      - name: Publish API
+        run: dotnet publish src/Backend/Api/ST.Api/ST.Api.csproj --configuration Release --no-restore --no-build --output ./publish-api
+
+      - name: Build EF Core Migration Bundles
+        run: |
+          PROVIDER="SqlServer"
+          if [ "${{ vars.DATABASE_PROVIDER }}" == "PostgreSql" ]; then
+            PROVIDER="PostgreSql"
+          fi
+          echo "Building migration bundles for provider: $PROVIDER"
+
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Iam${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-iam --configuration Release
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Hr${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-hr --configuration Release
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Shared${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-shared --configuration Release
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Banking${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-banking --configuration Release
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context ControlPlane${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-controlplane --configuration Release
+        env:
+          ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=BT;User Id=sa;Password=Password123!;TrustServerCertificate=True;"
+
+      - name: Publish Blazor UI
+        run: dotnet publish src/Frontend/Web/ST.UI.Blazor/ST.UI.Blazor.csproj --configuration Release --no-restore --no-build --output ./publish-ui
+
+      - name: Upload API Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-app
+          path: ./publish-api
+
+      - name: Upload UI Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-app
+          path: ./publish-ui
+
+  run-migrations:
+    name: Run DB Migrations
+    needs: [setup, build-and-test]
+    if: needs.setup.outputs.deployment_enabled == 'true'
+    runs-on: ubuntu-latest
+    environment: starter-azure-prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download API Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: api-app
+          path: ./api-app
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate migration configuration
+        shell: bash
+        env:
+          DATABASE_PROVIDER: ${{ vars.DATABASE_PROVIDER }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_SQL_NETWORK_MODE: ${{ vars.AZURE_SQL_NETWORK_MODE }}
+          AZURE_SQL_SERVER_NAME: ${{ vars.AZURE_SQL_SERVER_NAME }}
+          AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+          AZURE_POSTGRES_CONNECTION_STRING: ${{ secrets.AZURE_POSTGRES_CONNECTION_STRING }}
+        run: |
+          set -euo pipefail
+
+          if [ "$DATABASE_PROVIDER" == "PostgreSql" ]; then
+            required_values=(
+              AZURE_SQL_NETWORK_MODE
+              AZURE_POSTGRES_CONNECTION_STRING
+            )
+          else
+            required_values=(
+              AZURE_SQL_NETWORK_MODE
+              AZURE_SQL_CONNECTION_STRING
+            )
+          fi
+
+          for name in "${required_values[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "ERROR: ${name} is not configured for the production GitHub environment."
+              exit 1
+            fi
+          done
+
+          case "$AZURE_SQL_NETWORK_MODE" in
+            PublicRunner)
+              for name in AZURE_RESOURCE_GROUP AZURE_SQL_SERVER_NAME; do
+                if [ -z "${!name:-}" ]; then
+                  echo "ERROR: ${name} is required when AZURE_SQL_NETWORK_MODE is PublicRunner."
+                  exit 1
+                fi
+              done
+              ;;
+            PrivateRunner)
+              ;;
+            *)
+              echo "ERROR: AZURE_SQL_NETWORK_MODE must be PublicRunner or PrivateRunner."
+              exit 1
+              ;;
+          esac
+
+      - name: Allow this runner through the database firewall
+        if: vars.AZURE_SQL_NETWORK_MODE == 'PublicRunner'
+        id: db-firewall
+        shell: bash
+        env:
+          DATABASE_PROVIDER: ${{ vars.DATABASE_PROVIDER }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_SQL_SERVER_NAME: ${{ vars.AZURE_SQL_SERVER_NAME }}
+        run: |
+          set -euo pipefail
+
+          runner_ip="$(curl --fail --silent --show-error https://api.ipify.org)"
+          rule_name="github-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          if [ "$DATABASE_PROVIDER" == "PostgreSql" ]; then
+            az postgres flexible-server firewall-rule create \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_SQL_SERVER_NAME" \
+              --rule-name "$rule_name" \
+              --start-ip-address "$runner_ip" \
+              --end-ip-address "$runner_ip" \
+              --output none
+          else
+            az sql server firewall-rule create \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --server "$AZURE_SQL_SERVER_NAME" \
+              --name "$rule_name" \
+              --start-ip-address "$runner_ip" \
+              --end-ip-address "$runner_ip" \
+              --output none
+          fi
+
+          echo "rule_name=$rule_name" >> "$GITHUB_OUTPUT"
+
+      - name: Execute Migration Bundles
+        env:
+          DATABASE_PROVIDER: ${{ vars.DATABASE_PROVIDER }}
+          AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+          AZURE_POSTGRES_CONNECTION_STRING: ${{ secrets.AZURE_POSTGRES_CONNECTION_STRING }}
+        run: |
+          set -euo pipefail
+
+          if [ "$DATABASE_PROVIDER" == "PostgreSql" ]; then
+            export TARGET_CONNECTION_STRING="$AZURE_POSTGRES_CONNECTION_STRING"
+          else
+            export TARGET_CONNECTION_STRING="$AZURE_SQL_CONNECTION_STRING"
+          fi
+
+          export ConnectionStrings__IamConnection="$TARGET_CONNECTION_STRING"
+          export ConnectionStrings__HrConnection="$TARGET_CONNECTION_STRING"
+          export ConnectionStrings__SharedConnection="$TARGET_CONNECTION_STRING"
+          export ConnectionStrings__BankingConnection="$TARGET_CONNECTION_STRING"
+          export ConnectionStrings__ControlPlaneConnection="$TARGET_CONNECTION_STRING"
+          export ConnectionStrings__DefaultConnection="$TARGET_CONNECTION_STRING"
+
+          chmod +x ./api-app/efbundle-iam
+          chmod +x ./api-app/efbundle-hr
+          chmod +x ./api-app/efbundle-shared
+          chmod +x ./api-app/efbundle-banking
+          chmod +x ./api-app/efbundle-controlplane
+
+          run_bundle() {
+            local bundle="$1"
+            local max_attempts=6
+            local delay_seconds=10
+            local log_file
+
+            for attempt in $(seq 1 "$max_attempts"); do
+              echo "Running ${bundle} migration bundle (attempt ${attempt}/${max_attempts})..."
+              log_file="$(mktemp)"
+
+              if "./api-app/${bundle}" --connection "$TARGET_CONNECTION_STRING" 2>&1 | tee "$log_file"; then
+                rm -f "$log_file"
+                return 0
+              fi
+
+              if grep -q "A valid connection string was not found" "$log_file"; then
+                echo "ERROR: ${bundle} could not resolve its design-time connection string. This is a deterministic configuration failure and will not be retried."
+                rm -f "$log_file"
+                return 1
+              fi
+
+              rm -f "$log_file"
+
+              if [ "$attempt" -eq "$max_attempts" ]; then
+                echo "ERROR: ${bundle} migration bundle failed after ${max_attempts} attempts."
+                return 1
+              fi
+
+              echo "Database may still be resuming. Retrying in ${delay_seconds} seconds..."
+              sleep "$delay_seconds"
+              delay_seconds=$((delay_seconds * 2))
+            done
+          }
+
+          run_bundle efbundle-iam
+          run_bundle efbundle-hr
+          run_bundle efbundle-shared
+          run_bundle efbundle-banking
+          run_bundle efbundle-controlplane
+
+      - name: Remove temporary database firewall rule
+        if: always() && vars.AZURE_SQL_NETWORK_MODE == 'PublicRunner' && steps.db-firewall.outputs.rule_name != ''
+        shell: bash
+        env:
+          DATABASE_PROVIDER: ${{ vars.DATABASE_PROVIDER }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_SQL_SERVER_NAME: ${{ vars.AZURE_SQL_SERVER_NAME }}
+          FIREWALL_RULE_NAME: ${{ steps.db-firewall.outputs.rule_name }}
+        run: |
+          if [ "$DATABASE_PROVIDER" == "PostgreSql" ]; then
+            az postgres flexible-server firewall-rule delete \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_SQL_SERVER_NAME" \
+              --rule-name "$FIREWALL_RULE_NAME" \
+              --output none \
+              --yes
+          else
+            az sql server firewall-rule delete \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --server "$AZURE_SQL_SERVER_NAME" \
+              --name "$FIREWALL_RULE_NAME" \
+              --output none
+          fi
+
+  deploy-app-service-api:
+    name: Deploy API to Azure App Service
+    needs: [setup, build-and-test, run-migrations]
+    if: needs.setup.outputs.deployment_enabled == 'true' && needs.setup.outputs.target == 'app-service'
+    runs-on: ubuntu-latest
+    environment: starter-azure-prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download API Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: api-app
+          path: ./api-app
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App (API)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_API_APP_NAME }}
+          slot-name: staging
+          package: ./api-app
+
+      - name: Swap staging to production (API)
+        run: |
+          az webapp deployment slot swap \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --name ${{ vars.AZURE_API_APP_NAME }} \
+            --slot staging \
+            --target-slot production
+
+  deploy-app-service-ui:
+    name: Deploy UI to Azure App Service
+    needs: [setup, build-and-test, run-migrations]
+    if: needs.setup.outputs.deployment_enabled == 'true' && needs.setup.outputs.target == 'app-service'
+    runs-on: ubuntu-latest
+    environment: starter-azure-prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download UI Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-app
+          path: ./ui-app
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App (UI)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_UI_APP_NAME }}
+          slot-name: staging
+          package: ./ui-app
+
+      - name: Swap staging to production (UI)
+        run: |
+          az webapp deployment slot swap \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --name ${{ vars.AZURE_UI_APP_NAME }} \
+            --slot staging \
+            --target-slot production
+  build-push-containers:
+    name: Build & Push Containers
+    needs: setup
+    if: needs.setup.outputs.target == 'aca-ghcr' || (needs.setup.outputs.deployment_enabled == 'true' && needs.setup.outputs.target == 'aca-acr')
+    runs-on: ubuntu-latest
+    environment: starter-azure-prod
+    env:
+      DOCKER_REGISTRY: ''
+      DOCKER_NAMESPACE: ''
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api
+            image: starter-template-api
+            dockerfile: ops/docker/api.Dockerfile
+          - service: blazor
+            image: starter-template-blazor
+            dockerfile: ops/docker/blazor.Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to Azure with OIDC
+        if: needs.setup.outputs.target == 'aca-acr'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        if: needs.setup.outputs.target == 'aca-acr'
+        run: |
+          az acr login --name ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+          echo "DOCKER_REGISTRY=${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io" >> $GITHUB_ENV
+          echo "DOCKER_NAMESPACE=" >> $GITHUB_ENV
+
+      - name: Login to GHCR
+        if: needs.setup.outputs.target == 'aca-ghcr'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set GHCR Environment
+        if: needs.setup.outputs.target == 'aca-ghcr'
+        run: |
+          echo "DOCKER_REGISTRY=ghcr.io" >> $GITHUB_ENV
+          echo "DOCKER_NAMESPACE=${{ env.IMAGE_NAMESPACE }}/" >> $GITHUB_ENV
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}${{ matrix.image }}:${{ needs.setup.outputs.image_tag }}
+            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}${{ matrix.image }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy-aca:
+    name: Deploy to Azure Container Apps
+    needs: [setup, run-migrations, build-push-containers]
+    if: needs.setup.outputs.deployment_enabled == 'true' && (needs.setup.outputs.target == 'aca-acr' || needs.setup.outputs.target == 'aca-ghcr')
+    runs-on: ubuntu-latest
+    environment: starter-azure-prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy API to ACA (ACR)
+        if: needs.setup.outputs.target == 'aca-acr'
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
+          containerAppName: ${{ vars.AZURE_ACA_API_NAME }}
+          acrName: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+          imageToDeploy: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/${{ env.API_IMAGE }}:sha-${{ github.sha }}
+
+      - name: Deploy UI to ACA (ACR)
+        if: needs.setup.outputs.target == 'aca-acr'
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
+          containerAppName: ${{ vars.AZURE_ACA_UI_NAME }}
+          acrName: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+          imageToDeploy: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/${{ env.BLAZOR_IMAGE }}:sha-${{ github.sha }}
+
+      - name: Deploy API to ACA (GHCR)
+        if: needs.setup.outputs.target == 'aca-ghcr'
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
+          containerAppName: ${{ vars.AZURE_ACA_API_NAME }}
+          registryUrl: ghcr.io
+          registryUsername: ${{ github.actor }}
+          registryPassword: ${{ secrets.GHCR_PAT }}
+          imageToDeploy: ghcr.io/${{ env.IMAGE_NAMESPACE }}/${{ env.API_IMAGE }}:sha-${{ github.sha }}
+
+      - name: Deploy UI to ACA (GHCR)
+        if: needs.setup.outputs.target == 'aca-ghcr'
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
+          containerAppName: ${{ vars.AZURE_ACA_UI_NAME }}
+          registryUrl: ghcr.io
+          registryUsername: ${{ github.actor }}
+          registryPassword: ${{ secrets.GHCR_PAT }}
+          imageToDeploy: ghcr.io/${{ env.IMAGE_NAMESPACE }}/${{ env.BLAZOR_IMAGE }}:sha-${{ github.sha }}

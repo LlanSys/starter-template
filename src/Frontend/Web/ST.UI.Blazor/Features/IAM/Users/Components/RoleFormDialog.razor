@@ -1,0 +1,78 @@
+@inject IIamAdminService IamAdminService
+@inject IDepartmentService DepartmentService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Role name" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+        <MudSelect T="Guid?" @bind-Value="_departmentId" Label="Department scope" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" Class="mt-2">
+            <MudSelectItem T="Guid?" Value="null">Global</MudSelectItem>
+            @foreach (var department in _departments)
+            {
+                <MudSelectItem T="Guid?" Value="@department.Id">@department.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="@(ExistingRole is null ? Color.Primary : Color.Success)" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : ExistingRole is null ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private readonly List<DepartmentResponse> _departments = [];
+    private string _name = string.Empty;
+    private Guid? _departmentId;
+    private bool _isSaving;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public AdminRoleListResponse? ExistingRole { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _name = ExistingRole?.Name ?? string.Empty;
+        _departmentId = ExistingRole?.DepartmentId;
+        await LoadDepartmentsAsync();
+    }
+
+    private async Task LoadDepartmentsAsync()
+    {
+        var response = await DepartmentService.GetAsync();
+        if (!response.IsSuccess || response.Data is null)
+        {
+            Snackbar.Add(response.Message ?? "We could not load departments.", Severity.Warning);
+            return;
+        }
+
+        _departments.AddRange(response.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            Snackbar.Add("Role name is required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        var response = ExistingRole is null
+            ? await IamAdminService.CreateRoleAsync(new CreateRoleRequest(_name.Trim(), _departmentId))
+            : await IamAdminService.UpdateRoleAsync(ExistingRole.Id, new UpdateRoleRequest(_name.Trim(), _departmentId));
+        _isSaving = false;
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Role creation failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add(ExistingRole is null ? "Role created." : "Role updated.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(response.Data));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

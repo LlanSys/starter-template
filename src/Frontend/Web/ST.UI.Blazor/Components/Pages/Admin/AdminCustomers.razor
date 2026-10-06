@@ -1,0 +1,385 @@
+@page "/admin/customers"
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject ICustomerService CustomerService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Customers | StarterTemplate</PageTitle>
+
+<section class="dashboard-page">
+    <div class="mb-4">
+        <MudButton Href="/admin" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Admin Center</MudButton>
+    </div>
+
+    <MudPaper Class="poc-panel" Elevation="0">
+        <div class="panel-heading">
+            <h2 style="color: var(--bt-moss); font-weight: 700;">Customers</h2>
+            <div class="d-flex align-center gap-3">
+                @if (AuthSession.HasPermission("customers.create"))
+                {
+                    <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Business" Class="bt-small-button" OnClick="@(() => OpenFormDialogAsync(null, 0))">Create customer</MudButton>
+                }
+            </div>
+        </div>
+
+        <div class="list-toolbar">
+            <MudTextField @bind-Value="_searchText"
+                          Placeholder="Search number, company, registration, TIN, mobile, email..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Margin="Margin.Dense"
+                          Variant="Variant.Outlined"
+                          Immediate="false"
+                          DebounceInterval="400"
+                          OnDebounceIntervalElapsed="ApplyFiltersAsync"
+                          OnKeyDown="HandleSearchKeyDown" />
+            <MudIconButton Icon="@Icons.Material.Filled.FilterList" Size="Size.Small" Color="@(_showFilters ? Color.Success : Color.Default)" OnClick="ToggleFilters" title="Advanced filters" />
+            @if (HasActiveFilters)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Small" Color="Color.Error" OnClick="ClearFiltersAsync" title="Clear filters" />
+            }
+        </div>
+
+        @if (_showFilters)
+        {
+            <MudDivider Class="my-2" />
+            <MudGrid Spacing="2" Class="mb-2">
+                <MudItem xs="12" sm="6" lg="3">
+                    <MudSelect T="string" Value="_typeFilter" ValueChanged="@(async v => { _typeFilter = v; await ApplyFiltersAsync(); })" Label="Customer Type" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var item in CustomerTypes)
+                        {
+                            <MudSelectItem Value="@item">@item</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" lg="3">
+                    <MudSelect T="string" Value="_segmentFilter" ValueChanged="@(async v => { _segmentFilter = v; await ApplyFiltersAsync(); })" Label="Segment" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var item in SegmentTypes)
+                        {
+                            <MudSelectItem Value="@item">@item</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" lg="3">
+                    <MudSelect T="string" Value="_statusFilter" ValueChanged="@(async v => { _statusFilter = v; await ApplyFiltersAsync(); })" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var item in Statuses)
+                        {
+                            <MudSelectItem Value="@item">@item</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" lg="3">
+                    <MudSelect T="Guid?" Value="_relationshipManagerFilter" ValueChanged="@(async v => { _relationshipManagerFilter = v; await ApplyFiltersAsync(); })" Label="Relationship Manager" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var item in RelationshipManagers)
+                        {
+                            <MudSelectItem T="Guid?" Value="@item.Id">@item.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        }
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="@_messageSeverity" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable Items="_customers" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="PageSize" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh Style="width: 8rem;">Customer No.</MudTh>
+                    <MudTh Style="width: 18rem;">Company Name</MudTh>
+                    <MudTh Style="width: 8rem;">Type</MudTh>
+                    <MudTh Style="width: 12rem;">Segment</MudTh>
+                    <MudTh Style="width: 13rem;">RM</MudTh>
+                    <MudTh Style="width: 10rem;">Mobile</MudTh>
+                    <MudTh Style="width: 8rem;">Opened</MudTh>
+                    <MudTh Style="width: 8rem;">Status</MudTh>
+                    <MudTh Style="width: 8rem;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Customer No.">@context.Number</MudTd>
+                    <MudTd DataLabel="Company Name">@context.CompanyName</MudTd>
+                    <MudTd DataLabel="Type">@context.Type</MudTd>
+                    <MudTd DataLabel="Segment">@context.SegmentType</MudTd>
+                    <MudTd DataLabel="RM">@context.RelationshipManagerName</MudTd>
+                    <MudTd DataLabel="Mobile">@context.Mobile</MudTd>
+                    <MudTd DataLabel="Opened">@context.OpenedOn.ToString("dd/MM/yyyy")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)">@context.Status</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <TableRowActions ViewActions="@CustomerSections"
+                                         EditActions="@CustomerSections"
+                                         OnViewAction="@((section) => OpenViewDialogAsync(context, GetSectionIndex(section)))"
+                                         OnEditAction="@((section) => OpenFormDialogAsync(context, GetSectionIndex(section)))"
+                                         OnDelete="@(() => ConfirmDeleteAsync(context))"
+                                         CanView="@AuthSession.HasPermission("customers.view")"
+                                         CanEdit="@AuthSession.HasPermission("customers.edit")"
+                                         CanDelete="@AuthSession.HasPermission("customers.delete")" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <GlobalTablePager CurrentPage="_currentPage"
+                                      TotalRecords="_totalRecords"
+                                      PageSize="PageSize"
+                                      IsLoading="_isLoading"
+                                      OnFirstPage="GoToFirstPageAsync"
+                                      OnPreviousPage="GoToPreviousPageAsync"
+                                      OnNextPage="GoToNextPageAsync" />
+                </PagerContent>
+            </MudTable>
+        </div>
+    </MudPaper>
+</section>
+
+@code {
+    private readonly List<CustomerResponse> _customers = [];
+    private static readonly string[] CustomerTypes = ["Individual", "Corporate", "Institutional", "SME", "Enterprise"];
+    private static readonly string[] SegmentTypes = ["Corporate", "Retail", "Small Medium Enterprise", "Private Limited Company", "Public Limited Company"];
+    private static readonly string[] Statuses = ["Draft", "Active", "Suspended", "Closed", "Pending Approval"];
+    private static readonly string[] CustomerSections = ["Corporate Details", "Address", "Communication Prefs", "Directors", "View All"];
+    private readonly Stack<Guid?> _cursorHistory = new();
+    private Guid? _nextCursor;
+    private Guid? _currentCursor;
+    private int _totalRecords;
+    private int _currentPage = 1;
+    private bool _isFirstPage = true;
+    private bool _isLastPage = true;
+    private bool _isLoading = true;
+    private bool _showFilters;
+    private string? _searchText;
+    private string? _typeFilter;
+    private string? _segmentFilter;
+    private string? _statusFilter;
+    private Guid? _relationshipManagerFilter;
+    private string? _message;
+    private Severity _messageSeverity = Severity.Info;
+    private const int PageSize = 50;
+
+    private IReadOnlyList<RelationshipManagerOption> RelationshipManagers =>
+        [.. _customers
+            .Where(static customer => customer.RelationshipManagerId != Guid.Empty)
+            .GroupBy(static customer => customer.RelationshipManagerId)
+            .Select(static group => new RelationshipManagerOption(group.Key, group.First().RelationshipManagerName))
+            .OrderBy(static option => option.Name, StringComparer.OrdinalIgnoreCase)];
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(_searchText)
+        || !string.IsNullOrWhiteSpace(_typeFilter)
+        || !string.IsNullOrWhiteSpace(_segmentFilter)
+        || !string.IsNullOrWhiteSpace(_statusFilter)
+        || _relationshipManagerFilter.HasValue;
+
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            _messageSeverity = Severity.Warning;
+            _message = "Please sign in to view customers.";
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        ResetPagination();
+        await LoadCustomersAsync();
+    }
+
+    private Task ApplyFiltersAsync()
+    {
+        ResetPagination();
+        return LoadCustomersAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _searchText = null;
+        _typeFilter = null;
+        _segmentFilter = null;
+        _statusFilter = null;
+        _relationshipManagerFilter = null;
+        _showFilters = false;
+        ResetPagination();
+        await LoadCustomersAsync();
+    }
+
+    private async Task GoToFirstPageAsync()
+    {
+        ResetPagination();
+        await LoadCustomersAsync();
+    }
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (_cursorHistory.Count == 0)
+        {
+            return;
+        }
+
+        _currentCursor = _cursorHistory.Pop();
+        _currentPage = Math.Max(1, _currentPage - 1);
+        await LoadCustomersAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (_isLastPage || _nextCursor is null)
+        {
+            return;
+        }
+
+        _cursorHistory.Push(_currentCursor);
+        _currentCursor = _nextCursor;
+        _currentPage++;
+        await LoadCustomersAsync();
+    }
+
+    private async Task LoadCustomersAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        var request = new CustomerSearchRequest(
+            GlobalSearch: string.IsNullOrWhiteSpace(_searchText) ? null : _searchText.Trim(),
+            Type: _typeFilter,
+            SegmentType: _segmentFilter,
+            Status: _statusFilter,
+            RelationshipManagerId: _relationshipManagerFilter,
+            Cursor: _currentCursor,
+            PageSize: PageSize);
+
+        var response = await CustomerService.SearchAsync(request);
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _messageSeverity = Severity.Error;
+            _message = response.Message ?? "We could not load customers.";
+            Snackbar.Add(_message, Severity.Error);
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _customers.Clear();
+        _customers.AddRange(response.Data.Items);
+        _totalRecords = response.Data.TotalRecords;
+        _nextCursor = response.Data.NextCursor == Guid.Empty ? null : response.Data.NextCursor;
+        _isFirstPage = response.Data.IsFirstPage;
+        _isLastPage = response.Data.IsLastPage;
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private Task HandleSearchKeyDown(KeyboardEventArgs args)
+        => args.Key == "Enter" ? ApplyFiltersAsync() : Task.CompletedTask;
+
+    private void ToggleFilters() => _showFilters = !_showFilters;
+
+    private void ResetPagination()
+    {
+        _cursorHistory.Clear();
+        _currentCursor = null;
+        _nextCursor = null;
+        _currentPage = 1;
+    }
+
+    private async Task OpenViewDialogAsync(CustomerResponse customer, int tabIndex)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(CustomerViewDialog.Customer), customer },
+            { nameof(CustomerViewDialog.InitialTab), tabIndex }
+        };
+
+        await DialogService.ShowAsync<CustomerViewDialog>(
+            customer.CompanyName,
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task OpenFormDialogAsync(CustomerResponse? customer, int tabIndex)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(CustomerFormDialog.ExistingCustomer), customer },
+            { nameof(CustomerFormDialog.InitialTab), tabIndex },
+            { nameof(CustomerFormDialog.RelationshipManagers), RelationshipManagers }
+        };
+
+        var title = customer is null ? "Create Customer" : $"Edit - {customer.CompanyName}";
+        var dialog = await DialogService.ShowAsync<CustomerFormDialog>(
+            title,
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            ResetPagination();
+            await LoadCustomersAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteAsync(CustomerResponse customer)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Delete {customer.CompanyName}? This will remove the customer from active lists." },
+            { nameof(ConfirmDialog.ConfirmText), "Delete" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm Delete",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false })
+        {
+            return;
+        }
+
+        var response = await CustomerService.DeleteAsync(customer.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Customer delete failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add($"{customer.CompanyName} deleted.", Severity.Success);
+        await LoadCustomersAsync();
+    }
+
+    private static int GetSectionIndex(string section)
+        => section switch
+        {
+            "Address" => 1,
+            "Communication Prefs" => 2,
+            "Directors" => 3,
+            _ => 0
+        };
+
+    private static Color GetStatusColor(string status)
+        => status.Equals("Active", StringComparison.OrdinalIgnoreCase) ? Color.Success
+            : status.Equals("Draft", StringComparison.OrdinalIgnoreCase) ? Color.Warning
+            : status.Equals("PendingApproval", StringComparison.OrdinalIgnoreCase) ? Color.Info
+            : Color.Default;
+}

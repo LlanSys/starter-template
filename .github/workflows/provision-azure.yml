@@ -1,0 +1,114 @@
+name: Provision Azure Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ops/azure/**'
+      - '.github/workflows/provision-azure.yml'
+  workflow_dispatch:
+    inputs:
+      deployment_target:
+        description: "Deployment target (container-apps or app-service)"
+        required: true
+        default: "container-apps"
+        type: choice
+        options:
+          - container-apps
+          - app-service
+      manage_container_apps:
+        description: "Create or explicitly repair Container Apps (leave false for infrastructure-only reruns after deployment)"
+        required: true
+        default: false
+        type: boolean
+      recreate_failed_container_apps:
+        description: "Delete only terminally failed Container Apps before an explicit repair. Never select for healthy apps."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  provision:
+    if: vars.AZURE_DEPLOYMENT_ENABLED == 'true'
+    name: Provision Resources
+    runs-on: ubuntu-latest
+    environment: starter-azure-prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Remove terminally failed Container Apps for explicit repair
+        if: ${{ inputs.manage_container_apps && inputs.recreate_failed_container_apps }}
+        shell: bash
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          RESOURCE_PREFIX: stprod
+        run: |
+          set -euo pipefail
+
+          for app_name in "${RESOURCE_PREFIX}-api" "${RESOURCE_PREFIX}-ui"; do
+            state="$(az containerapp show \
+              --resource-group "${RESOURCE_GROUP}" \
+              --name "${app_name}" \
+              --query 'properties.provisioningState' \
+              --output tsv 2>/dev/null || true)"
+
+            if [[ "${state}" == "Failed" ]]; then
+              echo "Deleting terminally failed Container App: ${app_name}"
+              az containerapp delete \
+                --resource-group "${RESOURCE_GROUP}" \
+                --name "${app_name}" \
+                --yes
+            elif [[ -n "${state}" ]]; then
+              echo "::error::${app_name} is '${state}', not 'Failed'. Refusing to delete a non-failed Container App."
+              exit 1
+            else
+              echo "${app_name} does not exist; Bicep will create it."
+            fi
+          done
+
+      - name: Resolve Deployment Target
+        id: resolve-target
+        shell: bash
+        run: |
+          TARGET="${{ inputs.deployment_target }}"
+          if [ -z "$TARGET" ]; then
+            TARGET="${{ vars.AZURE_DEPLOYMENT_TARGET }}"
+          fi
+
+          if [[ "$TARGET" == "app-service" ]]; then
+            echo "bicep_target=app-service" >> "$GITHUB_OUTPUT"
+          else
+            echo "bicep_target=container-apps" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Bicep Deployment
+        uses: azure/arm-deploy@v2
+        with:
+          scope: resourcegroup
+          subscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: ${{ vars.AZURE_RESOURCE_GROUP }}
+          template: ./ops/azure/main.bicep
+          failOnStdErr: false
+          parameters: >
+            sqlAdministratorLogin="btadmin"
+            sqlAdministratorLoginPassword="${{ secrets.AZURE_SQL_ADMIN_PASSWORD }}"
+            deploymentTarget="${{ steps.resolve-target.outputs.bicep_target }}"
+            databaseProvider="${{ vars.DATABASE_PROVIDER || 'SqlServer' }}"
+            azureCacheConnectionString="${{ secrets.AZURE_REDIS_CONNECTION_STRING }}"
+            manageContainerApps=${{ inputs.manage_container_apps || 'false' }}
+            resourcePrefix="stprod"
+            otlpEndpoint="${{ secrets.GRAFANA_OTLP_ENDPOINT }}"
+            otlpHeaders="${{ secrets.GRAFANA_OTLP_HEADERS }}"

@@ -1,0 +1,76 @@
+
+<MudDialog>
+    <DialogContent>
+        <div class="user-detail-dialog">
+            <div class="user-detail-header">
+                <MudAvatar Size="Size.Large" Class="profile-avatar">@Initials</MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h6">@DisplayName</MudText>
+                    <MudText Typo="Typo.body2" Class="text-muted">@User.Email</MudText>
+                </div>
+            </div>
+
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Class="detail-label">Username</MudText>
+                    <MudText Typo="Typo.body2">@User.UserName</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Class="detail-label">Email</MudText>
+                    <MudText Typo="Typo.body2">@User.Email</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption" Class="detail-label">Status</MudText>
+                    <MudChip T="string" Size="Size.Small" Color="@(User.IsActive ? Color.Success : Color.Warning)">@(User.IsActive ? "Active" : "Inactive")</MudChip>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption" Class="detail-label">Two-factor</MudText>
+                    <MudText Typo="Typo.body2">@(User.TwoFactorEnabled ? "Enabled" : "Recommended")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.caption" Class="detail-label">Linked record</MudText>
+                    <MudText Typo="Typo.body2">@LinkedRecord</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="detail-label">Roles</MudText>
+                    <MudText Typo="Typo.body2">@RoleText</MudText>
+                </MudItem>
+            </MudGrid>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public AdminUserListResponse User { get; set; } = default!;
+
+    private string DisplayName => string.IsNullOrWhiteSpace(User.FullName) ? User.UserName : User.FullName;
+
+    private string Initials
+    {
+        get
+        {
+            var names = DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return names.Length switch
+            {
+                0 => "U",
+                1 => names[0][..1].ToUpperInvariant(),
+                _ => $"{names[0][..1]}{names[1][..1]}".ToUpperInvariant()
+            };
+        }
+    }
+
+    private string RoleText => User.Roles.Count == 0 ? "No roles" : string.Join(", ", User.Roles);
+
+    private string LinkedRecord => User.EmployeeId.HasValue ? "Employee"
+        : User.CustomerId.HasValue ? "Customer"
+        : "System";
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+}

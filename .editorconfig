@@ -1,0 +1,138 @@
+# ============================================================
+# ROOT CONFIGURATION
+# ============================================================
+root = true
+
+# ============================================================
+# GLOBAL SETTINGS
+# ============================================================
+[*.cs]
+
+dotnet_diagnostic.CA1848.severity = warning   # Use LoggerMessage delegates
+dotnet_diagnostic.CA1873.severity = warning   # Avoid string interpolation for logging
+dotnet_diagnostic.CA1515.severity = warning   # Internal types in application assemblies
+dotnet_diagnostic.CA2016.severity = warning   # Forward CancellationToken
+
+dotnet_diagnostic.CA1510.severity = warning   # Use ArgumentNullException.ThrowIfNull
+dotnet_diagnostic.CA1512.severity = warning   # Use ArgumentOutOfRangeException.ThrowIfZero
+
+########################################
+# 🔴 CRITICAL: MUST NOT BREAK AT RUNTIME
+########################################
+
+# Nullability (very important)
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8618.severity = error
+
+# Dispose / resource leaks
+dotnet_diagnostic.CA2000.severity = error
+
+# Async correctness
+dotnet_diagnostic.CA2012.severity = error
+
+# ConfigureAwait correctness (optional but good discipline)
+dotnet_diagnostic.CA2007.severity = warning
+
+########################################
+# 🟡 IMPORTANT BUT NOT BLOCKING
+########################################
+
+# Performance
+dotnet_diagnostic.CA1822.severity = suggestion   # Mark members static
+dotnet_diagnostic.CA1835.severity = suggestion   # Memory-based overloads
+
+# Reliability
+dotnet_diagnostic.CA1062.severity = warning      # Validate arguments
+
+########################################
+# ⚠️ DESIGN / API RULES (RELAXED)
+########################################
+
+# Cross-language naming (not relevant for most apps)
+dotnet_diagnostic.CA1716.severity = none        # 'Shared' keyword issue
+
+# Delegate naming (false positives in MAUI/iOS)
+dotnet_diagnostic.CA1711.severity = none
+
+# Naming conventions (handled by team, not compiler)
+dotnet_diagnostic.CA1707.severity = none        # underscores in names
+dotnet_diagnostic.CA1720.severity = none
+
+########################################
+# 🎨 STYLE RULES (NON-BLOCKING)
+########################################
+
+# All IDE style suggestions → suggestions only
+dotnet_analyzer_diagnostic.category-Style.severity = suggestion
+
+# Example explicit ones (optional clarity)
+dotnet_diagnostic.IDE0051.severity = suggestion
+dotnet_diagnostic.IDE0060.severity = suggestion
+dotnet_diagnostic.IDE0044.severity = suggestion
+dotnet_diagnostic.IDE0052.severity = suggestion
+
+########################################
+# 🧼 CODE STYLE PREFERENCES
+########################################
+
+# var preferences
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+
+# Expression-bodied members
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = when_on_single_line:suggestion
+
+# Pattern matching
+csharp_style_pattern_matching_over_is_with_cast_check = true:suggestion
+
+# Null propagation
+csharp_style_null_propagation = true:suggestion
+
+########################################
+# 🔐 SECURITY (IMPORTANT)
+########################################
+
+dotnet_diagnostic.CA2100.severity = warning   # SQL injection risks
+dotnet_diagnostic.CA5350.severity = warning   # Weak crypto
+dotnet_diagnostic.CA5351.severity = warning
+
+########################################
+# 🧪 TEST PROJECTS OVERRIDES
+########################################
+
+[tests/**/*.cs]
+#[**/*.Tests/**/*.cs]
+
+# Relax null checks in tests
+dotnet_diagnostic.CS8602.severity = none
+
+########################################
+# EF CORE GENERATED MIGRATIONS
+########################################
+
+[**/Migrations/**/*.cs]
+
+# EF migration files are generated artifacts. Keep analyzer pressure on hand-written
+# configuration and domain code, but do not require manual cleanup inside generated migrations.
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1861.severity = none
+
+########################################
+# 🧱 MAUI / PLATFORM-SPECIFIC EXCEPTIONS
+########################################
+
+# MAUI iOS delegate naming (AppDelegate etc.)
+dotnet_diagnostic.CA1711.severity = none
+
+########################################
+# 📦 OPTIONAL: FUTURE HARDENING (COMMENTED)
+########################################
+
+# Uncomment when system stabilizes:
+
+# dotnet_diagnostic.CA1062.severity = error
+# dotnet_diagnostic.CA2007.severity = error
+# dotnet_diagnostic.CA1822.severity = warning

@@ -1,0 +1,73 @@
+services:
+  api:
+    profiles: ["apps"]
+    build:
+      context: ../..
+      dockerfile: ops/docker/api.Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: ${APP_SQL_CONNECTION_STRING:?Set APP_SQL_CONNECTION_STRING in ops/local/.env}
+      JwtSettings__SecretKey: ${APP_JWT_SECRET:?Set APP_JWT_SECRET in ops/local/.env}
+      IamProvisioning__TemporaryPassword: ${APP_IAM_TEMPORARY_PASSWORD:?Set APP_IAM_TEMPORARY_PASSWORD in ops/local/.env}
+      IamProvisioning__SignInUrl: http://localhost:${APP_BLAZOR_HOST_PORT:-8181}/iam/sign-in
+      BackgroundJobs__Enabled: "true"
+      Messaging__Enabled: "true"
+      Messaging__Transport: RabbitMq
+      Messaging__RabbitMq__Host: rabbitmq
+      Messaging__RabbitMq__VirtualHost: /
+      Messaging__RabbitMq__Username: ${RABBITMQ_USER:?Set RABBITMQ_USER in ops/local/.env}
+      Messaging__RabbitMq__Password: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in ops/local/.env}
+      CacheSettings__Provider: Redis
+      CacheSettings__Redis__ConnectionString: redis:6379,password=${REDIS_PASSWORD:?Set REDIS_PASSWORD in ops/local/.env},abortConnect=false
+      EmailSettings__Provider: LocalMailpit
+      EmailSettings__FromAddress: noreply@startertemplate.local
+      EmailSettings__DisplayName: StarterTemplate
+      EmailSettings__ClientBaseUrl: http://localhost:${APP_BLAZOR_HOST_PORT:-8181}
+      EmailSettings__LocalMailpit__Host: mailpit
+      EmailSettings__LocalMailpit__Port: "1025"
+      DevelopmentSeed__Enabled: "false"
+      DataProtection__ApplicationName: StarterTemplate
+      DataProtection__UseExternalKeyStore: "true"
+      DataProtection__RedisKeyRingConnectionString: redis:6379,password=${REDIS_PASSWORD:?Set REDIS_PASSWORD in ops/local/.env},abortConnect=false
+      DataProtection__RedisKeyRingKey: StarterTemplate-DataProtection-Keys
+      DataProtection__KeyEncryptionMode: None
+      ProfileImageStorage__Provider: Azurite
+      ProfileImageStorage__Azurite__ConnectionString: DefaultEndpointsProtocol=http;AccountName=${AZURITE_ACCOUNT_NAME:?Set AZURITE_ACCOUNT_NAME in ops/local/.env};AccountKey=${AZURITE_ACCOUNT_KEY:?Set AZURITE_ACCOUNT_KEY in ops/local/.env};BlobEndpoint=http://azurite:10000/${AZURITE_ACCOUNT_NAME};QueueEndpoint=http://azurite:10001/${AZURITE_ACCOUNT_NAME};TableEndpoint=http://azurite:10002/${AZURITE_ACCOUNT_NAME};
+      ProfileImageStorage__Azurite__ContainerName: profile-images
+    ports:
+      - "${APP_API_HOST_PORT:-8180}:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      azurite:
+        condition: service_started
+    restart: unless-stopped
+
+  blazor:
+    profiles: ["apps"]
+    build:
+      context: ../..
+      dockerfile: ops/docker/blazor.Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      BackendApi__BaseUrl: http://api:8080/
+      SessionLifecycle__SignInPath: /iam/sign-in
+      DataProtection__ApplicationName: StarterTemplate
+      DataProtection__KeysPath: /var/startertemplate/dataprotection
+    ports:
+      - "${APP_BLAZOR_HOST_PORT:-8181}:8080"
+    volumes:
+      - blazor-dataprotection-keys:/var/startertemplate/dataprotection
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  blazor-dataprotection-keys:

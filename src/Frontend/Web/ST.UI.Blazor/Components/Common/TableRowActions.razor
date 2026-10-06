@@ -1,0 +1,94 @@
+<div class="table-actions">
+    @if (CanView && ViewActions.Count > 0)
+    {
+        <MudTooltip Text="View">
+            <MudMenu Icon="@Icons.Material.Filled.Visibility" Color="Color.Default" IconColor="Color.Inherit" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="table-action-button view-action">
+                @foreach (var action in ViewActions)
+                {
+                    <MudMenuItem OnClick="@(() => OnViewAction.InvokeAsync(action))">@action</MudMenuItem>
+                }
+            </MudMenu>
+        </MudTooltip>
+    }
+    else if (CanView)
+    {
+        <MudTooltip Text="View">
+            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Default" Size="Size.Small" Class="table-action-button view-action" OnClick="OnView" />
+        </MudTooltip>
+    }
+
+    @if (CanEdit && EditActions.Count > 0)
+    {
+        <MudTooltip Text="Edit">
+            <MudMenu Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" IconColor="Color.Primary" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="table-action-button edit-action">
+                @foreach (var action in EditActions)
+                {
+                    <MudMenuItem OnClick="@(() => OnEditAction.InvokeAsync(action))">@action</MudMenuItem>
+                }
+            </MudMenu>
+        </MudTooltip>
+    }
+    else if (CanEdit)
+    {
+        <MudTooltip Text="Edit">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" Class="table-action-button edit-action" OnClick="OnEdit" />
+        </MudTooltip>
+    }
+
+    @if (CanDelete)
+    {
+        <MudTooltip Text="Delete">
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Class="table-action-button delete-action" OnClick="OnDelete" />
+        </MudTooltip>
+    }
+
+    @if (ExtraActions.Count > 0)
+    {
+        <MudTooltip Text="More actions">
+            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" IconColor="Color.Inherit" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="table-action-button">
+                @foreach (var action in ExtraActions)
+                {
+                    <MudMenuItem OnClick="@(() => OnExtraAction.InvokeAsync(action))">@action</MudMenuItem>
+                }
+            </MudMenu>
+        </MudTooltip>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<string> ExtraActions { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<string> ViewActions { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<string> EditActions { get; set; } = [];
+
+    [Parameter]
+    public bool CanView { get; set; } = true;
+
+    [Parameter]
+    public bool CanEdit { get; set; } = true;
+
+    [Parameter]
+    public bool CanDelete { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnView { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnEdit { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnDelete { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnViewAction { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnEditAction { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnExtraAction { get; set; }
+}

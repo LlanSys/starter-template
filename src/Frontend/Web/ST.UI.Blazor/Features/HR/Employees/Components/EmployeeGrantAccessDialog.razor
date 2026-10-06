@@ -1,0 +1,80 @@
+@inject IIamAdminService IamAdminService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" />
+        }
+        else
+        {
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.body2">
+                    Grant system access to <strong>@Employee.FullName</strong>. Select at least one role.
+                </MudText>
+
+                <MudPaper Elevation="0" Class="poc-panel compact-dialog-panel">
+                    @foreach (var role in _roles)
+                    {
+                        <MudCheckBox T="bool"
+                                     Value="@_selectedRoles.Contains(role.Name)"
+                                     ValueChanged="@((selected) => ToggleRole(role.Name, selected))"
+                                     Color="Color.Success"
+                                     Dense="true"
+                                     Label="@RoleLabel(role)" />
+                    }
+                </MudPaper>
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" Disabled="@(_isLoading || _selectedRoles.Count == 0)" OnClick="Confirm">Grant access</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private readonly List<AdminRoleListResponse> _roles = [];
+    private readonly HashSet<string> _selectedRoles = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isLoading = true;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public EmployeeResponse Employee { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await IamAdminService.GetRolesAsync();
+        if (!response.IsSuccess || response.Data is null)
+        {
+            Snackbar.Add(response.Message ?? "We could not load roles.", Severity.Error);
+            _isLoading = false;
+            return;
+        }
+
+        _roles.AddRange(response.Data.OrderBy(static role => role.DepartmentName).ThenBy(static role => role.Name));
+        _isLoading = false;
+    }
+
+    private static string RoleLabel(AdminRoleListResponse role)
+        => role.DepartmentId.HasValue ? $"{role.Name} ({role.DepartmentName})" : $"{role.Name} (Global)";
+
+    private void ToggleRole(string roleName, bool selected)
+    {
+        if (selected)
+        {
+            _selectedRoles.Add(roleName);
+            return;
+        }
+
+        _selectedRoles.Remove(roleName);
+    }
+
+    private void Confirm()
+        => MudDialog.Close(DialogResult.Ok(_selectedRoles.Order(StringComparer.OrdinalIgnoreCase).ToArray()));
+
+    private void Cancel() => MudDialog.Cancel();
+}

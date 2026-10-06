@@ -1,0 +1,96 @@
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject NavigationManager Navigation
+@inject ILogger<RequireAuthenticated> Logger
+
+@if (!_hasResolved)
+{
+    @LoadingContent
+}
+else if (_hasError)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="session-alert">
+        @_errorMessage
+        <MudButton Href="/iam/sign-in" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" Class="ms-3">
+            Sign in again
+        </MudButton>
+    </MudAlert>
+}
+else if (AuthSession.IsAuthenticated)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? LoadingContent { get; set; }
+
+    [Parameter]
+    public bool RedirectToLogin { get; set; } = true;
+
+    private bool _hasResolved;
+    private bool _hasError;
+    private string _errorMessage = "We could not confirm your session. Please sign in again.";
+
+    protected override void OnInitialized()
+    {
+        LoadingContent ??= @<MudPaper Class="status-card" Elevation="0">Checking your session...</MudPaper>;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(12));
+
+            if (!AuthSession.IsAuthenticated)
+            {
+                _errorMessage = AuthSession.LastError ?? "Your session has expired. Please sign in again.";
+
+                if (RedirectToLogin)
+                {
+                    Navigation.NavigateTo("/iam/sign-in");
+                    return;
+                }
+
+                _hasError = true;
+            }
+            else if (AuthSession.MfaEnrollmentRequired && !IsSecuritySetupPage())
+            {
+                Navigation.NavigateTo("/iam/security");
+                return;
+            }
+        }
+        catch (TimeoutException ex)
+        {
+            Logger.LogWarning(ex, "Timed out while initializing the authenticated UI session.");
+            _hasError = true;
+            _errorMessage = "The UI could not confirm your session quickly enough. Please check that the API is running, then sign in again.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize the authenticated UI session.");
+            _hasError = true;
+            _errorMessage = "We could not confirm your session. Please sign in again.";
+        }
+        finally
+        {
+            _hasResolved = true;
+            StateHasChanged();
+        }
+    }
+
+    private bool IsSecuritySetupPage()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', 2)[0];
+        return string.Equals(path.Trim('/'), "iam/security", StringComparison.OrdinalIgnoreCase);
+    }
+}

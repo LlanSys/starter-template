@@ -1,0 +1,169 @@
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IIamAdminService IamAdminService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<div class="list-toolbar">
+    <MudTextField @bind-Value="_searchText"
+                  Placeholder="Search user, email, device, IP..."
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Margin="Margin.Dense"
+                  Variant="Variant.Outlined"
+                  Immediate="true" />
+</div>
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable @ref="_table" Items="FilteredDevices" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 24rem)" Style="min-width: 920px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh>User</MudTh>
+                    <MudTh>Email</MudTh>
+                    <MudTh>Device</MudTh>
+                    <MudTh>IP Address</MudTh>
+                    <MudTh>Trusted</MudTh>
+                    <MudTh>Last Used</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="User">@context.UserName</MudTd>
+                    <MudTd DataLabel="Email">@context.Email</MudTd>
+                    <MudTd DataLabel="Device">@context.DeviceName</MudTd>
+                    <MudTd DataLabel="IP Address">@context.IpAddress</MudTd>
+                    <MudTd DataLabel="Trusted">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsTrusted ? Color.Success : Color.Warning)">@(context.IsTrusted ? "Trusted" : "Untrusted")</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Last Used">@context.LastUsedAt?.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                    <MudTd DataLabel="Actions">
+                        <TableRowActions OnView="@(() => ShowDeviceSummary(context))"
+                                         OnDelete="@(() => ConfirmRevokeAsync(context))"
+                                         ExtraActions="@DeviceExtraActions(context)"
+                                         OnExtraAction="@((action) => HandleDeviceActionAsync(context, action))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
+                                      TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
+                                      PageSize="_table?.RowsPerPage ?? 50"
+                                      OnFirstPage="@(() => _table?.NavigateTo(0))"
+                                      OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
+                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+                </PagerContent>
+            </MudTable>
+        </div>
+
+@code {
+    private readonly List<AdminUserDeviceResponse> _devices = [];
+    private bool _isLoading = true;
+    private string? _message;
+    private string? _searchText;
+    private MudTable<AdminUserDeviceResponse>? _table;
+
+
+    private IReadOnlyList<AdminUserDeviceResponse> FilteredDevices =>
+        string.IsNullOrWhiteSpace(_searchText)
+            ? _devices
+            : [.. _devices.Where(device =>
+                device.UserName.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || device.Email.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || device.DeviceName.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || (device.IpAddress?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) == true))];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        await LoadDevicesAsync();
+    }
+
+    private async Task LoadDevicesAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        var response = await IamAdminService.GetUserDevicesAsync();
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _message = response.Message ?? "We could not load user devices.";
+            Snackbar.Add(_message, Severity.Error);
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _devices.Clear();
+        _devices.AddRange(response.Data);
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private void ShowDeviceSummary(AdminUserDeviceResponse device)
+        => Snackbar.Add($"Device: {device.DeviceName}. User: {device.Email}. Trusted: {(device.IsTrusted ? "Yes" : "No")}", Severity.Info);
+
+    private Task HandleDeviceActionAsync(AdminUserDeviceResponse device, string action)
+        => action == "Revoke trust" ? ConfirmRevokeAsync(device) : Task.CompletedTask;
+
+    private static IReadOnlyList<string> DeviceExtraActions(AdminUserDeviceResponse device)
+        => device.IsTrusted ? ["Revoke trust", "Review sessions"] : ["Review sessions"];
+
+    private async Task ConfirmRevokeAsync(AdminUserDeviceResponse device)
+    {
+        if (!device.IsTrusted)
+        {
+            Snackbar.Add("This device is already untrusted.", Severity.Info);
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Revoke trust for {device.DeviceName} used by {device.Email}?" },
+            { nameof(ConfirmDialog.ConfirmText), "Revoke" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Revoke Device Trust",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false })
+        {
+            return;
+        }
+
+        var response = await IamAdminService.RevokeUserDeviceAsync(device.Id, new RevokeUserDeviceRequest("Revoked from admin user-device list."));
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Device revoke failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Device trust revoked.", Severity.Success);
+        await LoadDevicesAsync();
+    }
+}

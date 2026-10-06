@@ -1,0 +1,353 @@
+name: Deploy Non-Azure Containers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - ".github/workflows/non-azure-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Deployment target"
+        required: true
+        default: digitalocean-app-platform
+        type: choice
+        options:
+          - digitalocean-app-platform
+          - heroku-container
+          - generic-docker
+      image_tag:
+        description: "Container image tag to publish or deploy"
+        required: true
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}
+  API_IMAGE: starter-template-api
+  BLAZOR_IMAGE: starter-template-blazor
+
+jobs:
+  setup:
+    name: Setup deployment target
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || vars.NON_AZURE_DEPLOYMENT_ENABLED == 'true'
+    outputs:
+      deploy_target: ${{ steps.resolve.outputs.target }}
+      image_tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - id: resolve
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "target=${{ inputs.deploy_target }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            TARGET="${{ vars.NON_AZURE_DEPLOY_TARGET }}"
+            if [ -z "$TARGET" ]; then TARGET="digitalocean-app-platform"; fi
+            echo "target=$TARGET" >> $GITHUB_OUTPUT
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+  publish-ghcr:
+    name: Publish GHCR images
+    needs: setup
+    if: needs.setup.outputs.deploy_target == 'digitalocean-app-platform' || needs.setup.outputs.deploy_target == 'generic-docker'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api
+            image: starter-template-api
+            dockerfile: ops/docker/api.Dockerfile
+          - service: blazor
+            image: starter-template-blazor
+            dockerfile: ops/docker/blazor.Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ needs.setup.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  build-migrations:
+    name: Build DB Migrations
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+
+      - name: Build EF Core Migration Bundles
+        run: |
+          PROVIDER="PostgreSql"
+          if [ "${{ vars.DATABASE_PROVIDER }}" == "SqlServer" ]; then
+            PROVIDER="SqlServer"
+          fi
+          echo "Building migration bundles for provider: $PROVIDER"
+
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Iam${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-iam --configuration Release
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Hr${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-hr --configuration Release
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Shared${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-shared --configuration Release
+          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Banking${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-banking --configuration Release
+        env:
+          DatabaseSettings__Provider: "PostgreSql"
+          ConnectionStrings__DefaultConnection: "Host=localhost;Database=postgres;Username=postgres;Password=password"
+
+      - name: Upload Migration Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-migrations
+          path: ./publish-migrations
+
+  run-migrations:
+    name: Run DB Migrations
+    needs: [setup, build-migrations]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate configuration
+        env:
+          POSTGRES_CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+        run: |
+          if [ -z "$POSTGRES_CONNECTION_STRING" ]; then
+            echo "POSTGRES_CONNECTION_STRING secret is required."
+            exit 1
+          fi
+
+      - name: Download Migration Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: db-migrations
+          path: ./db-migrations
+
+      - name: Execute Migration Bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          chmod +x ./db-migrations/efbundle-iam
+          chmod +x ./db-migrations/efbundle-hr
+          chmod +x ./db-migrations/efbundle-shared
+          chmod +x ./db-migrations/efbundle-banking
+
+          run_bundle() {
+            local bundle="$1"
+            local max_attempts=6
+            local delay_seconds=10
+            local log_file
+
+            for attempt in $(seq 1 "$max_attempts"); do
+              echo "Running ${bundle} migration bundle (attempt ${attempt}/${max_attempts})..."
+              log_file="$(mktemp)"
+
+              if "./db-migrations/${bundle}" --connection "$POSTGRES_CONNECTION_STRING" 2>&1 | tee "$log_file"; then
+                rm -f "$log_file"
+                return 0
+              fi
+
+              if grep -q "A valid connection string was not found" "$log_file"; then
+                echo "ERROR: ${bundle} could not resolve its design-time connection string. This is a deterministic configuration failure and will not be retried."
+                rm -f "$log_file"
+                return 1
+              fi
+
+              rm -f "$log_file"
+
+              if [ "$attempt" -eq "$max_attempts" ]; then
+                echo "ERROR: ${bundle} migration bundle failed after ${max_attempts} attempts."
+                return 1
+              fi
+
+              echo "Database may still be starting. Retrying in ${delay_seconds} seconds..."
+              sleep "$delay_seconds"
+              delay_seconds=$((delay_seconds * 2))
+            done
+          }
+
+          run_bundle efbundle-iam
+          run_bundle efbundle-hr
+          run_bundle efbundle-shared
+          run_bundle efbundle-banking
+        env:
+          POSTGRES_CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          DatabaseSettings__Provider: "PostgreSql"
+          ConnectionStrings__IamConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          ConnectionStrings__HrConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          ConnectionStrings__SharedConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          ConnectionStrings__BankingConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          ConnectionStrings__DefaultConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+
+  deploy-digitalocean:
+    name: Deploy DigitalOcean App Platform
+    needs:
+      - setup
+      - publish-ghcr
+      - run-migrations
+    if: needs.setup.outputs.deploy_target == 'digitalocean-app-platform'
+    runs-on: ubuntu-latest
+    environment: digitalocean
+
+    steps:
+      - name: Validate DigitalOcean configuration
+        env:
+          DIGITALOCEAN_APP_ID: ${{ vars.DIGITALOCEAN_APP_ID }}
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$DIGITALOCEAN_APP_ID" ]; then
+            echo "DIGITALOCEAN_APP_ID repository or environment variable is required."
+            exit 1
+          fi
+
+          if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ]; then
+            echo "DIGITALOCEAN_ACCESS_TOKEN repository or environment secret is required."
+            exit 1
+          fi
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Trigger App Platform deployment
+        env:
+          DIGITALOCEAN_APP_ID: ${{ vars.DIGITALOCEAN_APP_ID }}
+        run: |
+          set -euo pipefail
+          doctl apps create-deployment "$DIGITALOCEAN_APP_ID" --wait
+
+  deploy-heroku:
+    name: Deploy Heroku Container Runtime
+    needs:
+      - setup
+      - run-migrations
+    if: needs.setup.outputs.deploy_target == 'heroku-container'
+    runs-on: ubuntu-latest
+    environment: heroku
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Heroku configuration
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_API_APP_NAME: ${{ vars.HEROKU_API_APP_NAME }}
+          HEROKU_BLAZOR_APP_NAME: ${{ vars.HEROKU_BLAZOR_APP_NAME }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$HEROKU_API_KEY" ]; then
+            echo "HEROKU_API_KEY repository or environment secret is required."
+            exit 1
+          fi
+
+          if [ -z "$HEROKU_API_APP_NAME" ]; then
+            echo "HEROKU_API_APP_NAME repository or environment variable is required."
+            exit 1
+          fi
+
+          if [ -z "$HEROKU_BLAZOR_APP_NAME" ]; then
+            echo "HEROKU_BLAZOR_APP_NAME repository or environment variable is required."
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Heroku Container Registry
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          set -euo pipefail
+          echo "$HEROKU_API_KEY" | docker login --username=_ --password-stdin registry.heroku.com
+
+      - name: Install Heroku CLI
+        run: |
+          set -euo pipefail
+          curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
+
+      - name: Build and push API image
+        env:
+          HEROKU_API_APP_NAME: ${{ vars.HEROKU_API_APP_NAME }}
+        run: |
+          set -euo pipefail
+          docker build --file ops/docker/api.Dockerfile --tag "registry.heroku.com/${HEROKU_API_APP_NAME}/web" .
+          docker push "registry.heroku.com/${HEROKU_API_APP_NAME}/web"
+
+      - name: Build and push Blazor image
+        env:
+          HEROKU_BLAZOR_APP_NAME: ${{ vars.HEROKU_BLAZOR_APP_NAME }}
+        run: |
+          set -euo pipefail
+          docker build --file ops/docker/blazor.Dockerfile --tag "registry.heroku.com/${HEROKU_BLAZOR_APP_NAME}/web" .
+          docker push "registry.heroku.com/${HEROKU_BLAZOR_APP_NAME}/web"
+
+      - name: Release Heroku applications
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_API_APP_NAME: ${{ vars.HEROKU_API_APP_NAME }}
+          HEROKU_BLAZOR_APP_NAME: ${{ vars.HEROKU_BLAZOR_APP_NAME }}
+        run: |
+          set -euo pipefail
+          heroku container:release web --app "$HEROKU_API_APP_NAME"
+          heroku container:release web --app "$HEROKU_BLAZOR_APP_NAME"
+
+  generic-docker-summary:
+    name: Generic Docker deployment handoff
+    needs:
+      - setup
+      - publish-ghcr
+    if: needs.setup.outputs.deploy_target == 'generic-docker'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print image references
+        run: |
+          set -euo pipefail
+          echo "API image: ghcr.io/${{ env.IMAGE_NAMESPACE }}/${{ env.API_IMAGE }}:${{ needs.setup.outputs.image_tag }}"
+          echo "Blazor image: ghcr.io/${{ env.IMAGE_NAMESPACE }}/${{ env.BLAZOR_IMAGE }}:${{ needs.setup.outputs.image_tag }}"
+          echo "Pull these images from the target host and run them behind a TLS-terminating reverse proxy."

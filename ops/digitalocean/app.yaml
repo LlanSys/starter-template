@@ -1,0 +1,99 @@
+name: starter-template-app
+region: nyc3
+
+services:
+  - name: api
+    image:
+      registry_type: ghcr
+      registry: ghcr.io
+      repository: odhiamboally/starter-template-api
+      tag: latest
+    http_port: 8080
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: DatabaseSettings__Provider
+        value: PostgreSql
+      - key: ConnectionStrings__DefaultConnection
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: ConnectionStrings__IamConnection
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: ConnectionStrings__HrConnection
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: ConnectionStrings__SharedConnection
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: ConnectionStrings__BankingConnection
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: CacheSettings__Provider
+        value: Redis
+      - key: CacheSettings__Redis__ConnectionString
+        scope: RUN_TIME
+        value: ${redis.REDIS_URL}
+      - key: ProfileImageStorage__Provider
+        value: S3
+      - key: ProfileImageStorage__S3__ServiceUrl
+        value: https://nyc3.digitaloceanspaces.com
+      - key: ProfileImageStorage__S3__AccessKey
+        type: SECRET
+        value: REPLACE_WITH_SPACES_ACCESS_KEY
+      - key: ProfileImageStorage__S3__SecretKey
+        type: SECRET
+        value: REPLACE_WITH_SPACES_SECRET_KEY
+      - key: ProfileImageStorage__S3__BucketName
+        value: REPLACE_WITH_SPACES_BUCKET_NAME
+      - key: ProfileImageStorage__S3__PublicBaseUrl
+        value: REPLACE_WITH_SPACES_PUBLIC_URL
+      - key: Observability__Otlp__Endpoint
+        value: https://otlp.nr-data.net:4317
+      - key: Observability__Otlp__Headers
+        type: SECRET
+        value: api-key=REPLACE_WITH_NEW_RELIC_LICENSE_KEY
+      - key: JwtSettings__SecretKey
+        type: SECRET
+        value: REPLACE_WITH_SECURE_RANDOM_STRING
+      - key: DataProtection__UseExternalKeyStore
+        value: "true"
+      - key: DataProtection__RedisKeyRingConnectionString
+        scope: RUN_TIME
+        value: ${redis.REDIS_URL}
+    health_check:
+      http_path: /health/ready
+      initial_delay_seconds: 30
+      period_seconds: 15
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+  - name: blazor
+    image:
+      registry_type: ghcr
+      registry: ghcr.io
+      repository: odhiamboally/starter-template-blazor
+      tag: latest
+    http_port: 8080
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: BackendApi__BaseUrl
+        value: ${api.PUBLIC_URL}
+
+databases:
+  - name: db
+    engine: PG
+    version: "15"
+    size: db-s-dev-database
+    num_nodes: 1
+  - name: redis
+    engine: REDIS
+    version: "7"
+    size: db-s-dev-redis
+    num_nodes: 1

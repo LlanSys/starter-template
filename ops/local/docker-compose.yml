@@ -1,0 +1,107 @@
+name: cg-startertemplate
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in ops/local/.env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in ops/local/.env}
+    ports:
+      - "5675:5672"
+      - "15675:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in ops/local/.env}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in ops/local/.env}
+    ports:
+      - "${REDIS_HOST_PORT:-6382}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "1030:1025"
+      - "8030:8025"
+    restart: unless-stopped
+
+  seq:
+    image: datalust/seq:2025.2
+    profiles: ["observability"]
+    environment:
+      ACCEPT_EULA: "Y"
+      SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_PASSWORD:?Set SEQ_PASSWORD in ops/local/.env}
+    ports:
+      - "5344:80"
+    volumes:
+      - seq-data:/data
+    restart: unless-stopped
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
+    environment:
+      AZURITE_ACCOUNTS: ${AZURITE_ACCOUNT_NAME:?Set AZURITE_ACCOUNT_NAME in ops/local/.env}:${AZURITE_ACCOUNT_KEY:?Set AZURITE_ACCOUNT_KEY in ops/local/.env}
+    ports:
+      - "10020:10000"
+      - "10021:10001"
+      - "10022:10002"
+    volumes:
+      - azurite-data:/data
+    restart: unless-stopped
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    profiles: ["database"]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in ops/local/.env}
+    ports:
+      - "14335:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD"
+          -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  rabbitmq-data:
+    name: startertemplate_rabbitmq-data
+    external: true
+  redis-data:
+    name: startertemplate_redis-data
+    external: true
+  seq-data:
+    name: startertemplate_seq-data
+    external: true
+  azurite-data:
+    name: startertemplate_azurite-data
+    external: true
+  sqlserver-data:
+    name: startertemplate_sqlserver-data
+    external: true

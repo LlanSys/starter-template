@@ -1,0 +1,500 @@
+@page "/iam/security"
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IAuthService AuthService
+@inject IAuthenticatorQrCodeService QrCodeService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Security | StarterTemplate</PageTitle>
+
+<RequireAuthenticated>
+    <section class="security-page">
+        <div class="mb-2">
+            <MudButton Href="/profile" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Class="ps-0 text-muted">Back to Profile</MudButton>
+        </div>
+        <div class="security-hero">
+            <div>
+                <span class="eyebrow">Account security</span>
+                <h3>@DisplayName</h3>
+                <p>@AuthSession.CurrentUser?.Email</p>
+            </div>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Logout" OnClick="SignOutAsync">Sign out</MudButton>
+        </div>
+
+        <div class="security-grid">
+            <article class="security-card">
+                <div class="card-heading">
+                    <span>Password</span>
+                </div>
+                <p>Change your account password.</p>
+
+                <EditForm Model="_passwordModel" OnValidSubmit="ChangePasswordAsync">
+                    <DataAnnotationsValidator />
+                    <div class="form-stack mt-3">
+                        <div>
+                            <label for="current-password">Current password</label>
+                            <InputText id="current-password" type="password" class="form-control" @bind-Value="_passwordModel.CurrentPassword" />
+                            <ValidationMessage For="@(() => _passwordModel.CurrentPassword)" />
+                        </div>
+                        <div>
+                            <label for="new-password">New password</label>
+                            <InputText id="new-password" type="password" class="form-control" @bind-Value="_passwordModel.NewPassword" />
+                            <ValidationMessage For="@(() => _passwordModel.NewPassword)" />
+                        </div>
+                        <div>
+                            <label for="confirm-new-password">Confirm new password</label>
+                            <InputText id="confirm-new-password" type="password" class="form-control" @bind-Value="_passwordModel.ConfirmNewPassword" />
+                            <ValidationMessage For="@(() => _passwordModel.ConfirmNewPassword)" />
+                        </div>
+
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit" Disabled="@_isChangingPassword">
+                            @(_isChangingPassword ? "Changing..." : "Change password")
+                        </MudButton>
+                    </div>
+                </EditForm>
+                @if (!string.IsNullOrWhiteSpace(_passwordMessage))
+                {
+                    <MudAlert Severity="@(_passwordIsError ? Severity.Error : Severity.Success)" Variant="Variant.Outlined" Class="mt-3">@_passwordMessage</MudAlert>
+                }
+            </article>
+
+            <article class="security-card">
+                <div class="card-heading">
+                    <span>Passkeys</span>
+                    @if (_passkeys?.Count > 0)
+                    {
+                        <strong class="status-good">Enabled (@_passkeys.Count)</strong>
+                    }
+                </div>
+                <p>Register a passkey to sign in without a password using your device's biometric authentication.</p>
+
+                @if (!_hasLoadedPasskeys)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-3">
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                        Loading passkeys...
+                    </MudAlert>
+                }
+                else if (_passkeys?.Count > 0)
+                {
+                    <dl class="status-list mb-3">
+                        @foreach (var pk in _passkeys)
+                        {
+                            <div>
+                                <dt>@pk.DisplayName</dt>
+                                <dd>Added @pk.CreatedAt.ToString("MMM dd, yyyy")</dd>
+                            </div>
+                        }
+                    </dl>
+                }
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RegisterPasskeyAsync" Disabled="@_isRegisteringPasskey" Class="mt-3">
+                    @(_isRegisteringPasskey ? "Registering..." : "Register New Passkey")
+                </MudButton>
+
+                @if (!string.IsNullOrWhiteSpace(_passkeyMessage))
+                {
+                    <MudAlert Severity="@(_passkeyIsError ? Severity.Error : Severity.Success)" Variant="Variant.Outlined" Class="mt-3">@_passkeyMessage</MudAlert>
+                }
+            </article>
+
+            <article class="security-card">
+                <div class="card-heading">
+                    <span>Two-factor authentication</span>
+                    <strong class="@(_otpStatus?.IsEnabled == true ? "status-good" : "status-warn")">
+                        @(_otpStatus?.IsEnabled == true ? "Enabled" : "Action needed")
+                    </strong>
+                </div>
+                <p>
+                    Authenticator-app TOTP is the preferred starter-template flow because it works with Microsoft Authenticator,
+                    Google Authenticator, 1Password, and similar enterprise password managers.
+                </p>
+
+                @if (!_hasLoadedOtpStatus)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                        Loading two-factor status...
+                    </MudAlert>
+                }
+                else if (_otpStatus is null)
+                {
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+                        We could not load your two-factor status. Please refresh the page or sign in again.
+                    </MudAlert>
+                }
+                else
+                {
+                    <dl class="status-list">
+                        <div>
+                            <dt>Provider</dt>
+                            <dd>@_otpStatus.DisplayName</dd>
+                        </div>
+                        <div>
+                            <dt>Configured</dt>
+                            <dd>@(_otpStatus.IsConfigured ? "Yes" : "No")</dd>
+                        </div>
+                    </dl>
+                }
+
+                <MudStack Row="true" Spacing="2" Class="security-actions">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartTotpSetupAsync" Disabled="@(_isBusy || IsTotpEnabled)">
+                        @SetupButtonText
+                    </MudButton>
+
+                    @if (IsTotpEnabled)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DisableTotpAsync" Disabled="@_isBusy">
+                            Disable authenticator app
+                        </MudButton>
+                    }
+                </MudStack>
+            </article>
+
+            <article class="security-card setup-card">
+                <div class="card-heading">
+                    <span>Authenticator setup</span>
+                    <strong>30-minute setup window</strong>
+                </div>
+
+                @if (_setupInfo is null)
+                {
+                    <p>@(IsTotpEnabled
+                            ? "Authenticator-app 2FA is enabled. Use the audited disable action if this device is lost, replaced, or no longer trusted."
+                            : "Start setup to generate a temporary TOTP secret. The secret is only committed after a valid code is verified.")</p>
+                }
+                else
+                {
+                    <p>Add this account to your authenticator app, then verify the first generated code below.</p>
+
+                    <div class="qr-panel">
+                        <img src="@_qrCodeDataUri" alt="Authenticator app QR code" />
+                        <span>Scan with Microsoft Authenticator, Google Authenticator, 1Password, or another TOTP app.</span>
+                    </div>
+
+                    <label>Manual entry key</label>
+                    <div class="copy-box">@_setupInfo.ManualEntryKey</div>
+
+                <EditForm FormName="iam-security-verify-setup" Model="_verification" OnValidSubmit="VerifySetupAsync">
+                    <DataAnnotationsValidator />
+                        <div class="form-stack mt-3">
+                            <div>
+                                <label for="setup-code">6-digit code</label>
+                                <InputText id="setup-code" class="form-control form-control-lg otp-input" @bind-Value="_verification.Code" inputmode="numeric" autocomplete="one-time-code" />
+                                <ValidationMessage For="@(() => _verification.Code)" />
+                            </div>
+
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit" Disabled="@_isBusy">
+                                @(_isBusy ? "Verifying..." : "Verify and enable 2FA")
+                            </MudButton>
+                        </div>
+                    </EditForm>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <MudAlert Severity="@(_isError ? Severity.Error : Severity.Success)" Variant="Variant.Outlined" Class="mt-3">@_message</MudAlert>
+                }
+            </article>
+        </div>
+    </section>
+</RequireAuthenticated>
+
+@code {
+    private bool _isBusy;
+    private bool _isError;
+    private bool _hasLoadedOtpStatus;
+    private string? _message;
+    private string? _qrCodeDataUri;
+    private ST.SharedKernel.Features.IAM.Users.Dtos.OtpStatusResponse? _otpStatus;
+    private ST.SharedKernel.Features.IAM.Users.Dtos.TwoFactorSetupInfo? _setupInfo;
+    private readonly TotpVerificationModel _verification = new();
+
+    private bool _isChangingPassword;
+    private bool _passwordIsError;
+    private string? _passwordMessage;
+    private readonly ChangePasswordFormModel _passwordModel = new();
+
+    private bool _isRegisteringPasskey;
+    private bool _passkeyIsError;
+    private string? _passkeyMessage;
+    private bool _hasLoadedPasskeys;
+    private IReadOnlyList<ST.SharedKernel.Features.IAM.Users.Dtos.PasskeyResponse>? _passkeys;
+
+    private bool IsTotpEnabled => _otpStatus?.IsEnabled == true;
+
+    private string SetupButtonText => IsTotpEnabled
+        ? "Authenticator app enabled"
+        : _setupInfo is null ? "Set up authenticator app" : "Regenerate setup code";
+
+    private string DisplayName
+    {
+        get
+        {
+            var fullName = $"{AuthSession.CurrentUser?.FirstName} {AuthSession.CurrentUser?.LastName}".Trim();
+            return string.IsNullOrWhiteSpace(fullName) ? AuthSession.CurrentUser?.Email ?? "Signed-in user" : fullName;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !AuthSession.IsAuthenticated || AuthSession.CurrentUser is null || _hasLoadedOtpStatus)
+        {
+            return;
+        }
+
+        _verification.UserId = AuthSession.CurrentUser.AppUserId;
+        await LoadOtpStatusAsync();
+        await LoadPasskeysAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadPasskeysAsync()
+    {
+        _hasLoadedPasskeys = false;
+        var result = await AuthService.GetPasskeysAsync();
+        if (result.IsSuccess)
+        {
+            _passkeys = result.Data;
+        }
+        else
+        {
+            _passkeys = null;
+        }
+        _hasLoadedPasskeys = true;
+    }
+
+    private async Task LoadOtpStatusAsync()
+    {
+        if (AuthSession.CurrentUser is null)
+        {
+            _hasLoadedOtpStatus = true;
+            return;
+        }
+
+        _hasLoadedOtpStatus = false;
+        var status = await AuthService.GetTotpStatusAsync(AuthSession.CurrentUser.AppUserId);
+        if (status.IsSuccess)
+        {
+            _otpStatus = status.Data;
+        }
+        else
+        {
+            _otpStatus = null;
+        }
+
+        _hasLoadedOtpStatus = true;
+    }
+
+    private async Task StartTotpSetupAsync()
+    {
+        if (IsTotpEnabled)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _isError = false;
+        _message = null;
+
+        var response = await AuthService.InitiateTotpSetupAsync();
+        _isBusy = false;
+
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _isError = true;
+            _message = UserMessageSanitizer.Normalize(response.Message, "Could not start two-factor setup.");
+            return;
+        }
+
+        _setupInfo = response.Data;
+        _qrCodeDataUri = QrCodeService.GenerateDataUri(response.Data.QrCodeUri);
+        _message = "Temporary authenticator secret generated. Verify a code to enable 2FA.";
+    }
+
+    private async Task VerifySetupAsync()
+    {
+        if (AuthSession.CurrentUser is null)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        _isBusy = true;
+        _isError = false;
+        _message = null;
+
+        var response = await AuthSession.CompleteTwoFactorAsync(new ST.SharedKernel.Features.IAM.Users.Dtos.VerifyOtpRequest
+        {
+            UserId = AuthSession.CurrentUser.AppUserId,
+            Code = _verification.Code,
+            RememberMe = false,
+            RememberDevice = true,
+            DeviceFingerprint = _verification.DeviceFingerprint
+        });
+
+        _isBusy = false;
+
+        if (!response.IsSuccess)
+        {
+            _isError = true;
+            _message = UserMessageSanitizer.Normalize(response.Message, "Could not enable two-factor authentication.");
+            return;
+        }
+
+        _message = "Two-factor authentication is now enabled for this account.";
+        _setupInfo = null;
+        _qrCodeDataUri = null;
+        _verification.Code = string.Empty;
+        await AuthSession.RefreshAsync();
+        await LoadOtpStatusAsync();
+        Navigation.NavigateTo("/dashboard", replace: true);
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        _isChangingPassword = true;
+        _passwordIsError = false;
+        _passwordMessage = null;
+
+        var request = new ST.SharedKernel.Features.IAM.Users.Dtos.ChangePasswordRequest(
+            _passwordModel.CurrentPassword,
+            _passwordModel.NewPassword);
+
+        var response = await AuthService.ChangePasswordAsync(request);
+        _isChangingPassword = false;
+
+        if (!response.IsSuccess)
+        {
+            _passwordIsError = true;
+            _passwordMessage = UserMessageSanitizer.Normalize(response.Message, "Could not change password.");
+            return;
+        }
+
+        _passwordModel.CurrentPassword = string.Empty;
+        _passwordModel.NewPassword = string.Empty;
+        _passwordModel.ConfirmNewPassword = string.Empty;
+        _passwordMessage = "Password changed successfully.";
+    }
+
+    private async Task DisableTotpAsync()
+    {
+        if (!IsTotpEnabled)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), "Disable authenticator-app 2FA for this account? You will be able to set it up again, and this action will be logged for audit." },
+            { nameof(ConfirmDialog.ConfirmText), "Disable" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Disable Authenticator App",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false })
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _isError = false;
+        _message = null;
+
+        var response = await AuthService.DisableTotpAsync();
+        _isBusy = false;
+
+        if (!response.IsSuccess)
+        {
+            _isError = true;
+            _message = UserMessageSanitizer.Normalize(response.Message, "Could not disable authenticator-app 2FA.");
+            return;
+        }
+
+        _setupInfo = null;
+        _qrCodeDataUri = null;
+        _otpStatus = new ST.SharedKernel.Features.IAM.Users.Dtos.OtpStatusResponse(
+            IsConfigured: false,
+            IsEnabled: false,
+            ProviderName: "Authenticator",
+            DisplayName: "Authenticator App");
+        _hasLoadedOtpStatus = true;
+        await AuthSession.RefreshAsync();
+        if (!AuthSession.IsAuthenticated || AuthSession.MfaEnrollmentRequired)
+        {
+            await AuthSession.SignOutAsync();
+            Navigation.NavigateTo("/iam/sign-in", replace: true);
+            return;
+        }
+
+        await LoadOtpStatusAsync();
+        _message = response.Message ?? "Authenticator-app 2FA has been disabled.";
+    }
+
+    private async Task RegisterPasskeyAsync()
+    {
+        _isRegisteringPasskey = true;
+        _passkeyIsError = false;
+        _passkeyMessage = null;
+
+        var optionsResponse = await AuthService.RequestPasskeyRegistrationOptionsAsync();
+        if (!optionsResponse.IsSuccess || optionsResponse.Data.ValueKind == System.Text.Json.JsonValueKind.Undefined)
+        {
+            _isRegisteringPasskey = false;
+            _passkeyIsError = true;
+            _passkeyMessage = UserMessageSanitizer.Normalize(optionsResponse.Message, "Could not start passkey registration.");
+            return;
+        }
+
+        try
+        {
+            var isSupported = await JSRuntime.InvokeAsync<bool>("webauthn.isSupported");
+            if (!isSupported)
+            {
+                _isRegisteringPasskey = false;
+                _passkeyIsError = true;
+                _passkeyMessage = "WebAuthn is not supported on this browser/device.";
+                return;
+            }
+
+            var attestationJson = await JSRuntime.InvokeAsync<string>(
+                "webauthn.registerPasskey",
+                optionsResponse.Data.GetRawText());
+
+            var attestation = System.Text.Json.JsonDocument.Parse(attestationJson).RootElement;
+            var registerResponse = await AuthService.RegisterPasskeyAsync(new ST.SharedKernel.Features.IAM.Users.Dtos.RegisterPasskeyRequest(attestation));
+
+            _isRegisteringPasskey = false;
+
+            if (registerResponse.IsSuccess)
+            {
+                _passkeyMessage = "Passkey successfully registered.";
+                await LoadPasskeysAsync();
+            }
+            else
+            {
+                _passkeyIsError = true;
+                _passkeyMessage = UserMessageSanitizer.Normalize(registerResponse.Message, "Could not complete passkey registration.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _isRegisteringPasskey = false;
+            _passkeyIsError = true;
+            _passkeyMessage = "Passkey registration was cancelled or failed.";
+            Console.WriteLine(ex);
+        }
+    }
+
+    private async Task SignOutAsync()
+    {
+        await AuthSession.SignOutAsync();
+        Navigation.NavigateTo("/iam/sign-in");
+    }
+}

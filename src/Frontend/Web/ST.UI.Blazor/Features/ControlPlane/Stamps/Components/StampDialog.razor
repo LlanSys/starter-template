@@ -1,0 +1,119 @@
+@inject IDeploymentStampService StampService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+    <EditForm FormName="control-plane-stamp-form" Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Name" Label="Stamp Name" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.TargetResourceGroup" Label="Resource Group" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="_model.IsolationTier" Label="Isolation Tier" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                        <MudSelectItem Value="@("Pooled")">Pooled</MudSelectItem>
+                        <MudSelectItem Value="@("Isolated")">Isolated</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                @if (ExistingStamp is null)
+                {
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_model.KeyVaultUri" Label="Key Vault URI" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private StampFormModel _model = new();
+    private bool _isSaving;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public DeploymentStampResponse? ExistingStamp { get; set; }
+
+    private string SaveLabel => ExistingStamp is null ? "Create" : "Update";
+
+    protected override void OnInitialized()
+    {
+        _model = ExistingStamp is null
+            ? new StampFormModel()
+            : StampFormModel.From(ExistingStamp);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Name) || string.IsNullOrWhiteSpace(_model.TargetResourceGroup))
+        {
+            Snackbar.Add("Name and Resource Group are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        var response = ExistingStamp is null
+            ? await StampService.CreateAsync(_model.ToCreateRequest())
+            : await StampService.UpdateAsync(_model.Id, _model.ToUpdateRequest());
+        _isSaving = false;
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Deployment stamp save failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add(ExistingStamp is null ? "Deployment stamp created." : "Deployment stamp updated.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(response.Data));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private sealed class StampFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string TargetResourceGroup { get; set; } = string.Empty;
+        public string IsolationTier { get; set; } = "Pooled";
+        public string? KeyVaultUri { get; set; }
+
+        public static StampFormModel From(DeploymentStampResponse stamp)
+            => new()
+            {
+                Id = stamp.Id,
+                Name = stamp.Name,
+                TargetResourceGroup = stamp.TargetResourceGroup,
+                IsolationTier = stamp.IsolationTier,
+                KeyVaultUri = stamp.KeyVaultUri
+            };
+
+        public CreateDeploymentStampRequest ToCreateRequest()
+            => new()
+            {
+                Name = Name,
+                TargetResourceGroup = TargetResourceGroup,
+                IsolationTier = IsolationTier,
+                KeyVaultUri = KeyVaultUri
+            };
+
+        public UpdateDeploymentStampRequest ToUpdateRequest()
+            => new()
+            {
+
+                Name = Name,
+                TargetResourceGroup = TargetResourceGroup,
+                IsolationTier = IsolationTier,
+                KeyVaultUri = KeyVaultUri
+            };
+    }
+}

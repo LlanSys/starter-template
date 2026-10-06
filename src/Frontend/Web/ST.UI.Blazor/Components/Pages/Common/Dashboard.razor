@@ -1,0 +1,161 @@
+@page "/dashboard"
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard | StarterTemplate</PageTitle>
+
+<section class="dashboard-page">
+    <div class="dashboard-hero compact-hero">
+        <div>
+            <span class="eyebrow">Operations dashboard</span>
+            <h1>Welcome back, @DisplayName.</h1>
+            <p>POC-ready workspace with placeholders for the operational data we will wire as features mature.</p>
+        </div>
+
+    </div>
+
+    <MudGrid Spacing="3">
+        <!-- KPI Cards (Financial) -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="0" Class="pa-6 border" Style="border-radius: 10px;">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Savings</MudText>
+                <MudText Typo="Typo.h5" Class="mt-2" Style="font-weight: 700;">KES 1,240,000</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Tertiary" Class="d-flex align-center mt-1">
+                    <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" /> +2.5% this month
+                </MudText>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="0" Class="pa-6 border" Style="border-radius: 10px;">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Active Loans</MudText>
+                <MudText Typo="Typo.h5" Class="mt-2" Style="font-weight: 700;">KES 450,200</MudText>
+                <MudProgressLinear Color="Color.Warning" Value="65" Class="mt-3" />
+            </MudPaper>
+        </MudItem>
+
+        <!-- POC Context Tiles -->
+        @foreach (var tile in _summaryTiles)
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-6 border" Elevation="0" Style="border-radius: 10px;">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">@tile.Label</MudText>
+                        <MudIcon Icon="@tile.Icon" Color="Color.Primary" Size="Size.Small" />
+                    </div>
+                    <MudText Typo="Typo.h5" Style="font-weight: 700;">@tile.Value</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1 d-block">@tile.Caption</MudText>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+
+    <MudGrid Spacing="3" Class="mt-3">
+        <MudItem xs="12" lg="7">
+            <MudPaper Class="poc-panel" Elevation="0">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">Feature readiness</span>
+                        <h2>Implementation map</h2>
+                    </div>
+                    <MudChip T="string" Color="Color.Success" Variant="Variant.Outlined" Size="Size.Small">POC shell</MudChip>
+                </div>
+
+                <MudTable Items="_featureRows" Dense="true" Hover="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Area</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Next move</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Area">@context.Area</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="@context.Color" Variant="Variant.Filled">@context.Status</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Next move">@context.NextMove</MudTd>
+                        <MudTd DataLabel="Actions">
+                            <TableRowActions ExtraActions="@(["Review backlog"])" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" lg="5">
+            <MudPaper Class="poc-panel" Elevation="0">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">Security posture</span>
+                        <h2>Identity health</h2>
+                    </div>
+                </div>
+
+                <div class="readiness-list">
+                    <div>
+                        <MudIcon Icon="@Icons.Material.Filled.Login" />
+                        <span>API-backed login</span>
+                        <strong>Ready</strong>
+                    </div>
+                    <div>
+                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" />
+                        <span>Role-driven admin shell</span>
+                        <strong>Draft</strong>
+                    </div>
+                    <div>
+                        <MudIcon Icon="@Icons.Material.Filled.Password" />
+                        <span>Authenticator 2FA</span>
+                        <strong>@(AuthSession.CurrentUser?.TwoFactorEnabled == true ? "Enabled" : "Recommended")</strong>
+                    </div>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</section>
+
+@code {
+    private readonly SummaryTile[] _summaryTiles =
+    [
+        new("Architecture", "44", "Guardrails passing", Icons.Material.Filled.FactCheck),
+        new("Admin modules", "5", "Users, roles, permissions", Icons.Material.Filled.AdminPanelSettings)
+    ];
+
+    private readonly FeatureRow[] _featureRows =
+    [
+        new("IAM", "Active", "Add user/role management screens", Color.Success),
+        new("Administration", "Scaffolded", "Wire Users, Employees, Customers, Roles", Color.Info),
+        new("Feature flags", "Planned", "Add generic flag abstraction", Color.Warning),
+        new("Observability", "Configured", "Turn on local Seq/OpenTelemetry flow", Color.Primary)
+    ];
+
+    private string DisplayName
+    {
+        get
+        {
+            var fullName = $"{AuthSession.CurrentUser?.FirstName} {AuthSession.CurrentUser?.LastName}".Trim();
+            return string.IsNullOrWhiteSpace(fullName) ? AuthSession.CurrentUser?.Email ?? "there" : fullName;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        StateHasChanged();
+    }
+
+    private sealed record SummaryTile(string Label, string Value, string Caption, string Icon);
+
+    private sealed record FeatureRow(string Area, string Status, string NextMove, Color Color);
+}

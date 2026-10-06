@@ -1,0 +1,94 @@
+@using ST.SharedKernel.Features.ControlPlane.Auditing.Dtos
+@using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
+@using ST.UI.Blazor.Features.ControlPlane.Auditing.Contracts
+@using MudBlazor
+
+@inject IAuditService AuditService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_isValid" Model="@_command">
+            <div class="mb-4">
+                <MudText Typo="Typo.body2">You are about to start an impersonation session for <strong>@Tenant.DisplayName</strong>.</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Error">This action will be logged in the audit trail.</MudText>
+            </div>
+
+            <MudTextField @bind-Value="_command.Reason"
+                          For="@(() => _command.Reason)"
+                          Label="Reason for impersonation (required)"
+                          Lines="3"
+                          Required="true"
+                          RequiredError="Reason is required"
+                          Variant="Variant.Outlined"
+                          Class="mb-4" />
+
+            <MudNumericField @bind-Value="_command.DurationHours"
+                             For="@(() => _command.DurationHours)"
+                             Label="Duration (Hours)"
+                             Min="1" Max="24"
+                             Required="true"
+                             Variant="Variant.Outlined" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="@_isSubmitting">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitAsync" Disabled="@(!_isValid || _isSubmitting)">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Starting...</MudText>
+            }
+            else
+            {
+                <MudText>Start Session</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    [EditorRequired]
+    public TenantResponse Tenant { get; set; } = default!;
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _isSubmitting;
+
+
+    private ImpersonationModel _command = new();
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SubmitAsync()
+    {
+        if (_form != null)
+        {
+            await _form.Validate();
+            if (!_form.IsValid) return;
+        }
+
+        _isSubmitting = true;
+        StateHasChanged();
+
+        var request = new StartImpersonationRequest(Tenant.Id, _command.Reason, _command.DurationHours);
+        var response = await AuditService.StartImpersonationAsync(request);
+
+        _isSubmitting = false;
+
+        if (response.IsSuccess && response.Data != null)
+        {
+            Snackbar.Add($"Started impersonation for {Tenant.DisplayName}", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(response.Data));
+        }
+        else
+        {
+            Snackbar.Add(response.Message ?? "Failed to start impersonation.", Severity.Error);
+            StateHasChanged();
+        }
+    }
+}

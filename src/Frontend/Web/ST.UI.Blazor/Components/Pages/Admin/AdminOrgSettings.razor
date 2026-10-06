@@ -1,0 +1,217 @@
+@page "/admin/org-settings"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IOrgSettingsService OrgSettingsService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Org Settings</PageTitle>
+
+<section class="dashboard-page">
+    <div class="mb-4">
+        <MudButton Href="/admin" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Admin Center</MudButton>
+    </div>
+
+    <MudPaper Class="poc-panel" Elevation="0">
+        <div class="panel-heading">
+            <h2 style="color: var(--bt-moss); font-weight: 700;">Org Settings</h2>
+            <div class="d-flex align-center gap-3">
+                <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialogAsync">Create setting</MudButton>
+            </div>
+        </div>
+
+<div class="list-toolbar">
+    <MudTextField @bind-Value="_searchText"
+                  Placeholder="Search key, description..."
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Margin="Margin.Dense"
+                  Variant="Variant.Outlined"
+                  Immediate="false"
+                  DebounceInterval="400"
+                  OnDebounceIntervalElapsed="ApplyFiltersAsync"
+                  OnKeyDown="HandleSearchKeyDown" />
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" OnClick="LoadSettingsAsync" title="Refresh" />
+</div>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+}
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <MudAlert Severity="@_messageSeverity" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+}
+
+<div class="bt-table-scroll">
+    <MudTable @ref="_table" Items="_filteredSettings" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="100" Height="calc(100vh - 25rem)" Style="min-width: 800px;" Breakpoint="Breakpoint.None">
+        <HeaderContent>
+            <MudTh>Key</MudTh>
+            <MudTh>Value</MudTh>
+            <MudTh>Description</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="width: 8rem;">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Key">@context.Key</MudTd>
+            <MudTd DataLabel="Value">
+                @if(context.Value == "***")
+                {
+                    <span class="text-muted">***</span>
+                }
+                else
+                {
+                    <span class="text-truncate" style="max-width: 250px; display: inline-block;">@context.Value</span>
+                }
+            </MudTd>
+            <MudTd DataLabel="Description">@context.Description</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true">
+                    <MudMenuItem OnClick="@(() => OpenEditDialogAsync(context))">Edit</MudMenuItem>
+                    <MudMenuItem OnClick="@(() => ConfirmDeleteAsync(context))">Delete</MudMenuItem>
+                </MudMenu>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+        </NoRecordsContent>
+        <PagerContent>
+            <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
+                              TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
+                              PageSize="_table?.RowsPerPage ?? 100"
+                              OnFirstPage="@(() => _table?.NavigateTo(0))"
+                              OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
+                              OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+        </PagerContent>
+    </MudTable>
+</div>
+
+    </MudPaper>
+</section>
+@code {
+    private List<OrgSettingResponse> _settings = [];
+    private List<OrgSettingResponse> _filteredSettings = [];
+    private bool _isLoading;
+    private string? _message;
+    private Severity _messageSeverity = Severity.Error;
+    private string _searchText = string.Empty;
+    private MudTable<OrgSettingResponse>? _table;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        var response = await OrgSettingsService.GetOrgSettingsAsync();
+
+        if (response.IsSuccess && response.Data != null)
+        {
+            _settings = response.Data.ToList();
+            await ApplyFiltersAsync();
+        }
+        else
+        {
+            _message = response.Message ?? "Failed to load tenant settings.";
+            _messageSeverity = Severity.Error;
+            _settings = [];
+            _filteredSettings = [];
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private Task ApplyFiltersAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_searchText))
+        {
+            _filteredSettings = _settings;
+        }
+        else
+        {
+            var search = _searchText.ToLowerInvariant();
+            _filteredSettings = _settings.Where(s =>
+                (s.Key?.ToLowerInvariant().Contains(search) == true) ||
+                (s.Description?.ToLowerInvariant().Contains(search) == true)
+            ).ToList();
+        }
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ApplyFiltersAsync();
+        }
+    }
+
+    private async Task OpenCreateDialogAsync()
+    {
+        var parameters = new DialogParameters { { "ExistingSetting", null } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<OrgSettingFormDialog>("Create Tenant Setting", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadSettingsAsync();
+        }
+    }
+
+    private async Task OpenEditDialogAsync(OrgSettingResponse setting)
+    {
+        var parameters = new DialogParameters { { "ExistingSetting", setting } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<OrgSettingFormDialog>("Edit Tenant Setting", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadSettingsAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteAsync(OrgSettingResponse setting)
+    {
+        var result = await DialogService.ShowMessageBoxAsync(
+            "Delete Confirmation",
+            $"Are you sure you want to delete the setting '{setting.Key}'?",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            _isLoading = true;
+            StateHasChanged();
+
+            var response = await OrgSettingsService.DeleteOrgSettingAsync(setting.Id);
+
+            if (response.IsSuccess)
+            {
+                Snackbar.Add("Setting deleted successfully.", Severity.Success);
+                await LoadSettingsAsync();
+            }
+            else
+            {
+                Snackbar.Add(response.Message ?? "Failed to delete setting.", Severity.Error);
+                _isLoading = false;
+                StateHasChanged();
+            }
+        }
+    }
+}

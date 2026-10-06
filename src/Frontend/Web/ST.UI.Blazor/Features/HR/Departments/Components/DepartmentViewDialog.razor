@@ -1,0 +1,49 @@
+
+<MudDialog>
+    <DialogContent>
+        <div class="user-detail-dialog">
+            <div class="user-detail-header">
+                <MudAvatar Size="Size.Large" Class="profile-avatar">@Initials</MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h6">@Department.Name</MudText>
+                    <MudText Typo="Typo.caption" Class="text-muted">@Department.Code</MudText>
+                </div>
+            </div>
+
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <div class="detail-label">Status</div>
+                    <MudChip T="string" Size="Size.Small" Color="@(Department.IsActive ? Color.Success : Color.Default)">
+                        @(Department.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <div class="detail-label">Code</div>
+                    <div>@Department.Code</div>
+                </MudItem>
+                <MudItem xs="12">
+                    <div class="detail-label">Description</div>
+                    <div>@(string.IsNullOrWhiteSpace(Department.Description) ? "No description captured." : Department.Description)</div>
+                </MudItem>
+            </MudGrid>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public DepartmentResponse Department { get; set; } = default!;
+
+    private string Initials => string.Join(string.Empty, Department.Name
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Take(2)
+        .Select(static part => part[0])).ToUpperInvariant();
+
+    private void Close() => MudDialog.Close();
+}

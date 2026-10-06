@@ -1,0 +1,35 @@
+name: Backend Architecture Guardrails
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  architecture:
+    name: Build and architecture tests
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore API
+        run: dotnet restore src/Backend/Api/ST.Api/ST.Api.csproj
+
+      - name: Restore architecture tests
+        run: dotnet restore tests/ST.Tests.Architecture/ST.Tests.Architecture.csproj
+
+      - name: Build API
+        run: dotnet build src/Backend/Api/ST.Api/ST.Api.csproj --configuration Release --no-restore
+
+      - name: Run architecture tests
+        run: dotnet test tests/ST.Tests.Architecture/ST.Tests.Architecture.csproj --configuration Release --no-restore --logger trx

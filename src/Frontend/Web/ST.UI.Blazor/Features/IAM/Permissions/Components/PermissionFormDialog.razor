@@ -1,0 +1,197 @@
+@inject IIamAdminService IamAdminService
+@inject IDepartmentService DepartmentService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+    <EditForm FormName="iam-permission-form" Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Value="_model.Context" ValueChanged="OnContextChanged" Label="Context" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                        @foreach (var context in _referenceData.PermissionContexts)
+                        {
+                            <MudSelectItem Value="@context.Key">@context.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect @bind-Value="_model.Resource" Label="Resource" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                        @foreach (var resource in ResourceOptions)
+                        {
+                            <MudSelectItem Value="@resource.Key">@resource.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect @bind-Value="_model.Action" Label="Action" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                        @foreach (var action in _referenceData.PermissionActions)
+                        {
+                            <MudSelectItem Value="@action.Key">@action.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="Guid?" @bind-Value="_model.DepartmentId" Label="Department scope" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
+                        <MudSelectItem T="Guid?" Value="null">Global</MudSelectItem>
+                        @foreach (var department in _departments)
+                        {
+                            <MudSelectItem T="Guid?" Value="@department.Id">@department.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Value="@PreviewKey" Label="Generated key" Margin="Margin.Dense" Variant="Variant.Outlined" ReadOnly="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                </MudItem>
+                @if (ExistingPermission is not null)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success" Label="Active" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private readonly List<DepartmentResponse> _departments = [];
+    private IamReferenceDataResponse _referenceData = new([], [], [], [], [], []);
+    private PermissionFormModel _model = new();
+    private bool _isSaving;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public PermissionResponse? ExistingPermission { get; set; }
+
+    private string SaveLabel => ExistingPermission is null ? "Create" : "Update";
+
+    private string PreviewKey => $"{Normalize(_model.Resource)}.{Normalize(_model.Action)}";
+
+    private IReadOnlyList<CatalogOptionResponse> ResourceOptions =>
+        [.. _referenceData.PermissionResources
+            .Where(resource => string.IsNullOrWhiteSpace(_model.Context)
+                || string.Equals(resource.ParentKey, _model.Context, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(static resource => resource.Label)];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model = ExistingPermission is null
+            ? new PermissionFormModel()
+            : PermissionFormModel.From(ExistingPermission);
+
+        await LoadReferenceDataAsync();
+    }
+
+    private async Task LoadReferenceDataAsync()
+    {
+        var departmentsResponse = await DepartmentService.GetAsync();
+        if (departmentsResponse.IsSuccess && departmentsResponse.Data is not null)
+        {
+            _departments.AddRange(departmentsResponse.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
+        }
+
+        var referenceResponse = await IamAdminService.GetReferenceDataAsync();
+        if (referenceResponse.IsSuccess && referenceResponse.Data is not null)
+        {
+            _referenceData = referenceResponse.Data;
+        }
+        else
+        {
+            Snackbar.Add(referenceResponse.Message ?? "We could not load IAM reference data.", Severity.Warning);
+        }
+    }
+
+    private void OnContextChanged(string context)
+    {
+        _model.Context = context;
+        if (!ResourceOptions.Any(resource => string.Equals(resource.Key, _model.Resource, StringComparison.OrdinalIgnoreCase)))
+        {
+            _model.Resource = string.Empty;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Context)
+            || string.IsNullOrWhiteSpace(_model.Resource)
+            || string.IsNullOrWhiteSpace(_model.Action))
+        {
+            Snackbar.Add("Context, resource, and action are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        var response = ExistingPermission is null
+            ? await IamAdminService.CreatePermissionAsync(_model.ToCreateRequest())
+            : await IamAdminService.UpdatePermissionAsync(_model.Id, _model.ToUpdateRequest());
+        _isSaving = false;
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Permission save failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add(ExistingPermission is null ? "Permission created." : "Permission updated.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(response.Data));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private static string Normalize(string value) => value.Trim().ToLowerInvariant().Replace(' ', '_');
+
+    private sealed class PermissionFormModel
+    {
+        public Guid Id { get; set; }
+        public Guid? DepartmentId { get; set; }
+        public string Context { get; set; } = string.Empty;
+        public string Resource { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+
+        public static PermissionFormModel From(PermissionResponse permission)
+            => new()
+            {
+                Id = permission.Id,
+                DepartmentId = permission.DepartmentId,
+                Context = permission.Context,
+                Resource = permission.Resource,
+                Action = permission.Action,
+                Description = permission.Description,
+                IsActive = permission.IsActive
+            };
+
+        public CreatePermissionRequest ToCreateRequest()
+            => new()
+            {
+                DepartmentId = DepartmentId,
+                Context = Context,
+                Resource = Resource,
+                Action = Action,
+                Description = Description
+            };
+
+        public UpdatePermissionRequest ToUpdateRequest()
+            => new()
+            {
+                Id = Id,
+                DepartmentId = DepartmentId,
+                Context = Context,
+                Resource = Resource,
+                Action = Action,
+                Description = Description,
+                IsActive = IsActive
+            };
+    }
+}

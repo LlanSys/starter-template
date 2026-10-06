@@ -1,0 +1,375 @@
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IIamAdminService IamAdminService
+@inject IDepartmentService DepartmentService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<div class="list-toolbar">
+    <MudTextField @bind-Value="_searchText"
+                  Placeholder="Search key, context, resource, action, description..."
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Margin="Margin.Dense"
+                  Variant="Variant.Outlined"
+                  Immediate="false"
+                  DebounceInterval="400"
+                  OnDebounceIntervalElapsed="ApplyFiltersAsync"
+                  OnKeyDown="HandleSearchKeyDown" />
+    <MudIconButton Icon="@Icons.Material.Filled.FilterList" Size="Size.Small" Color="@(_showFilters ? Color.Success : Color.Default)" OnClick="ToggleFilters" title="Advanced filters" />
+    @if (HasActiveFilters)
+    {
+        <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Small" Color="Color.Error" OnClick="ClearFiltersAsync" title="Clear filters" />
+    }
+</div>
+
+        @if (_showFilters)
+        {
+            <MudDivider Class="my-2" />
+            <MudGrid Spacing="2" Class="mb-2">
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Value="_contextFilter" ValueChanged="@(async (string? val) => { _contextFilter = val; await ApplyFiltersAsync(); })" Label="Context" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var context in ContextOptions)
+                        {
+                            <MudSelectItem Value="@context">@context</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Value="_resourceFilter" ValueChanged="@(async (string? val) => { _resourceFilter = val; await ApplyFiltersAsync(); })" Label="Resource" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var resource in ResourceOptions)
+                        {
+                            <MudSelectItem Value="@resource">@resource</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="bool?" Value="_isActiveFilter" ValueChanged="@(async (bool? val) => { _isActiveFilter = val; await ApplyFiltersAsync(); })" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        <MudSelectItem T="bool?" Value="@((bool?)true)">Active</MudSelectItem>
+                        <MudSelectItem T="bool?" Value="@((bool?)false)">Inactive</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        }
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable Items="_permissions" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="PageSize" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh Style="width: 15rem;">Key</MudTh>
+                    <MudTh Style="width: 8rem;">Context</MudTh>
+                    <MudTh Style="width: 10rem;">Scope</MudTh>
+                    <MudTh Style="width: 10rem;">Resource</MudTh>
+                    <MudTh Style="width: 10rem;">Action</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh Style="width: 8rem;">Status</MudTh>
+                    <MudTh Style="width: 8rem;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Key">@context.Key</MudTd>
+                    <MudTd DataLabel="Context">@context.Context</MudTd>
+                    <MudTd DataLabel="Scope">@DepartmentName(context.DepartmentId)</MudTd>
+                    <MudTd DataLabel="Resource">@context.Resource</MudTd>
+                    <MudTd DataLabel="Action">@context.Action</MudTd>
+                    <MudTd DataLabel="Description">@context.Description</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "Active" : "Inactive")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <TableRowActions OnView="@(() => OpenViewDialogAsync(context))"
+                                         OnEdit="@(() => OpenFormDialogAsync(context))"
+                                         OnDelete="@(() => ConfirmDeleteAsync(context))"
+                                         CanView="@AuthSession.HasPermission("roles.manage_permissions")"
+                                         CanEdit="@AuthSession.HasPermission("roles.manage_permissions")"
+                                         CanDelete="@AuthSession.HasPermission("roles.manage_permissions")"
+                                         ExtraActions="@(["Review role usage"])"
+                                         OnExtraAction="@((action) => HandlePermissionActionAsync(context, action))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <GlobalTablePager CurrentPage="_currentPage"
+                                      TotalRecords="_totalRecords"
+                                      PageSize="PageSize"
+                                      IsLoading="_isLoading"
+                                      OnFirstPage="GoToFirstPageAsync"
+                                      OnPreviousPage="GoToPreviousPageAsync"
+                                      OnNextPage="GoToNextPageAsync" />
+                </PagerContent>
+            </MudTable>
+        </div>
+
+@code {
+    public Task OpenCreateDialogAsync() => OpenFormDialogAsync(null);
+
+    private readonly List<PermissionResponse> _permissions = [];
+    private readonly List<DepartmentResponse> _departments = [];
+    private readonly Stack<Guid?> _cursorHistory = new();
+    private Guid? _nextCursor;
+    private Guid? _currentCursor;
+    private int _totalRecords;
+    private int _currentPage = 1;
+    private bool _isFirstPage = true;
+    private bool _isLastPage = true;
+    private bool _isLoading = true;
+    private bool _showFilters;
+    private string? _searchText;
+    private string? _contextFilter;
+    private string? _resourceFilter;
+    private bool? _isActiveFilter;
+    private string? _message;
+    private const int PageSize = 50;
+
+    private IReadOnlyList<string> ContextOptions =>
+        [.. _permissions.Select(static permission => permission.Context).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
+
+    private IReadOnlyList<string> ResourceOptions =>
+        [.. _permissions.Select(static permission => permission.Resource).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(_searchText)
+        || !string.IsNullOrWhiteSpace(_contextFilter)
+        || !string.IsNullOrWhiteSpace(_resourceFilter)
+        || _isActiveFilter.HasValue;
+
+
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        await LoadDepartmentsAsync();
+        ResetPagination();
+        await LoadPermissionsAsync();
+    }
+
+    private async Task LoadDepartmentsAsync()
+    {
+        var response = await DepartmentService.GetAsync();
+        if (response.IsSuccess && response.Data is not null)
+        {
+            _departments.Clear();
+            _departments.AddRange(response.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
+        }
+    }
+
+    private Task ApplyFiltersAsync()
+    {
+        ResetPagination();
+        return LoadPermissionsAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _searchText = null;
+        _contextFilter = null;
+        _resourceFilter = null;
+        _isActiveFilter = null;
+        _showFilters = false;
+        ResetPagination();
+        await LoadPermissionsAsync();
+    }
+
+    private async Task GoToFirstPageAsync()
+    {
+        ResetPagination();
+        await LoadPermissionsAsync();
+    }
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (_cursorHistory.Count == 0)
+        {
+            return;
+        }
+
+        _currentCursor = _cursorHistory.Pop();
+        _currentPage = Math.Max(1, _currentPage - 1);
+        await LoadPermissionsAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (_isLastPage || _nextCursor is null)
+        {
+            return;
+        }
+
+        _cursorHistory.Push(_currentCursor);
+        _currentCursor = _nextCursor;
+        _currentPage++;
+        await LoadPermissionsAsync();
+    }
+
+    private async Task LoadPermissionsAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        var request = new PermissionSearchRequest(
+            GlobalSearch: string.IsNullOrWhiteSpace(_searchText) ? null : _searchText.Trim(),
+            Context: _contextFilter,
+            Resource: _resourceFilter,
+            IsActive: _isActiveFilter,
+            Cursor: _currentCursor,
+            PageSize: PageSize);
+
+        var response = await IamAdminService.SearchPermissionsAsync(request);
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _message = response.Message ?? "We could not load permissions.";
+            Snackbar.Add(_message, Severity.Error);
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _permissions.Clear();
+        _permissions.AddRange(response.Data.Items);
+        _totalRecords = response.Data.TotalRecords;
+        _nextCursor = response.Data.NextCursor == Guid.Empty ? null : response.Data.NextCursor;
+        _isFirstPage = response.Data.IsFirstPage;
+        _isLastPage = response.Data.IsLastPage;
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private Task HandleSearchKeyDown(KeyboardEventArgs args)
+        => args.Key == "Enter" ? ApplyFiltersAsync() : Task.CompletedTask;
+
+    private void ToggleFilters() => _showFilters = !_showFilters;
+
+    private void ResetPagination()
+    {
+        _cursorHistory.Clear();
+        _currentCursor = null;
+        _nextCursor = null;
+        _currentPage = 1;
+    }
+
+    private string DepartmentName(Guid? departmentId)
+        => departmentId.HasValue
+            ? _departments.FirstOrDefault(department => department.Id == departmentId.Value)?.Name ?? "Unknown"
+            : "Global";
+
+    private async Task OpenViewDialogAsync(PermissionResponse permission)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(PermissionViewDialog.Permission), permission }
+        };
+
+        await DialogService.ShowAsync<PermissionViewDialog>(
+            permission.Key,
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task OpenFormDialogAsync(PermissionResponse? permission)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(PermissionFormDialog.ExistingPermission), permission }
+        };
+
+        var dialog = await DialogService.ShowAsync<PermissionFormDialog>(
+            permission is null ? "Create Permission" : $"Edit - {permission.Key}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            ResetPagination();
+            await LoadPermissionsAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteAsync(PermissionResponse permission)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Delete permission {permission.Key}? This removes it from the active catalog." },
+            { nameof(ConfirmDialog.ConfirmText), "Delete" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm Permission Delete",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false })
+        {
+            return;
+        }
+
+        var response = await IamAdminService.DeletePermissionAsync(permission.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Permission delete failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Permission deleted.", Severity.Success);
+        await LoadPermissionsAsync();
+    }
+
+    private async Task HandlePermissionActionAsync(PermissionResponse permission, string action)
+    {
+        if (!action.Equals("Review role usage", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var rolesResponse = await IamAdminService.GetRolesAsync();
+        if (!rolesResponse.IsSuccess || rolesResponse.Data is null)
+        {
+            Snackbar.Add(rolesResponse.Message ?? "We could not load roles for usage review.", Severity.Error);
+            return;
+        }
+
+        var roleNames = new List<string>();
+        foreach (var role in rolesResponse.Data)
+        {
+            var permissionsResponse = await IamAdminService.GetRolePermissionsAsync(role.Id);
+            if (permissionsResponse.IsSuccess
+                && permissionsResponse.Data?.PermissionKeys.Contains(permission.Key, StringComparer.OrdinalIgnoreCase) == true)
+            {
+                roleNames.Add(role.Name);
+            }
+        }
+
+        var message = roleNames.Count == 0
+            ? $"{permission.Key} is not assigned to any role."
+            : $"{permission.Key} is assigned to: {string.Join(", ", roleNames.Order(StringComparer.OrdinalIgnoreCase))}.";
+
+        Snackbar.Add(message, Severity.Info);
+    }
+}

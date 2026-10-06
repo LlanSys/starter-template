@@ -1,0 +1,45 @@
+name: Frontend CI
+
+on:
+  workflow_call:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/Frontend/Web/**"
+      - "src/Frontend/Shared/**"
+      - "src/Shared/**"
+      - "src/Backend/Application/**"
+      - ".github/workflows/frontend-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/Frontend/Web/**"
+      - "src/Frontend/Shared/**"
+      - "src/Shared/**"
+      - "src/Backend/Application/**"
+      - ".github/workflows/frontend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend build
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore Blazor app
+        run: dotnet restore src/Frontend/Web/ST.UI.Blazor/ST.UI.Blazor.csproj
+
+      - name: Build Blazor app
+        run: dotnet build src/Frontend/Web/ST.UI.Blazor/ST.UI.Blazor.csproj --configuration Release --no-restore

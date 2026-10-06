@@ -1,0 +1,180 @@
+.side-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.brand-row {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex: 0 0 auto;
+    display: grid;
+    padding: 0.8rem 0.8rem 0.75rem;
+}
+
+.brand-lockup {
+    align-items: center;
+    background: #fff;
+    border-radius: 0.8rem;
+    color: #0f172a;
+    display: flex;
+    gap: 0.65rem;
+    justify-content: flex-start;
+    min-height: 3rem;
+    padding: 0.5rem 0.75rem 0.5rem 1rem;
+    text-decoration: none;
+}
+
+.brand-mark {
+    align-items: center;
+    background: #0f172a;
+    border-radius: 0.55rem;
+    color: #fff;
+    display: inline-flex;
+    font-size: 0.78rem;
+    font-weight: 800;
+    height: 2rem;
+    justify-content: center;
+    letter-spacing: 0.04em;
+    width: 2rem;
+}
+
+.brand-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.navbar-toggler {
+    appearance: none;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.7rem;
+    color: white;
+    cursor: pointer;
+    display: none;
+    height: 2.4rem;
+    position: absolute;
+    right: 0.9rem;
+    top: 1rem;
+    width: 2.8rem;
+}
+
+.navbar-toggler::before {
+    content: "☰";
+}
+
+.nav-scrollable {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.7rem 0.55rem 1rem;
+    scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
+    scrollbar-width: thin;
+}
+
+.nav-scrollable::-webkit-scrollbar {
+    width: 0.4rem;
+}
+
+.nav-scrollable::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+}
+
+.nav-group {
+    display: grid;
+    gap: 0.15rem;
+    margin-bottom: 0.25rem;
+}
+
+.nav-link {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    color: rgba(255, 255, 255, 0.82) !important;
+    display: flex;
+    font-size: 0.75rem;
+    font-weight: 600;
+    gap: 0.45rem;
+    min-height: 2.15rem;
+    padding: 0 0.5rem;
+    text-decoration: none;
+}
+
+::deep .nav-link {
+    color: rgba(255, 255, 255, 0.82) !important;
+    text-decoration: none !important;
+}
+
+::deep .nav-link:hover,
+::deep .nav-link:focus,
+::deep .nav-link:visited {
+    color: #fff !important;
+    text-decoration: none !important;
+}
+
+::deep .nav-link.active {
+    background: rgba(255, 255, 255, 0.13);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #fff !important;
+    text-decoration: none !important;
+}
+
+::deep .nav-link:focus-visible {
+    text-decoration: none !important;
+}
+
+::deep .nav-link .mud-icon-root,
+::deep .nav-link .mud-icon-root svg,
+::deep .nav-link .mud-icon-root svg {
+    color: rgba(255, 255, 255, 0.82) !important;
+    fill: currentColor !important;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    text-decoration: none;
+}
+
+.nav-link .mud-icon-root {
+    color: rgba(255, 255, 255, 0.82) !important;
+    font-size: 0.95rem;
+}
+
+.nav-separator {
+    background: rgba(255, 255, 255, 0.12);
+    height: 1px;
+    margin: 0.65rem 0.45rem;
+}
+
+.nav-children {
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    margin: 0.25rem 0 0.25rem 1.25rem;
+    padding-left: 0.5rem;
+    display: grid;
+    gap: 0.15rem;
+}
+
+@media (max-width: 800px) {
+    .side-shell {
+        height: auto;
+        overflow: visible;
+    }
+
+    .navbar-toggler {
+        display: grid;
+        place-items: center;
+    }
+
+    .nav-scrollable {
+        display: none;
+        padding-bottom: 1rem;
+    }
+
+    .navbar-toggler:checked ~ .nav-scrollable {
+        display: block;
+    }
+}

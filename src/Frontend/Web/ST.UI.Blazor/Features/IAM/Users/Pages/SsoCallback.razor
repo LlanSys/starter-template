@@ -1,0 +1,113 @@
+@page "/iam/sso-callback"
+@layout AuthLayout
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject NavigationManager Navigation
+@inject ILogger<SsoCallback> Logger
+@inject ISnackbar Snackbar
+
+<PageTitle>SSO Callback | StarterTemplate</PageTitle>
+
+<section class="auth-shell">
+    <div class="auth-copy">
+        <span class="eyebrow">Identity and access</span>
+        <h1>Authenticating with Microsoft...</h1>
+        <p>Please wait while we verify your external credentials and securely log you into the application.</p>
+    </div>
+
+    <div class="auth-card" style="text-align: center; padding: 3rem;">
+        @if (_isError)
+        {
+            <div class="alert alert-danger" role="alert">@_message</div>
+            <a class="btn btn-outline-secondary mt-3" href="/iam/sign-in">Back to Sign In</a>
+        }
+        else
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            <p class="mt-3 text-muted">@_message</p>
+        }
+    </div>
+</section>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Code { get; set; }
+
+    private bool _isBusy;
+    private bool _isError;
+    private string _message = "Processing authentication...";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ProcessCallbackAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task ProcessCallbackAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Code))
+        {
+            _isError = true;
+            _message = "No authentication code was received from the external provider.";
+            return;
+        }
+
+        _isBusy = true;
+
+        try
+        {
+            var response = await AuthSession.ExchangeSsoCodeAsync(Code);
+
+            if (!response.IsSuccess || response.Data is null)
+            {
+                _isError = true;
+                _message = GetDisplayMessage(response.Message, "We could not sign you in with Microsoft. Please try again or use another sign in method.");
+                Snackbar.Add(_message, Severity.Error);
+                return;
+            }
+
+            if (response.Data.Requires2FA)
+            {
+                Navigation.NavigateTo($"/iam/verify-2fa?userId={Uri.EscapeDataString(response.Data.UserId)}");
+                return;
+            }
+
+            if (!AuthSession.IsAuthenticated)
+            {
+                _isError = true;
+                _message = GetDisplayMessage(
+                    AuthSession.LastError,
+                    "Sign in succeeded, but we could not load your profile. Please confirm the API is running and try again.");
+                Snackbar.Add(_message, Severity.Warning);
+                return;
+            }
+
+            Navigation.NavigateTo(AuthSession.MfaEnrollmentRequired ? "/iam/security" : "/dashboard");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Unexpected error while processing SSO callback.");
+            _isError = true;
+            _message = "Something went wrong while signing you in. Please try again. If this continues, check the UI logs for the sign-in error.";
+            Snackbar.Add(_message, Severity.Error);
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private static string GetDisplayMessage(string? message, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(message)
+            || string.Equals(message, "Operation Successful", StringComparison.OrdinalIgnoreCase))
+        {
+            return fallback;
+        }
+
+        return UserMessageSanitizer.Normalize(message, fallback);
+    }
+}

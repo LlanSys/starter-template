@@ -1,0 +1,309 @@
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IAuthSession AuthSession
+@inject IJSRuntime JsRuntime
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IOptions<SessionLifecycleSettings> SessionLifecycleOptions
+@inject ILogger<SessionLifecycle> Logger
+
+@if (_warningVisible)
+{
+    <div class="session-lifecycle-host" role="alert" aria-live="assertive">
+        <div class="session-lifecycle-dialog">
+            <MudPaper Class="session-lifecycle-warning" Elevation="10">
+                <MudStack Spacing="3">
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="session-lifecycle-header">
+                        <div class="session-lifecycle-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.Timer" Size="Size.Medium" />
+                        </div>
+                        <div class="session-lifecycle-heading">
+                            <MudText Typo="Typo.h6" Class="session-lifecycle-title">Session timeout</MudText>
+                            <MudText Typo="Typo.caption" Class="session-lifecycle-kicker">Account security</MudText>
+                        </div>
+                        <div class="session-lifecycle-countdown">
+                            <small>Signing out in</small>
+                            <strong>@_remainingWarningText</strong>
+                        </div>
+                    </MudStack>
+
+                    <MudText Typo="Typo.body2" Class="session-lifecycle-copy">
+                        You have been inactive. Continue your session or we will sign you out to protect your account.
+                    </MudText>
+
+                    <MudDivider />
+
+                    <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd" Class="session-lifecycle-actions">
+                        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ExpireAsync" Class="session-lifecycle-secondary">
+                            Sign out
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled" Size="Size.Small" StartIcon="@Icons.Material.Filled.TouchApp" OnClick="ContinueSessionAsync" Class="session-lifecycle-primary">
+                            I'm still here
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+        </div>
+    </div>
+}
+
+@code {
+    private SessionLifecycleSettings Settings => SessionLifecycleOptions.Value;
+
+    private DateTimeOffset _lastActivityUtc = DateTimeOffset.UtcNow;
+    private DateTimeOffset _lastKeepAliveUtc = DateTimeOffset.UtcNow;
+    private DotNetObjectReference<SessionLifecycle>? _selfReference;
+    private IJSObjectReference? _module;
+    private CancellationTokenSource? _timerCancellation;
+    private Task? _timerTask;
+    private bool _warningVisible;
+    private bool _expired;
+    private bool _isDisposed;
+    private string _remainingWarningText = "a few moments";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !Settings.Enabled)
+        {
+            return;
+        }
+
+        _selfReference = DotNetObjectReference.Create(this);
+
+        try
+        {
+            _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "/js/sessionLifecycle.js");
+
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            await _module.InvokeVoidAsync("start", _selfReference);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException || ex is TaskCanceledException || ex is ObjectDisposedException)
+        {
+            return;
+        }
+
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _timerCancellation = new CancellationTokenSource();
+        _timerTask = RunLifecycleTimerAsync(_timerCancellation.Token);
+    }
+
+    [JSInvokable]
+    public Task NotifyActivityAsync()
+    {
+        if (!_warningVisible && !_expired)
+        {
+            _lastActivityUtc = DateTimeOffset.UtcNow;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task RunLifecycleTimerAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Settings.PollIntervalSeconds));
+
+        while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+        {
+            try
+            {
+                await InvokeAsync(CheckSessionAsync);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                SessionLifecycleLogDefinitions.LogSessionCheckFailed(Logger, ex);
+            }
+        }
+    }
+
+    private async Task CheckSessionAsync()
+    {
+        if (_expired)
+        {
+            return;
+        }
+
+        try
+        {
+            await AuthSession.InitializeAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // JS interop or circuit unavailable; skip session check.
+            return;
+        }
+        catch (JSDisconnectedException ex)
+        {
+            SessionLifecycleLogDefinitions.LogSessionCheckFailed(Logger, ex);
+            return;
+        }
+
+        if (!AuthSession.IsAuthenticated)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var idleFor = now - _lastActivityUtc;
+        var idleTimeout = TimeSpan.FromMinutes(Settings.IdleTimeoutMinutes);
+        var warningAt = idleTimeout - TimeSpan.FromMinutes(Settings.WarningBeforeTimeoutMinutes);
+
+        if (idleFor >= idleTimeout)
+        {
+            await ExpireAsync();
+            return;
+        }
+
+        if (idleFor >= warningAt)
+        {
+            ShowWarning(idleTimeout - idleFor);
+            StateHasChanged();
+            return;
+        }
+
+        if (now - _lastKeepAliveUtc >= TimeSpan.FromMinutes(Settings.KeepAliveIntervalMinutes))
+        {
+            await KeepSessionAliveAsync();
+        }
+    }
+
+    private async Task ContinueSessionAsync()
+    {
+        _lastActivityUtc = DateTimeOffset.UtcNow;
+        _warningVisible = false;
+
+        await KeepSessionAliveAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            await RedirectToSignInAsync();
+            return;
+        }
+
+        Snackbar.Add("Session extended.", Severity.Success);
+    }
+
+    private void ShowWarning(TimeSpan remaining)
+    {
+        _remainingWarningText = FormatRemainingTime(remaining);
+        if (_warningVisible)
+        {
+            return;
+        }
+
+        _warningVisible = true;
+    }
+
+    private async Task KeepSessionAliveAsync()
+    {
+        _lastKeepAliveUtc = DateTimeOffset.UtcNow;
+        try
+        {
+            await AuthSession.RefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // JS interop / protected storage call was canceled. Skip keep-alive.
+            return;
+        }
+        catch (JSDisconnectedException ex)
+        {
+            // JS runtime disconnected; log and skip further refresh attempts in this tick.
+            SessionLifecycleLogDefinitions.LogSessionCheckFailed(Logger, ex);
+            return;
+        }
+
+        if (!AuthSession.IsAuthenticated)
+        {
+            await RedirectToSignInAsync();
+        }
+    }
+
+    private async Task ExpireAsync()
+    {
+        if (_expired)
+        {
+            return;
+        }
+
+        _expired = true;
+        _warningVisible = false;
+
+        try
+        {
+            await AuthSession.SignOutAsync();
+        }
+        catch (Exception ex)
+        {
+            // The user is already leaving the authenticated shell; a failed logout call should not trap them here.
+            SessionLifecycleLogDefinitions.LogIdleSignOutFailed(Logger, ex);
+        }
+
+        await RedirectToSignInAsync();
+    }
+
+    private Task RedirectToSignInAsync()
+    {
+        var separator = Settings.SignInPath.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+        Navigation.NavigateTo($"{Settings.SignInPath}{separator}sessionExpired=true", forceLoad: true);
+        return Task.CompletedTask;
+    }
+
+    private static string FormatRemainingTime(TimeSpan remaining)
+    {
+        if (remaining <= TimeSpan.Zero)
+        {
+            return "a few moments";
+        }
+
+        var totalSeconds = (int)Math.Ceiling(remaining.TotalSeconds);
+        var minutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+
+        return minutes > 0
+            ? $"{minutes}m {seconds:D2}s"
+            : $"{seconds}s";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _isDisposed = true;
+        _timerCancellation?.Cancel();
+
+        if (_timerTask is not null)
+        {
+            try
+            {
+                await _timerTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("stop");
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (Exception ex)
+            {
+                SessionLifecycleLogDefinitions.LogJavaScriptCleanupFailed(Logger, ex);
+            }
+        }
+
+        _timerCancellation?.Dispose();
+        _selfReference?.Dispose();
+    }
+}

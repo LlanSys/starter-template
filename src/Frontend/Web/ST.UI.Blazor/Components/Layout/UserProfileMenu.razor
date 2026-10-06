@@ -1,0 +1,124 @@
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject NavigationManager Navigation
+@inject ILogger<UserProfileMenu> Logger
+
+<div class="sidebar-profile">
+    @if (AuthSession.IsAuthenticated)
+    {
+        <details class="profile-card">
+            <summary>
+                @if (ProfilePictureSource is not null)
+                {
+                    <MudAvatar Size="Size.Medium" Class="profile-avatar">
+                        <MudImage Src="@ProfilePictureSource" Alt="@Initials" />
+                    </MudAvatar>
+                }
+                else
+                {
+                    <MudAvatar Size="Size.Medium" Class="profile-avatar">@Initials</MudAvatar>
+                }
+                <span class="profile-copy">
+                    <strong>@DisplayName</strong>
+                    <small>@PrimaryRole</small>
+                </span>
+                <MudIcon Icon="@Icons.Material.Filled.ExpandLess" Size="Size.Small" />
+            </summary>
+
+            <div class="profile-actions">
+                <a href="/profile">
+                    <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Small" />
+                    Profile
+                </a>
+                <button type="button" @onclick="LogoutAsync">
+                    <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" />
+                    Logout
+                </button>
+            </div>
+        </details>
+    }
+    else
+    {
+        <a class="profile-card sign-in-card" href="/iam/sign-in">
+            <MudAvatar Size="Size.Medium">BT</MudAvatar>
+            <div>
+                <strong>@ProfileFallbackTitle</strong>
+                <span>@ProfileFallbackMessage</span>
+            </div>
+        </a>
+    }
+</div>
+
+@code {
+    private string DisplayName
+    {
+        get
+        {
+            var fullName = $"{AuthSession.CurrentUser?.FirstName} {AuthSession.CurrentUser?.LastName}".Trim();
+
+            return string.IsNullOrWhiteSpace(fullName)
+                ? AuthSession.CurrentUser?.Email ?? "Signed-in user"
+                : fullName;
+        }
+    }
+
+    private string PrimaryRole => RoleDisplay.SelectPrimaryRole(AuthSession.CurrentUser?.Roles, "Signed in");
+
+    private bool _sessionRestoreFailed;
+
+    private string ProfileFallbackTitle => _sessionRestoreFailed ? "Session needs refresh" : "Session pending";
+
+    private string ProfileFallbackMessage => _sessionRestoreFailed ? "Sign in again" : "Profile loads after sign in";
+
+    private string Initials
+    {
+        get
+        {
+            var first = AuthSession.CurrentUser?.FirstName;
+            var last = AuthSession.CurrentUser?.LastName;
+
+            if (!string.IsNullOrWhiteSpace(first) && !string.IsNullOrWhiteSpace(last))
+            {
+                return $"{first[0]}{last[0]}".ToUpperInvariant();
+            }
+
+            var email = AuthSession.CurrentUser?.Email;
+            return string.IsNullOrWhiteSpace(email) ? "BT" : email[..1].ToUpperInvariant();
+        }
+    }
+
+    private string? ProfilePictureSource => AuthSession.ProfilePictureDataUri;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(8));
+        }
+        catch (TimeoutException ex)
+        {
+            _sessionRestoreFailed = true;
+            UserProfileMenuLogDefinitions.LogSessionRestoreTimedOut(Logger, ex);
+        }
+        catch (Exception ex)
+        {
+            _sessionRestoreFailed = true;
+            UserProfileMenuLogDefinitions.LogSessionRestoreFailed(Logger, ex);
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task LogoutAsync()
+    {
+        await AuthSession.SignOutAsync();
+        Navigation.NavigateTo("/iam/sign-in");
+    }
+}

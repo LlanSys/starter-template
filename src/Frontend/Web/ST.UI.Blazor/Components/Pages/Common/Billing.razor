@@ -1,0 +1,10 @@
+@page "/billing"
+
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/features/payments", forceLoad: true);
+    }
+}

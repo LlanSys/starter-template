@@ -1,0 +1,183 @@
+@page "/profile"
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Profile | StarterTemplate</PageTitle>
+
+<section class="dashboard-page">
+    @if (!_isReady)
+    {
+        <MudPaper Class="status-card" Elevation="0">Loading profile...</MudPaper>
+    }
+    else
+    {
+        <div class="dashboard-hero compact-hero">
+            <div>
+                <span class="eyebrow">Profile</span>
+                <h1>@DisplayName</h1>
+                <p>@AuthSession.CurrentUser?.Email</p>
+            </div>
+            <MudButton Href="/iam/security" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Security">
+                Security settings
+            </MudButton>
+        </div>
+
+        <MudPaper Class="poc-panel profile-detail-card" Elevation="0">
+            <MudGrid Spacing="3" Class="profile-detail-grid">
+                <MudItem xs="12" md="3">
+                    <div class="profile-summary-card embedded">
+                        <MudAvatar Size="Size.Large" Class="profile-avatar-large">
+                            @if (ProfilePictureSource is not null)
+                            {
+                                <MudImage Src="@ProfilePictureSource" Alt="@DisplayName" ObjectFit="ObjectFit.Cover" />
+                            }
+                            else
+                            {
+                                @Initials
+                            }
+                        </MudAvatar>
+                        <h2>@DisplayName</h2>
+                        <span>@PrimaryRole</span>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip>
+                        <div class="profile-upload-control">
+                            <InputFile OnChange="OnProfilePictureSelectedAsync" accept="image/jpeg,image/png,image/webp" disabled="@_isUploading" />
+                            <small>JPEG, PNG, or WebP up to 10 MB.</small>
+                        </div>
+                    </div>
+                </MudItem>
+
+                <MudItem xs="12" md="9">
+                    <div class="panel-heading">
+                        <div>
+                            <span class="eyebrow">Account details</span>
+                            <h2>Signed-in user</h2>
+                        </div>
+                    </div>
+
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <strong>Username</strong>
+                            <p>@AuthSession.CurrentUser?.UserName</p>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <strong>Email</strong>
+                            <p>@AuthSession.CurrentUser?.Email</p>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <strong>Role</strong>
+                            <p>@PrimaryRole</p>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <strong>Two-factor</strong>
+                            <p>@(AuthSession.CurrentUser?.TwoFactorEnabled == true ? "Enabled" : "Recommended")</p>
+                        </MudItem>
+                    </MudGrid>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    }
+</section>
+
+@code {
+    private bool _isReady = true;
+    private bool _isUploading;
+    private const long MaxProfilePictureBytes = 10_485_760;
+
+    private string DisplayName
+    {
+        get
+        {
+            var fullName = $"{AuthSession.CurrentUser?.FirstName} {AuthSession.CurrentUser?.LastName}".Trim();
+            return string.IsNullOrWhiteSpace(fullName) ? AuthSession.CurrentUser?.Email ?? "Signed-in user" : fullName;
+        }
+    }
+
+    private string Initials
+    {
+        get
+        {
+            var first = AuthSession.CurrentUser?.FirstName;
+            var last = AuthSession.CurrentUser?.LastName;
+            if (!string.IsNullOrWhiteSpace(first) && !string.IsNullOrWhiteSpace(last))
+            {
+                return $"{first[0]}{last[0]}".ToUpperInvariant();
+            }
+
+            var email = AuthSession.CurrentUser?.Email;
+            return string.IsNullOrWhiteSpace(email) ? "BT" : email[..1].ToUpperInvariant();
+        }
+    }
+
+    private string PrimaryRole => RoleDisplay.SelectPrimaryRole(AuthSession.CurrentUser?.Roles, "Signed in");
+
+    private string? ProfilePictureSource => AuthSession.ProfilePictureDataUri;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        if (AuthSession.MfaEnrollmentRequired)
+        {
+            Snackbar.Add("Two-factor authentication setup is required before you can manage your profile.", Severity.Warning);
+            Navigation.NavigateTo("/iam/security");
+            return;
+        }
+
+        _isReady = true;
+        StateHasChanged();
+    }
+
+    private async Task OnProfilePictureSelectedAsync(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        if (file.Size > MaxProfilePictureBytes)
+        {
+            Snackbar.Add("Profile picture must be 10 MB or smaller.", Severity.Warning);
+            return;
+        }
+
+        _isUploading = true;
+        try
+        {
+            await using var stream = file.OpenReadStream(MaxProfilePictureBytes);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+
+            var response = await AuthService.UpdateProfilePictureAsync(
+                memoryStream.ToArray(),
+                file.Name,
+                file.ContentType);
+
+            if (!response.IsSuccess)
+            {
+                Snackbar.Add(response.Message ?? "Profile picture could not be updated.", Severity.Error);
+                return;
+            }
+
+            await AuthSession.RefreshAsync();
+            Snackbar.Add("Profile picture updated.", Severity.Success);
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+}

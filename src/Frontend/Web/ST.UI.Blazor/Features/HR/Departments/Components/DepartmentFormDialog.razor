@@ -1,0 +1,114 @@
+@inject IDepartmentService DepartmentService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+    <EditForm FormName="hr-department-form" Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_model.Code" Label="Code" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_model.Name" Label="Name" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                </MudItem>
+                @if (ExistingDepartment is not null)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_model.IsActive" Color="Color.Success" Label="Active" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private DepartmentFormModel _model = new();
+    private bool _isSaving;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public DepartmentResponse? ExistingDepartment { get; set; }
+
+    private string SaveLabel => ExistingDepartment is null ? "Create" : "Update";
+
+    protected override void OnInitialized()
+    {
+        _model = ExistingDepartment is null
+            ? new DepartmentFormModel()
+            : DepartmentFormModel.From(ExistingDepartment);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Code) || string.IsNullOrWhiteSpace(_model.Name))
+        {
+            Snackbar.Add("Department code and name are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        var response = ExistingDepartment is null
+            ? await DepartmentService.CreateAsync(_model.ToCreateRequest())
+            : await DepartmentService.UpdateAsync(_model.Id, _model.ToUpdateRequest());
+        _isSaving = false;
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Department save failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add(ExistingDepartment is null ? "Department created." : "Department updated.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(response.Data));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private sealed class DepartmentFormModel
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+
+        public static DepartmentFormModel From(DepartmentResponse department)
+            => new()
+            {
+                Id = department.Id,
+                Code = department.Code,
+                Name = department.Name,
+                Description = department.Description,
+                IsActive = department.IsActive
+            };
+
+        public CreateDepartmentRequest ToCreateRequest()
+            => new()
+            {
+                Code = Code,
+                Name = Name,
+                Description = Description
+            };
+
+        public UpdateDepartmentRequest ToUpdateRequest()
+            => new()
+            {
+                Id = Id,
+                Code = Code,
+                Name = Name,
+                Description = Description,
+                IsActive = IsActive
+            };
+    }
+}

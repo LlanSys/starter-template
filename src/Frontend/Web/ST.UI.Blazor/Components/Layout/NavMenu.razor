@@ -1,0 +1,116 @@
+@inject IAuthSession AuthSession
+@inject IIamAdminService IamAdminService
+
+<div class="side-shell">
+    <div class="brand-row">
+        <a class="brand-lockup" href="/dashboard" aria-label="StarterTemplate dashboard">
+            <span class="brand-mark" aria-hidden="true">BT</span>
+            <span class="brand-name">StarterTemplate</span>
+        </a>
+    </div>
+
+    <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+    <div class="nav-scrollable">
+        <nav class="nav flex-column">
+            @if (_isLoading)
+            {
+                <div class="nav-loading">
+                    <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" Style="opacity: 0.4;" />
+                </div>
+            }
+            else if (_loadError is not null)
+            {
+                <div class="nav-error" style="padding: 0.75rem 1rem; color: var(--bt-muted); font-size: 0.8rem;">
+                    <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Small" Class="me-1" />
+                    @_loadError
+                </div>
+            }
+            else
+            {
+                @foreach (var menu in _menus)
+                {
+                    <section class="nav-group">
+                        @RenderMenu(menu)
+                    </section>
+                }
+            }
+        </nav>
+    </div>
+
+    <UserProfileMenu />
+</div>
+
+@code {
+    private readonly List<MenuResponse> _menus = [];
+    private bool _isLoading = true;
+    private string? _loadError;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        var response = await IamAdminService.GetNavigationMenusAsync("Sidebar");
+        if (response.IsSuccess && response.Data is not null && response.Data.Count > 0)
+        {
+            _menus.Clear();
+            _menus.AddRange(response.Data);
+        }
+        else if (!response.IsSuccess)
+        {
+            _loadError = "Menus unavailable.";
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private RenderFragment RenderMenu(MenuResponse menu) => builder =>
+    {
+        var sequence = 0;
+        builder.OpenComponent<NavLink>(sequence++);
+        builder.AddAttribute(sequence++, "class", "nav-link");
+        builder.AddAttribute(sequence++, "href", menu.Url.TrimStart('/'));
+        if (menu.Key.Equals("dashboard", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.AddAttribute(sequence++, "Match", NavLinkMatch.All);
+        }
+
+        builder.AddAttribute(sequence++, "ChildContent", (RenderFragment)(childBuilder =>
+        {
+            var childSequence = 0;
+            childBuilder.OpenComponent<MudIcon>(childSequence++);
+            childBuilder.AddAttribute(childSequence++, "Icon", MenuIconMapper.Resolve(menu.Icon));
+            childBuilder.AddAttribute(childSequence++, "Size", Size.Small);
+            childBuilder.CloseComponent();
+            childBuilder.OpenElement(childSequence++, "span");
+            childBuilder.AddContent(childSequence++, menu.Title);
+            childBuilder.CloseElement();
+        }));
+        builder.CloseComponent();
+
+        if (menu.Children is null || menu.Children.Count == 0)
+        {
+            return;
+        }
+
+        builder.OpenElement(sequence++, "div");
+        builder.AddAttribute(sequence++, "class", "nav-children");
+        foreach (var child in menu.Children)
+        {
+            builder.AddContent(sequence++, RenderMenu(child));
+        }
+        builder.CloseElement();
+    };
+}

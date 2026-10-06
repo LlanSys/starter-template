@@ -1,0 +1,123 @@
+@inject IIamAdminService IamAdminService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" />
+        }
+        else
+        {
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.body2">Manage permission keys assigned to <strong>@Role.Name</strong>.</MudText>
+                <div class="bt-table-scroll">
+                    <MudTable Items="_permissions" Dense="true" Hover="true" Elevation="0" FixedHeader="true" Height="28rem" Style="min-width: 760px;" Breakpoint="Breakpoint.None">
+                        <HeaderContent>
+                            <MudTh Style="width: 4rem;">Grant</MudTh>
+                            <MudTh>Key</MudTh>
+                            <MudTh>Context</MudTh>
+                            <MudTh>Resource</MudTh>
+                            <MudTh>Description</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Grant">
+                                <MudCheckBox T="bool" Value="@IsSelected(context.Key)" ValueChanged="@((selected) => TogglePermission(context.Key, selected))" Color="Color.Success" Dense="true" />
+                            </MudTd>
+                            <MudTd DataLabel="Key">@context.Key</MudTd>
+                            <MudTd DataLabel="Context">@context.Context</MudTd>
+                            <MudTd DataLabel="Resource">@context.Resource</MudTd>
+                            <MudTd DataLabel="Description">@context.Description</MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No active permissions found.</MudAlert>
+                        </NoRecordsContent>
+                    </MudTable>
+                </div>
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="@(_isLoading || _isSaving)" OnClick="SaveAsync">@(_isSaving ? "Saving..." : "Update")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private readonly List<PermissionResponse> _permissions = [];
+    private readonly HashSet<string> _selectedKeys = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isLoading = true;
+    private bool _isSaving;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public AdminRoleListResponse Role { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var permissionsResponse = await IamAdminService.SearchPermissionsAsync(new PermissionSearchRequest(DepartmentId: Role.DepartmentId, IsActive: true, PageSize: 50));
+        var rolePermissionsResponse = await IamAdminService.GetRolePermissionsAsync(Role.Id);
+
+        if (!permissionsResponse.IsSuccess || permissionsResponse.Data is null)
+        {
+            Snackbar.Add(permissionsResponse.Message ?? "We could not load permissions.", Severity.Error);
+            _isLoading = false;
+            return;
+        }
+
+        if (!rolePermissionsResponse.IsSuccess || rolePermissionsResponse.Data is null)
+        {
+            Snackbar.Add(rolePermissionsResponse.Message ?? "We could not load role permissions.", Severity.Error);
+            _isLoading = false;
+            return;
+        }
+
+        _permissions.Clear();
+        _permissions.AddRange(permissionsResponse.Data.Items);
+        _selectedKeys.Clear();
+        foreach (var key in rolePermissionsResponse.Data.PermissionKeys)
+        {
+            _selectedKeys.Add(key);
+        }
+
+        _isLoading = false;
+    }
+
+    private bool IsSelected(string key) => _selectedKeys.Contains(key);
+
+    private void TogglePermission(string key, bool selected)
+    {
+        if (selected)
+        {
+            _selectedKeys.Add(key);
+            return;
+        }
+
+        _selectedKeys.Remove(key);
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        var response = await IamAdminService.UpdateRolePermissionsAsync(Role.Id, new UpdateRolePermissionsRequest([.. _selectedKeys.Order(StringComparer.OrdinalIgnoreCase)]));
+        _isSaving = false;
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Role permission update failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Role permissions updated.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(response.Data));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

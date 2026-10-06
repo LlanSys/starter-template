@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+set -e
+
+if [ "$SKIP_GUARDRAILS" = "1" ]; then
+  echo "Skipping local guardrails because SKIP_GUARDRAILS=1."
+  exit 0
+fi
+
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/checks.ps1
+elif command -v powershell.exe >/dev/null 2>&1; then
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/checks.ps1
+else
+  echo "PowerShell was not found. Run scripts/checks.ps1 manually before pushing."
+  exit 1
+fi

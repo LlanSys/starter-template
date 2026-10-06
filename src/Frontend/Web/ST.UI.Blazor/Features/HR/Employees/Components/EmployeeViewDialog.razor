@@ -1,0 +1,32 @@
+
+<MudDialog>
+    <DialogContent>
+        @if (Employee is not null)
+        {
+            <MudGrid Spacing="2" Class="dialog-detail-grid">
+                <MudItem xs="12" sm="6"><strong>Employee No.</strong><p>@Employee.Number</p></MudItem>
+                <MudItem xs="12" sm="6"><strong>Name</strong><p>@Employee.FullName</p></MudItem>
+                <MudItem xs="12" sm="6"><strong>Email</strong><p>@Employee.Email</p></MudItem>
+                <MudItem xs="12" sm="6"><strong>Phone</strong><p>@Employee.PhoneNumber</p></MudItem>
+                <MudItem xs="12" sm="6"><strong>Department</strong><p>@DisplayDepartment(Employee)</p></MudItem>
+                <MudItem xs="12" sm="6"><strong>Manager</strong><p>@(string.IsNullOrWhiteSpace(Employee.ManagerName) ? "None assigned" : Employee.ManagerName)</p></MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public EmployeeResponse? Employee { get; set; }
+
+    private void Close() => MudDialog.Close();
+
+    private static string DisplayDepartment(EmployeeResponse employee)
+        => string.IsNullOrWhiteSpace(employee.DepartmentName) ? employee.DepartmentId.ToString() : employee.DepartmentName;
+}

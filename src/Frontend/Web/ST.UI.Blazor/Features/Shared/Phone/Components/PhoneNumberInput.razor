@@ -1,0 +1,148 @@
+
+<MudGrid Spacing="2">
+    <MudItem xs="12" sm="@CountryColumns">
+        <MudAutocomplete T="CountryCallingCode"
+                         Value="_selectedCountry"
+                         ValueChanged="OnCountryChangedAsync"
+                         SearchFunc="SearchCountriesAsync"
+                         ToStringFunc="FormatCountry"
+                         Label="@CountryLabel"
+                         Placeholder="Search country or code..."
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         Dense="true"
+                         Clearable="false"
+                         CoerceText="true"
+                         ResetValueOnEmptyText="false"
+                         MaxItems="12"
+                         OpenIcon="@Icons.Material.Filled.ArrowDropDown"
+                         Required="@Required">
+            <ItemTemplate>
+                <div class="d-flex align-center">
+                    <span class="me-2">@context.Flag</span>
+                    <span>@context.DisplayName</span>
+                </div>
+            </ItemTemplate>
+        </MudAutocomplete>
+    </MudItem>
+    <MudItem xs="12" sm="@PhoneColumns">
+        <MudTextField T="string"
+                      Value="@NationalNumber"
+                      ValueChanged="OnNationalNumberChangedAsync"
+                      Label="@PhoneLabel"
+                      Placeholder="@PhonePlaceholder"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Required="@Required"
+                      HelperText="@HelperText" />
+    </MudItem>
+</MudGrid>
+
+@code {
+    private CountryCallingCode _selectedCountry = CountryCallingCodeCatalog.Default;
+    private string? _lastCountryCode;
+
+    [Parameter]
+    public string CountryCode { get; set; } = CountryCallingCodeCatalog.Default.DialCode;
+
+    [Parameter]
+    public EventCallback<string> CountryCodeChanged { get; set; }
+
+    [Parameter]
+    public string NationalNumber { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> NationalNumberChanged { get; set; }
+
+    [Parameter]
+    public string E164 { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> E164Changed { get; set; }
+
+    [Parameter]
+    public string CountryLabel { get; set; } = "Country";
+
+    [Parameter]
+    public string PhoneLabel { get; set; } = "Phone";
+
+    [Parameter]
+    public bool Required { get; set; } = true;
+
+    [Parameter]
+    public int CountryColumns { get; set; } = 6;
+
+    [Parameter]
+    public int PhoneColumns { get; set; } = 6;
+
+    private string PhonePlaceholder => _selectedCountry.Iso2 == "KE" ? "712345678" : "National number";
+
+    private string HelperText
+    {
+        get
+        {
+            try
+            {
+                var phone = PhoneNumberFormatter.Normalize(CountryCode, NationalNumber, E164);
+                return $"{_selectedCountry.Flag} {phone.E164}";
+            }
+            catch (ArgumentException)
+            {
+                return "Enter a valid phone number for the selected country.";
+            }
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (string.Equals(_lastCountryCode, CountryCode, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _selectedCountry = CountryCallingCodeCatalog.FindByDialCode(CountryCode)
+            ?? CountryCallingCodeCatalog.Default;
+        _lastCountryCode = _selectedCountry.DialCode;
+    }
+
+    private Task<IEnumerable<CountryCallingCode>> SearchCountriesAsync(string? value, CancellationToken cancellationToken)
+    {
+        if (string.Equals(value, FormatCountry(_selectedCountry), StringComparison.Ordinal))
+        {
+            value = null; // Return all items when clicking dropdown arrow
+        }
+
+        return Task.FromResult<IEnumerable<CountryCallingCode>>(CountryCallingCodeCatalog.Search(value));
+    }
+
+    private static string FormatCountry(CountryCallingCode? country)
+        => country is null ? string.Empty : $"{country.Flag} {country.DisplayName}";
+
+    private async Task OnCountryChangedAsync(CountryCallingCode? country)
+    {
+        _selectedCountry = country ?? CountryCallingCodeCatalog.Default;
+        _lastCountryCode = _selectedCountry.DialCode;
+
+        await CountryCodeChanged.InvokeAsync(_selectedCountry.DialCode);
+        await NormalizeAndEmitAsync(_selectedCountry.DialCode, NationalNumber, E164);
+    }
+
+    private async Task OnNationalNumberChangedAsync(string value)
+    {
+        await NationalNumberChanged.InvokeAsync(value);
+        await NormalizeAndEmitAsync(CountryCode, value, E164);
+    }
+
+    private async Task NormalizeAndEmitAsync(string countryCode, string nationalNumber, string fallbackE164)
+    {
+        try
+        {
+            var phone = PhoneNumberFormatter.Normalize(countryCode, nationalNumber, fallbackE164);
+            await E164Changed.InvokeAsync(phone.E164);
+        }
+        catch (ArgumentException)
+        {
+            await E164Changed.InvokeAsync(string.Empty);
+        }
+    }
+}

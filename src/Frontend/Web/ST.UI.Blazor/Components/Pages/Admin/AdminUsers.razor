@@ -1,0 +1,432 @@
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IIamAdminService IamAdminService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<div class="list-toolbar">
+    <MudTextField @bind-Value="_searchText"
+                  Placeholder="Search name, username, email, phone..."
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Margin="Margin.Dense"
+                  Variant="Variant.Outlined"
+                  Immediate="false"
+                  DebounceInterval="400"
+                  OnDebounceIntervalElapsed="ApplyFiltersAsync"
+                  OnKeyDown="HandleSearchKeyDown" />
+    <MudIconButton Icon="@Icons.Material.Filled.FilterList" Size="Size.Small" Color="@(_showFilters ? Color.Success : Color.Default)" OnClick="ToggleFilters" title="Advanced filters" />
+    @if (HasActiveFilters)
+    {
+        <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Small" Color="Color.Error" OnClick="ClearFiltersAsync" title="Clear filters" />
+    }
+</div>
+
+        @if (_showFilters)
+        {
+            <MudDivider Class="my-2" />
+            <MudGrid Spacing="2" Class="mb-2">
+                <MudItem xs="12" sm="6" lg="3">
+                    <MudSelect T="string" Value="_statusFilter" ValueChanged="@(async (string? val) => { _statusFilter = val; await ApplyFiltersAsync(); })" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var item in StatusOptions)
+                        {
+                            <MudSelectItem Value="@item">@item</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" lg="3">
+                    <MudSelect T="string" Value="_roleFilter" ValueChanged="@(async (string? val) => { _roleFilter = val; await ApplyFiltersAsync(); })" Label="Role" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var item in AvailableRoles)
+                        {
+                            <MudSelectItem Value="@item">@item</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" lg="3">
+                    <MudSelect T="string" Value="_twoFactorFilter" ValueChanged="@(async (string? val) => { _twoFactorFilter = val; await ApplyFiltersAsync(); })" Label="Two-factor" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var item in TwoFactorOptions)
+                        {
+                            <MudSelectItem Value="@item">@item</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" lg="3">
+                    <MudSelect T="string" Value="_linkedRecordFilter" ValueChanged="@(async (string? val) => { _linkedRecordFilter = val; await ApplyFiltersAsync(); })" Label="Linked Record" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var item in LinkedRecordOptions)
+                        {
+                            <MudSelectItem Value="@item">@item</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        }
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="@_messageSeverity" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable Items="_users" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="PageSize" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh Style="width: 15rem;">Name</MudTh>
+                    <MudTh Style="width: 18rem;">Email</MudTh>
+                    <MudTh Style="width: 14rem;">Roles</MudTh>
+                    <MudTh Style="width: 8rem;">Status</MudTh>
+                    <MudTh Style="width: 8rem;">2FA</MudTh>
+                    <MudTh Style="width: 10rem;">Linked Record</MudTh>
+                    <MudTh Style="width: 8rem;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">@DisplayName(context)</MudTd>
+                    <MudTd DataLabel="Email">@context.Email</MudTd>
+                    <MudTd DataLabel="Roles">@RoleText(context)</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Warning)">@(context.IsActive ? "Active" : "Inactive")</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="2FA">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.TwoFactorEnabled ? Color.Success : Color.Info)">@(context.TwoFactorEnabled ? "Enabled" : "Recommended")</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Linked Record">@LinkedRecord(context)</MudTd>
+                    <MudTd DataLabel="Actions">
+                        <TableRowActions OnView="@(() => ShowUserDetailsAsync(context))"
+                                         OnEdit="@(() => OpenUserDialogAsync(context))"
+                                         OnDelete="@(() => ConfirmDeactivateAsync(context))"
+                                         CanView="@AuthSession.HasPermission("users.view")"
+                                         CanEdit="@AuthSession.HasPermission("users.edit")"
+                                         CanDelete="@AuthSession.HasPermission("users.deactivate")"
+                                         ExtraActions="@UserExtraActions(context)"
+                                         OnExtraAction="@((action) => HandleExtraActionAsync(context, action))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <GlobalTablePager CurrentPage="_currentPage"
+                                      TotalRecords="_totalRecords"
+                                      PageSize="PageSize"
+                                      IsLoading="_isLoading"
+                                      OnFirstPage="GoToFirstPageAsync"
+                                      OnPreviousPage="GoToPreviousPageAsync"
+                                      OnNextPage="GoToNextPageAsync" />
+                </PagerContent>
+            </MudTable>
+        </div>
+
+@code {
+    public Task OpenCreateDialogAsync() => OpenUserDialogAsync(null);
+
+    private static readonly string[] StatusOptions = ["Active", "Inactive"];
+    private static readonly string[] TwoFactorOptions = ["Enabled", "Recommended"];
+    private static readonly string[] LinkedRecordOptions = ["Employee", "Customer", "System"];
+    private const int PageSize = 50;
+
+    private readonly List<AdminUserListResponse> _users = [];
+    private readonly Stack<string?> _cursorHistory = new();
+    private string? _nextCursor;
+    private string? _currentCursor;
+    private int _totalRecords;
+    private int _currentPage = 1;
+    private bool _isFirstPage = true;
+    private bool _isLastPage = true;
+    private bool _isLoading = true;
+    private bool _showFilters;
+    private string? _searchText;
+    private string? _statusFilter;
+    private string? _roleFilter;
+    private string? _twoFactorFilter;
+    private string? _linkedRecordFilter;
+    private string? _message;
+    private Severity _messageSeverity = Severity.Info;
+
+    private IReadOnlyList<string> AvailableRoles => _availableRoles;
+    private readonly List<string> _availableRoles = [];
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(_searchText)
+        || !string.IsNullOrWhiteSpace(_statusFilter)
+        || !string.IsNullOrWhiteSpace(_roleFilter)
+        || !string.IsNullOrWhiteSpace(_twoFactorFilter)
+        || !string.IsNullOrWhiteSpace(_linkedRecordFilter);
+
+
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        ResetPagination();
+        await LoadRolesAsync();
+        await LoadUsersAsync();
+    }
+
+    private Task ApplyFiltersAsync()
+    {
+        ResetPagination();
+        return LoadUsersAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _searchText = null;
+        _statusFilter = null;
+        _roleFilter = null;
+        _twoFactorFilter = null;
+        _linkedRecordFilter = null;
+        _showFilters = false;
+        ResetPagination();
+        await LoadUsersAsync();
+    }
+
+    private async Task GoToFirstPageAsync()
+    {
+        ResetPagination();
+        await LoadUsersAsync();
+    }
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (_cursorHistory.Count == 0)
+        {
+            return;
+        }
+
+        _currentCursor = _cursorHistory.Pop();
+        _currentPage = Math.Max(1, _currentPage - 1);
+        await LoadUsersAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (_isLastPage || string.IsNullOrWhiteSpace(_nextCursor))
+        {
+            return;
+        }
+
+        _cursorHistory.Push(_currentCursor);
+        _currentCursor = _nextCursor;
+        _currentPage++;
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadRolesAsync()
+    {
+        var response = await IamAdminService.GetRolesAsync();
+        if (response.IsSuccess && response.Data is not null)
+        {
+            _availableRoles.Clear();
+            _availableRoles.AddRange(response.Data.Select(r => r.Name).Order(StringComparer.OrdinalIgnoreCase));
+        }
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        var request = new AdminUserSearchRequest(
+            GlobalSearch: string.IsNullOrWhiteSpace(_searchText) ? null : _searchText.Trim(),
+            Status: _statusFilter,
+            Role: _roleFilter,
+            TwoFactorStatus: _twoFactorFilter,
+            LinkedRecordType: _linkedRecordFilter,
+            Cursor: _currentCursor,
+            PageSize: PageSize);
+
+        var response = await IamAdminService.SearchUsersAsync(request);
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _messageSeverity = Severity.Error;
+            _message = response.Message ?? "We could not load users.";
+            Snackbar.Add(_message, Severity.Error);
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _users.Clear();
+        _users.AddRange(response.Data.Items);
+        _totalRecords = response.Data.TotalRecords;
+        _nextCursor = response.Data.NextCursor;
+        _isFirstPage = response.Data.IsFirstPage;
+        _isLastPage = response.Data.IsLastPage;
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private Task HandleSearchKeyDown(KeyboardEventArgs args)
+        => args.Key == "Enter" ? ApplyFiltersAsync() : Task.CompletedTask;
+
+    private void ToggleFilters() => _showFilters = !_showFilters;
+
+    private void ResetPagination()
+    {
+        _cursorHistory.Clear();
+        _currentCursor = null;
+        _nextCursor = null;
+        _currentPage = 1;
+    }
+
+    private async Task OpenUserDialogAsync(AdminUserListResponse? user)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(AdminUserFormDialog.Roles), AvailableRoles.Count > 0 ? AvailableRoles : ["Admin", "User"] },
+            { nameof(AdminUserFormDialog.ExistingUser), user }
+        };
+
+        var dialog = await DialogService.ShowAsync<AdminUserFormDialog>(
+            user is null ? "Create User" : $"Edit - {DisplayName(user)}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            ResetPagination();
+            await LoadUsersAsync();
+        }
+    }
+
+    private async Task ShowUserDetailsAsync(AdminUserListResponse user)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(AdminUserViewDialog.User), user }
+        };
+
+        await DialogService.ShowAsync<AdminUserViewDialog>(
+            DisplayName(user),
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+    }
+
+    private async Task ConfirmDeactivateAsync(AdminUserListResponse user)
+    {
+        if (!user.IsActive)
+        {
+            Snackbar.Add("User is already inactive.", Severity.Info);
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Deactivate {DisplayName(user)}? The account will remain auditable but cannot be used as an active account." },
+            { nameof(ConfirmDialog.ConfirmText), "Deactivate" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm Deactivation",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false })
+        {
+            return;
+        }
+
+        var response = await IamAdminService.DeactivateUserAsync(user.Id, new DeactivateUserRequest("Deactivated from admin user list."));
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "User deactivation failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add($"{DisplayName(user)} deactivated.", Severity.Success);
+        await LoadUsersAsync();
+    }
+
+    private Task HandleExtraActionAsync(AdminUserListResponse user, string action)
+        => action switch
+        {
+            "Deactivate" => ConfirmDeactivateAsync(user),
+            "Manage Roles" => OpenUserRolesDialogAsync(user),
+            "Manage Permissions" => OpenUserPermissionsDialogAsync(user),
+            _ => ShowUserDetailsAsync(user)
+        };
+
+    private IReadOnlyList<string> UserExtraActions(AdminUserListResponse user)
+    {
+        var actions = new List<string>();
+
+        if (AuthSession.HasPermission("users.manage_roles"))
+        {
+            actions.Add("Manage Roles");
+        }
+
+        if (AuthSession.HasPermission("users.manage_permissions"))
+        {
+            actions.Add("Manage Permissions");
+        }
+
+        if (user.IsActive && AuthSession.HasPermission("users.deactivate"))
+        {
+            actions.Add("Deactivate");
+        }
+
+        return actions;
+    }
+
+    private async Task OpenUserRolesDialogAsync(AdminUserListResponse user)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(UserRolesDialog.User), user }
+        };
+
+        var dialog = await DialogService.ShowAsync<UserRolesDialog>(
+            $"Roles - {DisplayName(user)}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadUsersAsync();
+        }
+    }
+
+    private async Task OpenUserPermissionsDialogAsync(AdminUserListResponse user)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(UserPermissionsDialog.User), user }
+        };
+
+        await DialogService.ShowAsync<UserPermissionsDialog>(
+            $"Direct Permissions - {DisplayName(user)}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+    }
+
+    private static string DisplayName(AdminUserListResponse user)
+        => string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : user.FullName;
+
+    private static string RoleText(AdminUserListResponse user)
+        => user.Roles.Count == 0 ? "No roles" : string.Join(", ", user.Roles);
+
+    private static string LinkedRecord(AdminUserListResponse user)
+        => user.EmployeeId.HasValue ? "Employee"
+            : user.CustomerId.HasValue ? "Customer"
+            : "System";
+}

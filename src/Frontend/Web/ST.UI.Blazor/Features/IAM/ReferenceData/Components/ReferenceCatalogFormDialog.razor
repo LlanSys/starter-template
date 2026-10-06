@@ -1,0 +1,127 @@
+
+<MudDialog>
+    <DialogContent>
+    <EditForm FormName="iam-reference-catalog-form" Model="_model" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.Key"
+                                  Label="Key"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  ReadOnly="ExistingItem is not null"
+                                  Required="true"
+                                  HelperText="Stable system identifier. It cannot be changed after creation." />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.Label" Label="Label" Margin="Margin.Dense" Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+                @if (RequiresParent)
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="_model.ParentKey" Label="@ParentLabel" Margin="Margin.Dense" Variant="Variant.Outlined" Required="true">
+                            @foreach (var option in ParentOptions)
+                            {
+                                <MudSelectItem Value="@option.Key">@option.Label</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
+                @if (CatalogType == "menu-routes")
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_model.Url" Label="Route URL" Margin="Margin.Dense" Variant="Variant.Outlined" Required="true" />
+                    </MudItem>
+                }
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                </MudItem>
+                @if (ExistingItem is not null)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success" Label="Active" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" OnClick="Save">@SaveLabel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private ReferenceCatalogFormModel _model = new();
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public string CatalogType { get; set; } = string.Empty;
+
+    [Parameter]
+    public ReferenceCatalogItemResponse? ExistingItem { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<CatalogOptionResponse> ParentOptions { get; set; } = [];
+
+    private bool RequiresParent => CatalogType is "permission-resources" or "menu-routes";
+    private string ParentLabel => CatalogType == "permission-resources" ? "Permission context" : "Menu placement";
+    private string SaveLabel => ExistingItem is null ? "Create" : "Update";
+
+    protected override void OnInitialized()
+    {
+        _model = ExistingItem is null
+            ? new ReferenceCatalogFormModel()
+            : new ReferenceCatalogFormModel
+            {
+                Key = ExistingItem.Key,
+                Label = ExistingItem.Label,
+                Description = ExistingItem.Description,
+                ParentKey = ExistingItem.ParentKey,
+                Url = ExistingItem.Url,
+                IsActive = ExistingItem.IsActive
+            };
+    }
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Key) || string.IsNullOrWhiteSpace(_model.Label))
+        {
+            return;
+        }
+
+        if (RequiresParent && string.IsNullOrWhiteSpace(_model.ParentKey))
+        {
+            return;
+        }
+
+        if (CatalogType == "menu-routes" && string.IsNullOrWhiteSpace(_model.Url))
+        {
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(new ReferenceCatalogItemRequest
+        {
+            Key = _model.Key,
+            Label = _model.Label,
+            Description = _model.Description,
+            ParentKey = _model.ParentKey,
+            Url = _model.Url,
+            IsActive = _model.IsActive
+        }));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private sealed class ReferenceCatalogFormModel
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string? ParentKey { get; set; }
+        public string? Url { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

@@ -1,0 +1,259 @@
+@page "/admin/access-catalog"
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IIamAdminService IamAdminService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Access Catalog | StarterTemplate</PageTitle>
+
+<section class="dashboard-page">
+    <div class="mb-4">
+        <MudButton Href="/admin" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Admin Center</MudButton>
+    </div>
+
+    <MudPaper Class="poc-panel" Elevation="0">
+        <div class="panel-heading">
+            <h2 style="color: var(--bt-moss); font-weight: 700;">Access Catalog</h2>
+            <div class="d-flex align-center gap-3">
+                <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateAsync">
+                    Create item
+                </MudButton>
+            </div>
+        </div>
+        <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="bt-catalog-tabs">
+            @foreach (var definition in _catalogs)
+            {
+                <MudTabPanel Text="@definition.Label" />
+            }
+        </MudTabs>
+
+        <div class="list-toolbar">
+            <MudTextField @bind-Value="_searchText"
+                          Placeholder="Search key, label, description..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Margin="Margin.Dense"
+                          Variant="Variant.Outlined"
+                          Immediate="true" />
+        </div>
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable @ref="_table" Items="FilteredItems" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="100" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh>Key</MudTh>
+                    <MudTh>Label</MudTh>
+                    <MudTh>@RelationshipColumnLabel</MudTh>
+                    <MudTh>URL</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Key">@context.Key</MudTd>
+                    <MudTd DataLabel="Label">@context.Label</MudTd>
+                    <MudTd DataLabel="@RelationshipColumnLabel">@(context.ParentKey ?? "-")</MudTd>
+                    <MudTd DataLabel="URL">@(context.Url ?? "-")</MudTd>
+                    <MudTd DataLabel="Description">@context.Description</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">@(context.IsActive ? "Active" : "Inactive")</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <TableRowActions OnView="@(() => Snackbar.Add(context.Description, Severity.Info))"
+                                         OnEdit="@(() => EditAsync(context))"
+                                         OnDelete="@(() => DeactivateAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
+                                      TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
+                                      PageSize="_table?.RowsPerPage ?? 100"
+                                      OnFirstPage="@(() => _table?.NavigateTo(0))"
+                                      OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
+                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+                </PagerContent>
+            </MudTable>
+        </div>
+    </MudPaper>
+</section>
+
+@code {
+    private readonly CatalogDefinition[] _catalogs =
+    [
+        new("permission-contexts", "Contexts"),
+        new("permission-resources", "Resources"),
+        new("permission-actions", "Actions"),
+        new("menu-placements", "Menu placements"),
+        new("menu-icons", "Menu icons"),
+        new("menu-routes", "Menu routes")
+    ];
+
+    private readonly List<ReferenceCatalogItemResponse> _items = [];
+    private IamReferenceDataResponse _referenceData = new([], [], [], [], [], []);
+    private int _activeTab;
+    private bool _isLoading = true;
+    private string? _searchText;
+    private MudTable<ReferenceCatalogItemResponse>? _table;
+
+    private CatalogDefinition CurrentCatalog => _catalogs[_activeTab];
+    private string RelationshipColumnLabel => CurrentCatalog.Type switch
+    {
+        "permission-resources" => "Context",
+        "menu-routes" => "Placement",
+        _ => "Relationship"
+    };
+
+    private IReadOnlyList<ReferenceCatalogItemResponse> FilteredItems =>
+        [.. _items.Where(item => string.IsNullOrWhiteSpace(_searchText)
+                || item.Key.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || item.Label.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || item.Description.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || (item.ParentKey?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (item.Url?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+            .OrderBy(item => item.ParentKey)
+            .ThenBy(item => item.Label)];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        await LoadReferenceDataAsync();
+        await LoadCatalogAsync();
+    }
+
+    private async Task OnTabChanged(int index)
+    {
+        _activeTab = index;
+        _searchText = null;
+        await LoadCatalogAsync();
+    }
+
+    private async Task LoadReferenceDataAsync()
+    {
+        var response = await IamAdminService.GetReferenceDataAsync();
+        if (response.IsSuccess && response.Data is not null)
+        {
+            _referenceData = response.Data;
+        }
+    }
+
+    private async Task LoadCatalogAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        var response = await IamAdminService.GetReferenceCatalogAsync(CurrentCatalog.Type);
+        _items.Clear();
+
+        if (response.IsSuccess && response.Data is not null)
+        {
+            _items.AddRange(response.Data);
+        }
+        else
+        {
+            Snackbar.Add(response.Message ?? "We could not load this catalog.", Severity.Error);
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task CreateAsync() => await OpenFormAsync(null);
+
+    private async Task EditAsync(ReferenceCatalogItemResponse item) => await OpenFormAsync(item);
+
+    private async Task OpenFormAsync(ReferenceCatalogItemResponse? item)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ReferenceCatalogFormDialog.CatalogType), CurrentCatalog.Type },
+            { nameof(ReferenceCatalogFormDialog.ExistingItem), item },
+            { nameof(ReferenceCatalogFormDialog.ParentOptions), ParentOptions() }
+        };
+
+        var dialog = await DialogService.ShowAsync<ReferenceCatalogFormDialog>(
+            item is null ? $"Create {CurrentCatalog.Label}" : $"Edit - {item.Label}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false } || result.Data is not ReferenceCatalogItemRequest request)
+        {
+            return;
+        }
+
+        var response = item is null
+            ? await IamAdminService.CreateReferenceCatalogItemAsync(CurrentCatalog.Type, request)
+            : await IamAdminService.UpdateReferenceCatalogItemAsync(CurrentCatalog.Type, item.Id, request);
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Catalog save failed.", Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add(item is null ? "Catalog item created." : "Catalog item updated.", Severity.Success);
+        await LoadReferenceDataAsync();
+        await LoadCatalogAsync();
+    }
+
+    private async Task DeactivateAsync(ReferenceCatalogItemResponse item)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Deactivate catalog item {item.Label}? This will be blocked if the item is already used." },
+            { nameof(ConfirmDialog.ConfirmText), "Deactivate" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm Catalog Deactivation",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false })
+        {
+            return;
+        }
+
+        var response = await IamAdminService.DeleteReferenceCatalogItemAsync(CurrentCatalog.Type, item.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Catalog deactivate failed.", Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("Catalog item deactivated.", Severity.Success);
+        await LoadReferenceDataAsync();
+        await LoadCatalogAsync();
+    }
+
+    private IReadOnlyList<CatalogOptionResponse> ParentOptions()
+        => CurrentCatalog.Type switch
+        {
+            "permission-resources" => _referenceData.PermissionContexts,
+            "menu-routes" => _referenceData.MenuPlacements,
+            _ => []
+        };
+
+    private sealed record CatalogDefinition(string Type, string Label);
+}

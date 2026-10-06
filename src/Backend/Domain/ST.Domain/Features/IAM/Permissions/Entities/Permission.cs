@@ -1,0 +1,87 @@
+using ST.Domain.Shared.Contracts.Common;
+using ST.Domain.Shared.Entities;
+
+namespace ST.Domain.Features.IAM.Permissions.Entities;
+
+public sealed class Permission : BaseEntity, ISoftDeletable
+{
+    public Guid? DepartmentId { get; private set; }
+    public string Key { get; private set; } = string.Empty;
+    public string Context { get; private set; } = string.Empty;
+    public string Resource { get; private set; } = string.Empty;
+    public string Action { get; private set; } = string.Empty;
+    public string Description { get; private set; } = string.Empty;
+    public bool IsActive { get; private set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
+    public string? DeletedBy { get; set; }
+
+    private Permission()
+    {
+    }
+
+    public static Permission Create(
+        Guid? departmentId,
+        string context,
+        string resource,
+        string action,
+        string description,
+        string createdBy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(context);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resource);
+        ArgumentException.ThrowIfNullOrWhiteSpace(action);
+        ArgumentNullException.ThrowIfNull(description);
+        ArgumentException.ThrowIfNullOrWhiteSpace(createdBy);
+
+        var normalizedResource = NormalizeSegment(resource);
+        var normalizedAction = NormalizeSegment(action);
+
+        return new Permission
+        {
+            Id = Guid.CreateVersion7(),
+            DepartmentId = departmentId,
+            Context = context.Trim(),
+            Resource = normalizedResource,
+            Action = normalizedAction,
+            Key = $"{normalizedResource}.{normalizedAction}",
+            Description = description.Trim(),
+            CreatedBy = createdBy.Trim()
+        };
+    }
+
+    public void Update(Guid? departmentId, string context, string resource, string action, string description, bool isActive, string updatedBy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(context);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resource);
+        ArgumentException.ThrowIfNullOrWhiteSpace(action);
+        ArgumentNullException.ThrowIfNull(description);
+        ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
+
+        var normalizedResource = NormalizeSegment(resource);
+        var normalizedAction = NormalizeSegment(action);
+
+        DepartmentId = departmentId;
+        Context = context.Trim();
+        Resource = normalizedResource;
+        Action = normalizedAction;
+        Key = $"{normalizedResource}.{normalizedAction}";
+        Description = description.Trim();
+        IsActive = isActive;
+        SetUpdatedInfo(updatedBy);
+    }
+
+    public void MarkAsDeleted(string deletedBy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
+
+        IsDeleted = true;
+        IsActive = false;
+        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedBy = deletedBy.Trim();
+        SetUpdatedInfo(deletedBy);
+    }
+
+    private static string NormalizeSegment(string value)
+        => value.Trim().ToLowerInvariant().Replace(' ', '_');
+}

@@ -1,0 +1,597 @@
+@page "/features/payments"
+
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IPaymentCheckoutService PaymentCheckoutService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Payment Showcase | StarterTemplate</PageTitle>
+
+<RequireAuthenticated>
+    <section class="dashboard-page">
+        @if (!_isReady)
+        {
+            <MudPaper Class="status-card" Elevation="0">Loading capabilities...</MudPaper>
+        }
+        else if (!AuthSession.HasPermission("payments.view"))
+        {
+            <MudAlert Severity="Severity.Error">You do not have permission to view payment features.</MudAlert>
+        }
+        else
+        {
+            <MudPaper Class="poc-panel" Elevation="0">
+                <div class="panel-heading">
+                    <h2 style="color: var(--bt-moss); font-weight: 700;">Payments</h2>
+                    <div class="d-flex align-center gap-3">
+                        @if (_capabilities.Any(c => c.Environment?.Equals("Sandbox", StringComparison.OrdinalIgnoreCase) == true))
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Class="mb-0">Sandbox Mode</MudChip>
+                        }
+                    </div>
+                </div>
+                <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="bt-catalog-tabs">
+                    <MudTabPanel Text="Checkout" />
+                    <MudTabPanel Text="History" />
+                    <MudTabPanel Text="Status Lookup" />
+                    @if (AuthSession.HasPermission("payments.admin"))
+                    {
+                        <MudTabPanel Text="Admin Tools" />
+                    }
+                </MudTabs>
+
+                <div class="p-4">
+                    @if (_activeTab == 0)
+                    {
+                        @if (AuthSession.HasPermission("payments.create"))
+                        {
+                            <MudGrid Spacing="3">
+                                <MudItem xs="12" md="6">
+                                    <div class="panel-heading">
+                                        <div>
+                                            <span class="eyebrow">Secure checkout</span>
+                                            <h2>Initiate payment</h2>
+                                        </div>
+                                    </div>
+
+                                    <MudForm @ref="_checkoutForm">
+                                        <MudGrid Spacing="2">
+                                            @if (_capabilities.Count > 0)
+                                            {
+                                                <MudItem xs="12">
+                                                    <MudRadioGroup T="string" Value="@_selectedProvider" ValueChanged="OnProviderChanged" Required="true">
+                                                        @foreach (var cap in _capabilities)
+                                                        {
+                                                            <MudRadio Value="@cap.Provider" Disabled="!cap.IsEnabled" Color="Color.Primary">
+                                                                @cap.DisplayName
+                                                                @if (!cap.IsEnabled) { <span class="text-muted text-sm">(Disabled)</span> }
+                                                            </MudRadio>
+                                                        }
+                                                    </MudRadioGroup>
+                                                </MudItem>
+                                            }
+                                            else
+                                            {
+                                                <MudAlert Severity="Severity.Warning">No payment providers configured.</MudAlert>
+                                            }
+
+                                            @if (_selectedCapability?.RequiresPayerPhoneNumber == true)
+                                            {
+                                                <MudItem xs="12">
+                                                    <MudTextField Label="Payer Phone Number"
+                                                                  Variant="Variant.Outlined"
+                                                                  Margin="Margin.Dense"
+                                                                  Placeholder="2547XXXXXXXX"
+                                                                  @bind-Value="_phoneNumber"
+                                                                  Required="true" />
+                                                </MudItem>
+                                            }
+
+                                            <MudItem xs="12" sm="8">
+                                                <MudNumericField T="decimal"
+                                                                 Label="Amount"
+                                                                 Min="1"
+                                                                 Variant="Variant.Outlined"
+                                                                 Margin="Margin.Dense"
+                                                                 Format="N2"
+                                                                 HideSpinButtons="true"
+                                                                 @bind-Value="_amount"
+                                                                 Required="true" />
+                                            </MudItem>
+                                            <MudItem xs="12" sm="4">
+                                                <MudSelect T="string"
+                                                           Label="Currency"
+                                                           Variant="Variant.Outlined"
+                                                           Margin="Margin.Dense"
+                                                           Value="@_currency"
+                                                           ValueChanged="OnCurrencyChanged"
+                                                           Disabled="@(_selectedProvider == "Mpesa")"
+                                                           Required="true">
+                                                    <MudSelectItem Value="@("USD")">🇺🇸 USD</MudSelectItem>
+                                                    <MudSelectItem Value="@("KES")">🇰🇪 KES</MudSelectItem>
+                                                    <MudSelectItem Value="@("EUR")">🇪🇺 EUR</MudSelectItem>
+                                                    <MudSelectItem Value="@("GBP")">🇬🇧 GBP</MudSelectItem>
+                                                </MudSelect>
+                                            </MudItem>
+                                            <MudItem xs="12">
+                                                <MudTextField Label="Description"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              @bind-Value="_description"
+                                                              Required="true" />
+                                            </MudItem>
+                                        </MudGrid>
+                                    </MudForm>
+
+                                    <div class="modal-actions mt-4">
+                                        <MudButton Variant="Variant.Filled"
+                                                   Disabled="@(_isSubmitting || _selectedCapability == null || !_selectedCapability.IsEnabled)"
+                                                   Color="Color.Primary"
+                                                   OnClick="StartCheckoutAsync">
+                                            @(_isSubmitting ? "Processing..." : "Initiate Checkout")
+                                        </MudButton>
+                                    </div>
+                                </MudItem>
+                                <MudItem xs="12" md="6">
+                                    <MudPaper Class="poc-panel bg-light" Elevation="0">
+                                        <span class="eyebrow">Provider Capabilities</span>
+                                        @if (_selectedCapability != null)
+                                        {
+                                            <h3 class="mb-2">@_selectedCapability.DisplayName</h3>
+                                            <ul class="mb-4">
+                                                <li><strong>Environment:</strong> @_selectedCapability.Environment</li>
+                                                <li><strong>Configured:</strong> @(_selectedCapability.IsConfigured ? "Yes" : "No")</li>
+                                                <li><strong>Enabled:</strong> @(_selectedCapability.IsEnabled ? "Yes" : "No")</li>
+                                                <li><strong>Redirect Flow:</strong> @(_selectedCapability.SupportsRedirectCheckout ? "Yes" : "No")</li>
+                                                <li><strong>Requires Phone:</strong> @(_selectedCapability.RequiresPayerPhoneNumber ? "Yes" : "No")</li>
+                                            </ul>
+                                        }
+                                        else
+                                        {
+                                            <p>Select a provider to see its capabilities.</p>
+                                        }
+                                    </MudPaper>
+                                </MudItem>
+                            </MudGrid>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Error">You do not have permission to initiate payments.</MudAlert>
+                        }
+                    }
+                    else if (_activeTab == 1)
+                    {
+                        <div class="d-flex gap-2 align-center mb-2 flex-wrap">
+                            <div style="width: 220px;">
+                                <MudTextField T="string" @bind-Value="_historySearchTerm" Placeholder="Cust or Prov Ref..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Margin="Margin.Dense" Variant="Variant.Outlined" Immediate="false" DebounceInterval="400" OnDebounceIntervalElapsed="LoadHistoryAsync" />
+                            </div>
+
+                            <div style="width: 200px;">
+                                <MudSelect T="string" Value="_historyProvider" ValueChanged="@(async v => { _historyProvider = v; await LoadHistoryAsync(); })" Placeholder="Provider" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                                    @foreach (var cap in _capabilities)
+                                    {
+                                        <MudSelectItem Value="@cap.Provider">@(cap.DisplayName.Contains("M-Pesa") ? "M-Pesa" : cap.DisplayName.Contains("Stripe") ? "Stripe" : cap.DisplayName)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </div>
+
+                            <div style="width: 160px;">
+                                <MudSelect T="string" Value="_historyStatus" ValueChanged="@(async v => { _historyStatus = v; await LoadHistoryAsync(); })" Placeholder="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                                    @foreach (var status in new[] { "Initiated", "Processing", "Success", "Failed", "Cancelled" })
+                                    {
+                                        <MudSelectItem Value="@status">@status</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </div>
+
+                            <div style="width: 100px;">
+                                <MudNumericField T="decimal?" @bind-Value="_historyExactAmount" Placeholder="Exact Amt" Margin="Margin.Dense" Variant="Variant.Outlined" HideSpinButtons="true" Immediate="false" DebounceInterval="400" OnDebounceIntervalElapsed="LoadHistoryAsync" />
+                            </div>
+                            <div style="width: 100px;">
+                                <MudNumericField T="decimal?" @bind-Value="_historyMinAmount" Placeholder="Min Amt" Margin="Margin.Dense" Variant="Variant.Outlined" HideSpinButtons="true" Immediate="false" DebounceInterval="400" OnDebounceIntervalElapsed="LoadHistoryAsync" />
+                            </div>
+                            <div style="width: 100px;">
+                                <MudNumericField T="decimal?" @bind-Value="_historyMaxAmount" Placeholder="Max Amt" Margin="Margin.Dense" Variant="Variant.Outlined" HideSpinButtons="true" Immediate="false" DebounceInterval="400" OnDebounceIntervalElapsed="LoadHistoryAsync" />
+                            </div>
+
+                            <div style="width: 190px;">
+                                <MudDatePicker Date="_historyStartDate" DateChanged="@(async d => { _historyStartDate = d; await LoadHistoryAsync(); })" Placeholder="Start Date" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" />
+                            </div>
+                            <div style="width: 190px;">
+                                <MudDatePicker Date="_historyEndDate" DateChanged="@(async d => { _historyEndDate = d; await LoadHistoryAsync(); })" Placeholder="End Date" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" />
+                            </div>
+
+                            <div class="ms-auto d-flex gap-2 align-center">
+                                @if (HasActiveFilters)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Small" Color="Color.Error" OnClick="ClearFiltersAsync" title="Clear filters" />
+                                }
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadHistoryAsync">Refresh</MudButton>
+                            </div>
+                        </div>
+
+                        <div class="bt-table-scroll">
+                            <MudTable @ref="_table" Items="_historyItems" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="_isLoadingHistory" RowsPerPage="50" FixedHeader="true" Height="calc(100vh - 25rem)" Class="mt-3">
+                                <HeaderContent>
+                                    <MudTh>Date</MudTh>
+                                    <MudTh>Reference</MudTh>
+                                    <MudTh>Provider</MudTh>
+                                    <MudTh>Amount</MudTh>
+                                    <MudTh>Status</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="Date">@context.CreatedAt.ToString("g")</MudTd>
+                                    <MudTd DataLabel="Reference">@context.PaymentReference</MudTd>
+                                    <MudTd DataLabel="Provider">@context.Provider</MudTd>
+                                    <MudTd DataLabel="Amount">@context.Amount.ToString("N2") @context.Currency</MudTd>
+                                    <MudTd DataLabel="Status">
+                                        <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)">@context.Status</MudChip>
+                                    </MudTd>
+                                </RowTemplate>
+                                <NoRecordsContent>
+                                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                                </NoRecordsContent>
+                                <PagerContent>
+                                    <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
+                                                      TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
+                                                      PageSize="_table?.RowsPerPage ?? 50"
+                                                      OnFirstPage="@(() => _table?.NavigateTo(0))"
+                                                      OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
+                                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+                                </PagerContent>
+                            </MudTable>
+                        </div>
+                    }
+                    else if (_activeTab == 2)
+                    {
+                        <MudGrid Spacing="3">
+                            <MudItem xs="12" md="6">
+                                <h3>Check Payment Status</h3>
+                                <MudForm @ref="_statusForm">
+                                    <MudGrid Spacing="2">
+                                        <MudItem xs="12">
+                                            <MudSelect T="string" Label="Provider" Variant="Variant.Outlined" Margin="Margin.Dense" @bind-Value="_statusProvider" Required="true">
+                                                @foreach (var cap in _capabilities)
+                                                {
+                                                    <MudSelectItem Value="@cap.Provider">@cap.DisplayName</MudSelectItem>
+                                                }
+                                            </MudSelect>
+                                        </MudItem>
+                                        <MudItem xs="12">
+                                            <MudTextField Label="Provider Reference" HelperText="Use the Provider's Session ID or Request ID, not the internal Customer Reference." Variant="Variant.Outlined" Margin="Margin.Dense" @bind-Value="_statusReference" Required="true" />
+                                        </MudItem>
+                                    </MudGrid>
+                                    <div class="mt-3">
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LookupStatusAsync" Disabled="_isSubmittingStatus">
+                                            @(_isSubmittingStatus ? "Checking..." : "Check Status")
+                                        </MudButton>
+                                    </div>
+                                </MudForm>
+                            </MudItem>
+                            <MudItem xs="12" md="6">
+                                @if (_statusResult != null)
+                                {
+                                    <MudPaper Class="poc-panel bg-light" Elevation="0">
+                                        <h4 class="mb-2">Status Result</h4>
+                                        <ul>
+                                            <li><strong>Reference:</strong> @_statusResult.PaymentReference</li>
+                                            <li><strong>Provider:</strong> @_statusResult.Provider</li>
+                                            <li><strong>Amount:</strong> @_statusResult.Amount.ToString("N2") @_statusResult.Currency</li>
+                                            <li>
+                                                <strong>Status:</strong>
+                                                <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(_statusResult.Status)">@_statusResult.Status</MudChip>
+                                            </li>
+                                        </ul>
+                                    </MudPaper>
+                                }
+                            </MudItem>
+                        </MudGrid>
+                    }
+                    else if (_activeTab == 3 && AuthSession.HasPermission("payments.admin"))
+                    {
+                        <MudGrid Spacing="3">
+                            <MudItem xs="12" md="6">
+                                <MudPaper Class="poc-panel" Elevation="0">
+                                    <div class="panel-heading mb-3">
+                                        <div>
+                                            <span class="eyebrow">Setup</span>
+                                            <h3>Register M-Pesa C2B URLs</h3>
+                                        </div>
+                                    </div>
+                                    <p class="text-muted mb-3">Registers the validation and confirmation URLs with Safaricom. This only works if your M-Pesa sandbox credentials and callback URLs are configured correctly.</p>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RegisterUrlsAsync" Disabled="_isSubmittingAdmin">
+                                        Register URLs
+                                    </MudButton>
+                                </MudPaper>
+                            </MudItem>
+
+                            <MudItem xs="12" md="6">
+                                <MudPaper Class="poc-panel" Elevation="0">
+                                    <div class="panel-heading mb-3">
+                                        <div>
+                                            <span class="eyebrow">Testing</span>
+                                            <h3>Simulate M-Pesa C2B</h3>
+                                        </div>
+                                    </div>
+                                    <MudForm @ref="_simulateForm">
+                                        <MudGrid Spacing="2">
+                                            <MudItem xs="12">
+                                                <MudNumericField T="decimal" Label="Amount" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N2" HideSpinButtons="true" @bind-Value="_simAmount" Required="true" />
+                                            </MudItem>
+                                            <MudItem xs="12">
+                                                <MudTextField Label="Phone Number" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="2547XXXXXXXX" @bind-Value="_simPhone" Required="true" />
+                                            </MudItem>
+                                            <MudItem xs="12">
+                                                <MudTextField Label="Bill Reference Number" Variant="Variant.Outlined" Margin="Margin.Dense" @bind-Value="_simRef" Required="true" />
+                                            </MudItem>
+                                        </MudGrid>
+                                        <div class="mt-3">
+                                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SimulateC2BAsync" Disabled="_isSubmittingAdmin">
+                                                Simulate Payment
+                                            </MudButton>
+                                        </div>
+                                    </MudForm>
+                                </MudPaper>
+                            </MudItem>
+                        </MudGrid>
+                    }
+                </div>
+            </MudPaper>
+        }
+    </section>
+</RequireAuthenticated>
+
+@code {
+    private bool _isReady;
+    private int _activeTab;
+    private List<PaymentProviderCapabilityResponse> _capabilities = [];
+
+    // Checkout State
+    private MudForm? _checkoutForm;
+    private bool _isSubmitting;
+    private decimal _amount = 100m;
+    private string _currency = "USD";
+    private string _description = "StarterTemplate payment";
+    private string? _selectedProvider;
+    private PaymentProviderCapabilityResponse? _selectedCapability;
+    private string? _phoneNumber;
+
+    // History State
+    private MudTable<PaymentHistoryItemResponse>? _table;
+    private bool _isLoadingHistory;
+    private List<PaymentHistoryItemResponse> _historyItems = [];
+
+    // History Filters State
+    private string? _historySearchTerm;
+    private string? _historyProvider;
+    private decimal? _historyExactAmount;
+    private decimal? _historyMinAmount;
+    private decimal? _historyMaxAmount;
+    private DateTime? _historyStartDate;
+    private DateTime? _historyEndDate;
+    private string? _historyStatus;
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(_historySearchTerm) ||
+        !string.IsNullOrWhiteSpace(_historyProvider) ||
+        _historyExactAmount.HasValue ||
+        _historyMinAmount.HasValue ||
+        _historyMaxAmount.HasValue ||
+        _historyStartDate.HasValue ||
+        _historyEndDate.HasValue ||
+        !string.IsNullOrWhiteSpace(_historyStatus);
+
+    private async Task ClearFiltersAsync()
+    {
+        _historySearchTerm = null;
+        _historyProvider = null;
+        _historyExactAmount = null;
+        _historyMinAmount = null;
+        _historyMaxAmount = null;
+        _historyStartDate = null;
+        _historyEndDate = null;
+        _historyStatus = null;
+        await LoadHistoryAsync();
+    }
+
+    // Status State
+    private MudForm? _statusForm;
+    private bool _isSubmittingStatus;
+    private string? _statusProvider;
+    private string? _statusReference;
+    private PaymentStatusResponse? _statusResult;
+
+    // Admin State
+    private MudForm? _simulateForm;
+    private bool _isSubmittingAdmin;
+    private decimal _simAmount = 100m;
+    private string? _simPhone;
+    private string? _simRef = "TESTBILL";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await AuthSession.InitializeAsync();
+            if (AuthSession.IsAuthenticated && AuthSession.HasPermission("payments.view"))
+            {
+                await LoadCapabilitiesAsync();
+            }
+            else
+            {
+                _isReady = true;
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadCapabilitiesAsync()
+    {
+        var response = await PaymentCheckoutService.GetCapabilitiesAsync();
+        if (response.IsSuccess && response.Data != null)
+        {
+            _capabilities = response.Data.ToList();
+            if (_capabilities.Any())
+            {
+                _selectedProvider = _capabilities.First().Provider;
+                UpdateSelectedCapability();
+            }
+        }
+        else
+        {
+            Snackbar.Add("Could not load payment capabilities.", Severity.Error);
+        }
+
+        _isReady = true;
+    }
+
+    private void OnProviderChanged(string provider)
+    {
+        _selectedProvider = provider;
+        UpdateSelectedCapability();
+    }
+
+    private void UpdateSelectedCapability()
+    {
+        _selectedCapability = _capabilities.FirstOrDefault(c => c.Provider == _selectedProvider);
+        if (_selectedCapability != null && _selectedCapability.Provider == "Mpesa")
+        {
+            _currency = "KES";
+        }
+    }
+
+    private void OnCurrencyChanged(string currency)
+    {
+        _currency = currency;
+    }
+
+    private async Task OnTabChanged(int index)
+    {
+        _activeTab = index;
+        if (index == 1 && _historyItems.Count == 0)
+        {
+            await LoadHistoryAsync();
+        }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        _isLoadingHistory = true;
+        var request = new PaymentHistoryFilterRequest
+        {
+            PageSize = 100,
+            SearchTerm = _historySearchTerm,
+            Provider = _historyProvider,
+            ExactAmount = _historyExactAmount,
+            MinAmount = _historyMinAmount,
+            MaxAmount = _historyMaxAmount,
+            StartDate = _historyStartDate.HasValue ? new DateTimeOffset(_historyStartDate.Value, TimeSpan.Zero) : null,
+            EndDate = _historyEndDate.HasValue ? new DateTimeOffset(_historyEndDate.Value, TimeSpan.Zero) : null,
+            Status = _historyStatus
+        };
+        var response = await PaymentCheckoutService.GetHistoryAsync(request);
+        if (response.IsSuccess && response.Data != null)
+        {
+            _historyItems = response.Data.Items.ToList();
+        }
+        else
+        {
+            Snackbar.Add("Could not load payment history.", Severity.Error);
+        }
+        _isLoadingHistory = false;
+    }
+
+    private async Task StartCheckoutAsync()
+    {
+        if (_checkoutForm is null) return;
+        await _checkoutForm.ValidateAsync();
+        if (!_checkoutForm.IsValid) return;
+
+        _isSubmitting = true;
+        var callbackUrl = Navigation.ToAbsoluteUri("/payments/success").ToString();
+        var request = new PaymentInitiationRequest(
+            _amount,
+            _currency.Trim().ToUpperInvariant(),
+            _description.Trim(),
+            callbackUrl,
+            PayerPhoneNumber: _selectedCapability?.RequiresPayerPhoneNumber == true ? _phoneNumber?.Replace(" ", "") : null,
+            Provider: _selectedProvider);
+
+        var response = await PaymentCheckoutService.CreateCheckoutAsync(request);
+        if (!response.IsSuccess || response.Data is null || string.IsNullOrWhiteSpace(response.Data.CheckoutUrl))
+        {
+            Snackbar.Add(response.Message ?? "Payment checkout could not be started.", Severity.Error);
+            _isSubmitting = false;
+            return;
+        }
+
+        Navigation.NavigateTo(response.Data.CheckoutUrl, forceLoad: true);
+    }
+
+    private async Task LookupStatusAsync()
+    {
+        if (_statusForm is null) return;
+        await _statusForm.ValidateAsync();
+        if (!_statusForm.IsValid) return;
+
+        _isSubmittingStatus = true;
+        _statusResult = null;
+        var response = await PaymentCheckoutService.GetStatusAsync(_statusProvider!, _statusReference!);
+        if (response.IsSuccess && response.Data != null)
+        {
+            _statusResult = response.Data;
+            Snackbar.Add("Status retrieved successfully.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(response.Message ?? "Status lookup failed.", Severity.Error);
+        }
+        _isSubmittingStatus = false;
+    }
+
+    private async Task RegisterUrlsAsync()
+    {
+        _isSubmittingAdmin = true;
+        var response = await PaymentCheckoutService.RegisterMpesaC2BUrlsAsync();
+        if (response.IsSuccess)
+        {
+            Snackbar.Add("URLs registered successfully.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(response.Message ?? "Registration failed.", Severity.Error);
+        }
+        _isSubmittingAdmin = false;
+    }
+
+    private async Task SimulateC2BAsync()
+    {
+        if (_simulateForm is null) return;
+        await _simulateForm.ValidateAsync();
+        if (!_simulateForm.IsValid) return;
+
+        _isSubmittingAdmin = true;
+        var request = new SimulateMpesaC2BRequest(_simAmount, _simPhone!, _simRef!);
+        var response = await PaymentCheckoutService.SimulateMpesaC2BAsync(request);
+        if (response.IsSuccess)
+        {
+            Snackbar.Add("Simulation requested successfully.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(response.Message ?? "Simulation failed.", Severity.Error);
+        }
+        _isSubmittingAdmin = false;
+    }
+
+    private Color GetStatusColor(string status)
+    {
+        return status.ToLowerInvariant() switch
+        {
+            "completed" => Color.Success,
+            "failed" => Color.Error,
+            "cancelled" => Color.Default,
+            _ => Color.Warning
+        };
+    }
+}

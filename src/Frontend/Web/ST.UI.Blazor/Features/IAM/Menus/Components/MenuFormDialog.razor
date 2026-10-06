@@ -1,0 +1,290 @@
+@inject IIamAdminService IamAdminService
+@inject IDepartmentService DepartmentService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+    <EditForm FormName="iam-menu-form" Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_model.Title" Label="Title" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField Value="@GeneratedKey" Label="Generated key" Margin="Margin.Dense" Variant="Variant.Outlined" ReadOnly="true" HelperText="Generated from the title. Use lowercase words separated by hyphens." />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" Value="_model.Placement" ValueChanged="OnPlacementChanged" Label="Placement" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                        @foreach (var placement in _referenceData.MenuPlacements)
+                        {
+                            <MudSelectItem Value="@placement.Key">@placement.Label</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Value="_model.DepartmentId" ValueChanged="OnDepartmentChanged" Label="Department scope" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
+                        <MudSelectItem T="Guid?" Value="null">Global</MudSelectItem>
+                        @foreach (var department in _departments)
+                        {
+                            <MudSelectItem T="Guid?" Value="@department.Id">@department.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" @bind-Value="_model.ParentId" Label="Parent" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" ToStringFunc="ParentLabel">
+                        @foreach (var menu in ParentOptions)
+                        {
+                            <MudSelectItem T="Guid?" Value="@menu.Id">@menu.Title</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_model.Url" Label="Route" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var route in RouteOptions)
+                        {
+                            <MudSelectItem Value="@route.Key">@route.Label (@route.Key)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_model.Icon" Label="Icon" Margin="Margin.Dense" Variant="Variant.Outlined">
+                        @foreach (var option in _referenceData.MenuIcons)
+                        {
+                            <MudSelectItem Value="@option.Key">
+                                <MudIcon Icon="@MenuIconMapper.Resolve(option.Key)" Size="Size.Small" Class="me-1" />
+                                @option.Label
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="_model.RequiredPermissionKey" Label="Required Permission" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var permission in _permissions)
+                        {
+                            <MudSelectItem Value="@permission.Key">@permission.Key</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.RequiredModule" Label="Required Module (e.g. HR, Banking)" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                </MudItem>
+                @if (ExistingMenu is not null)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success" Label="Active" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private readonly List<PermissionResponse> _permissions = [];
+    private readonly List<DepartmentResponse> _departments = [];
+    private IamReferenceDataResponse _referenceData = new([], [], [], [], [], []);
+    private MenuFormModel _model = new();
+    private bool _isSaving;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public MenuResponse? ExistingMenu { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<MenuResponse> Menus { get; set; } = [];
+
+    private string SaveLabel => ExistingMenu is null ? "Create" : "Update";
+    private string GeneratedKey => Slugify(_model.Title);
+
+    private IReadOnlyList<MenuResponse> ParentOptions =>
+        [.. Menus.Where(menu =>
+                (ExistingMenu is null || menu.Id != ExistingMenu.Id)
+                && menu.Placement.Equals(_model.Placement, StringComparison.OrdinalIgnoreCase)
+                && menu.DepartmentId == _model.DepartmentId)
+            .OrderBy(menu => menu.Title)];
+
+    private IReadOnlyList<CatalogOptionResponse> RouteOptions =>
+        [.. _referenceData.MenuRoutes
+            .Where(route => string.Equals(route.ParentKey, _model.Placement, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(static route => route.Label)];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model = ExistingMenu is null ? new MenuFormModel() : MenuFormModel.From(ExistingMenu);
+        await LoadReferenceDataAsync();
+        await LoadDepartmentsAsync();
+        await LoadPermissionsAsync();
+    }
+
+    private async Task LoadReferenceDataAsync()
+    {
+        var response = await IamAdminService.GetReferenceDataAsync();
+        if (!response.IsSuccess || response.Data is null)
+        {
+            Snackbar.Add(response.Message ?? "We could not load IAM reference data.", Severity.Warning);
+            return;
+        }
+
+        _referenceData = response.Data;
+    }
+
+    private async Task LoadDepartmentsAsync()
+    {
+        var response = await DepartmentService.GetAsync();
+        if (!response.IsSuccess || response.Data is null)
+        {
+            Snackbar.Add(response.Message ?? "We could not load departments.", Severity.Warning);
+            return;
+        }
+
+        _departments.AddRange(response.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
+    }
+
+    private async Task LoadPermissionsAsync()
+    {
+        var response = await IamAdminService.SearchPermissionsAsync(new PermissionSearchRequest(IsActive: true, PageSize: 50));
+        if (!response.IsSuccess || response.Data is null)
+        {
+            Snackbar.Add(response.Message ?? "We could not load permissions.", Severity.Warning);
+            return;
+        }
+
+        _permissions.AddRange(response.Data.Items.OrderBy(static permission => permission.Key));
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Title) || string.IsNullOrWhiteSpace(_model.Placement))
+        {
+            Snackbar.Add("Menu title and placement are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        var response = ExistingMenu is null
+            ? await IamAdminService.CreateMenuAsync(_model.ToCreateRequest())
+            : await IamAdminService.UpdateMenuAsync(_model.Id, _model.ToUpdateRequest());
+        _isSaving = false;
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Menu save failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add(ExistingMenu is null ? "Menu created." : "Menu updated.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(response.Data));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void OnPlacementChanged(string placement)
+    {
+        _model.Placement = placement;
+        _model.ParentId = null;
+        if (!RouteOptions.Any(route => string.Equals(route.Key, _model.Url, StringComparison.OrdinalIgnoreCase)))
+        {
+            _model.Url = string.Empty;
+        }
+    }
+
+    private void OnDepartmentChanged(Guid? departmentId)
+    {
+        _model.DepartmentId = departmentId;
+        _model.ParentId = null;
+    }
+
+    private string ParentLabel(Guid? parentId)
+    {
+        if (!parentId.HasValue || parentId.Value == Guid.Empty)
+        {
+            return string.Empty;
+        }
+
+        return Menus.FirstOrDefault(menu => menu.Id == parentId.Value)?.Title ?? "Current parent";
+    }
+
+    private static string Slugify(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "menu-key";
+        }
+
+        var chars = value.Trim().ToLowerInvariant()
+            .Select(static character => char.IsLetterOrDigit(character) ? character : '-')
+            .ToArray();
+
+        return string.Join('-', new string(chars).Split('-', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private sealed class MenuFormModel
+    {
+        public Guid Id { get; set; }
+        public Guid? ParentId { get; set; }
+        public Guid? DepartmentId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+        public string Icon { get; set; } = "Menu";
+        public string Placement { get; set; } = "AdminCenter";
+        public string? RequiredPermissionKey { get; set; }
+        public string? RequiredModule { get; set; }
+        public bool IsActive { get; set; } = true;
+
+        public static MenuFormModel From(MenuResponse menu)
+            => new()
+            {
+                Id = menu.Id,
+                ParentId = menu.ParentId,
+                DepartmentId = menu.DepartmentId,
+                Title = menu.Title,
+                Description = menu.Description,
+                Url = menu.Url,
+                Icon = menu.Icon,
+                Placement = menu.Placement,
+                RequiredPermissionKey = menu.RequiredPermissionKey,
+                RequiredModule = menu.RequiredModule,
+                IsActive = menu.IsActive
+            };
+
+        public CreateMenuRequest ToCreateRequest()
+            => new()
+            {
+                ParentId = ParentId,
+                DepartmentId = DepartmentId,
+                Title = Title,
+                Description = Description,
+                Url = Url,
+                Icon = Icon,
+                Placement = Placement,
+                RequiredPermissionKey = RequiredPermissionKey,
+                RequiredModule = RequiredModule
+            };
+
+        public UpdateMenuRequest ToUpdateRequest()
+            => new()
+            {
+                Id = Id,
+                ParentId = ParentId,
+                DepartmentId = DepartmentId,
+                Title = Title,
+                Description = Description,
+                Url = Url,
+                Icon = Icon,
+                Placement = Placement,
+                RequiredPermissionKey = RequiredPermissionKey,
+                RequiredModule = RequiredModule,
+                IsActive = IsActive
+            };
+    }
+}

@@ -1,0 +1,158 @@
+@inject IOrgSettingsService OrgSettingsService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@_message</MudAlert>
+        }
+
+        <MudForm @ref="_form" @bind-IsValid="@_isValid" Model="@_model">
+            <MudTextField @bind-Value="_model.Key"
+                          For="@(() => _model.Key)"
+                          Label="Key"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Required="true"
+                          RequiredError="Key is required"
+                          Class="mb-3" />
+
+            <MudTextField @bind-Value="_model.Value"
+                          For="@(() => _model.Value)"
+                          Label="Value"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Required="true"
+                          RequiredError="Value is required"
+                          Lines="3"
+                          HelperText="@(IsEditMode && ExistingSetting?.Value == "***" ? "Leave as '***' to keep existing secret value." : null)"
+                          Class="mb-3" />
+
+            <MudTextField @bind-Value="_model.Description"
+                          For="@(() => _model.Description)"
+                          Label="Description"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Lines="2"
+                          Class="mb-3" />
+
+            @if (IsEditMode)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                    Editing existing configuration key.
+                </MudAlert>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitAsync" Disabled="@(!_isValid || _isLoading)">
+            @(IsEditMode ? "Save Changes" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public OrgSettingResponse? ExistingSetting { get; set; }
+
+    private MudForm _form = default!;
+    private bool _isValid;
+    private bool _isLoading;
+    private string? _message;
+
+    private SettingFormModel _model = new();
+
+    private bool IsEditMode => ExistingSetting != null;
+
+    protected override void OnInitialized()
+    {
+        if (ExistingSetting != null)
+        {
+            _model = new SettingFormModel
+            {
+                Id = ExistingSetting.Id,
+                Key = ExistingSetting.Key,
+                Value = ExistingSetting.Value,
+                Description = ExistingSetting.Description
+            };
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SubmitAsync()
+    {
+        await _form.ValidateAsync();
+
+        if (!_form.IsValid)
+            return;
+
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        try
+        {
+            if (IsEditMode)
+            {
+                var request = new UpdateOrgSettingRequest(
+                    _model.Id,
+                    _model.Key,
+                    _model.Value,
+                    _model.Description
+                );
+
+                var response = await OrgSettingsService.UpdateOrgSettingAsync(request);
+
+                if (response.IsSuccess)
+                {
+                    Snackbar.Add(response.Message ?? "Setting updated successfully.", Severity.Success);
+                    MudDialog.Close(DialogResult.Ok(response.Data));
+                }
+                else
+                {
+                    _message = response.Message ?? "Failed to update setting.";
+                }
+            }
+            else
+            {
+                var request = new CreateOrgSettingRequest(
+                    _model.Key,
+                    _model.Value,
+                    _model.Description
+                );
+
+                var response = await OrgSettingsService.CreateOrgSettingAsync(request);
+
+                if (response.IsSuccess)
+                {
+                    Snackbar.Add(response.Message ?? "Setting created successfully.", Severity.Success);
+                    MudDialog.Close(DialogResult.Ok(response.Data));
+                }
+                else
+                {
+                    _message = response.Message ?? "Failed to create setting.";
+                }
+            }
+        }
+        catch (Exception)
+        {
+            _message = "An unexpected error occurred.";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+
+}

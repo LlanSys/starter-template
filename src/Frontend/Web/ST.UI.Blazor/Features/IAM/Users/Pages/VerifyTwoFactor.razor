@@ -1,0 +1,110 @@
+@page "/iam/verify-2fa"
+@layout AuthLayout
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject NavigationManager Navigation
+
+<PageTitle>Verify sign in | StarterTemplate</PageTitle>
+
+<section class="auth-shell compact">
+    <div class="auth-copy">
+        <span class="eyebrow">Step-up verification</span>
+        <h1>Verification Code</h1>
+        <p>
+            Enter the 6-digit code from your authenticator app to continue.
+        </p>
+    </div>
+
+    <div class="auth-card">
+        <EditForm FormName="@VerifyTwoFactorFormName" Model="VerificationModel" OnValidSubmit="VerifyAsync">
+            <DataAnnotationsValidator />
+            <input type="hidden" name="VerificationModel.UserId" value="@VerificationModel!.UserId" />
+
+            <div class="form-stack">
+                <div>
+                    <label for="code">6-digit code</label>
+                    <InputText id="code" class="form-control form-control-lg otp-input" @bind-Value="VerificationModel!.Code" inputmode="numeric" autocomplete="one-time-code" />
+                    <ValidationMessage For="@(() => VerificationModel!.Code)" />
+                </div>
+
+                <label class="remember-row">
+                    <InputCheckbox @bind-Value="VerificationModel!.RememberDevice" />
+                    <span>Trust this device where supported</span>
+                </label>
+
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <div class="alert alert-danger" role="alert">@_message</div>
+                }
+
+                <button class="btn btn-bt-primary btn-lg" type="submit" disabled="@_isBusy">
+                    @(_isBusy ? "Verifying..." : "Verify and continue")
+                </button>
+            </div>
+        </EditForm>
+    </div>
+</section>
+
+@code {
+    private const string VerifyTwoFactorFormName = "iam-verify-two-factor";
+
+    [SupplyParameterFromQuery(Name = "userId")]
+    public string? UserId { get; set; }
+
+    [SupplyParameterFromForm(FormName = VerifyTwoFactorFormName)]
+    private TotpVerificationModel? VerificationModel { get; set; }
+
+    private bool _isBusy;
+    private string? _message;
+
+    protected override void OnInitialized()
+    {
+        VerificationModel ??= new();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+
+        var model = VerificationModel ??= new();
+        model.UserId = UserId ?? AuthSession.PendingTwoFactorUserId ?? model.UserId ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(model.UserId))
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task VerifyAsync()
+    {
+        _isBusy = true;
+        _message = null;
+        var model = VerificationModel ??= new();
+
+        var request = new VerifyOtpRequest
+        {
+            UserId = model.UserId,
+            Code = model.Code,
+            RememberMe = model.RememberMe,
+            RememberDevice = model.RememberDevice,
+            DeviceFingerprint = model.DeviceFingerprint
+        };
+
+        var response = await AuthSession.CompleteTwoFactorAsync(request);
+        _isBusy = false;
+
+        if (!response.IsSuccess)
+        {
+            _message = UserMessageSanitizer.Normalize(response.Message, "Verification failed. Please try again.");
+            return;
+        }
+
+        Navigation.NavigateTo("/dashboard");
+    }
+}

@@ -1,0 +1,65 @@
+@inject ILookupService LookupService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+    <EditForm FormName="shared-lookup-form" Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.Code" Label="Code" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
+                <MudItem xs="12" sm="8"><MudTextField @bind-Value="_model.Description" Label="Description" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="@(ExistingLookup is null ? Color.Primary : Color.Success)" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : ExistingLookup is null ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private LookupFormModel _model = new();
+    private bool _isSaving;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public string LookupType { get; set; } = string.Empty;
+
+    [Parameter]
+    public LookupResponse? ExistingLookup { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _model = ExistingLookup is null ? new LookupFormModel() : LookupFormModel.From(ExistingLookup);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(LookupType)
+            || string.IsNullOrWhiteSpace(_model.Code)
+            || string.IsNullOrWhiteSpace(_model.Description))
+        {
+            Snackbar.Add("Lookup type, code, and description are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        var response = ExistingLookup is null
+            ? await LookupService.CreateAsync(LookupType, _model.ToCreateRequest())
+            : await LookupService.UpdateAsync(LookupType, ExistingLookup.Id, _model.ToUpdateRequest());
+        _isSaving = false;
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Lookup save failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add(ExistingLookup is null ? "Lookup created." : "Lookup updated.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(response.Data));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

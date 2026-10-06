@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StarterTemplate — Production-Hardened Roadmap & Architecture Plan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #080b11;
+      --card-bg: rgba(21, 28, 45, 0.6);
+      --card-border: rgba(255, 255, 255, 0.05);
+      --border: #1d2636;
+      --text: #f1f5f9;
+      --text-muted: #8a99ad;
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.15);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.15);
+      --amber: #f59e0b;
+      --amber-glow: rgba(245, 158, 11, 0.15);
+      --rose: #ef4444;
+      --purple: #8b5cf6;
+      --purple-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --sans: 'Outfit', -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.07) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* Sidebar Navigation */
+    aside {
+      width: 280px;
+      border-right: 1px solid var(--border);
+      background: rgba(11, 16, 26, 0.8);
+      backdrop-filter: blur(10px);
+      padding: 32px 24px;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--purple-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: white;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 10px 14px;
+      border-radius: 8px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .nav-links a.active {
+      color: white;
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 3px solid var(--primary);
+    }
+
+    /* Main Container */
+    main {
+      margin-left: 280px;
+      flex: 1;
+      padding: 48px 64px;
+      max-width: 1100px;
+    }
+
+    header {
+      margin-bottom: 48px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #ffffff 30%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+    }
+
+    .header-badges {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    .badge.primary {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+    }
+
+    .badge.emerald {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+    }
+
+    .badge.purple {
+      background: rgba(139, 92, 246, 0.1);
+      border-color: rgba(139, 92, 246, 0.2);
+      color: #c084fc;
+    }
+
+    /* Section Cards */
+    section {
+      margin-bottom: 48px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(8px);
+    }
+
+    section h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #ffffff;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 12px;
+    }
+
+    p {
+      margin-bottom: 16px;
+      color: #cbd5e1;
+    }
+
+    /* Code Snippets */
+    pre {
+      background: #0b0f17;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+
+    code {
+      font-family: var(--mono);
+      font-size: 13.5px;
+      color: #e2e8f0;
+    }
+
+    .code-comment {
+      color: #64748b;
+    }
+
+    .code-keyword {
+      color: #f43f5e;
+    }
+
+    .code-type {
+      color: #38bdf8;
+    }
+
+    /* Flow / Diagrams */
+    .flow-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin: 24px 0;
+      background: rgba(0, 0, 0, 0.15);
+      padding: 24px;
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+    }
+
+    .flow-row {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .flow-node {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      flex: 1;
+      max-width: 200px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .flow-node.highlight {
+      border-color: var(--primary);
+      background: rgba(59, 130, 246, 0.1);
+      color: white;
+    }
+
+    .flow-arrow {
+      color: var(--text-muted);
+      font-weight: bold;
+    }
+
+    /* Roadmap Checklist */
+    .roadmap-list {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .phase-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.01);
+      overflow: hidden;
+    }
+
+    .phase-header {
+      padding: 16px 20px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .phase-header:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .phase-title {
+      font-weight: 600;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .phase-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--amber);
+      box-shadow: 0 0 8px var(--amber-glow);
+    }
+
+    .phase-indicator.done {
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald-glow);
+    }
+
+    .phase-content {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 13.5px;
+      color: #cbd5e1;
+    }
+
+    .task-checkbox {
+      margin-top: 4px;
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1.5px solid var(--border);
+      background: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .task-item.checked .task-checkbox {
+      border-color: var(--emerald);
+      background: var(--emerald);
+    }
+
+    .task-checkbox::after {
+      content: '✓';
+      color: white;
+      font-size: 10px;
+      font-weight: bold;
+      display: none;
+    }
+
+    .task-item.checked .task-checkbox::after {
+      display: block;
+    }
+
+    .task-item.checked .task-text {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.02);
+      color: white;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    /* Print / PDF Action */
+    .actions-bar {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      background: var(--primary);
+      border: none;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px var(--primary-glow);
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+
+    .btn.secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .btn.secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    @media print {
+      aside {
+        display: none;
+      }
+      main {
+        margin-left: 0;
+        padding: 0;
+      }
+      section {
+        box-shadow: none;
+        border: none;
+        background: transparent;
+        padding: 0;
+        margin-bottom: 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Sidebar -->
+  <aside>
+    <div class="brand">
+      <div class="brand-logo">BT</div>
+      <div class="brand-title">StarterTemplate</div>
+    </div>
+
+    <div class="nav-links">
+      <a href="#purpose" class="active">Purpose</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#caching">caching & stampedes</a>
+      <a href="#hardening">Production Hardening</a>
+      <a href="#roadmap">Capability Roadmap</a>
+      <a href="#decisions">Open Decisions</a>
+    </div>
+
+    <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border);">
+      <button class="btn" onclick="window.print()" style="width: 100%; justify-content: center;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+        Print / Save PDF
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content Panel -->
+  <main>
+    <header>
+      <div>
+        <h1>Living Architecture & Plan</h1>
+        <div class="subtitle">Production-First Roadmap for Enterprise .NET 10 Modular Monolith</div>
+        <div class="header-badges">
+          <span class="badge primary">.NET 10 LTS</span>
+          <span class="badge emerald">C# 14</span>
+          <span class="badge purple">Modular Monolith</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Section 1: Purpose -->
+    <section id="purpose">
+      <h2>
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+        1. Purpose
+      </h2>
+      <p>
+        StarterTemplate is a production-ready template designed to eliminate structural regressions and bootstrap new microservice-like monoliths with enterprise requirements already satisfied. By enforcing modularity, security, and caching constraints at compile-time, we maintain quality even as multiple feature slices scale up.
+      </p>
+    </section>
+
+    <!-- Section 2: Architecture -->
+    <section id="architecture">
+      <h2>
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+        2. Architectural Direction
+      </h2>
+      <p>
+        The solution implements a **logical modular monolith** structure. The frontend targets (Blazor Web & MAUI Mobile) serve as HTTP consumers to the backend controllers API, ensuring zero database connectivity leakage into the UI presentation host.
+      </p>
+
+      <div class="flow-container">
+        <div class="flow-row">
+          <div class="flow-node highlight">ST.UI.Rcl</div>
+        </div>
+        <div class="flow-row">
+          <span class="flow-arrow">▼</span>
+          <span class="flow-arrow">▼</span>
+        </div>
+        <div class="flow-row">
+          <div class="flow-node">ST.UI.Blazor</div>
+          <div class="flow-node">ST.UI.Maui</div>
+        </div>
+        <div class="flow-row">
+          <span class="flow-arrow">▼</span>
+        </div>
+        <div class="flow-row">
+          <div class="flow-node highlight" style="max-width: 300px;">ST.Api (Gateway)</div>
+        </div>
+        <div class="flow-row">
+          <span class="flow-arrow">▼</span>
+        </div>
+        <div class="flow-row">
+          <div class="flow-node">ST.Application</div>
+          <div class="flow-node">ST.Infrastructure</div>
+          <div class="flow-node">ST.Persistence</div>
+        </div>
+        <div class="flow-row">
+          <span class="flow-arrow">▼</span>
+        </div>
+        <div class="flow-row">
+          <div class="flow-node highlight" style="max-width: 250px;">ST.Domain</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Caching & Stampedes -->
+    <section id="caching">
+      <h2>
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        3. Caching Design & Stampede Prevention
+      </h2>
+      <p>
+        To preserve <code>HybridCache</code>'s built-in <strong>stampede protection (request coalescing)</strong>, the cache-aside wrapper in the MediatR pipeline has been refactored. Database-fetching operations must be passed directly into the cache engine factory so concurrent requests for a missing key block and distribute the single database result.
+      </p>
+
+      <pre><code><span class="code-comment">// Refactored Query caching mapping inside CachingBehavior</span>
+<span class="code-keyword">var</span> expiration = query.Expiration ?? TimeSpan.FromMinutes(30);
+
+<span class="code-keyword">return</span> <span class="code-keyword">await</span> _cache.GetOrCreateAsync(
+    cacheKey,
+    <span class="code-keyword">async</span> token => <span class="code-keyword">await</span> next(token),
+    expiration,
+    cancellationToken);</code></pre>
+    </section>
+
+    <!-- Section 4: Production Hardening -->
+    <section id="hardening">
+      <h2>
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        4. Production-First Guidelines
+      </h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Concern</th>
+            <th>Production Practice</th>
+            <th>Benefit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Database Migrations</strong></td>
+            <td>Run via CI/CD using migration binaries (<code>efbundle</code>) as a deployment step. Never use <code>Database.Migrate()</code> on startup.</td>
+            <td>Prevents database deadlocks and schema locks when scaling out multiple API container instances.</td>
+          </tr>
+          <tr>
+            <td><strong>Data Protection API</strong></td>
+            <td>Persist cookies, anti-forgery tokens, and cryptography keys in Azure Blob Storage with Azure Key Vault decryption.</td>
+            <td>Prevents session and anti-forgery invalidation when users hit different scaled container instances.</td>
+          </tr>
+          <tr>
+            <td><strong>L1 Cache Drift</strong></td>
+            <td>Enable Redis pub/sub backplane broadcasting within the <code>HybridCache</code> engine setup.</td>
+            <td>Instantly evicts stale L1 memory entries across all load-balanced API servers on write.</td>
+          </tr>
+          <tr>
+            <td><strong>PII Logging</strong></td>
+            <td>Configure Serilog destructuring policies to block/mask passwords, tokens, and personal identifying data in target logs.</td>
+            <td>Maintains GDPR and SOC2 compliance without manual audit logs cleansing.</td>
+          </tr>
+          <tr>
+            <td><strong>Operational Health</strong></td>
+            <td>Deep active health endpoints that perform query checks against Sql, Redis ping, Key Vault, and Service Bus.</td>
+            <td>Gives accurate indicators to Azure App Gateway / Kubernetes ingress routing tables.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section 5: Roadmap -->
+    <section id="roadmap">
+      <h2>
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+        5. Capability Roadmap
+      </h2>
+
+      <div class="roadmap-list">
+
+        <!-- Phase A -->
+        <div class="phase-card">
+          <div class="phase-header" onclick="togglePhase(this)">
+            <div class="phase-title">
+              <div class="phase-indicator"></div>
+              <span>Phase A: Caching & Monolith Guardrails</span>
+            </div>
+            <span>[Toggle]</span>
+          </div>
+          <div class="phase-content">
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Refactor HybridCacheService to use delegates (restoring stampede protection).</span>
+            </div>
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Wire up Redis backplane pub/sub for eviction message broadcasting.</span>
+            </div>
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Add namespace checks in NetArchTest to restrict cross-module project dependencies.</span>
+            </div>
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Integrate output caching middleware for lookup tables on API routing endpoints.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase B -->
+        <div class="phase-card">
+          <div class="phase-header" onclick="togglePhase(this)">
+            <div class="phase-title">
+              <div class="phase-indicator"></div>
+              <span>Phase B: Observability & Health Checks</span>
+            </div>
+            <span>[Toggle]</span>
+          </div>
+          <div class="phase-content" style="display: none;">
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Implement deep dependency health checks (DB read/writes, cache, service bus).</span>
+            </div>
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Wire Azure Key Vault + Blob Storage backends for ASP.NET Data Protection API.</span>
+            </div>
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Implement Serilog destructuring policy filters to sanitize PII logging.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase C -->
+        <div class="phase-card">
+          <div class="phase-header" onclick="togglePhase(this)">
+            <div class="phase-title">
+              <div class="phase-indicator"></div>
+              <span>Phase C: CI/CD Pipelines & Devops</span>
+            </div>
+            <span>[Toggle]</span>
+          </div>
+          <div class="phase-content" style="display: none;">
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Configure GitHub Actions to compile and execute efbundle migration binaries.</span>
+            </div>
+            <div class="task-item">
+              <div class="task-checkbox" onclick="toggleTask(this)"></div>
+              <span class="task-text">Finalize Docker-compose for SQL Server, Redis, Seq, and RabbitMQ local services.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Section 6: Open Decisions -->
+    <section id="decisions">
+      <h2>
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        6. Open Decisions
+      </h2>
+      <p>
+        <strong>1. Cookie vs Hybrid Authorization in Blazor:</strong> Cookies are highly resilient against XSS attacks, but require a reverse proxy/shared domain setup. JWTs scale more easily across cross-origin microservices.
+      </p>
+      <p>
+        <strong>2. Audit Log Staging:</strong> Map audits to a local DbContext transaction table, or push them asynchronously to a message broker queue to keep write paths fast.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    function togglePhase(element) {
+      const content = element.nextElementSibling;
+      if (content.style.display === "none") {
+        content.style.display = "flex";
+      } else {
+        content.style.display = "none";
+      }
+    }
+
+    function toggleTask(checkbox) {
+      const item = checkbox.parentElement;
+      item.classList.toggle("checked");
+
+      // Update indicators if all checked
+      const card = item.closest(".phase-card");
+      const indicator = card.querySelector(".phase-indicator");
+      const tasks = card.querySelectorAll(".task-item");
+      const checkedTasks = card.querySelectorAll(".task-item.checked");
+
+      if (tasks.length === checkedTasks.length) {
+        indicator.classList.add("done");
+      } else {
+        indicator.classList.remove("done");
+      }
+    }
+
+    // Scroll-spy active navigation highlight
+    window.addEventListener('scroll', () => {
+      let current = '';
+      const sections = document.querySelectorAll('section');
+      const navLinks = document.querySelectorAll('.nav-links a');
+
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        if (pageYOffset >= sectionTop - 150) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + current) {
+          link.classList.add('active');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

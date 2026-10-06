@@ -1,0 +1,347 @@
+@page "/"
+@page "/iam/sign-in"
+@layout AuthLayout
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject NavigationManager Navigation
+@inject ILogger<SignIn> Logger
+@inject ISnackbar Snackbar
+@inject IOptions<BackendApiSettings> BackendApiSettings
+@inject ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces.IAuthService AuthService
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<PageTitle>Sign in | StarterTemplate</PageTitle>
+
+<section class="auth-shell">
+    <div class="auth-copy">
+        <span class="eyebrow">Identity and access</span>
+        <h1>Sign in to the operations console.</h1>
+        <p>
+            This flow talks to the API, stores protected tokens in browser storage, and keeps the UI independent from backend Application internals.
+        </p>
+        <div class="auth-proof">
+            <span>Production path</span>
+            <strong>UI → API → Application → Domain → Persistence</strong>
+        </div>
+    </div>
+
+    <div class="auth-card">
+        <EditForm FormName="@SignInFormName" Model="FormModel" OnValidSubmit="SignInAsync">
+            <DataAnnotationsValidator />
+
+            <div class="form-stack">
+                <div>
+                    <label for="username">Username or email</label>
+                    <InputText id="username" class="form-control form-control-lg" @bind-Value="FormModel!.UserName" autocomplete="username webauthn" />
+                    <ValidationMessage For="@(() => FormModel!.UserName)" />
+                </div>
+
+                <div>
+                    <label for="password">Password</label>
+                    <InputText id="password" type="password" class="form-control form-control-lg" @bind-Value="FormModel!.Password" autocomplete="current-password" />
+                    <ValidationMessage For="@(() => FormModel!.Password)" />
+                </div>
+
+
+                <a class="auth-recovery-link" href="/iam/forgot-password">Forgot password?</a>
+
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="alert">@_message</div>
+                }
+
+                <button class="btn btn-bt-primary btn-lg" type="submit" disabled="@_isBusy">
+                    @(_isBusy ? "Signing in..." : "Sign in")
+                </button>
+
+                <div class="auth-separator" style="text-align: center; margin: 1rem 0;">
+                    <span style="background-color: var(--mud-palette-surface); padding: 0 10px; color: var(--mud-palette-text-secondary); font-size: 0.875rem; text-transform: uppercase;">or</span>
+                </div>
+
+                <button class="btn btn-outline-primary btn-lg w-100 mb-2" type="button" @onclick="SignInWithPasskeyAsync" disabled="@_isBusy">
+                    Sign in with passkey
+                </button>
+
+                @{
+                    var apiBaseUrl = BackendApiSettings.Value.BaseUrl.TrimEnd('/');
+                    var returnUrl = Uri.EscapeDataString($"{Navigation.BaseUri}iam/sso-callback");
+                    var ssoLoginUrl = $"{apiBaseUrl}/api/v1/iam/auth/sso/login?returnUrl={returnUrl}";
+                }
+
+                <a class="btn btn-outline-secondary btn-lg w-100" href="@ssoLoginUrl">
+                    Sign in with Microsoft
+                </a>
+            </div>
+        </EditForm>
+
+        <div class="dev-hint">
+            <span>Local development admin</span>
+            <code>aamodhiambo@gmail.com</code>
+        </div>
+    </div>
+</section>
+
+@code {
+    private const string SignInFormName = "iam-sign-in";
+
+    [SupplyParameterFromForm(FormName = SignInFormName)]
+    private SignInFormModel? FormModel { get; set; }
+
+    private bool _isBusy;
+    private bool _isError;
+    private string? _message;
+
+    // Passkey Conditional UI state
+    private DotNetObjectReference<SignIn>? _dotNetRef;
+    private Guid _conditionalCorrelationId;
+
+    protected override void OnInitialized()
+    {
+        FormModel ??= new();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo(AuthSession.MfaEnrollmentRequired ? "/iam/security" : "/dashboard");
+            return;
+        }
+
+        // Start Conditional UI passkey flow
+        await StartConditionalPasskeyAsync();
+    }
+
+    private async Task StartConditionalPasskeyAsync()
+    {
+        try
+        {
+            // Fire both in parallel: feature-detect (JS/SignalR) and options fetch (HTTP) have zero dependency on each other
+            var isSupportedTask = JSRuntime.InvokeAsync<bool>("webauthn.isConditionalMediationAvailable").AsTask();
+            var optionsTask = AuthService.RequestPasskeyLoginOptionsAsync(new RequestPasskeyLoginOptionsRequest(null));
+
+            await Task.WhenAll(isSupportedTask, optionsTask);
+
+            if (!isSupportedTask.Result)
+            {
+                return;
+            }
+
+            var optionsResponse = optionsTask.Result;
+            if (!optionsResponse.IsSuccess || optionsResponse.Data is null)
+            {
+                return;
+            }
+
+            _conditionalCorrelationId = optionsResponse.Data.CorrelationId;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+
+            // Fire-and-forget: JS calls back into OnConditionalAssertionCompleted when the user taps a passkey
+            _ = JSRuntime.InvokeVoidAsync(
+                "webauthn.startConditionalAssertion",
+                optionsResponse.Data.Options.GetRawText(),
+                _dotNetRef).AsTask();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to start conditional passkey assertion.");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnConditionalAssertionCompleted(System.Text.Json.JsonElement assertionResponse)
+    {
+        try
+        {
+            var request = new ST.SharedKernel.Features.IAM.Users.Dtos.LoginWithPasskeyRequest(
+                null,
+                _conditionalCorrelationId,
+                assertionResponse);
+
+            var response = await AuthSession.SignInWithPasskeyAsync(request);
+            if (!response.IsSuccess || response.Data is null)
+            {
+                await InvokeAsync(() =>
+                {
+                    _isError = true;
+                    _message = GetDisplayMessage(response.Message, "Passkey sign-in failed. Please try again.");
+                    Snackbar.Add(_message, Severity.Error);
+                    StateHasChanged();
+                });
+                return;
+            }
+
+            await InvokeAsync(() =>
+            {
+                Navigation.NavigateTo(AuthSession.MfaEnrollmentRequired ? "/iam/security" : "/dashboard");
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error completing conditional passkey sign-in.");
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        _isBusy = true;
+        _message = null;
+        _isError = false;
+
+        try
+        {
+            var form = FormModel ??= new();
+            var request = new PasswordLoginRequest(form.UserName, form.Password, form.RememberMe, form.ReturnUrl, "blazor-server");
+            var response = await AuthSession.SignInAsync(request);
+
+            if (!response.IsSuccess || response.Data is null)
+            {
+                _isError = true;
+                _message = GetDisplayMessage(response.Message, "We could not sign you in. Please check your username and password.");
+                Snackbar.Add(_message, Severity.Error);
+                return;
+            }
+
+            if (response.Data.Requires2FA)
+            {
+                Navigation.NavigateTo($"/iam/verify-2fa?userId={Uri.EscapeDataString(response.Data.UserId)}");
+                return;
+            }
+
+            if (!AuthSession.IsAuthenticated)
+            {
+                _isError = true;
+                _message = GetDisplayMessage(
+                    AuthSession.LastError,
+                    "Sign in succeeded, but we could not load your profile. Please confirm the API is running and try again.");
+                Snackbar.Add(_message, Severity.Warning);
+                return;
+            }
+
+            Navigation.NavigateTo(AuthSession.MfaEnrollmentRequired ? "/iam/security" : "/dashboard");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Unexpected error while signing in.");
+            _isError = true;
+            _message = "Something went wrong while signing you in. Please try again. If this continues, check the UI logs for the sign-in error.";
+            Snackbar.Add(_message, Severity.Error);
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private static string GetDisplayMessage(string? message, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(message)
+            || string.Equals(message, "Operation Successful", StringComparison.OrdinalIgnoreCase))
+        {
+            return fallback;
+        }
+
+        return UserMessageSanitizer.Normalize(message, fallback);
+    }
+
+    private async Task SignInWithPasskeyAsync()
+    {
+        _isBusy = true;
+        _message = null;
+        _isError = false;
+
+        // Cancel any ongoing conditional UI flow
+        try { await JSRuntime.InvokeVoidAsync("webauthn.cancelConditionalAssertion"); }
+        catch { /* ignore */ }
+
+        try
+        {
+            var form = FormModel ??= new();
+            var optionsResponse = await AuthService.RequestPasskeyLoginOptionsAsync(
+                new RequestPasskeyLoginOptionsRequest(string.IsNullOrWhiteSpace(form.UserName) ? null : form.UserName));
+
+            if (!optionsResponse.IsSuccess || optionsResponse.Data is null)
+            {
+                _isError = true;
+                _message = GetDisplayMessage(optionsResponse.Message, "Could not start passkey login.");
+                Snackbar.Add(_message, Severity.Error);
+                return;
+            }
+
+            var correlationId = optionsResponse.Data.CorrelationId;
+            var assertionJson = await JSRuntime.InvokeAsync<string>(
+                "webauthn.startExplicitAssertion",
+                optionsResponse.Data.Options.GetRawText());
+
+            var assertion = System.Text.Json.JsonDocument.Parse(assertionJson).RootElement;
+
+            var request = new ST.SharedKernel.Features.IAM.Users.Dtos.LoginWithPasskeyRequest(
+                string.IsNullOrWhiteSpace(form.UserName) ? null : form.UserName,
+                correlationId,
+                assertion);
+            var response = await AuthSession.SignInWithPasskeyAsync(request);
+
+            if (!response.IsSuccess || response.Data is null)
+            {
+                _isError = true;
+                _message = GetDisplayMessage(response.Message, "We could not sign you in with your passkey.");
+                Snackbar.Add(_message, Severity.Error);
+                return;
+            }
+
+            if (response.Data.Requires2FA)
+            {
+                Navigation.NavigateTo($"/iam/verify-2fa?userId={Uri.EscapeDataString(response.Data.UserId)}");
+                return;
+            }
+
+            if (!AuthSession.IsAuthenticated)
+            {
+                _isError = true;
+                _message = GetDisplayMessage(
+                    AuthSession.LastError,
+                    "Sign in succeeded, but we could not load your profile. Please confirm the API is running and try again.");
+                Snackbar.Add(_message, Severity.Warning);
+                return;
+            }
+
+            Navigation.NavigateTo(AuthSession.MfaEnrollmentRequired ? "/iam/security" : "/dashboard");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Unexpected error while signing in with passkey.");
+            _isError = true;
+            _message = "Passkey sign-in was cancelled or failed.";
+            Snackbar.Add(_message, Severity.Error);
+
+            // Restart conditional UI for the next attempt
+            _ = StartConditionalPasskeyAsync();
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("webauthn.cancelConditionalAssertion");
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException) { /* circuit torn down */ }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error cancelling conditional passkey on dispose.");
+        }
+
+        _dotNetRef?.Dispose();
+    }
+}

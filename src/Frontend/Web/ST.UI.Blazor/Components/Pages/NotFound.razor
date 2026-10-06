@@ -1,0 +1,21 @@
+@page "/not-found"
+
+<PageTitle>Page not found | StarterTemplate</PageTitle>
+
+<section class="overview-page">
+    <div class="overview-hero">
+        <span class="eyebrow">Navigation</span>
+        <h1>Page not found.</h1>
+        <p>The route you requested is not available in this workspace. Use the navigation menu to return to a configured module.</p>
+    </div>
+
+    <MudPaper Class="poc-panel" Elevation="0">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Route" Class="tile-icon" />
+            <div>
+                <MudText Typo="Typo.subtitle2">Unknown route</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">If this should exist, add the page under the correct bounded-context feature and register the navigation item.</MudText>
+            </div>
+        </MudStack>
+    </MudPaper>
+</section>

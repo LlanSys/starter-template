@@ -1,0 +1,103 @@
+@inject IIamAdminService IamAdminService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" />
+        }
+        else
+        {
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.body2">Select roles assigned to <strong>@DisplayName</strong>.</MudText>
+                <MudGrid Spacing="1">
+                    @foreach (var role in _availableRoles)
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudCheckBox T="bool" Value="@IsSelected(role)" ValueChanged="@((selected) => ToggleRole(role, selected))" Color="Color.Success" Dense="true" Label="@role" />
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="@(_isLoading || _isSaving)" OnClick="SaveAsync">@(_isSaving ? "Saving..." : "Update")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private readonly List<string> _availableRoles = [];
+    private readonly HashSet<string> _selectedRoles = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isLoading = true;
+    private bool _isSaving;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public AdminUserListResponse User { get; set; } = default!;
+
+    private string DisplayName => string.IsNullOrWhiteSpace(User.FullName) ? User.UserName : User.FullName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var rolesResponse = await IamAdminService.GetRolesAsync();
+        var userRolesResponse = await IamAdminService.GetUserRolesAsync(User.Id);
+
+        if (!rolesResponse.IsSuccess || rolesResponse.Data is null)
+        {
+            Snackbar.Add(rolesResponse.Message ?? "We could not load roles.", Severity.Error);
+            _isLoading = false;
+            return;
+        }
+
+        if (!userRolesResponse.IsSuccess || userRolesResponse.Data is null)
+        {
+            Snackbar.Add(userRolesResponse.Message ?? "We could not load user roles.", Severity.Error);
+            _isLoading = false;
+            return;
+        }
+
+        _availableRoles.AddRange(rolesResponse.Data.Select(static role => role.Name).Order(StringComparer.OrdinalIgnoreCase));
+        foreach (var role in userRolesResponse.Data.Roles)
+        {
+            _selectedRoles.Add(role);
+        }
+
+        _isLoading = false;
+    }
+
+    private bool IsSelected(string role) => _selectedRoles.Contains(role);
+
+    private void ToggleRole(string role, bool selected)
+    {
+        if (selected)
+        {
+            _selectedRoles.Add(role);
+            return;
+        }
+
+        _selectedRoles.Remove(role);
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        var response = await IamAdminService.UpdateUserRolesAsync(User.Id, new UpdateUserRolesRequest([.. _selectedRoles.Order(StringComparer.OrdinalIgnoreCase)]));
+        _isSaving = false;
+
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "User role update failed.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("User roles updated.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(response.Data));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

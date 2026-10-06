@@ -1,0 +1,15 @@
+using System;
+using System.Threading.Tasks;
+using ST.Domain.Features.IAM.Menus.Entities;
+using ST.Domain.Shared.Contracts.Common;
+using ST.Persistence.Features.IAM.DataContext;
+using ST.Tests.Integration.TestFixtures;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+namespace ST.Tests.Integration;
+
+public class IamTenantIsolationTests_Postgres : IamTenantIsolationTests<PostgreSqlDbFixture>
+{
+    public IamTenantIsolationTests_Postgres(PostgreSqlDbFixture fixture) : base(fixture) { }
+}

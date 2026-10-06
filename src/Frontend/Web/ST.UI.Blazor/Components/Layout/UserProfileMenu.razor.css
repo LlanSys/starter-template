@@ -1,0 +1,98 @@
+.sidebar-profile {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    flex: 0 0 auto;
+    margin: 0 0.7rem 0.7rem;
+    padding-top: 0.7rem;
+}
+
+.profile-card {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 1rem;
+    color: #fff;
+    display: block;
+    text-decoration: none;
+}
+
+.profile-card summary {
+    align-items: center;
+    cursor: pointer;
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    list-style: none;
+    padding: 0.6rem;
+}
+
+.profile-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.profile-card.loading,
+.sign-in-card {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.6rem;
+}
+
+.profile-avatar {
+    background: #fffaf1 !important;
+    color: #17321f !important;
+    font-weight: 900;
+}
+
+.profile-copy {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.profile-copy strong,
+.profile-card strong {
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-copy small,
+.profile-card span {
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.68rem;
+}
+
+.profile-actions {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.3rem;
+}
+
+.profile-actions a,
+.profile-actions button {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 0.7rem;
+    color: rgba(255, 255, 255, 0.82);
+    display: flex;
+    gap: 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0.48rem 0.55rem;
+    text-align: left;
+    text-decoration: none;
+    width: 100%;
+}
+
+.profile-actions a:hover,
+.profile-actions button:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: #fff;
+}
+
+.profile-actions button {
+    color: #ffd4ce;
+    justify-content: flex-start;
+}

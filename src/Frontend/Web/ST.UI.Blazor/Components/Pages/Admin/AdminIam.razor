@@ -1,0 +1,89 @@
+@page "/admin/iam"
+
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+
+<PageTitle>Identity & Access | StarterTemplate</PageTitle>
+
+<RequireAuthenticated>
+    <section class="dashboard-page">
+        <div class="mb-4">
+            <MudButton Href="/admin" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Admin Center</MudButton>
+        </div>
+
+        <MudPaper Class="poc-panel" Elevation="0">
+            <div class="panel-heading">
+                <h2 style="color: var(--bt-moss); font-weight: 700;">Identity & Access</h2>
+                <div class="d-flex align-center gap-3">
+                    @if (_activeTab == 0 && AuthSession.HasPermission("roles.create"))
+                    {
+                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddModerator" OnClick="OpenRoleCreateDialogAsync">Create role</MudButton>
+                    }
+                    else if (_activeTab == 1 && AuthSession.HasPermission("roles.manage_permissions"))
+                    {
+                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.LockPerson" OnClick="OpenPermissionCreateDialogAsync">Create permission</MudButton>
+                    }
+                    else if (_activeTab == 2 && AuthSession.HasPermission("users.create"))
+                    {
+                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="OpenUserCreateDialogAsync">Create user</MudButton>
+                    }
+                </div>
+            </div>
+
+            <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="bt-catalog-tabs">
+                <MudTabPanel Text="Roles" />
+                <MudTabPanel Text="Permissions" />
+                <MudTabPanel Text="Users" />
+                <MudTabPanel Text="User Devices" />
+            </MudTabs>
+
+            @if (_activeTab == 0)
+            {
+                <AdminRoles @ref="_rolesTab" />
+            }
+            else if (_activeTab == 1)
+            {
+                <AdminPermissions @ref="_permissionsTab" />
+            }
+            else if (_activeTab == 2)
+            {
+                <AdminUsers @ref="_usersTab" />
+            }
+            else if (_activeTab == 3)
+            {
+                <AdminUserDevices />
+            }
+        </MudPaper>
+    </section>
+</RequireAuthenticated>
+
+@code {
+    private int _activeTab;
+    private AdminRoles? _rolesTab;
+    private AdminPermissions? _permissionsTab;
+    private AdminUsers? _usersTab;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await AuthSession.InitializeAsync();
+            StateHasChanged();
+        }
+    }
+
+    private void OnTabChanged(int index)
+    {
+        _activeTab = index;
+    }
+
+    private Task OpenRoleCreateDialogAsync() =>
+        _rolesTab?.OpenCreateDialogAsync() ?? Task.CompletedTask;
+
+    private Task OpenPermissionCreateDialogAsync() =>
+        _permissionsTab?.OpenCreateDialogAsync() ?? Task.CompletedTask;
+
+    private Task OpenUserCreateDialogAsync() =>
+        _usersTab?.OpenCreateDialogAsync() ?? Task.CompletedTask;
+
+}

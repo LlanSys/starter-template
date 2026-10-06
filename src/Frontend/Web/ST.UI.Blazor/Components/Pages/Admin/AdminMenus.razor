@@ -1,0 +1,247 @@
+@page "/admin/menus"
+@rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject IIamAdminService IamAdminService
+@inject IDepartmentService DepartmentService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Menus | StarterTemplate</PageTitle>
+
+<section class="dashboard-page">
+    <div class="mb-4">
+        <MudButton Href="/admin" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Admin Center</MudButton>
+    </div>
+
+    <MudPaper Class="poc-panel" Elevation="0">
+        <div class="panel-heading">
+            <h2 style="color: var(--bt-moss); font-weight: 700;">Menu Catalog</h2>
+            <div class="d-flex align-center gap-3">
+                @if (AuthSession.HasPermission("menus.create"))
+                {
+                    <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.MenuOpen" OnClick="@(() => OpenFormDialogAsync(null))">Create menu</MudButton>
+                }
+            </div>
+        </div>
+
+        <div class="list-toolbar menu-catalog-toolbar">
+            <MudTextField @bind-Value="_searchText"
+                          Placeholder="Search key, title, url, description..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Margin="Margin.Dense"
+                          Variant="Variant.Outlined"
+                          Immediate="true" />
+            <MudSelect @bind-Value="_placementFilter" Label="Placement" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem Value="@("Sidebar")">Sidebar</MudSelectItem>
+                <MudSelectItem Value="@("AdminCenter")">Admin Center</MudSelectItem>
+                <MudSelectItem Value="@("ControlPanel")">Control Panel</MudSelectItem>
+            </MudSelect>
+            <MudSelect T="Guid?" @bind-Value="_departmentFilter" Label="Department" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem T="Guid?" Value="null">Global</MudSelectItem>
+                @foreach (var department in _departments)
+                {
+                    <MudSelectItem T="Guid?" Value="@department.Id">@department.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+        }
+
+        <div class="bt-table-scroll">
+            <MudTable @ref="_table" Items="FilteredMenus" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="100" Height="calc(100vh - 25rem)" Style="min-width: 1100px;" Breakpoint="Breakpoint.None">
+                <HeaderContent>
+                    <MudTh>Title</MudTh>
+                    <MudTh>Placement</MudTh>
+                    <MudTh>Department</MudTh>
+                    <MudTh>Parent</MudTh>
+                    <MudTh>Url</MudTh>
+                    <MudTh>Permission</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Title">
+                        <MudIcon Icon="@MenuIconMapper.Resolve(context.Icon)" Size="Size.Small" Class="me-1" />
+                        @context.Title
+                    </MudTd>
+                    <MudTd DataLabel="Placement">@context.Placement</MudTd>
+                    <MudTd DataLabel="Department">@DepartmentName(context.DepartmentId)</MudTd>
+                    <MudTd DataLabel="Parent">@ParentTitle(context.ParentId)</MudTd>
+                    <MudTd DataLabel="Url">@context.Url</MudTd>
+                    <MudTd DataLabel="Permission">@(context.RequiredPermissionKey ?? "Open")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">@(context.IsActive ? "Active" : "Inactive")</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <TableRowActions OnView="@(() => ShowMenuSummary(context))"
+                                         OnEdit="@(() => OpenFormDialogAsync(context))"
+                                         OnDelete="@(() => ConfirmDeleteAsync(context))"
+                                         CanView="@AuthSession.HasPermission("menus.view")"
+                                         CanEdit="@AuthSession.HasPermission("menus.edit")"
+                                         CanDelete="@AuthSession.HasPermission("menus.delete")" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                </NoRecordsContent>
+                <PagerContent>
+                    <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
+                                      TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
+                                      PageSize="_table?.RowsPerPage ?? 100"
+                                      OnFirstPage="@(() => _table?.NavigateTo(0))"
+                                      OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
+                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+                </PagerContent>
+            </MudTable>
+        </div>
+    </MudPaper>
+</section>
+
+@code {
+    private readonly List<MenuResponse> _menus = [];
+    private readonly List<DepartmentResponse> _departments = [];
+    private bool _isLoading = true;
+    private string? _message;
+    private string? _searchText;
+    private string? _placementFilter;
+    private Guid? _departmentFilter;
+    private MudTable<MenuResponse>? _table;
+
+    private IReadOnlyList<MenuResponse> FilteredMenus =>
+        [.. _menus.Where(menu =>
+            (string.IsNullOrWhiteSpace(_placementFilter) || menu.Placement.Equals(_placementFilter, StringComparison.OrdinalIgnoreCase))
+            && (!_departmentFilter.HasValue || menu.DepartmentId == _departmentFilter)
+            && (string.IsNullOrWhiteSpace(_searchText)
+                || menu.Key.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || menu.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || menu.Description.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || menu.Url.Contains(_searchText, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(menu => menu.Placement)
+            .ThenBy(menu => menu.Title)];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthSession.InitializeAsync();
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/iam/sign-in");
+            return;
+        }
+
+        await LoadDepartmentsAsync();
+        await LoadMenusAsync();
+    }
+
+    private async Task LoadDepartmentsAsync()
+    {
+        var response = await DepartmentService.GetAsync();
+        if (!response.IsSuccess || response.Data is null)
+        {
+            Snackbar.Add(response.Message ?? "We could not load departments.", Severity.Warning);
+            return;
+        }
+
+        _departments.Clear();
+        _departments.AddRange(response.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
+    }
+
+    private async Task LoadMenusAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        var response = await IamAdminService.SearchMenusAsync(new MenuSearchRequest(PageSize: 100));
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _message = response.Message ?? "We could not load menus.";
+            Snackbar.Add(_message, Severity.Error);
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _menus.Clear();
+        _menus.AddRange(response.Data.Items);
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task OpenFormDialogAsync(MenuResponse? menu)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(MenuFormDialog.ExistingMenu), menu },
+            { nameof(MenuFormDialog.Menus), _menus }
+        };
+
+        var dialog = await DialogService.ShowAsync<MenuFormDialog>(
+            menu is null ? "Create Menu" : $"Edit - {menu.Title}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadMenusAsync();
+        }
+    }
+
+    private void ShowMenuSummary(MenuResponse menu)
+        => Snackbar.Add($"{menu.Title}: {menu.Url}", Severity.Info);
+
+    private async Task ConfirmDeleteAsync(MenuResponse menu)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Delete menu {menu.Title}? Child menus must be moved or deleted first." },
+            { nameof(ConfirmDialog.ConfirmText), "Delete" }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Confirm Menu Delete",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
+
+        var result = await dialog.Result;
+        if (result is not { Canceled: false })
+        {
+            return;
+        }
+
+        var response = await IamAdminService.DeleteMenuAsync(menu.Id);
+        if (!response.IsSuccess)
+        {
+            Snackbar.Add(response.Message ?? "Menu delete failed.", Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("Menu deleted.", Severity.Success);
+        await LoadMenusAsync();
+    }
+
+    private string ParentTitle(Guid? parentId)
+        => parentId.HasValue
+            ? _menus.FirstOrDefault(menu => menu.Id == parentId.Value)?.Title ?? "Unknown"
+            : "Root";
+
+    private string DepartmentName(Guid? departmentId)
+        => departmentId.HasValue
+            ? _departments.FirstOrDefault(department => department.Id == departmentId.Value)?.Name ?? "Unknown"
+            : "Global";
+}

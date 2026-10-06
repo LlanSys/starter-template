@@ -1,0 +1,87 @@
+<Project>
+
+  <!--
+  ══════════════════════════════════════════════════════════════════════════════
+    Directory.Build.props
+    Applies to ALL projects in the solution automatically.
+    MSBuild imports this before each .csproj is evaluated.
+
+    Rules:
+      - Properties set here are defaults; individual .csproj files CAN override.
+      - Keep this file focused on UNIVERSAL concerns only.
+      - Do not add package references here — that belongs in Directory.Packages.props.
+  ══════════════════════════════════════════════════════════════════════════════
+  -->
+
+  <PropertyGroup Label="Target Framework">
+    <!-- Single source of truth for the target framework across all projects. -->
+    <!-- Override per-project only when targeting multiple frameworks (e.g. ST.UI.Mobile). -->
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Nullable and Safety">
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+    <NoWarn>CS1591</NoWarn>
+
+    <!-- Enable implicit global usings so common namespaces need no explicit import. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Assembly Metadata">
+    <Company>StarterTemplate</Company>
+    <Product>StarterTemplate</Product>
+    <Copyright>Copyright © $([System.DateTime]::Now.Year) $(Company). All rights reserved.</Copyright>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Build Output">
+    <!-- Deterministic builds: same source → same binary every time. -->
+    <!-- Required for reproducible builds and package auditing. -->
+    <Deterministic>true</Deterministic>
+
+    <!-- Embed all source files into the PDB for Source Link compatibility. -->
+    <EmbedAllSources>true</EmbedAllSources>
+
+    <!-- Continuous Integration: tighten build settings in CI environments. -->
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Analyzers">
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Prefer Any()/AnyAsync() for emptiness checks; keep counting only when the count itself is needed. -->
+    <WarningsAsErrors>$(WarningsAsErrors);CA1827;CA1828;CA1829</WarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1860</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Label="NuGet and Packaging">
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <IsPackable>false</IsPackable>
+    <NuGetAudit>true</NuGetAudit>
+
+    <!-- Audit severity level: fail the build on moderate or higher vulnerabilities. -->
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
+
+    <!-- Audit scope: all dependencies, not just direct references. -->
+    <NuGetAuditMode>all</NuGetAuditMode>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Test Projects" Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <!-- Auto-detect test projects by naming convention: *.Tests.csproj -->
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+
+    <!-- Suppress specific warnings that are common and acceptable in test projects only. -->
+    <!-- CS8602: Dereference of a possibly null reference — tests often assert non-null values. -->
+    <NoWarn>$(NoWarn);CS8602</NoWarn>
+  </PropertyGroup>
+
+</Project>
