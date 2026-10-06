@@ -83,6 +83,10 @@ For PostgreSQL substitute PostgreSql for SqlServer in all three context names. E
 
 Create an account in IAM account administration with selected roles and an explicit initial password. Activate the account, then use Send Invitation. Email delivery must be configured; NoOp delivery deliberately cannot report invitation success. The recipient follows the protected, expiring link and chooses a password. Acceptance confirms email, replaces the initial password, clears the forced password-change flag and revokes prior sessions/refresh tokens. Reusing the link fails. Activation alone preserves the existing password and email confirmation state.
 
+Activation is administrative approval (`IsActive=true`); it preserves credentials, email verification and roles, records the actor and cleans old access. Sending the invitation does not activate the account or sign in the recipient. Acceptance proves possession of the email link, sets the recipient's chosen password, confirms email and revokes that account's prior sessions. A fresh active-but-unverified account cannot sign in until setup is completed. Assigned roles and permissions determine what the recipient can view after signing in.
+
+Acceptance deliberately preserves any other account already signed in in the browser. The completion screen identifies that account and offers an explicit **Sign out and sign in** action. For administrator testing, use a private browser window to sign in as the invited user without disturbing the administrator session. Clicking sign-in in a browser that still has an administrator session otherwise returns to that administrator's workspace.
+
 The invitation URL must use the clone's EmailSettings:ClientBaseUrl. Configure the Blazor AcceptInvitation and IAM UserInvite backend endpoints consistently. LocalMailpit captures local email; no credentials are sent by email. ResetExistingAdminPassword remains an explicit bootstrap operation, separate from account invitation.
 
 ## Find the local administrator credentials

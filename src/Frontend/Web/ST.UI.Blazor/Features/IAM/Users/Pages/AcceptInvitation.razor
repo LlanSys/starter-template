@@ -1,6 +1,8 @@
 @page "/iam/accept-invitation"
 @layout AuthLayout
 @rendermode InteractiveServer
+@inject IAuthSession AuthSession
+@inject NavigationManager Navigation
 @inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient ApiClient
 @inject Microsoft.Extensions.Options.IOptions<ST.UI.Blazor.Configuration.BackendApiSettings> ApiSettings
 
@@ -11,8 +13,15 @@
     <div class="auth-card">
         @if (_completed)
         {
-            <p role="status">Account setup complete.</p>
-            <a href="/iam/sign-in">Sign in</a>
+            <p role="status">Account setup complete. Sign in with the invited account's username or email and the password you just chose.</p>
+            @if (AuthSession.IsAuthenticated)
+            {
+                <p>You are currently signed in as <strong>@AuthSession.CurrentUser?.Email</strong>. Completing this invitation does not switch the signed-in account.</p>
+                <p>Use a private browser window to keep that session, or sign out here to use the invited account.</p>
+            }
+            <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="ContinueToSignInAsync">
+                @(AuthSession.IsAuthenticated ? "Sign out and sign in" : "Sign in")
+            </button>
         }
         else
         {
@@ -37,6 +46,20 @@
     private bool _busy;
     private bool _completed;
 
+    private async Task ContinueToSignInAsync()
+    {
+        _busy = true;
+        try
+        {
+            if (AuthSession.IsAuthenticated) await AuthSession.SignOutAsync();
+            Navigation.NavigateTo("/iam/sign-in", forceLoad: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     private async Task AcceptAsync()
     {
         if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Token) || _password.Length < 8
@@ -53,6 +76,7 @@
                 new AcceptAccountInvitationRequest(UserId, Token, _password, _confirmPassword), requiresAuthentication: false,
                 unavailableMessage: "Account setup is unavailable. Please try again.");
             _completed = response.IsSuccess;
+            if (_completed) await AuthSession.InitializeAsync();
             _message = response.IsSuccess ? null : UserMessageSanitizer.Normalize(response.Message, "The invitation could not be accepted.");
         }
         finally
