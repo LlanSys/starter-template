@@ -4,7 +4,7 @@ StarterTemplate is an independent private repository exported from BaseTemplate.
 
 ## Local configuration
 
-No source secrets are copied. API and Blazor have distinct, regenerated UserSecretsId values. DevelopmentSeed is disabled and administrator credentials and IamProvisioning:TemporaryPassword are blank; configure them through user-secrets before enabling bootstrap. The current employee-linked bootstrap is due for replacement in Phase 1. Do not enable it for a real account yet.
+No source secrets are copied. API and Blazor have distinct, regenerated UserSecretsId values. DevelopmentSeed is disabled and administrator credentials and IamProvisioning:TemporaryPassword are blank; configure them through user-secrets before enabling bootstrap. Bootstrap creates one independent system administrator from AdminUserName/AdminEmail/AdminPassword and TenantId. It seeds only the platform administrator role, keeps existing passwords/lifecycle on reruns, rejects identity/tenant conflicts and disabled/deleted/business-linked accounts, and never deletes other users. ResetExistingAdminPassword is an explicit development action.
 
 Development email uses LocalMailpit. Production provider adapters remain configurable. DataProtection:ApplicationName is StarterTemplate and must be stable after first use.
 
@@ -36,5 +36,5 @@ The export also excludes tracked root workstation SQL/HTTP diagnostics and tempo
 - Blazor Web build passed: 16 warnings, 0 errors.
 - Architecture tests passed: 80/80. Restore reported inherited Roslyn NU1608 dependency constraints.
 - JSON and PowerShell syntax checks passed; both host secret IDs are distinct and do not match the source.
-- GitHub repository created with private visibility; remote verification and disposable rename checks follow before phase closure.
-- Unit tests passed: 37/37. Provider integration tests, mobile build, browser/email smoke and runtime startup are pending future certification gates.
+- Private remote verified; main contains extraction commit 0386bdc800a9c67c1e0b1cf8fe4be7c20410cecd. AZURE_DEPLOYMENT_ENABLED=false is set explicitly. Disposable clean export renamed to RS with no remaining ST source/Docker/MAUI references and new host secret identities.
+- Baseline unit tests passed: 37/37. After the bootstrap slice, 49/49 passed (12 new cases). Provider integration tests, mobile build, browser/email smoke and runtime startup are pending future certification gates.

@@ -261,3 +261,7 @@ EventIds are structured by architectural layer to simplify searching in logs:
 ## StarterTemplate direction approved 2026-10-06
 
 The user selected a new StarterTemplate repository, preserving StarterTemplate as the business-domain reference. The implementation inventory and phase gates are in [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Customer-reference gates below describe the existing reference application; they must not require Banking/HR retention in StarterTemplate. Preserve the current architecture and platform infrastructure. Create the new repository from a reviewed baseline before performing business removal.
+
+## StarterTemplate checkpoint 2026-10-06
+
+Phase 0 is complete: independent private repository, ST identity, clean-source provenance, independent host secret IDs/ports, deployment pause and disposable rename verification. Phase 1 has started with an independent configured bootstrap administrator; 49 unit tests and 80 architecture tests pass, and API/Web build. Remaining account/domain decoupling is tracked in docs/architecture/domain-neutral-refactor-plan.md. This checkpoint does not certify providers, browser flows, mobile or fresh database migrations.

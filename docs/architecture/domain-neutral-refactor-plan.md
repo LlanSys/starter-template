@@ -1,7 +1,7 @@
 # StarterTemplate domain neutral refactor plan
 
 Date: 2026-10-06
-Status: Phase 0 extraction in progress. Business removal has not started.
+Status: Phase 0 complete. Phase 1 bootstrap administrator slice implemented; account decoupling and business removal are still pending.
 Selected source revision: BaseTemplate b25fc820202a7d5d3686624fbd8f80ce9800b834 (merged baseline and isolation/deployment-gate follow-ups).
 
 ## Objective and repository decision
@@ -117,4 +117,15 @@ Retain a readiness item for deployment-specific forwarded-header proxy trust. Pr
 
 Run focused checks per slice and full provider/browser certification at the final gate. Each phase ends in a focused commit/PR with evidence and remaining limits. Do not call the new starter ready based on compilation alone.
 
-Phase 0 remaining: create/verify private remote, verify renamed build/tests and disposable clone rename, commit and push initial baseline. No infrastructure or databases have been started. See ORIGIN.md for provenance and limitations.
+Phase 0 verified: private remote main contains extraction commit 0386bdc800a9c67c1e0b1cf8fe4be7c20410cecd; host IDs, JSON and script syntax, API/Web builds, 80 architecture tests, and a disposable RS-prefix rename passed. The baseline unit suite passed 37 tests. Azure deployment remains disabled. No infrastructure or databases were started. See ORIGIN.md for provenance.
+
+### Phase 1 checkpoint: independent bootstrap administrator
+
+- [x] Replace named Employee-linked bootstrap fixtures with one configured system administrator.
+- [x] Require explicit credentials and nonempty tenant identity when bootstrap is enabled.
+- [x] Preserve existing account lifecycle and passwords on ordinary reruns; password reset is explicit and Identity failures are checked.
+- [x] Reject conflicting tenant/name/email identities, business-linked, disabled and deleted accounts before administrative role writes.
+- [x] Remove bootstrap deletion of unrelated accounts and seed only the platform administrator role.
+- [x] Verify 12 focused cases; full unit suite 49/49 and architecture suite 80/80; API and Web builds passed.
+
+Remaining Phase 1: AppUser business fields and factories, account create/update/search/profile contracts, all authentication/session/claims mappings, business-linked access handlers, Department scope in roles/menus, and neutral permission/menu/catalog seeds. Phase 1 is not closed. Banking/HR fixtures and migrations are retained until their removal phases. SQL Server/PostgreSQL integration and browser/email smoke are pending.
