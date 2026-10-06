@@ -51,7 +51,7 @@ internal sealed class DevelopmentIdentitySeeder(
                 (user.TenantId != _settings.TenantId ||
                  !string.Equals(user.UserName, userName, StringComparison.OrdinalIgnoreCase) ||
                  !string.Equals(user.Email, email, StringComparison.OrdinalIgnoreCase) ||
-                 user.EmployeeId.HasValue || user.CustomerId.HasValue || user.IsDeleted || !user.IsActive))
+                 user.IsDeleted || !user.IsActive))
             {
                 throw new InvalidOperationException("The configured bootstrap identity conflicts with an existing account. Resolve it through account administration.");
             }

@@ -47,7 +47,7 @@ public abstract class TenantIsolationMutationTests<TFixture> : IClassFixture<TFi
         // Seed data for Tenant 1
         using (var seedContext1 = new IamDBContext(_options, new TestTenantProvider { TenantId = tenantId1 }))
         {
-            var menu = MenuItem.Create(null, null, "menu1", "Tenant 1 Menu", "Desc", "/t1", "icon", "left", null, null, 1, "test");
+            var menu = MenuItem.Create(null, "menu1", "Tenant 1 Menu", "Desc", "/t1", "icon", "left", null, null, 1, "test");
             menu.TenantId = tenantId1;
             seedContext1.MenuItems.Add(menu);
             await seedContext1.SaveChangesAsync();
@@ -56,7 +56,7 @@ public abstract class TenantIsolationMutationTests<TFixture> : IClassFixture<TFi
         // Seed data for Tenant 2
         using (var seedContext2 = new IamDBContext(_options, new TestTenantProvider { TenantId = tenantId2 }))
         {
-            var menu = MenuItem.Create(null, null, "menu2", "Tenant 2 Menu", "Desc", "/t2", "icon", "left", null, null, 1, "test");
+            var menu = MenuItem.Create(null, "menu2", "Tenant 2 Menu", "Desc", "/t2", "icon", "left", null, null, 1, "test");
             menu.TenantId = tenantId2;
             seedContext2.MenuItems.Add(menu);
             await seedContext2.SaveChangesAsync();

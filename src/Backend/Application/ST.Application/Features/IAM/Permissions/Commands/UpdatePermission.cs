@@ -33,7 +33,7 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             }
 
             var draft = Permission.Create(
-                command.Request.DepartmentId,
+
                 command.Request.Context,
                 command.Request.Resource,
                 command.Request.Action,
@@ -50,7 +50,7 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             }
 
             permission.Update(
-                command.Request.DepartmentId,
+
                 command.Request.Context,
                 command.Request.Resource,
                 command.Request.Action,

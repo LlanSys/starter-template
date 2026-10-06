@@ -21,11 +21,6 @@ internal sealed class PermissionConfiguration : IEntityTypeConfiguration<Permiss
             .IsUnique()
             .HasDatabaseName("UX_Permissions_Key");
 
-        builder.Property(permission => permission.DepartmentId);
-
-        builder.HasIndex(permission => permission.DepartmentId)
-            .HasDatabaseName("IX_Permissions_DepartmentId");
-
         builder.Property(permission => permission.Context)
             .HasMaxLength(80)
             .IsRequired();

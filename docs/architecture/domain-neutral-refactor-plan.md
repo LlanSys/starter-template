@@ -1,7 +1,7 @@
 # StarterTemplate domain neutral refactor plan
 
 Date: 2026-10-06
-Status: Phase 0 complete. Phase 1 bootstrap and independent account creation/editing implemented; remaining account/auth state and business removal are pending.
+Status: Phases 0–4 implemented. Final certification is in progress; the browser smoke test, clean-clone verification and latest CI are remaining release gates.
 
 ## Objective and repository decision
 
@@ -11,7 +11,7 @@ Keep .NET 10, the modular monolith, Clean Architecture boundaries, bounded-conte
 
 Work exclusively in StarterTemplate. Do not merge or deploy automatically. Keep credentials in user-secrets or deployed secret stores, and give every clone its own repository identity, host secret IDs, ports, infrastructure resources and configuration.
 
-Repository owner/visibility and namespace prefix must be settled before remote creation and renaming. Default recommendation: same owner, private initially; choose a dedicated technical prefix during setup. Use the existing rename script and verify it rather than introducing another packaging system now.
+Approved identity: private `odhiamboally/starter-template`, namespace `ST`, directory `E:\Repos\StarterTemplate`. Use the existing rename script for downstream clones.
 
 ## Retention inventory
 
@@ -101,7 +101,7 @@ Gate: a downstream developer can rename, configure, migrate, run, sign in and in
 
 ## Existing readiness items
 
-The Fido2 4 migration fixes compilation and options generation; it does not certify real authenticator ceremonies. Current credential uniqueness and user-handle ownership callbacks return true. Before passkeys are declared ready in StarterTemplate, replace them with validated credential ownership/uniqueness checks and cover failure cases. Track malformed input, challenge consumption/replay, user verification and tenant scope in that focused follow-up.
+Passkey registration/assertion now require user verification and validate active verified account state, global credential uniqueness, tenant ownership and user handles. Persisted tenant-scoped challenges expire and are consumed once atomically; tests cover malformed requests, foreign tenants and concurrent replay. Physical authenticator ceremonies remain unverified. External SSO and mobile runtime are optional capabilities not exercised in this certification.
 
 Retain a readiness item for deployment-specific forwarded-header proxy trust. Preserve the existing targeted-review findings note and resolve its operational items separately. Dependency/analyzer warnings and mobile runtime checks must be reported honestly.
 
@@ -116,56 +116,15 @@ Retain a readiness item for deployment-specific forwarded-header proxy trust. Pr
 
 Run focused checks per slice and full provider/browser certification at the final gate. Each phase ends in a focused commit/PR with evidence and remaining limits. Do not call the new starter ready based on compilation alone.
 
-Phase 0 verified: independent private repository; host secret IDs, JSON/script syntax, API/Web builds, architecture/unit tests and a disposable namespace rename passed. Azure deployment remains disabled. Setup depends only on StarterTemplate.
+## Current implementation and certification evidence
 
-### Phase 1 checkpoint: independent bootstrap administrator
+- Independent bootstrap and IAM account creation/editing, activation, disabling, invitation and recovery have no business-record dependency. Passwords are never included in invitation emails. Identity failures and event failures roll back supported account writes.
+- Banking and HR source, contracts, services, UI, catalogs, registrations and historical migrations are removed. Department scope is removed from IAM. The retained contexts are IAM, Shared and ControlPlane.
+- Tenant approval is administrative, permission protected and audited. Suspended or unapproved tenants cannot route through cached connection metadata.
+- Six provider-specific InitialStarter migrations target **fresh databases only**. Both providers migrate empty databases, rerun migrations and execute generated idempotent scripts. Shared includes Quartz tables. PostgreSQL uses persisted application concurrency tokens; SQL Server retains native rowversion.
+- All six provider migration scripts and Linux migration bundles generated successfully. Local isolated SQL Server was migrated for Visual Studio host verification. Azure deployment remains disabled.
+- A test-only neutral vertical slice verifies permission protection, tenant isolation and API/Application/Persistence flow without adding a production business module.
+- Automated HTTP and real Mailpit SMTP verify invitation acceptance/replay, bearer sign-in, forbidden access, logout, OTP password recovery, disabled accounts and session/refresh revocation. Configured TOTP and persisted provider concurrency are included in final checks.
+- Final full suites: 131 unit tests, 73 architecture tests and 23 integration tests passed; the normal integration run skipped one opt-in RabbitMQ test, which passed separately against the local broker. API and Blazor builds passed. Configured TOTP enrollment/login/disabled-account rejection and persisted concurrency passed for both providers. Clean renamed clone, browser smoke and latest CI remain pending.
 
-- [x] Replace named Employee-linked bootstrap fixtures with one configured system administrator.
-- [x] Require explicit credentials and nonempty tenant identity when bootstrap is enabled.
-- [x] Preserve existing account lifecycle and passwords on ordinary reruns; password reset is explicit and Identity failures are checked.
-- [x] Reject conflicting tenant/name/email identities, business-linked, disabled and deleted accounts before administrative role writes.
-- [x] Remove bootstrap deletion of unrelated accounts and seed only the platform administrator role.
-- [x] Verify 12 focused cases; full unit suite 49/49 and architecture suite 80/80; API and Web builds passed.
-
-Remaining Phase 1 at the bootstrap checkpoint included response/authentication decoupling, now completed by the neutral-account checkpoint below. The current remaining work is listed in the latest checkpoint. Phase 1 is not closed. Banking/HR fixtures and migrations are retained until their removal phases. SQL Server/PostgreSQL integration and browser/email smoke are pending.
-
-### Phase 1 checkpoint: standalone account administration
-
-- [x] Create/edit request contracts and form no longer accept Employee/Customer links, ID numbers or HR Gender.
-- [x] Creation uses the resolved tenant and calling actor; the handler needs only IAM services.
-- [x] Account, membership and contact profile writes share one IAM transaction; expected Identity failures trigger rollback before returning sanitized responses.
-- [x] Profile editing refuses another tenant's account and preserves lifecycle and audit creator.
-- [x] Validate write requests through shared FluentValidation validators and batch-check selected roles.
-- [x] Account-created domain/integration events carry account/tenant/contact data only.
-- [x] Profile form edits retain all existing memberships; new accounts have no implicit default role.
-
-Verification uses real SQLite transactions for role, profile and event-publication rollback and tenant/identity conflicts. SQL Server/PostgreSQL integration, browser/email flows and fresh migration certification remain separate gates. No entity columns or physical schema were removed in this slice. Existing response fields and legacy account activation paths remain on the checklist.
-
-Verification: API and Blazor builds passed; 62 unit tests (including 13 standalone-account cases) and 80 architecture tests passed. A disposable copy renamed its solution and namespace ST -> CS -> DX, updated prefix metadata and regenerated both host secret identities without ORIGIN.md. Provider/browser certification remains pending.
-
-### Phase 1 checkpoint: neutral account responses and authentication state
-
-- [x] Remove Employee/Customer/Staff identifiers, national ID and HR Gender from account/current-user/admin-list responses.
-- [x] Use one backend account mapper for password, OTP, TOTP, passkey, SSO, refresh and administration; correct the previous positional field mismatch.
-- [x] Preserve actual email confirmation, MFA enrollment, tenant, session, permissions, roles and private profile-image routing in login/current-user state.
-- [x] Remove employee/customer claims and business identity context; retain platform account and tenant identifiers.
-- [x] Remove linked-record labels and category filters from account administration.
-
-Intentional contract change: API and clients use the same StarterTemplate baseline revision. No persisted columns or migrations changed. Existing token/session lifecycle and authentication checks are retained. Full browser/email/passkey/SSO certification remains pending.
-
-Remaining Phase 1: legacy AppUser fields/factories, employee/customer ID search parameters used by temporary employee administration, access-event contracts and grant/revoke/link handlers, independent activation/invitation, Department scope and neutral catalogs. Banking/HR module removal and fresh provider migrations follow in later phases.
-
-Verification for neutral authentication: API and Blazor builds passed; full unit suite 74/74, architecture suite 80/80 and whitespace checks passed. Twelve new mapping/claims/current-user cases cover distinct identity fields, neutral wire shape, platform permissions/session/tenant/MFA state and private image routes. Existing analyzer/package warnings remain. Browser authentication ceremonies and fresh migration certification are pending.
-
-### Phase 1 checkpoint: independent account access lifecycle
-
-- [x] Add activation by IAM account ID through the API, typed client and account actions; use users.edit permission for activation and users.deactivate for deactivation.
-- [x] Require a resolved matching tenant and a non-deleted account for both operations.
-- [x] Preserve password, email verification and memberships when activating; set the existing password-change flag and rotate the security stamp. Repeated activation preserves active sessions and lifecycle audit.
-- [x] Atomically deactivate the account, rotate its security stamp, terminate sessions and revoke refresh tokens. Clean stale access even when the account is already inactive without replacing its original deactivation actor.
-- [x] Use account/tenant/actor access-event contracts without Employee/Customer links and dispatch them before transaction commit.
-- [x] Validate the signed JWT session claim ahead of client headers; revoked API sessions return 401 without cookie sign-out.
-
-Verification: API and Blazor builds passed; unit suite 91/91, architecture suite 80/80, JSON parsing and whitespace checks passed. Seventeen new tests cover lifecycle/credential preservation, tenant/deleted-account rejection, Identity/event failure rollback, session/token cleanup, endpoint permission requirements and revoked/valid bearer sessions. Existing analyzer/package warnings remain.
-
-Remaining Phase 1: invitation/email-confirmation delivery and browser certification, legacy AppUser fields/factories, employee/customer ID search bridge and employee grant/revoke/link handlers, Department scope and neutral catalogs. No invitation was sent, no passwords were emailed or reset by the new activation flow, and no schema or migration changed. Banking/HR removal and fresh provider migration certification remain later phases.
+No merge or deployment is authorized by this plan. Existing package/analyzer warnings, deployment-specific proxy trust and the targeted review operational findings remain documented limitations.

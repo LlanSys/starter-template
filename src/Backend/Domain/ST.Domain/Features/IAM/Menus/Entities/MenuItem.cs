@@ -6,7 +6,7 @@ namespace ST.Domain.Features.IAM.Menus.Entities;
 public sealed class MenuItem : BaseEntity, ISoftDeletable
 {
     public Guid? ParentId { get; private set; }
-    public Guid? DepartmentId { get; private set; }
+
     public string Key { get; private set; } = string.Empty;
     public string Title { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
@@ -27,7 +27,7 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
 
     public static MenuItem Create(
         Guid? parentId,
-        Guid? departmentId,
+
         string key,
         string title,
         string description,
@@ -51,7 +51,7 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
         {
             Id = Guid.CreateVersion7(),
             ParentId = parentId,
-            DepartmentId = departmentId,
+
             Key = NormalizeKey(key),
             Title = title.Trim(),
             Description = description.Trim(),
@@ -67,7 +67,7 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
 
     public void Update(
         Guid? parentId,
-        Guid? departmentId,
+
         string key,
         string title,
         string description,
@@ -89,7 +89,7 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
         ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
 
         ParentId = parentId;
-        DepartmentId = departmentId;
+
         Key = NormalizeKey(key);
         Title = title.Trim();
         Description = description.Trim();

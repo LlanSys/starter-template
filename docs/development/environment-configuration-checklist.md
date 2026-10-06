@@ -80,7 +80,7 @@ dotnet user-secrets set "PasswordRecovery:Mode" "EmailOtp" --project src\Backend
 
 # Alternative deployment mode:
 dotnet user-secrets set "PasswordRecovery:Mode" "EmailLink" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "EmailSettings:ClientBaseUrl" "https://localhost:7049" --project src\Backend\Api\ST.Api\ST.Api.csproj
+dotnet user-secrets set "EmailSettings:ClientBaseUrl" "https://localhost:7149" --project src\Backend\Api\ST.Api\ST.Api.csproj
 ```
 
 Local email should normally be captured by Mailpit through the setup script:
@@ -104,8 +104,8 @@ dotnet user-secrets set "Payments:Provider" "NoOp" --project src\Backend\Api\ST.
 dotnet user-secrets set "Payments:Provider" "Stripe" --project src\Backend\Api\ST.Api\ST.Api.csproj
 dotnet user-secrets set "Payments:Stripe:SecretKey" "<stripe-secret-key>" --project src\Backend\Api\ST.Api\ST.Api.csproj
 dotnet user-secrets set "Payments:Stripe:WebhookSigningSecret" "<stripe-webhook-signing-secret>" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "Payments:Stripe:SuccessUrl" "https://localhost:7049/payments/success" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "Payments:Stripe:CancelUrl" "https://localhost:7049/payments/cancel" --project src\Backend\Api\ST.Api\ST.Api.csproj
+dotnet user-secrets set "Payments:Stripe:SuccessUrl" "https://localhost:7149/payments/success" --project src\Backend\Api\ST.Api\ST.Api.csproj
+dotnet user-secrets set "Payments:Stripe:CancelUrl" "https://localhost:7149/payments/cancel" --project src\Backend\Api\ST.Api\ST.Api.csproj
 
 # M-Pesa Daraja
 dotnet user-secrets set "Payments:Provider" "Mpesa" --project src\Backend\Api\ST.Api\ST.Api.csproj

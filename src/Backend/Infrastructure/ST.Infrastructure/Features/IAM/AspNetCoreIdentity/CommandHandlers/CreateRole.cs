@@ -26,11 +26,11 @@ internal sealed class CreateRole(RoleManager<AppRole> roleManager, ILogger<Creat
                 return AppResponses.Failure<AdminRoleListResponse>("A role with this name already exists.");
             }
 
-            var role = new AppRole { Name = roleName, DepartmentId = command.Request.DepartmentId };
+            var role = new AppRole { Name = roleName };
             var result = await roleManager.CreateAsync(role).ConfigureAwait(false);
 
             return result.Succeeded
-                ? AppResponses.Success("Role created.", new AdminRoleListResponse(role.Id, role.Name ?? roleName, role.NormalizedName ?? roleName.ToUpperInvariant(), role.DepartmentId, role.DepartmentId.HasValue ? "Department-scoped" : "Global", 0))
+                ? AppResponses.Success("Role created.", new AdminRoleListResponse(role.Id, role.Name ?? roleName, role.NormalizedName ?? roleName.ToUpperInvariant(), 0))
                 : AppResponses.Failure<AdminRoleListResponse>(string.Join(", ", result.Errors.Select(static error => error.Description)));
         }
         catch (Exception ex)

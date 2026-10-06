@@ -12,7 +12,7 @@ public static class MenuMapping
         return new MenuResponse(
             menu.Id,
             menu.ParentId,
-            menu.DepartmentId,
+
             menu.Key,
             menu.Title,
             menu.Description,

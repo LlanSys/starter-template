@@ -57,10 +57,10 @@ internal sealed class InitiatePaymentHandler(
         var paymentId = Guid.CreateVersion7();
 
         // Extract a human-readable, collision-resistant reference using the current date and the Guid's entropy
-        // Format example: BT-STR-USD-260709-A1B2C3
+        // Format example: ST-STR-USD-260709-A1B2C3
         var timestamp = DateTimeOffset.UtcNow.ToString("yyMMdd", CultureInfo.InvariantCulture);
         var uniqueSuffix = paymentId.ToString("N")[^6..].ToUpperInvariant();
-        var customerReference = $"BT-{providerPrefix}-{req.Currency}-{timestamp}-{uniqueSuffix}";
+        var customerReference = $"ST-{providerPrefix}-{req.Currency}-{timestamp}-{uniqueSuffix}";
 
         var money = new Money(request.Request.Amount, request.Request.Currency);
         var paymentRecord = new PaymentRecord(

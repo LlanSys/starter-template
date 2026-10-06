@@ -1,10 +1,11 @@
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
+using ST.Infrastructure.Configuration;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using ST.Persistence.Features.Banking.DataContext;
 using ST.Persistence.Features.ControlPlane.DataContext;
-using ST.Persistence.Features.HR.DataContext;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.Shared.DataContext;
 using Microsoft.AspNetCore.Authentication;
@@ -34,6 +35,8 @@ namespace ST.Tests.Integration.TestFixtures;
 public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly MsSqlContainer _dbContainer;
+    private readonly IContainer _mailpit;
+    internal Uri MailpitApi => new($"http://{_mailpit.Hostname}:{_mailpit.GetMappedPublicPort(8025)}");
     private string _containerConnectionString = string.Empty;
 
     public StarterTemplateWebApplicationFactory()
@@ -48,6 +51,11 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         // Force test configuration early so builder.Configuration reads it in Program.cs
         Environment.SetEnvironmentVariable("CacheSettings__Provider", "Memory");
         Environment.SetEnvironmentVariable("DevelopmentSeed__Enabled", "false");
+        Environment.SetEnvironmentVariable("JwtSettings__SecretKey", "StarterCertificationOnlySigningKey012345678901234567890123456789");
+
+        _mailpit = new ContainerBuilder().WithImage("axllent/mailpit:v1.27")
+            .WithPortBinding(1025, true).WithPortBinding(8025, true)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(1025)).Build();
 
         _dbContainer = new MsSqlBuilder()
             .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
@@ -78,12 +86,24 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             // ── 1. Auth: replace real JWT/Cookie stack with test-header-based handler ──
             services.AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = TestAuthHandler.AuthenticationScheme;
-                options.DefaultChallengeScheme = TestAuthHandler.AuthenticationScheme;
+                options.DefaultAuthenticateScheme = "Certification";
+                options.DefaultChallengeScheme = "Certification";
             })
             .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                 TestAuthHandler.AuthenticationScheme,
-                options => { });
+                options => { })
+            .AddPolicyScheme("Certification", null, options => options.ForwardDefaultSelector = context =>
+                context.Request.Headers.Authorization.ToString().StartsWith(TestAuthHandler.AuthenticationScheme, StringComparison.Ordinal)
+                    ? TestAuthHandler.AuthenticationScheme : Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme);
+            services.Configure<EmailSettings>(options =>
+            {
+                options.Provider = "LocalMailpit";
+                options.ClientBaseUrl = "https://starter.certification.test/";
+                options.FromAddress = "starter@example.test";
+                options.LocalMailpit.Host = _mailpit.Hostname;
+                options.LocalMailpit.Port = _mailpit.GetMappedPublicPort(1025);
+            });
+
 
             // ── 2. Rewire ALL bounded-context DbContexts to the Testcontainer ──────────
             //
@@ -94,8 +114,12 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             RewireDbContext<ControlPlaneDBContext, ControlPlaneSqlServerDBContext>(services, _containerConnectionString);
             RewireDbContext<IamDBContext, IamSqlServerDBContext>(services, _containerConnectionString);
             RewireDbContext<SharedDBContext, SharedSqlServerDBContext>(services, _containerConnectionString);
-            RewireDbContext<HrDBContext, HrSqlServerDBContext>(services, _containerConnectionString);
-            RewireDbContext<BankingDBContext, BankingSqlServerDBContext>(services, _containerConnectionString);
+            services.AddControllers().AddApplicationPart(typeof(ST.Tests.Integration.NeutralSlice.NeutralSliceController).Assembly);
+            services.AddDbContext<ST.Tests.Integration.NeutralSlice.NeutralSliceDBContext>(options => options.UseSqlServer(_containerConnectionString));
+            services.AddScoped<ST.Tests.Integration.NeutralSlice.NeutralSliceUnitOfWork>();
+            services.AddTransient<MediatR.IRequestHandler<ST.Tests.Integration.NeutralSlice.CreateNeutralNote, Guid>, ST.Tests.Integration.NeutralSlice.CreateNeutralNoteHandler>();
+            services.AddTransient<MediatR.IRequestHandler<ST.Tests.Integration.NeutralSlice.ReadNeutralNote, string?>, ST.Tests.Integration.NeutralSlice.ReadNeutralNoteHandler>();
+
         });
     }
 
@@ -108,7 +132,9 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         // Remove existing DbContextOptions descriptors registered by Program.cs
         var descriptorsToRemove = services
             .Where(d =>
-                d.ServiceType == typeof(DbContextOptions<TContext>)
+                d.ServiceType == typeof(Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptionsConfiguration<TContext>)
+             || d.ServiceType == typeof(Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptionsConfiguration<TSqlServerContext>)
+             || d.ServiceType == typeof(DbContextOptions<TContext>)
              || d.ServiceType == typeof(DbContextOptions<TSqlServerContext>))
             .ToList();
         foreach (var d in descriptorsToRemove)
@@ -133,6 +159,7 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
     {
         // Step 1: Start the container — must happen before anything else.
         await _dbContainer.StartAsync();
+        await _mailpit.StartAsync();
         var rawCs = _dbContainer.GetConnectionString();
         _containerConnectionString = rawCs.TrimEnd(';') + ";TrustServerCertificate=True;Encrypt=False;";
 
@@ -156,12 +183,12 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         await sp.GetRequiredService<ControlPlaneDBContext>().Database.EnsureCreatedAsync();
         await CreateTablesAsync(sp.GetRequiredService<IamDBContext>());
         await CreateTablesAsync(sp.GetRequiredService<SharedDBContext>());
-        await CreateTablesAsync(sp.GetRequiredService<HrDBContext>());
-        await CreateTablesAsync(sp.GetRequiredService<BankingDBContext>());
+        await CreateTablesAsync(sp.GetRequiredService<ST.Tests.Integration.NeutralSlice.NeutralSliceDBContext>());
     }
 
     new public async Task DisposeAsync()
     {
+        await _mailpit.DisposeAsync();
         await _dbContainer.StopAsync();
         await _dbContainer.DisposeAsync();
     }

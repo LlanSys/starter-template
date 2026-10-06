@@ -1,7 +1,5 @@
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
-using ST.Domain.Features.Banking.Contracts;
-using ST.Domain.Features.HR.Contracts;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;

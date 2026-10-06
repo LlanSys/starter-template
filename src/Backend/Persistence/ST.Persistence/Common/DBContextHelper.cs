@@ -1,5 +1,3 @@
-using ST.Domain.Features.Banking.Contracts;
-using ST.Domain.Features.HR.Contracts;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
@@ -32,6 +30,7 @@ internal static class DBContextHelper
                 if (rowVersionProp != null)
                 {
                     rowVersionProp.SetDefaultValue(Array.Empty<byte>());
+                    rowVersionProp.ValueGenerated = ValueGenerated.Never;
                 }
 
                 foreach (var index in entityType.GetIndexes())
@@ -61,6 +60,29 @@ internal static class DBContextHelper
 
             ApplyQueryFilters(modelBuilder, entityType, context);
             ApplyCursorPagination(modelBuilder, entityType);
+        }
+    }
+
+    public static void ConfigurePostgreSqlConcurrency(ModelBuilder modelBuilder)
+    {
+        foreach (var entity in modelBuilder.Model.GetEntityTypes())
+        {
+            var property = entity.FindProperty(nameof(BaseEntity.RowVersion));
+            if (property is null) continue;
+            property.SetDefaultValue(Array.Empty<byte>());
+            property.ValueGenerated = ValueGenerated.Never;
+        }
+    }
+
+    public static void StampPostgreSqlConcurrency(DbContext context)
+    {
+        if (!context.Database.IsNpgsql()) return;
+        foreach (var entry in context.ChangeTracker.Entries()
+            .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+        {
+            var property = entry.Metadata.FindProperty(nameof(BaseEntity.RowVersion));
+            if (property is not null)
+                entry.Property(property.Name).CurrentValue = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
         }
     }
 

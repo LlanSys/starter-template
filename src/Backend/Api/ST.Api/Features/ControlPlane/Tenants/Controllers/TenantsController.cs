@@ -58,10 +58,10 @@ public sealed class TenantsController(ISender sender) : BaseController
     public async Task<IActionResult> SuspendTenant(Guid id)
         => HandleResponse(await sender.Send(new SuspendTenantCommand(id)).ConfigureAwait(false));
 
-    [HttpPost("{id:guid}/approve-kyc")]
+    [HttpPost("{id:guid}/approve")]
     [RequirePermission("control_plane.manage")]
-    public async Task<IActionResult> ApproveKYC(Guid id)
-        => HandleResponse(await sender.Send(new ApproveTenantKYCCommand(id)).ConfigureAwait(false));
+    public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
+        => HandleResponse(await sender.Send(new ApproveTenantCommand(id), cancellationToken).ConfigureAwait(false));
 
     [HttpPost("{id:guid}/modules")]
     [RequirePermission("control_plane.manage")]

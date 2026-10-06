@@ -17,9 +17,9 @@
 
     <MudPaper Class="poc-panel" Elevation="0">
         <div class="panel-heading">
-            <h2 style="color: var(--bt-moss); font-weight: 700;">Tenant List</h2>
+            <h2 style="color: var(--st-moss); font-weight: 700;">Tenant List</h2>
             <div class="d-flex align-center gap-3">
-                @if (AuthSession.HasPermission("controlplane.manage"))
+                @if (AuthSession.HasPermission("control_plane.manage"))
                 {
                     <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Business" OnClick="@(() => OpenFormDialogAsync(null))">Create tenant</MudButton>
                 }
@@ -36,7 +36,7 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable @ref="_table" Items="_tenants" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 25rem)" Style="min-width: 900px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh Style="width: 15rem;">Name</MudTh>
@@ -56,7 +56,7 @@
                     </MudTd>
                     <MudTd DataLabel="Actions">
                         <TableRowActions OnEdit="@(() => OpenFormDialogAsync(context))"
-                                         CanEdit="@AuthSession.HasPermission("controlplane.manage")"
+                                         CanEdit="@AuthSession.HasPermission("control_plane.manage")"
                                          CanView="true"
                                          OnView="@(() => Snackbar.Add($"Tenant: {context.DisplayName} ({context.Status})", Severity.Info))"
                                          CanDelete="false"
@@ -156,22 +156,22 @@
         {
             await OpenImpersonateDialogAsync(tenant);
         }
-        else if (action == "Verify KYC")
+        else if (action == "Approve tenant")
         {
-            await ConfirmVerifyKYCAsync(tenant);
+            await ConfirmApproveAsync(tenant);
         }
     }
 
     private IReadOnlyList<string> GetExtraActions(TenantResponse tenant)
     {
         var actions = new List<string>();
-        if (AuthSession.HasPermission("controlplane.manage"))
+        if (AuthSession.HasPermission("control_plane.manage"))
         {
             actions.Add("Manage modules");
 
-            if (tenant.Status == "PendingKYC")
+            if (tenant.Status == "PendingApproval")
             {
-                actions.Add("Verify KYC");
+                actions.Add("Approve tenant");
             }
             else if (tenant.Status == "Active")
             {
@@ -259,30 +259,30 @@
         await LoadTenantsAsync();
     }
 
-    private async Task ConfirmVerifyKYCAsync(TenantResponse tenant)
+    private async Task ConfirmApproveAsync(TenantResponse tenant)
     {
         var parameters = new DialogParameters
         {
-            { nameof(ConfirmDialog.Message), $"Verify KYC for tenant {tenant.DisplayName}? This will approve them for infrastructure provisioning." },
+            { nameof(ConfirmDialog.Message), $"Approve tenant {tenant.DisplayName}? This will approve them for infrastructure provisioning." },
             { nameof(ConfirmDialog.ConfirmText), "Verify" }
         };
 
         var dialog = await DialogService.ShowAsync<ConfirmDialog>(
-            "Confirm KYC Verification",
+            "Confirm Tenant Approval",
             parameters,
             new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
 
         var result = await dialog.Result;
         if (result is not { Canceled: false }) return;
 
-        var response = await TenantService.ApproveKYCAsync(tenant.Id);
+        var response = await TenantService.ApproveAsync(tenant.Id);
         if (!response.IsSuccess)
         {
-            Snackbar.Add(response.Message ?? "Tenant KYC verification failed.", Severity.Error);
+            Snackbar.Add(response.Message ?? "Tenant approval failed.", Severity.Error);
             return;
         }
 
-        Snackbar.Add($"KYC verified for {tenant.DisplayName}. Provisioning started.", Severity.Success);
+        Snackbar.Add($"Tenant approved for {tenant.DisplayName}. Provisioning started.", Severity.Success);
         await LoadTenantsAsync();
     }
 

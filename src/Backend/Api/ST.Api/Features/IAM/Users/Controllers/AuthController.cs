@@ -18,6 +18,12 @@ namespace ST.Api.Features.IAM.Users.Controllers;
 [ApiController]
 public sealed class AuthController(ISender sender) : BaseController
 {
+    [HttpPost("invitation/accept")]
+    [AllowAnonymous]
+    [EnableRateLimiting("TwoFactorPolicy")]
+    public async Task<IActionResult> AcceptInvitation(AcceptAccountInvitationRequest request, CancellationToken cancellationToken)
+        => HandleResponse(await sender.Send(new AcceptAccountInvitationCommand(request), cancellationToken).ConfigureAwait(false));
+
     [HttpPost("login")]
     [AllowAnonymous]
     [EnableRateLimiting("LoginPolicy")]

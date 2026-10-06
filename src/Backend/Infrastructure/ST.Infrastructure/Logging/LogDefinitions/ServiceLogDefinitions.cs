@@ -164,8 +164,6 @@ internal static partial class ServiceLogDefinitions
     [LoggerMessage(EventId = 3480, Level = LogLevel.Error, Message = "Error disabling TOTP for user: {UserId}")]
     public static partial void LogTotpDisableError(ILogger logger, string userId, Exception ex);
 
-    [LoggerMessage(EventId = 3448, Level = LogLevel.Information, Message = "System access granted to employee {EmployeeId} by {GrantedBy}")]
-    public static partial void LogEmployeeSystemAccessGranted(ILogger logger, string employeeId, string grantedBy);
 
     [LoggerMessage(EventId = 3449, Level = LogLevel.Error, Message = "Failed to create user session for user {UserId}")]
     public static partial void LogFailedToCreateUserSession(ILogger logger, string userId);
@@ -218,8 +216,6 @@ internal static partial class ServiceLogDefinitions
     [LoggerMessage(EventId = 3468, Level = LogLevel.Error, Message = "Failed to enqueue background job {RequestType}")]
     public static partial void LogBackgroundJobEnqueueError(ILogger logger, string requestType, Exception ex);
 
-    [LoggerMessage(EventId = 3469, Level = LogLevel.Error, Message = "Error granting system access to employee {EmployeeId}")]
-    public static partial void LogGrantEmployeeSystemAccessError(ILogger logger, string employeeId, Exception ex);
 
     [LoggerMessage(EventId = 3470, Level = LogLevel.Warning, Message = "JWT authentication failed: {Reason}")]
     public static partial void LogJwtAuthenticationFailed(ILogger logger, string reason, Exception ex);

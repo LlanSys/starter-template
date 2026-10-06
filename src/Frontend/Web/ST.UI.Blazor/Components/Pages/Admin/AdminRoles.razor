@@ -25,11 +25,11 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable @ref="_table" Items="FilteredRoles" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 24rem)" Style="min-width: 760px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh>Role</MudTh>
-                    <MudTh>Scope</MudTh>
+
                     <MudTh>Normalized</MudTh>
                     <MudTh>Users</MudTh>
                     <MudTh>Status</MudTh>
@@ -37,7 +37,7 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Role">@context.Name</MudTd>
-                    <MudTd DataLabel="Scope">@context.DepartmentName</MudTd>
+
                     <MudTd DataLabel="Normalized">@context.NormalizedName</MudTd>
                     <MudTd DataLabel="Users">@context.UserCount</MudTd>
                     <MudTd DataLabel="Status">

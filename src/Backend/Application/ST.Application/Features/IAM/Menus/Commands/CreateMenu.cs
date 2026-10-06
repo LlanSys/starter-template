@@ -36,14 +36,14 @@ internal sealed class CreateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
                 }
 
                 if (!string.Equals(parent.Placement, request.Placement, StringComparison.OrdinalIgnoreCase)
-                    || parent.DepartmentId != request.DepartmentId)
+                   )
                 {
-                    return AppResponses.Failure<MenuResponse>("Parent menu must use the same placement and department scope.");
+                    return AppResponses.Failure<MenuResponse>("Parent menu must use the same placement.");
                 }
             }
 
             var key = Slugify(request.Title);
-            var menu = MenuItem.Create(request.ParentId, request.DepartmentId, key, request.Title, request.Description, request.Url, request.Icon, request.Placement, request.RequiredPermissionKey, request.RequiredModule, request.DisplayOrder, command.UserId);
+            var menu = MenuItem.Create(request.ParentId, key, request.Title, request.Description, request.Url, request.Icon, request.Placement, request.RequiredPermissionKey, request.RequiredModule, request.DisplayOrder, command.UserId);
             var duplicate = await unitOfWork.MenuRepository
                 .AnyAsync(existing => existing.Key == menu.Key, cancellationToken)
                 .ConfigureAwait(false);

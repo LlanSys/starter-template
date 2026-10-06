@@ -6,7 +6,7 @@ public sealed record MenuSearchRequest(
     string? GlobalSearch = null,
     string? Placement = null,
     Guid? ParentId = null,
-    Guid? DepartmentId = null,
+
     bool? IsActive = null,
     Guid? Cursor = null,
     int PageSize = 100)
@@ -17,7 +17,7 @@ public sealed record MenuSearchRequest(
         Add(parameters, nameof(GlobalSearch), GlobalSearch);
         Add(parameters, nameof(Placement), Placement);
         Add(parameters, nameof(ParentId), ParentId?.ToString());
-        Add(parameters, nameof(DepartmentId), DepartmentId?.ToString());
+
         Add(parameters, nameof(IsActive), IsActive?.ToString());
         Add(parameters, nameof(Cursor), Cursor?.ToString());
         Add(parameters, nameof(PageSize), PageSize.ToString(CultureInfo.InvariantCulture));

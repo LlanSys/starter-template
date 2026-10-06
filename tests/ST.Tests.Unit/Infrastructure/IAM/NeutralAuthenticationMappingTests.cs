@@ -124,8 +124,8 @@ public sealed class NeutralAuthenticationMappingTests
     private static AppUser Account()
     {
         var user = AppUser.CreateAccount(Guid.CreateVersion7(), "username", "first", "last", "mail@example.test", "+254700000000", "actor");
-        user.EmployeeId = Guid.CreateVersion7();
-        user.CustomerId = Guid.CreateVersion7();
+
+
         user.TwoFactorEnabled = true;
         user.RequirePasswordChange = true;
         user.LastLoginAt = DateTimeOffset.UtcNow;

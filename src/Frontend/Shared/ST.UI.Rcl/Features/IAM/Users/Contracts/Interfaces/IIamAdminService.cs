@@ -14,6 +14,7 @@ public interface IIamAdminService
 
     Task<AppResponse<AdminUserListResponse>> UpdateUserAsync(string userId, UpdateAdminUserRequest request);
 
+    Task<AppResponse<bool>> InviteUserAsync(string userId);
     Task<AppResponse<bool>> ActivateUserAsync(string userId);
 
     Task<AppResponse<bool>> DeactivateUserAsync(string userId, DeactivateUserRequest request);
@@ -26,9 +27,7 @@ public interface IIamAdminService
 
     Task<AppResponse<UserPermissionsResponse>> UpdateUserPermissionsAsync(string userId, UpdateUserPermissionsRequest request);
 
-    Task<AppResponse<bool>> GrantEmployeeSystemAccessAsync(Guid employeeId, GrantEmployeeSystemAccessRequest request);
 
-    Task<AppResponse<bool>> RevokeEmployeeSystemAccessAsync(Guid employeeId, DeactivateUserRequest request);
 
     Task<AppResponse<IReadOnlyList<AdminRoleListResponse>>> GetRolesAsync();
 

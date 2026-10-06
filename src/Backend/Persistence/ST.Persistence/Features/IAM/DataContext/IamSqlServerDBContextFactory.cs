@@ -10,7 +10,7 @@ public class IamSqlServerDBContextFactory : IDesignTimeDbContextFactory<IamSqlSe
     {
         var configuration = DesignTimeConfigurationFactory.Create();
         var optionsBuilder = new DbContextOptionsBuilder<IamSqlServerDBContext>();
-        var connectionString = DesignTimeConfigurationFactory.GetConnectionString(configuration, "IamConnection");
+        var connectionString = DesignTimeConfigurationFactory.GetConnectionString(configuration, "IamConnection", fallbackConnectionName: "DefaultSqlConnection");
 
         optionsBuilder.UseSqlServer(
             connectionString,

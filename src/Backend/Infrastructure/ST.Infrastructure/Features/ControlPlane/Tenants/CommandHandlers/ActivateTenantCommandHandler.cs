@@ -42,7 +42,12 @@ public class ActivateTenantCommandHandler : IRequestHandler<ActivateTenantComman
             return AppResponses.Failure<TenantResponse>("Tenant not found.");
         }
 
-        tenant.Status = TenantStatus.Active;
+        if (tenant.Status != TenantStatus.Suspended)
+        {
+            return AppResponses.Failure<TenantResponse>("Only a suspended tenant can be reactivated. New tenants require approval and provisioning.");
+        }
+
+        tenant.MarkAsActive();
         tenant.UpdatedAt = DateTimeOffset.UtcNow;
         tenant.UpdatedBy = _actorProvider.ActorId;
 

@@ -1,15 +1,3 @@
-global using ST.Domain.Features.Banking.Contracts;
-global using ST.Domain.Features.Banking.Customers.Contracts.Repositories;
-global using ST.Domain.Features.Banking.Customers.Contracts.Specifications;
-global using ST.Domain.Features.Banking.Customers.Entities;
-global using ST.Domain.Features.Banking.Customers.Enums;
-global using ST.Domain.Features.Banking.Customers.Events;
-global using ST.Domain.Features.Banking.Customers.ValueObjects;
-global using ST.Domain.Features.HR.Contracts;
-global using ST.Domain.Features.HR.Employees.Contracts.Repositories;
-global using ST.Domain.Features.HR.Employees.Entities;
-global using ST.Domain.Features.HR.Employees.Enums;
-global using ST.Domain.Features.HR.Employees.Events;
 global using ST.Domain.Features.IAM.Contracts;
 global using ST.Domain.Features.IAM.Users.Contracts.Repositories;
 global using ST.Domain.Features.IAM.Users.Entities;

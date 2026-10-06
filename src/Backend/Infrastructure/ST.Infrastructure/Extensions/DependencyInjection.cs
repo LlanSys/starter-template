@@ -6,13 +6,9 @@ using ST.Application.Features.Shared.FeatureFlags.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.Application.Features.Shared.Payments.Contracts.Interfaces;
 using ST.Application.Features.Shared.Reporting.Contracts.Interfaces;
-using ST.Domain.Features.Banking.Contracts;
-using ST.Domain.Features.HR.Contracts;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
-using ST.Domain.Features.Banking.Customers.Contracts.Repositories;
-using ST.Domain.Features.HR.Employees.Contracts.Repositories;
 using ST.Domain.Features.IAM.Users.Contracts.Repositories;
 using ST.Domain.Shared.Contracts.Repositories;
 using ST.Domain.Shared.Contracts.Settings;
@@ -27,14 +23,10 @@ using ST.Infrastructure.Features.Shared.Notifications.Contracts.Implementations.
 using ST.Infrastructure.Features.Shared.Payments.Contracts.Implementations;
 using ST.Infrastructure.Features.Shared.Reporting.Contracts.Implementations;
 using ST.Infrastructure.Contracts.Interfaces;
-using ST.Infrastructure.Features.Banking.Customers.EmailComposers;
-using ST.Infrastructure.Features.HR.Employees.EmailComposers;
 using ST.Infrastructure.Logging;
 using ST.Infrastructure.Logging.Enrichers;
 using ST.Infrastructure.Middleware;
 using ST.Infrastructure.Utilities;
-using ST.Application.Features.Banking.Customers.IntegrationEvents;
-using ST.Application.Features.HR.Employees.IntegrationEvents;
 using ST.Application.Features.IAM.Users.IntegrationEvents;
 using FluentValidation;
 using MassTransit;
@@ -83,71 +75,70 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(configuration, nameof(configuration));
 
-            services.AddSingleton(JsonSerializerOptionsFactory.Create());
-            services.Configure<ObservabilitySettings>(configuration.GetSection(ObservabilitySettings.SectionName));
-            services.Configure<AuthProviderSettings>(configuration.GetSection(AuthProviderSettings.SectionName));
-            services.Configure<ApiSettings>(configuration.GetSection(ApiSettings.SectionName));
-            services.Configure<IamProvisioningSettings>(configuration.GetSection(IamProvisioningSettings.SectionName));
-            services.Configure<MfaSettings>(configuration.GetSection(MfaSettings.SectionName));
-            services
-                .AddOptions<PasswordRecoverySettings>()
-                .Bind(configuration.GetSection(PasswordRecoverySettings.SectionName))
-                .ValidateDataAnnotations()
-                .ValidateOnStart();
-            services
-                .AddOptions<FeatureFlagSettings>()
-                .Bind(configuration.GetSection(FeatureFlagSettings.SectionName))
-                .Validate(IsValidFeatureFlagProvider, "FeatureFlags:Provider must be Configuration.")
-                .ValidateOnStart();
-            services
-                .AddOptions<ReportingSettings>()
-                .Bind(configuration.GetSection(ReportingSettings.SectionName))
-                .Validate(IsValidReportingSettings, "Reporting:QuestPdf:License must be Community, Professional, or Enterprise.")
-                .ValidateOnStart();
-            services
-                .AddOptions<PaymentSettings>()
-                .Bind(configuration.GetSection(PaymentSettings.SectionName))
-                .Validate(IsValidPaymentProvider, "Payments:Provider must be NoOp, Stripe, or Mpesa.")
-                .ValidateOnStart();
-            ConfigurePaymentGateways(services, configuration);
-            ConfigureQuestPdf(configuration);
-            services
-                .AddOptions<ProfileImageStorageSettings>()
-                .Bind(configuration.GetSection(ProfileImageStorageSettings.SectionName))
-                .ValidateDataAnnotations()
-                .Validate(
-                    IsValidProfileImageStorageProvider,
-                    "ProfileImageStorage:Provider must be Local, Azurite, AzureBlob, or S3. Blob providers require ContainerUri or ConnectionString plus ContainerName. S3 requires ServiceUrl, BucketName, AccessKey, and SecretKey.")
-                .ValidateOnStart();
-            services.AddOptions<OrgSettings>()
-                .Bind(configuration.GetSection(OrgSettings.SectionName))
-                .ValidateDataAnnotations()
-                .Validate(settings => settings.DefaultTenantId != Guid.Empty, "Tenant:DefaultTenantId must be configured.")
-                .ValidateOnStart();
-            services.AddOptions<PasskeySettings>()
-                .Bind(configuration.GetSection(PasskeySettings.SectionName))
-                .ValidateDataAnnotations()
-                .ValidateOnStart();
+        services.AddSingleton(JsonSerializerOptionsFactory.Create());
+        services.Configure<ObservabilitySettings>(configuration.GetSection(ObservabilitySettings.SectionName));
+        services.Configure<AuthProviderSettings>(configuration.GetSection(AuthProviderSettings.SectionName));
+        services.Configure<ApiSettings>(configuration.GetSection(ApiSettings.SectionName));
+        services.Configure<MfaSettings>(configuration.GetSection(MfaSettings.SectionName));
+        services
+            .AddOptions<PasswordRecoverySettings>()
+            .Bind(configuration.GetSection(PasswordRecoverySettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services
+            .AddOptions<FeatureFlagSettings>()
+            .Bind(configuration.GetSection(FeatureFlagSettings.SectionName))
+            .Validate(IsValidFeatureFlagProvider, "FeatureFlags:Provider must be Configuration.")
+            .ValidateOnStart();
+        services
+            .AddOptions<ReportingSettings>()
+            .Bind(configuration.GetSection(ReportingSettings.SectionName))
+            .Validate(IsValidReportingSettings, "Reporting:QuestPdf:License must be Community, Professional, or Enterprise.")
+            .ValidateOnStart();
+        services
+            .AddOptions<PaymentSettings>()
+            .Bind(configuration.GetSection(PaymentSettings.SectionName))
+            .Validate(IsValidPaymentProvider, "Payments:Provider must be NoOp, Stripe, or Mpesa.")
+            .ValidateOnStart();
+        ConfigurePaymentGateways(services, configuration);
+        ConfigureQuestPdf(configuration);
+        services
+            .AddOptions<ProfileImageStorageSettings>()
+            .Bind(configuration.GetSection(ProfileImageStorageSettings.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                IsValidProfileImageStorageProvider,
+                "ProfileImageStorage:Provider must be Local, Azurite, AzureBlob, or S3. Blob providers require ContainerUri or ConnectionString plus ContainerName. S3 requires ServiceUrl, BucketName, AccessKey, and SecretKey.")
+            .ValidateOnStart();
+        services.AddOptions<OrgSettings>()
+            .Bind(configuration.GetSection(OrgSettings.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(settings => settings.DefaultTenantId != Guid.Empty, "Tenant:DefaultTenantId must be configured.")
+            .ValidateOnStart();
+        services.AddOptions<PasskeySettings>()
+            .Bind(configuration.GetSection(PasskeySettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
-            var cacheSettings = configuration.GetSection(CacheSettings.SectionName).Get<CacheSettings>()
-                ?? throw new InvalidOperationException("CacheSettings not found.");
+        var cacheSettings = configuration.GetSection(CacheSettings.SectionName).Get<CacheSettings>()
+            ?? throw new InvalidOperationException("CacheSettings not found.");
 
-            services.Configure<SessionSettings>(configuration.GetSection(SessionSettings.SectionName));
-            ConfigureDistributedCache(services, configuration, cacheSettings);
-            ConfigureEmailDelivery(services, configuration);
-            ConfigureSms(services, configuration);
-            ConfigureSerilogEnrichers(services);
-            var observabilitySettings = configuration.GetSection(ObservabilitySettings.SectionName).Get<ObservabilitySettings>() ?? new ObservabilitySettings();
-            var authProviderSettings = configuration.GetSection(AuthProviderSettings.SectionName).Get<AuthProviderSettings>() ?? new AuthProviderSettings();
-            var messagingSettings = configuration.GetSection(MessagingSettings.SectionName).Get<MessagingSettings>() ?? new MessagingSettings();
-            var backgroundJobSettings = configuration.GetSection(BackgroundJobSettings.SectionName).Get<BackgroundJobSettings>() ?? new BackgroundJobSettings();
-            ConfigureObservability(services, configuration, environment, observabilitySettings);
-            if (backgroundJobSettings.Enabled)
-            {
-                ConfigureQuartz(services, configuration);
-            }
+        services.Configure<SessionSettings>(configuration.GetSection(SessionSettings.SectionName));
+        ConfigureDistributedCache(services, configuration, cacheSettings);
+        ConfigureEmailDelivery(services, configuration);
+        ConfigureSms(services, configuration);
+        ConfigureSerilogEnrichers(services);
+        var observabilitySettings = configuration.GetSection(ObservabilitySettings.SectionName).Get<ObservabilitySettings>() ?? new ObservabilitySettings();
+        var authProviderSettings = configuration.GetSection(AuthProviderSettings.SectionName).Get<AuthProviderSettings>() ?? new AuthProviderSettings();
+        var messagingSettings = configuration.GetSection(MessagingSettings.SectionName).Get<MessagingSettings>() ?? new MessagingSettings();
+        var backgroundJobSettings = configuration.GetSection(BackgroundJobSettings.SectionName).Get<BackgroundJobSettings>() ?? new BackgroundJobSettings();
+        ConfigureObservability(services, configuration, environment, observabilitySettings);
+        if (backgroundJobSettings.Enabled)
+        {
+            ConfigureQuartz(services, configuration);
+        }
 
-            AddServices(services, authProviderSettings, messagingSettings, backgroundJobSettings);
+        AddServices(services, authProviderSettings, messagingSettings, backgroundJobSettings);
 
         return services;
     }
@@ -247,70 +238,70 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         var jwtSettings = new JwtSettings();
-            configuration.GetSection(JwtSettings.SectionName).Bind(jwtSettings);
+        configuration.GetSection(JwtSettings.SectionName).Bind(jwtSettings);
 
-            services.AddSingleton(jwtSettings);
+        services.AddSingleton(jwtSettings);
 
-            if (jwtSettings == null)
-                throw new InvalidOperationException("JwtSettings not found in configuration");
+        if (jwtSettings == null)
+            throw new InvalidOperationException("JwtSettings not found in configuration");
 
-            services.AddSingleton(sp =>
+        services.AddSingleton(sp =>
+        {
+            var jwtSettings = sp.GetRequiredService<JwtSettings>();
+
+            return new TokenValidationParameters
             {
-                var jwtSettings = sp.GetRequiredService<JwtSettings>();
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = jwtSettings.GetSymmetricSecurityKey(),
+                ValidateIssuer = true,
+                ValidIssuer = jwtSettings.Issuer,
+                ValidateAudience = true,
+                ValidAudience = jwtSettings.Audience,
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(jwtSettings.ClockSkew),
+                RequireExpirationTime = true,
+                RequireSignedTokens = true,
+            };
+        });
 
-                return new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = jwtSettings.GetSymmetricSecurityKey(),
-                    ValidateIssuer = true,
-                    ValidIssuer = jwtSettings.Issuer,
-                    ValidateAudience = true,
-                    ValidAudience = jwtSettings.Audience,
-                    ValidateLifetime = true,
-                    ClockSkew = TimeSpan.FromMinutes(jwtSettings.ClockSkew),
-                    RequireExpirationTime = true,
-                    RequireSignedTokens = true,
-                };
+        services.Configure<IdentityOptions>(ConfigureIdentityOptions);
+
+        var entraIdSettings = configuration.GetSection(EntraIdSettings.SectionName).Get<EntraIdSettings>()
+            ?? new EntraIdSettings();
+
+        // Authentication with JWT
+        var authenticationBuilder = services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+        })
+        .AddJwtBearer(options =>
+        {
+            ConfigureJwtBearer(options, jwtSettings);
+        });
+
+        if (entraIdSettings.Enabled)
+        {
+            authenticationBuilder.AddOpenIdConnect("EntraId", options =>
+            {
+                ConfigureEntraId(options, entraIdSettings);
             });
+        }
 
-            services.Configure<IdentityOptions>(ConfigureIdentityOptions);
+        var passkeySettings = configuration.GetSection(PasskeySettings.SectionName).Get<PasskeySettings>()
+            ?? new PasskeySettings();
 
-            var entraIdSettings = configuration.GetSection(EntraIdSettings.SectionName).Get<EntraIdSettings>()
-                ?? new EntraIdSettings();
-
-            // Authentication with JWT
-            var authenticationBuilder = services.AddAuthentication(options =>
+        if (passkeySettings.Enabled)
+        {
+            services.AddFido2(options =>
             {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddJwtBearer(options =>
-            {
-                ConfigureJwtBearer(options, jwtSettings);
+                options.ServerDomain = passkeySettings.ServerDomain;
+                options.ServerName = passkeySettings.ServerName;
+                options.Origins = new System.Collections.Generic.HashSet<string>(passkeySettings.Origins);
+                options.TimestampDriftTolerance = 300000;
             });
-
-            if (entraIdSettings.Enabled)
-            {
-                authenticationBuilder.AddOpenIdConnect("EntraId", options =>
-                {
-                    ConfigureEntraId(options, entraIdSettings);
-                });
-            }
-
-            var passkeySettings = configuration.GetSection(PasskeySettings.SectionName).Get<PasskeySettings>()
-                ?? new PasskeySettings();
-
-            if (passkeySettings.Enabled)
-            {
-                services.AddFido2(options =>
-                {
-                    options.ServerDomain = passkeySettings.ServerDomain;
-                    options.ServerName = passkeySettings.ServerName;
-                    options.Origins = new System.Collections.Generic.HashSet<string>(passkeySettings.Origins);
-                    options.TimestampDriftTolerance = 300000;
-                });
-            }
+        }
 
         services.Configure<DataProtectionTokenProviderOptions>(options =>
         {
@@ -871,17 +862,17 @@ public static class DependencyInjection
         return settings is not null && (string.IsNullOrWhiteSpace(settings.FromAddress)
             ? false
             : GetEmailProvider(settings) switch
-              {
-                  EmailProvider.NoOp => true,
-                  EmailProvider.LocalMailpit => !string.IsNullOrWhiteSpace(settings.LocalMailpit.Host) &&
-                      settings.LocalMailpit.Port > 0,
-                  EmailProvider.SendGrid => !string.IsNullOrWhiteSpace(settings.SendGrid.Endpoint) &&
-                      Uri.TryCreate(settings.SendGrid.Endpoint, UriKind.Absolute, out _),
-                  EmailProvider.AzureCommunication => !string.IsNullOrWhiteSpace(settings.AzureCommunication.ConnectionString),
-                  EmailProvider.Resend => !string.IsNullOrWhiteSpace(settings.Resend.Endpoint) &&
-                      Uri.TryCreate(settings.Resend.Endpoint, UriKind.Absolute, out _),
-                  _ => false
-              });
+            {
+                EmailProvider.NoOp => true,
+                EmailProvider.LocalMailpit => !string.IsNullOrWhiteSpace(settings.LocalMailpit.Host) &&
+                    settings.LocalMailpit.Port > 0,
+                EmailProvider.SendGrid => !string.IsNullOrWhiteSpace(settings.SendGrid.Endpoint) &&
+                    Uri.TryCreate(settings.SendGrid.Endpoint, UriKind.Absolute, out _),
+                EmailProvider.AzureCommunication => !string.IsNullOrWhiteSpace(settings.AzureCommunication.ConnectionString),
+                EmailProvider.Resend => !string.IsNullOrWhiteSpace(settings.Resend.Endpoint) &&
+                    Uri.TryCreate(settings.Resend.Endpoint, UriKind.Absolute, out _),
+                _ => false
+            });
     }
 
     private static bool IsValidFeatureFlagProvider(FeatureFlagSettings settings)

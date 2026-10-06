@@ -3,7 +3,7 @@ namespace ST.SharedKernel.Features.IAM.Menus.Dtos;
 public sealed record MenuResponse(
     Guid Id,
     Guid? ParentId,
-    Guid? DepartmentId,
+
     string Key,
     string Title,
     string Description,

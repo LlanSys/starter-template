@@ -10,8 +10,6 @@ internal static partial class MessageBusLogDefinitions
     [LoggerMessage(EventId = 3304, Level = LogLevel.Error, Message = "Failed to process {MessageType} {MessageId} after {ElapsedMs}ms. Retry attempt: {RetryCount}, Redelivered: {IsRedelivered}. Error: {ErrorMessage}")]
     public static partial void LogConsumeFailure(ILogger logger, string messageType, string messageId, long elapsedMs, int retryCount, bool isRedelivered, string errorMessage, Exception ex);
 
-    [LoggerMessage(EventId = 3305, Level = LogLevel.Error, Message = "Failed consuming CustomerCreatedIntegrationEvent for customer {CustomerId}")]
-    public static partial void LogCustomerCreatedIntegrationConsumeError(ILogger logger, Guid customerId, Exception ex);
 
     [LoggerMessage(EventId = 3306, Level = LogLevel.Warning, Message = "Email template not found: {TemplateName}")]
     public static partial void LogEmailTemplateNotFound(ILogger logger, string templateName);

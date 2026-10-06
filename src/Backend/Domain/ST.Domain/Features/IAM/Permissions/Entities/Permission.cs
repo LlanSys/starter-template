@@ -5,7 +5,7 @@ namespace ST.Domain.Features.IAM.Permissions.Entities;
 
 public sealed class Permission : BaseEntity, ISoftDeletable
 {
-    public Guid? DepartmentId { get; private set; }
+
     public string Key { get; private set; } = string.Empty;
     public string Context { get; private set; } = string.Empty;
     public string Resource { get; private set; } = string.Empty;
@@ -21,7 +21,7 @@ public sealed class Permission : BaseEntity, ISoftDeletable
     }
 
     public static Permission Create(
-        Guid? departmentId,
+
         string context,
         string resource,
         string action,
@@ -40,7 +40,7 @@ public sealed class Permission : BaseEntity, ISoftDeletable
         return new Permission
         {
             Id = Guid.CreateVersion7(),
-            DepartmentId = departmentId,
+
             Context = context.Trim(),
             Resource = normalizedResource,
             Action = normalizedAction,
@@ -50,7 +50,7 @@ public sealed class Permission : BaseEntity, ISoftDeletable
         };
     }
 
-    public void Update(Guid? departmentId, string context, string resource, string action, string description, bool isActive, string updatedBy)
+    public void Update(string context, string resource, string action, string description, bool isActive, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(context);
         ArgumentException.ThrowIfNullOrWhiteSpace(resource);
@@ -61,7 +61,6 @@ public sealed class Permission : BaseEntity, ISoftDeletable
         var normalizedResource = NormalizeSegment(resource);
         var normalizedAction = NormalizeSegment(action);
 
-        DepartmentId = departmentId;
         Context = context.Trim();
         Resource = normalizedResource;
         Action = normalizedAction;

@@ -1,8 +1,5 @@
 using ST.SharedKernel.Features.Shared.Notifications.Dtos;
-using ST.Application.Features.Banking.Customers.IntegrationEvents;
-using ST.Application.Features.HR.Employees.IntegrationEvents;
 using ST.Application.Features.IAM.Users.IntegrationEvents;
-using ST.Domain.Features.HR.Employees.Events;
 using ST.Domain.Features.IAM.Users.Events;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Shared.Entities;

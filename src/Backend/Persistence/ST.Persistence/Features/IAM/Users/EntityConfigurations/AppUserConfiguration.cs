@@ -13,12 +13,6 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Property(u => u.NationalId)
-            .HasMaxLength(100);
-
-        builder.Property(u => u.RegistrationNumber)
-            .HasMaxLength(100);
-
         builder.Property(u => u.FirstName)
             .HasMaxLength(100);
 
@@ -45,16 +39,6 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
 
         builder.HasIndex(u => u.TenantId)
             .HasDatabaseName("IX_AppUsers_TenantId");
-
-        builder.HasIndex(u => u.EmployeeId)
-            .IsUnique()
-            .HasFilter("[EmployeeId] IS NOT NULL")
-            .HasDatabaseName("IX_AppUsers_EmployeeId");
-
-        builder.HasIndex(u => u.CustomerId)
-            .IsUnique()
-            .HasFilter("[CustomerId] IS NOT NULL")
-            .HasDatabaseName("IX_AppUsers_CustomerId");
 
         builder.HasIndex(u => new { u.TenantId, u.IsActive, u.IsDeleted })
             .HasDatabaseName("IX_AppUsers_TenantId_IsActive_IsDeleted");

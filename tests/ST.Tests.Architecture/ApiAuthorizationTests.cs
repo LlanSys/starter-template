@@ -28,6 +28,7 @@ public sealed class ApiAuthorizationTests
 
     private static readonly string[] AuthControllerAllowedActions =
     [
+        "AcceptInvitation",
         "ForgotPassword",
         "GetCurrentUser",
         "GetOtpStatus",

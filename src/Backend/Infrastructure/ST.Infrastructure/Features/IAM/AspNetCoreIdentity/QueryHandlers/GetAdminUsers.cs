@@ -54,16 +54,6 @@ internal sealed class GetAdminUsers(UserManager<AppUser> userManager, IamDBConte
             query = query.Where(static user => !user.TwoFactorEnabled);
         }
 
-        if (req.EmployeeId.HasValue)
-        {
-            query = query.Where(user => user.EmployeeId == req.EmployeeId.Value);
-        }
-
-        if (req.CustomerId.HasValue)
-        {
-            query = query.Where(user => user.CustomerId == req.CustomerId.Value);
-        }
-
         if (!string.IsNullOrWhiteSpace(req.Role))
         {
             var normalizedRole = userManager.NormalizeName(req.Role);

@@ -37,7 +37,6 @@ internal sealed class LoginWithPasskey(
     IServiceManager serviceManager,
     IIamUnitOfWork iamUnitOfWork,
     IPasskeyService passkeyService,
-    IDistributedCache cacheService,
     TimeProvider timeProvider,
     IOptions<JwtSettings> jwtSettings,
     ILogger<LoginWithPasskey> logger) : IRequestHandler<LoginWithPasskeyCommand, AppResponse<LoginResponse>>
@@ -46,26 +45,27 @@ internal sealed class LoginWithPasskey(
 
     public async Task<AppResponse<LoginResponse>> Handle(LoginWithPasskeyCommand command, CancellationToken cancellationToken)
     {
-        var cacheKey = $"Fido2AssertionOptions:{command.CorrelationId}";
-        var originalOptionsStr = await cacheService.GetStringAsync(cacheKey, cancellationToken);
-        JsonElement originalOptions = default;
-
+        var originalOptionsStr = await iamUnitOfWork.PasskeyChallengeRepository.ConsumeAsync(
+            PasskeyChallengeKeys.Assertion(command.CorrelationId), timeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrEmpty(originalOptionsStr))
-        {
             return AppResponses.Failure<LoginResponse>("Login options have expired or do not exist.");
-        }
-        else
+        JsonElement originalOptions;
+        byte[] credentialIdBytes;
+        try
         {
             originalOptions = JsonSerializer.Deserialize<JsonElement>(originalOptionsStr);
+            if (command.AssertionResponse.ValueKind != JsonValueKind.Object
+                || !command.AssertionResponse.TryGetProperty("id", out var id)
+                || id.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(id.GetString()) || id.GetString()!.Length > 2048)
+                return AppResponses.Failure<LoginResponse>("Invalid assertion response.");
+            credentialIdBytes = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(id.GetString()!);
+            if (credentialIdBytes.Length == 0) return AppResponses.Failure<LoginResponse>("Invalid assertion response.");
         }
-
-        var assertionIdStr = command.AssertionResponse.GetProperty("id").GetString();
-        if (string.IsNullOrEmpty(assertionIdStr))
+        catch (Exception ex) when (ex is JsonException or ArgumentException or FormatException or InvalidOperationException)
         {
-            return AppResponses.Failure<LoginResponse>("Invalid assertion response.");
+            ServiceLogDefinitions.LogPasskeyAssertionException(logger, command.Username ?? string.Empty, ex);
+            return AppResponses.Failure<LoginResponse>("Invalid assertion response. Request new login options.");
         }
-
-        var credentialIdBytes = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(assertionIdStr);
 
         AppUser? user = null;
         ST.Domain.Features.IAM.Users.Entities.Fido2Credential? credential = null;
@@ -100,14 +100,14 @@ internal sealed class LoginWithPasskey(
             }
         }
 
-        if (user == null || !user.IsActive || user.IsDeleted || credential == null)
+        if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed || credential == null)
         {
             return AppResponses.Failure<LoginResponse>("Invalid login attempt.");
         }
 
         try
         {
-            var newSignCount = await passkeyService.MakeAssertionAsync(user, command.AssertionResponse, originalOptions, credential.PublicKey, credential.SignatureCounter, cancellationToken);
+            var newSignCount = await passkeyService.MakeAssertionAsync(user, command.AssertionResponse, originalOptions, credential.PublicKey, credential.SignatureCounter, cancellationToken).ConfigureAwait(false);
             if (newSignCount == null)
             {
                 return AppResponses.Failure<LoginResponse>("Passkey assertion failed.");
@@ -119,11 +119,10 @@ internal sealed class LoginWithPasskey(
         }
         catch (Exception ex)
         {
-            ServiceLogDefinitions.LogPasskeyAssertionException(logger, user.UserName, ex);
+            ServiceLogDefinitions.LogPasskeyAssertionException(logger, user.UserName ?? string.Empty, ex);
             return AppResponses.Failure<LoginResponse>("Passkey validation failed.");
         }
 
-        await cacheService.RemoveAsync(cacheKey, cancellationToken);
 
         // Generate session, claims, tokens
         var sessionId = Guid.CreateVersion7();

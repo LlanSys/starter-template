@@ -8,8 +8,6 @@ using ST.Api.Health;
 using ST.Api.Utilities;
 using ST.Application.Extensions;
 using ST.Infrastructure.Extensions;
-using ST.Infrastructure.Features.Banking.Extensions;
-using ST.Infrastructure.Features.HR.Extensions;
 using ST.Infrastructure.Features.IAM.Extensions;
 using ST.Infrastructure.Features.IAM.Users.Seeding;
 using ST.Infrastructure.Middleware;
@@ -118,8 +116,6 @@ try
     builder.Services.AddApplicationServices(builder.Configuration);
     builder.Services.AddSharedInfrastructure(builder.Configuration, builder.Environment);
     builder.Services.AddIamModule(builder.Configuration, builder.Environment);
-    builder.Services.AddHrModule(builder.Configuration);
-    builder.Services.AddBankingModule(builder.Configuration);
     builder.Services.AddSharedPersistence(builder.Configuration, builder.Environment);
     builder.Services.AddControlPlanePersistence(builder.Configuration, builder.Environment);
     builder.Services.ConfigureOutBoxMessagingWithGlobalRetry(builder.Configuration);
@@ -400,7 +396,7 @@ try
     app.MapControllers();
     app.MapHub<NotificationHub>("/hubs/notifications");
 
-    Log.Information("BT API started successfully");
+    Log.Information("ST API started successfully");
 
     await app.RunAsync().ConfigureAwait(false);
 }

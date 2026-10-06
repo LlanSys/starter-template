@@ -28,11 +28,11 @@ internal sealed class UpdateRole(RoleManager<AppRole> roleManager, ILogger<Updat
             }
 
             role.Name = name;
-            role.DepartmentId = command.Request.DepartmentId;
+
             var result = await roleManager.UpdateAsync(role).ConfigureAwait(false);
 
             return result.Succeeded
-                ? AppResponses.Success("Role updated.", new AdminRoleListResponse(role.Id, role.Name ?? name, role.NormalizedName ?? name.ToUpperInvariant(), role.DepartmentId, role.DepartmentId.HasValue ? "Department-scoped" : "Global", 0))
+                ? AppResponses.Success("Role updated.", new AdminRoleListResponse(role.Id, role.Name ?? name, role.NormalizedName ?? name.ToUpperInvariant(), 0))
                 : AppResponses.Failure<AdminRoleListResponse>(string.Join(", ", result.Errors.Select(static error => error.Description)));
         }
         catch (Exception ex)

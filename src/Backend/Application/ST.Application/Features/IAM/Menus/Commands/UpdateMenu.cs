@@ -47,16 +47,16 @@ internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
                 }
 
                 if (!string.Equals(parent.Placement, request.Placement, StringComparison.OrdinalIgnoreCase)
-                    || parent.DepartmentId != request.DepartmentId)
+                   )
                 {
-                    return AppResponses.Failure<MenuResponse>("Parent menu must use the same placement and department scope.");
+                    return AppResponses.Failure<MenuResponse>("Parent menu must use the same placement.");
                 }
             }
 
 
             menu.Update(
                 request.ParentId,
-                request.DepartmentId,
+
                 menu.Key, // Prevent key change on update
                 request.Title,
                 request.Description,

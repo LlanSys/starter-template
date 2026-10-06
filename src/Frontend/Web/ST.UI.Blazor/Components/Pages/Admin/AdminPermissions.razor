@@ -1,7 +1,6 @@
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject IIamAdminService IamAdminService
-@inject IDepartmentService DepartmentService
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -63,12 +62,12 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable Items="_permissions" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="PageSize" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh Style="width: 15rem;">Key</MudTh>
                     <MudTh Style="width: 8rem;">Context</MudTh>
-                    <MudTh Style="width: 10rem;">Scope</MudTh>
+
                     <MudTh Style="width: 10rem;">Resource</MudTh>
                     <MudTh Style="width: 10rem;">Action</MudTh>
                     <MudTh>Description</MudTh>
@@ -78,7 +77,7 @@
                 <RowTemplate>
                     <MudTd DataLabel="Key">@context.Key</MudTd>
                     <MudTd DataLabel="Context">@context.Context</MudTd>
-                    <MudTd DataLabel="Scope">@DepartmentName(context.DepartmentId)</MudTd>
+
                     <MudTd DataLabel="Resource">@context.Resource</MudTd>
                     <MudTd DataLabel="Action">@context.Action</MudTd>
                     <MudTd DataLabel="Description">@context.Description</MudTd>
@@ -117,7 +116,7 @@
     public Task OpenCreateDialogAsync() => OpenFormDialogAsync(null);
 
     private readonly List<PermissionResponse> _permissions = [];
-    private readonly List<DepartmentResponse> _departments = [];
+
     private readonly Stack<Guid?> _cursorHistory = new();
     private Guid? _nextCursor;
     private Guid? _currentCursor;
@@ -163,19 +162,8 @@
             return;
         }
 
-        await LoadDepartmentsAsync();
         ResetPagination();
         await LoadPermissionsAsync();
-    }
-
-    private async Task LoadDepartmentsAsync()
-    {
-        var response = await DepartmentService.GetAsync();
-        if (response.IsSuccess && response.Data is not null)
-        {
-            _departments.Clear();
-            _departments.AddRange(response.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
-        }
     }
 
     private Task ApplyFiltersAsync()
@@ -273,10 +261,6 @@
         _currentPage = 1;
     }
 
-    private string DepartmentName(Guid? departmentId)
-        => departmentId.HasValue
-            ? _departments.FirstOrDefault(department => department.Id == departmentId.Value)?.Name ?? "Unknown"
-            : "Global";
 
     private async Task OpenViewDialogAsync(PermissionResponse permission)
     {

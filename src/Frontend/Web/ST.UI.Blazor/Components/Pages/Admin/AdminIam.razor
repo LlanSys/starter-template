@@ -13,7 +13,7 @@
 
         <MudPaper Class="poc-panel" Elevation="0">
             <div class="panel-heading">
-                <h2 style="color: var(--bt-moss); font-weight: 700;">Identity & Access</h2>
+                <h2 style="color: var(--st-moss); font-weight: 700;">Identity & Access</h2>
                 <div class="d-flex align-center gap-3">
                     @if (_activeTab == 0 && AuthSession.HasPermission("roles.create"))
                     {
@@ -30,7 +30,7 @@
                 </div>
             </div>
 
-            <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="bt-catalog-tabs">
+            <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="st-catalog-tabs">
                 <MudTabPanel Text="Roles" />
                 <MudTabPanel Text="Permissions" />
                 <MudTabPanel Text="Users" />

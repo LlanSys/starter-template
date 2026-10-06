@@ -1,12 +1,8 @@
 using ST.Domain.Shared.Contracts.Common;
 using System;
 using System.Collections.Generic;
-using ST.Persistence.Features.Banking.DataContext;
-using ST.Persistence.Features.Banking.Extensions;
 using ST.Persistence.Features.ControlPlane.DataContext;
 using ST.Persistence.Features.ControlPlane.Extensions;
-using ST.Persistence.Features.HR.DataContext;
-using ST.Persistence.Features.HR.Extensions;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.IAM.Extensions;
 using ST.Persistence.Features.Shared.DataContext;
@@ -27,10 +23,8 @@ public class IdempotentMigrationsGuardrailTests
 {
     [Theory]
     [InlineData(typeof(SharedSqlServerDBContext), typeof(IdempotentSqlServerMigrationsSqlGenerator))]
-    [InlineData(typeof(HrSqlServerDBContext), typeof(IdempotentSqlServerMigrationsSqlGenerator))]
     [InlineData(typeof(IamSqlServerDBContext), typeof(IdempotentSqlServerMigrationsSqlGenerator))]
     [InlineData(typeof(ControlPlaneSqlServerDBContext), typeof(IdempotentSqlServerMigrationsSqlGenerator))]
-    [InlineData(typeof(BankingSqlServerDBContext), typeof(IdempotentSqlServerMigrationsSqlGenerator))]
     public void SqlServerContexts_ShouldUseIdempotentMigrationsGenerator(Type contextType, Type expectedGeneratorType)
     {
         var services = new ServiceCollection();
@@ -39,10 +33,8 @@ public class IdempotentMigrationsGuardrailTests
         var env = new DummyHostEnvironment();
 
         services.AddSharedPersistence(config, env);
-        services.AddHrPersistence(config);
         services.AddIamPersistence(config, env);
         services.AddControlPlanePersistence(config, env);
-        services.AddBankingPersistence(config);
 
         services.AddScoped<ICurrentTenantProvider, DummyTenantProvider>();
         services.AddScoped<ICurrentActorProvider, DummyActorProvider>();
@@ -57,10 +49,8 @@ public class IdempotentMigrationsGuardrailTests
 
     [Theory]
     [InlineData(typeof(SharedPostgreSqlDBContext), typeof(IdempotentNpgsqlMigrationsSqlGenerator))]
-    [InlineData(typeof(HrPostgreSqlDBContext), typeof(IdempotentNpgsqlMigrationsSqlGenerator))]
     [InlineData(typeof(IamPostgreSqlDBContext), typeof(IdempotentNpgsqlMigrationsSqlGenerator))]
     [InlineData(typeof(ControlPlanePostgreSqlDBContext), typeof(IdempotentNpgsqlMigrationsSqlGenerator))]
-    [InlineData(typeof(BankingPostgreSqlDBContext), typeof(IdempotentNpgsqlMigrationsSqlGenerator))]
     public void PostgreSqlContexts_ShouldUseIdempotentMigrationsGenerator(Type contextType, Type expectedGeneratorType)
     {
         var services = new ServiceCollection();
@@ -69,10 +59,8 @@ public class IdempotentMigrationsGuardrailTests
         var env = new DummyHostEnvironment();
 
         services.AddSharedPersistence(config, env);
-        services.AddHrPersistence(config);
         services.AddIamPersistence(config, env);
         services.AddControlPlanePersistence(config, env);
-        services.AddBankingPersistence(config);
 
         services.AddScoped<ICurrentTenantProvider, DummyTenantProvider>();
         services.AddScoped<ICurrentActorProvider, DummyActorProvider>();

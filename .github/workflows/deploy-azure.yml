@@ -115,7 +115,7 @@ jobs:
       - name: Run Integration Tests
         run: dotnet test tests/ST.Tests.Integration/ST.Tests.Integration.csproj --configuration Release --no-restore --no-build
         env:
-          ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=BT;User Id=sa;Password=Password123!;TrustServerCertificate=True;"
+          ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=ST;User Id=sa;Password=Password123!;TrustServerCertificate=True;"
           CacheSettings__ConnectionString: "localhost:6379"
 
       - name: Restore dotnet tools
@@ -131,14 +131,21 @@ jobs:
             PROVIDER="PostgreSql"
           fi
           echo "Building migration bundles for provider: $PROVIDER"
+          if [ "$PROVIDER" == "PostgreSql" ]; then
+            DESIGN_CONNECTION="Host=localhost;Database=starterdesign;Username=postgres;Password=DesignOnly123!"
+          else
+            DESIGN_CONNECTION="Server=localhost;Database=starterdesign;User Id=sa;Password=DesignOnly123!;TrustServerCertificate=True"
+          fi
+          export ConnectionStrings__IamConnection="$DESIGN_CONNECTION"
+          export ConnectionStrings__SharedConnection="$DESIGN_CONNECTION"
+          export ConnectionStrings__ControlPlaneConnection="$DESIGN_CONNECTION"
+
 
           dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Iam${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-iam --configuration Release
-          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Hr${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-hr --configuration Release
           dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Shared${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-shared --configuration Release
-          dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Banking${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-banking --configuration Release
           dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context ControlPlane${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-api/efbundle-controlplane --configuration Release
         env:
-          ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=BT;User Id=sa;Password=Password123!;TrustServerCertificate=True;"
+          ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=ST;User Id=sa;Password=Password123!;TrustServerCertificate=True;"
 
       - name: Publish Blazor UI
         run: dotnet publish src/Frontend/Web/ST.UI.Blazor/ST.UI.Blazor.csproj --configuration Release --no-restore --no-build --output ./publish-ui
@@ -275,16 +282,12 @@ jobs:
           fi
 
           export ConnectionStrings__IamConnection="$TARGET_CONNECTION_STRING"
-          export ConnectionStrings__HrConnection="$TARGET_CONNECTION_STRING"
           export ConnectionStrings__SharedConnection="$TARGET_CONNECTION_STRING"
-          export ConnectionStrings__BankingConnection="$TARGET_CONNECTION_STRING"
           export ConnectionStrings__ControlPlaneConnection="$TARGET_CONNECTION_STRING"
           export ConnectionStrings__DefaultConnection="$TARGET_CONNECTION_STRING"
 
           chmod +x ./api-app/efbundle-iam
-          chmod +x ./api-app/efbundle-hr
           chmod +x ./api-app/efbundle-shared
-          chmod +x ./api-app/efbundle-banking
           chmod +x ./api-app/efbundle-controlplane
 
           run_bundle() {
@@ -321,11 +324,9 @@ jobs:
             done
           }
 
-          run_bundle efbundle-iam
-          run_bundle efbundle-hr
-          run_bundle efbundle-shared
-          run_bundle efbundle-banking
           run_bundle efbundle-controlplane
+          run_bundle efbundle-iam
+          run_bundle efbundle-shared
 
       - name: Remove temporary database firewall rule
         if: always() && vars.AZURE_SQL_NETWORK_MODE == 'PublicRunner' && steps.db-firewall.outputs.rule_name != ''

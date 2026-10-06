@@ -9,8 +9,6 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: ${APP_SQL_CONNECTION_STRING:?Set APP_SQL_CONNECTION_STRING in ops/local/.env}
       JwtSettings__SecretKey: ${APP_JWT_SECRET:?Set APP_JWT_SECRET in ops/local/.env}
-      IamProvisioning__TemporaryPassword: ${APP_IAM_TEMPORARY_PASSWORD:?Set APP_IAM_TEMPORARY_PASSWORD in ops/local/.env}
-      IamProvisioning__SignInUrl: http://localhost:${APP_BLAZOR_HOST_PORT:-8181}/iam/sign-in
       BackgroundJobs__Enabled: "true"
       Messaging__Enabled: "true"
       Messaging__Transport: RabbitMq

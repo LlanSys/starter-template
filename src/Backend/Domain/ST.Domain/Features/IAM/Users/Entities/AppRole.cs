@@ -5,7 +5,7 @@ namespace ST.Domain.Features.IAM.Users.Entities;
 
 public sealed class AppRole : IdentityRole, ISoftDeletable
 {
-    public Guid? DepartmentId { get; set; }
+
 
     public bool IsDeleted { get; set; }
 

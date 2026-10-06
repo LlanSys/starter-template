@@ -1,6 +1,9 @@
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Services;
 using Fido2NetLib;
+using NSubstitute;
+using ST.Domain.Features.IAM.Contracts;
+using ST.Domain.Shared.Contracts.Common;
 using Fido2NetLib.Objects;
 using System.Text;
 using System.Text.Json;
@@ -14,7 +17,7 @@ public sealed class PasskeyServiceTests
         ServerDomain = "localhost",
         ServerName = "Test",
         Origins = new HashSet<string> { "https://localhost" }
-    }));
+    }), Substitute.For<IIamUnitOfWork>(), Substitute.For<ICurrentTenantProvider>());
 
     [Fact]
     public async Task RegistrationOptions_PreserveUserAndExcludeExistingCredential()
@@ -38,6 +41,6 @@ public sealed class PasskeyServiceTests
         Assert.NotNull(options);
         Assert.Empty(options.AllowCredentials);
         Assert.NotEmpty(options.Challenge);
-        Assert.Equal(UserVerificationRequirement.Preferred, options.UserVerification);
+        Assert.Equal(UserVerificationRequirement.Required, options.UserVerification);
     }
 }

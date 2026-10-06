@@ -19,16 +19,13 @@ services:
       - key: ConnectionStrings__DefaultConnection
         scope: RUN_TIME
         value: ${db.DATABASE_URL}
+      - key: ConnectionStrings__ControlPlaneConnection
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
       - key: ConnectionStrings__IamConnection
         scope: RUN_TIME
         value: ${db.DATABASE_URL}
-      - key: ConnectionStrings__HrConnection
-        scope: RUN_TIME
-        value: ${db.DATABASE_URL}
       - key: ConnectionStrings__SharedConnection
-        scope: RUN_TIME
-        value: ${db.DATABASE_URL}
-      - key: ConnectionStrings__BankingConnection
         scope: RUN_TIME
         value: ${db.DATABASE_URL}
       - key: CacheSettings__Provider

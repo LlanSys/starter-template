@@ -55,19 +55,19 @@ internal sealed class TenantConnectionResolver : ITenantConnectionResolver
             return null;
         }
 
+        // Lifecycle status is authoritative on every resolution, including a warm metadata cache.
+        using var scope = _serviceProvider.CreateScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IControlPlaneUnitOfWork>();
+        var tenant = await unitOfWork.Tenants.FindByIdAsync(tenantId, cancellationToken).ConfigureAwait(false);
+        if (tenant is null || tenant.Status != ST.Domain.Features.ControlPlane.Tenants.Enums.TenantStatus.Active)
+        {
+            throw new TenantNotResolvedException("The requested tenant is unavailable.");
+        }
+
         var cacheKey = $"TenantDbMetadata_{tenantId}";
         if (_memoryCache.TryGetValue(cacheKey, out TenantDatabaseMetadata? cachedMetadata))
         {
             return cachedMetadata;
-        }
-
-        using var scope = _serviceProvider.CreateScope();
-        var unitOfWork = scope.ServiceProvider.GetRequiredService<IControlPlaneUnitOfWork>();
-
-        var tenant = await unitOfWork.Tenants.FindByIdAsync(tenantId, cancellationToken).ConfigureAwait(false);
-        if (tenant == null)
-        {
-            return null;
         }
 
         string? resolvedConnectionString = null;

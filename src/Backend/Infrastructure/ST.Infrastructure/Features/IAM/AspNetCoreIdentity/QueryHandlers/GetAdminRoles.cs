@@ -1,7 +1,6 @@
 using ST.Application.Features.IAM.Users.Queries;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Persistence.Features.IAM.DataContext;
-using ST.Persistence.Features.HR.DataContext;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using MediatR;
@@ -10,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers;
 
-internal sealed class GetAdminRoles(RoleManager<AppRole> roleManager, IamDBContext context, HrDBContext hrContext)
+internal sealed class GetAdminRoles(RoleManager<AppRole> roleManager, IamDBContext context)
     : IRequestHandler<GetAdminRolesQuery, AppResponse<IReadOnlyList<AdminRoleListResponse>>>
 {
     public async Task<AppResponse<IReadOnlyList<AdminRoleListResponse>>> Handle(GetAdminRolesQuery request, CancellationToken cancellationToken)
@@ -28,25 +27,13 @@ internal sealed class GetAdminRoles(RoleManager<AppRole> roleManager, IamDBConte
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var departmentIds = roles
-            .Where(static role => role.DepartmentId.HasValue)
-            .Select(static role => role.DepartmentId!.Value)
-            .Distinct()
-            .ToList();
-
-        var departments = await hrContext.Departments
-            .AsNoTracking()
-            .Where(department => departmentIds.Contains(department.Id))
-            .ToDictionaryAsync(static department => department.Id, static department => department.Name, cancellationToken)
-            .ConfigureAwait(false);
-
         var result = roles
             .Select(role => new AdminRoleListResponse(
                 role.Id,
                 role.Name ?? string.Empty,
                 role.NormalizedName ?? string.Empty,
-                role.DepartmentId,
-                role.DepartmentId.HasValue ? departments.GetValueOrDefault(role.DepartmentId.Value, "Unknown") : "Global",
+
+
                 userCounts.GetValueOrDefault(role.Id)))
             .ToList();
 

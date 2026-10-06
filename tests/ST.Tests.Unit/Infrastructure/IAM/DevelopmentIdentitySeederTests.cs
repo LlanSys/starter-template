@@ -55,8 +55,8 @@ public sealed class DevelopmentIdentitySeederTests
         Assert.Equal(UserName, created.UserName);
         Assert.Equal(Email, created.Email);
         Assert.Equal(TenantId, created.TenantId);
-        Assert.Null(created.EmployeeId);
-        Assert.Null(created.CustomerId);
+
+
         Assert.True(created.IsActive);
         Assert.True(created.EmailConfirmed);
         Assert.False(created.PhoneNumberConfirmed);
@@ -85,8 +85,8 @@ public sealed class DevelopmentIdentitySeederTests
 
     [Theory]
     [InlineData("tenant")]
-    [InlineData("employee")]
-    [InlineData("customer")]
+
+
     [InlineData("disabled")]
     [InlineData("deleted")]
     [InlineData("username")]
@@ -96,8 +96,8 @@ public sealed class DevelopmentIdentitySeederTests
         switch (conflict)
         {
             case "tenant": admin.TenantId = Guid.CreateVersion7(); break;
-            case "employee": admin.EmployeeId = Guid.CreateVersion7(); break;
-            case "customer": admin.CustomerId = Guid.CreateVersion7(); break;
+
+
             case "disabled": admin.IsActive = false; break;
             case "deleted": admin.IsDeleted = true; break;
             case "username": admin.UserName = "another.account"; break;

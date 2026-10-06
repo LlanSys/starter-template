@@ -46,11 +46,6 @@ internal sealed class SearchMenusQueryHandler(IIamUnitOfWork unitOfWork, ILogger
                     menus = menus.Where(menu => menu.ParentId == request.ParentId.Value);
                 }
 
-                if (request.DepartmentId.HasValue)
-                {
-                    menus = menus.Where(menu => menu.DepartmentId == request.DepartmentId.Value);
-                }
-
                 if (request.IsActive.HasValue)
                 {
                     menus = menus.Where(menu => menu.IsActive == request.IsActive.Value);

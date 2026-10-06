@@ -47,11 +47,6 @@ internal sealed class SearchPermissionsQueryHandler(IIamUnitOfWork unitOfWork, I
                     permissions = permissions.Where(permission => permission.Resource == request.Resource);
                 }
 
-                if (request.DepartmentId.HasValue)
-                {
-                    permissions = permissions.Where(permission => permission.DepartmentId == null || permission.DepartmentId == request.DepartmentId.Value);
-                }
-
                 if (request.IsActive.HasValue)
                 {
                     permissions = permissions.Where(permission => permission.IsActive == request.IsActive.Value);

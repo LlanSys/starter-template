@@ -1,3 +1,4 @@
+using ST.Persistence.Features.IAM.Users.Repositories;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
@@ -42,5 +43,6 @@ public sealed class IamUnitOfWork(
     public IRepository<MenuPlacement> MenuPlacementRepository { get; } = new Repository<MenuPlacement>(context);
     public IRepository<MenuIcon> MenuIconRepository { get; } = new Repository<MenuIcon>(context);
     public IRepository<MenuRoute> MenuRouteRepository { get; } = new Repository<MenuRoute>(context);
+    public IPasskeyChallengeRepository PasskeyChallengeRepository { get; } = new IamPasskeyChallengeRepository(context);
     public IRepository<Fido2Credential> Fido2CredentialRepository { get; } = new Repository<Fido2Credential>(context);
 }

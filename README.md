@@ -10,7 +10,7 @@ It is designed to be cloned, renamed, configured, and extended into a real appli
 
 - `.NET 10` backend with Clean Architecture boundaries.
 - Modular monolith structure with bounded-context feature folders.
-- Current bounded contexts: `IAM`, `Banking`, `HR`, and `Shared`.
+- Current bounded contexts: `IAM`, `Shared`, and `ControlPlane`.
 - API, Blazor Web UI, shared Razor Class Library, MAUI shell, Application, Domain, Infrastructure, Persistence, and SharedKernel projects.
 - IAM/Auth baseline with local accounts, JWT/cookie-compatible flows, refresh tokens, MFA/TOTP, sessions, lockout, permission authorization, grant/revoke access, profile image upload, and inactivity handling.
 - EF Core persistence with per-context `DBContext` types, tenant filters, soft delete, audit stamping, explicit configurations, repositories, unit of work, and migration bundles.

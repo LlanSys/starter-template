@@ -19,7 +19,7 @@
 
     <MudPaper Class="poc-panel" Elevation="0">
         <div class="panel-heading">
-            <h2 style="color: var(--bt-moss); font-weight: 700;">Impersonation History</h2>
+            <h2 style="color: var(--st-moss); font-weight: 700;">Impersonation History</h2>
             <div class="d-flex align-center gap-3">
                 <MudSwitch @bind-Value="_activeOnly" Color="Color.Primary" Label="Active only" />
                 <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadRecordsAsync">Refresh</MudButton>
@@ -36,7 +36,7 @@
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable Items="_records" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 25rem)" Style="min-width: 900px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh>Started</MudTh>

@@ -1,5 +1,4 @@
 @inject IIamAdminService IamAdminService
-@inject IDepartmentService DepartmentService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -32,13 +31,6 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12">
-                    <MudSelect T="Guid?" @bind-Value="_model.DepartmentId" Label="Department scope" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
-                        <MudSelectItem T="Guid?" Value="null">Global</MudSelectItem>
-                        @foreach (var department in _departments)
-                        {
-                            <MudSelectItem T="Guid?" Value="@department.Id">@department.Name</MudSelectItem>
-                        }
-                    </MudSelect>
                 </MudItem>
                 <MudItem xs="12">
                     <MudTextField Value="@PreviewKey" Label="Generated key" Margin="Margin.Dense" Variant="Variant.Outlined" ReadOnly="true" />
@@ -62,7 +54,7 @@
 </MudDialog>
 
 @code {
-    private readonly List<DepartmentResponse> _departments = [];
+
     private IamReferenceDataResponse _referenceData = new([], [], [], [], [], []);
     private PermissionFormModel _model = new();
     private bool _isSaving;
@@ -94,12 +86,6 @@
 
     private async Task LoadReferenceDataAsync()
     {
-        var departmentsResponse = await DepartmentService.GetAsync();
-        if (departmentsResponse.IsSuccess && departmentsResponse.Data is not null)
-        {
-            _departments.AddRange(departmentsResponse.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
-        }
-
         var referenceResponse = await IamAdminService.GetReferenceDataAsync();
         if (referenceResponse.IsSuccess && referenceResponse.Data is not null)
         {
@@ -153,7 +139,7 @@
     private sealed class PermissionFormModel
     {
         public Guid Id { get; set; }
-        public Guid? DepartmentId { get; set; }
+
         public string Context { get; set; } = string.Empty;
         public string Resource { get; set; } = string.Empty;
         public string Action { get; set; } = string.Empty;
@@ -164,7 +150,7 @@
             => new()
             {
                 Id = permission.Id,
-                DepartmentId = permission.DepartmentId,
+
                 Context = permission.Context,
                 Resource = permission.Resource,
                 Action = permission.Action,
@@ -175,7 +161,7 @@
         public CreatePermissionRequest ToCreateRequest()
             => new()
             {
-                DepartmentId = DepartmentId,
+
                 Context = Context,
                 Resource = Resource,
                 Action = Action,
@@ -186,7 +172,7 @@
             => new()
             {
                 Id = Id,
-                DepartmentId = DepartmentId,
+
                 Context = Context,
                 Resource = Resource,
                 Action = Action,

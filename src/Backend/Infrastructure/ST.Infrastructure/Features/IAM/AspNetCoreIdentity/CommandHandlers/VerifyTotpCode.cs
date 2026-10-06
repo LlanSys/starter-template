@@ -47,7 +47,7 @@ internal sealed class VerifyTotpCode(
         try
         {
             var user = await userManager.FindByIdAsync(request.UserId).ConfigureAwait(false);
-            if (user == null)
+            if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
             {
                 ServiceLogDefinitions.Log2FAVerificationAttemptNonExistentUser(logger, request.UserId);
                 return AppResponses.Failure<VerifyOtpResponse>("User not found");
@@ -90,8 +90,8 @@ internal sealed class VerifyTotpCode(
                     var enableResult = await userManager.SetTwoFactorEnabledAsync(user, true).ConfigureAwait(false);
                     if (!enableResult.Succeeded)
                     {
-                        var errors = string.Join("; ", enableResult.Errors.Select(static error => error.Description));
-                        return AppResponses.Failure<VerifyOtpResponse>($"Could not enable two-factor authentication: {errors}");
+                        ServiceLogDefinitions.LogTotpSetupInitiationError(logger, user.Id, new InvalidOperationException("Identity rejected MFA enrollment."));
+                        return AppResponses.Failure<VerifyOtpResponse>("Could not enable two-factor authentication. Please try again.");
                     }
 
                     ServiceLogDefinitions.LogOtpEnabled(logger, user.Id);

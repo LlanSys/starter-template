@@ -22,6 +22,9 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (!Request.Headers.Authorization.ToString().StartsWith(AuthenticationScheme, StringComparison.Ordinal))
+            return Task.FromResult(AuthenticateResult.NoResult());
+
         var claims = new List<Claim>();
 
         if (Request.Headers.TryGetValue("X-Test-UserId", out var userId))

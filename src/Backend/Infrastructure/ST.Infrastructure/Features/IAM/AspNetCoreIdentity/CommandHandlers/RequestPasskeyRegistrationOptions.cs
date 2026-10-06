@@ -19,7 +19,7 @@ internal sealed class RequestPasskeyRegistrationOptions(
     IPasskeyService passkeyService,
     IUserContextService userContext,
     UserManager<AppUser> userManager,
-    IDistributedCache cacheService) : IRequestHandler<RequestPasskeyRegistrationOptionsCommand, AppResponse<JsonElement>>
+    IIamUnitOfWork unitOfWork) : IRequestHandler<RequestPasskeyRegistrationOptionsCommand, AppResponse<JsonElement>>
 {
     public async Task<AppResponse<JsonElement>> Handle(RequestPasskeyRegistrationOptionsCommand request, CancellationToken cancellationToken)
     {
@@ -32,20 +32,22 @@ internal sealed class RequestPasskeyRegistrationOptions(
             .Include(u => u.Fido2Credentials)
             .FirstOrDefaultAsync(u => u.Id == userContext.GetCurrentContext().AppUserId, cancellationToken).ConfigureAwait(false);
 
-        if (user == null)
+        if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
         {
             return AppResponses.Failure<JsonElement>("User not found.");
         }
 
         var options = await passkeyService.RequestNewCredentialAsync(user, user.Fido2Credentials, cancellationToken).ConfigureAwait(false);
 
-        // Cache the options for 5 minutes to verify against the response in the next step
-        var cacheKey = $"Fido2RegistrationOptions:{user.Id}";
-        await cacheService.SetStringAsync(
-            cacheKey,
-            JsonSerializer.Serialize(options),
-            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) },
-            cancellationToken).ConfigureAwait(false);
+        await unitOfWork.PasskeyChallengeRepository.ReplaceAsync(new PasskeyChallenge
+        {
+            Key = PasskeyChallengeKeys.Registration(user.Id),
+            TenantId = user.TenantId,
+            OptionsJson = JsonSerializer.Serialize(options),
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
+            CreatedBy = user.Id
+        }, cancellationToken).ConfigureAwait(false);
+        await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
         return AppResponses.Success("Registration options generated.", options);
     }

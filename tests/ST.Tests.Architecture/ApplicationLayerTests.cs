@@ -171,7 +171,7 @@ public sealed class ApplicationLayerTests
     }
 
     [Fact]
-    public void Banking_And_Hr_Write_Commands_Should_Declare_Cache_Invalidation()
+    public void Permission_And_Menu_Write_Commands_Should_Declare_Cache_Invalidation()
     {
         var writeCommandsWithoutInvalidation = Types.InAssembly(AssemblyReferences.Application)
             .That()
@@ -180,14 +180,14 @@ public sealed class ApplicationLayerTests
             .HaveNameEndingWith("Command")
             .GetTypes()
             .Where(t => t.Namespace is not null &&
-                        (t.Namespace.StartsWith("ST.Application.Features.Banking.", StringComparison.Ordinal) ||
-                         t.Namespace.StartsWith("ST.Application.Features.HR.", StringComparison.Ordinal)))
+                        (t.Namespace.StartsWith("ST.Application.Features.IAM.Menus.Commands", StringComparison.Ordinal) ||
+                         t.Namespace.StartsWith("ST.Application.Features.IAM.Permissions.Commands", StringComparison.Ordinal)))
             .Where(t => !ImplementsInterface(t, "ST.Application.Contracts.Interfaces.Common.ICacheInvalidatorRequest"))
             .Select(t => t.FullName)
             .ToList();
 
         writeCommandsWithoutInvalidation.Should().BeEmpty(
-            because: "Banking and HR write commands mutate data used by cached reads and must declare invalidation keys. Found: {0}",
+            because: "Permission and menu write commands mutate data used by cached reads and must declare invalidation keys. Found: {0}",
             string.Join(", ", writeCommandsWithoutInvalidation));
     }
 

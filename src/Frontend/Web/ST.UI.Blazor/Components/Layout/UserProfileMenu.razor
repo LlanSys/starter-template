@@ -40,7 +40,7 @@
     else
     {
         <a class="profile-card sign-in-card" href="/iam/sign-in">
-            <MudAvatar Size="Size.Medium">BT</MudAvatar>
+            <MudAvatar Size="Size.Medium">ST</MudAvatar>
             <div>
                 <strong>@ProfileFallbackTitle</strong>
                 <span>@ProfileFallbackMessage</span>
@@ -83,7 +83,7 @@
             }
 
             var email = AuthSession.CurrentUser?.Email;
-            return string.IsNullOrWhiteSpace(email) ? "BT" : email[..1].ToUpperInvariant();
+            return string.IsNullOrWhiteSpace(email) ? "ST" : email[..1].ToUpperInvariant();
         }
     }
 

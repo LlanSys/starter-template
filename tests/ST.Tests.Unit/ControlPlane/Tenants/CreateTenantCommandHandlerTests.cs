@@ -133,7 +133,7 @@ public sealed class CreateTenantCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithValidRequest_CreatesTenantWithPendingKYCStatus()
+    public async Task Handle_WithValidRequest_CreatesTenantWithPendingApprovalStatus()
     {
         // Arrange
         var stampId = Guid.NewGuid();
@@ -176,11 +176,11 @@ public sealed class CreateTenantCommandHandlerTests
 
         // Assert
         Assert.True(result.IsSuccess);
-        Assert.Equal(TenantStatus.PendingKYC.ToDisplayString(), result.Data!.Status);
+        Assert.Equal(TenantStatus.PendingApproval.ToDisplayString(), result.Data!.Status);
 
         await _unitOfWork.Tenants.Received(1).CreateAsync(
             Arg.Is<Tenant>(t =>
-                t.Status == TenantStatus.PendingKYC &&
+                t.Status == TenantStatus.PendingApproval &&
                 t.Identifier == "test-tenant" &&
                 t.DatabaseConnectionString == "encrypted-string"),
             Arg.Any<CancellationToken>());

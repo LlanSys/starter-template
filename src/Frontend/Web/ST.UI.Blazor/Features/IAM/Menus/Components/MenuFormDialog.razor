@@ -1,5 +1,4 @@
 @inject IIamAdminService IamAdminService
-@inject IDepartmentService DepartmentService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -22,13 +21,6 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Value="_model.DepartmentId" ValueChanged="OnDepartmentChanged" Label="Department scope" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
-                        <MudSelectItem T="Guid?" Value="null">Global</MudSelectItem>
-                        @foreach (var department in _departments)
-                        {
-                            <MudSelectItem T="Guid?" Value="@department.Id">@department.Name</MudSelectItem>
-                        }
-                    </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudSelect T="Guid?" @bind-Value="_model.ParentId" Label="Parent" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" ToStringFunc="ParentLabel">
@@ -66,7 +58,7 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField @bind-Value="_model.RequiredModule" Label="Required Module (e.g. HR, Banking)" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" />
+                    <MudTextField @bind-Value="_model.RequiredModule" Label="Required module key" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" Margin="Margin.Dense" Variant="Variant.Outlined" />
@@ -88,7 +80,7 @@
 
 @code {
     private readonly List<PermissionResponse> _permissions = [];
-    private readonly List<DepartmentResponse> _departments = [];
+
     private IamReferenceDataResponse _referenceData = new([], [], [], [], [], []);
     private MenuFormModel _model = new();
     private bool _isSaving;
@@ -108,8 +100,7 @@
     private IReadOnlyList<MenuResponse> ParentOptions =>
         [.. Menus.Where(menu =>
                 (ExistingMenu is null || menu.Id != ExistingMenu.Id)
-                && menu.Placement.Equals(_model.Placement, StringComparison.OrdinalIgnoreCase)
-                && menu.DepartmentId == _model.DepartmentId)
+                && menu.Placement.Equals(_model.Placement, StringComparison.OrdinalIgnoreCase))
             .OrderBy(menu => menu.Title)];
 
     private IReadOnlyList<CatalogOptionResponse> RouteOptions =>
@@ -121,7 +112,7 @@
     {
         _model = ExistingMenu is null ? new MenuFormModel() : MenuFormModel.From(ExistingMenu);
         await LoadReferenceDataAsync();
-        await LoadDepartmentsAsync();
+
         await LoadPermissionsAsync();
     }
 
@@ -135,18 +126,6 @@
         }
 
         _referenceData = response.Data;
-    }
-
-    private async Task LoadDepartmentsAsync()
-    {
-        var response = await DepartmentService.GetAsync();
-        if (!response.IsSuccess || response.Data is null)
-        {
-            Snackbar.Add(response.Message ?? "We could not load departments.", Severity.Warning);
-            return;
-        }
-
-        _departments.AddRange(response.Data.Where(static department => department.IsActive).OrderBy(static department => department.Name));
     }
 
     private async Task LoadPermissionsAsync()
@@ -197,12 +176,6 @@
         }
     }
 
-    private void OnDepartmentChanged(Guid? departmentId)
-    {
-        _model.DepartmentId = departmentId;
-        _model.ParentId = null;
-    }
-
     private string ParentLabel(Guid? parentId)
     {
         if (!parentId.HasValue || parentId.Value == Guid.Empty)
@@ -231,7 +204,7 @@
     {
         public Guid Id { get; set; }
         public Guid? ParentId { get; set; }
-        public Guid? DepartmentId { get; set; }
+
         public string Title { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
@@ -246,7 +219,7 @@
             {
                 Id = menu.Id,
                 ParentId = menu.ParentId,
-                DepartmentId = menu.DepartmentId,
+
                 Title = menu.Title,
                 Description = menu.Description,
                 Url = menu.Url,
@@ -261,7 +234,7 @@
             => new()
             {
                 ParentId = ParentId,
-                DepartmentId = DepartmentId,
+
                 Title = Title,
                 Description = Description,
                 Url = Url,
@@ -276,7 +249,7 @@
             {
                 Id = Id,
                 ParentId = ParentId,
-                DepartmentId = DepartmentId,
+
                 Title = Title,
                 Description = Description,
                 Url = Url,

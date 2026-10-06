@@ -18,12 +18,7 @@
 
             <MudItem xs="12" Class="mt-4">
                 <div class="d-flex gap-2">
-                    <MudSelect T="string" @bind-Value="_newModuleKey" Label="Module" Margin="Margin.Dense" Variant="Variant.Outlined" Disabled="_isBusy">
-                        <MudSelectItem T="string" Value="@("IAM")">IAM</MudSelectItem>
-                        <MudSelectItem T="string" Value="@("HR")">HR</MudSelectItem>
-                        <MudSelectItem T="string" Value="@("Banking")">Banking</MudSelectItem>
-                        <MudSelectItem T="string" Value="@("Shared")">Shared</MudSelectItem>
-                    </MudSelect>
+                    <MudTextField T="string" @bind-Value="_newModuleKey" Label="Module key" Margin="Margin.Dense" Variant="Variant.Outlined" Disabled="_isBusy" />
                     <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" Class="mt-1" OnClick="AddModuleAsync" Disabled="@(string.IsNullOrWhiteSpace(_newModuleKey) || _isBusy)">Add</MudButton>
                 </div>
             </MudItem>

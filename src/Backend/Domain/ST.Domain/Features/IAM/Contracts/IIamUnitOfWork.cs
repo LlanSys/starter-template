@@ -23,5 +23,6 @@ public interface IIamUnitOfWork : ITransactionalUnitOfWork
     IRepository<MenuPlacement> MenuPlacementRepository { get; }
     IRepository<MenuIcon> MenuIconRepository { get; }
     IRepository<MenuRoute> MenuRouteRepository { get; }
+    IPasskeyChallengeRepository PasskeyChallengeRepository { get; }
     IRepository<Fido2Credential> Fido2CredentialRepository { get; }
 }

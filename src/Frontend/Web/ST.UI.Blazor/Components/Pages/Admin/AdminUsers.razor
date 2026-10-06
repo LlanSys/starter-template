@@ -64,7 +64,7 @@
             <MudAlert Severity="@_messageSeverity" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
         }
 
-        <div class="bt-table-scroll">
+        <div class="st-table-scroll">
             <MudTable Items="_users" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="PageSize" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh Style="width: 15rem;">Name</MudTh>
@@ -275,7 +275,7 @@
     {
         var parameters = new DialogParameters
         {
-            { nameof(AdminUserFormDialog.Roles), AvailableRoles.Count > 0 ? AvailableRoles : ["Admin", "User"] },
+            { nameof(AdminUserFormDialog.Roles), AvailableRoles },
             { nameof(AdminUserFormDialog.ExistingUser), user }
         };
 
@@ -361,9 +361,26 @@
         Snackbar.Add($"{DisplayName(user)} activated.", Severity.Success);
         await LoadUsersAsync();
     }
+    private async Task ConfirmInviteAsync(AdminUserListResponse user)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ConfirmDialog.Message), $"Send an account setup link to {user.Email}? The recipient will confirm their email and choose a password." },
+            { nameof(ConfirmDialog.ConfirmText), "Send invitation" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Account Invitation", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+        if (await dialog.Result is not { Canceled: false }) return;
+        var response = await IamAdminService.InviteUserAsync(user.Id);
+        Snackbar.Add(UserMessageSanitizer.Normalize(response.Message,
+            response.IsSuccess ? "Invitation sent." : "Invitation delivery failed."),
+            response.IsSuccess ? Severity.Success : Severity.Error);
+    }
+
     private Task HandleExtraActionAsync(AdminUserListResponse user, string action)
         => action switch
         {
+            "Send Invitation" => ConfirmInviteAsync(user),
             "Activate" => ConfirmActivateAsync(user),
             "Deactivate" => ConfirmDeactivateAsync(user),
             "Manage Roles" => OpenUserRolesDialogAsync(user),
@@ -388,6 +405,11 @@
         if (!user.IsActive && AuthSession.HasPermission("users.edit"))
         {
             actions.Add("Activate");
+        }
+
+        if (user.IsActive && !user.EmailConfirmed && AuthSession.HasPermission("users.edit"))
+        {
+            actions.Add("Send Invitation");
         }
 
         if (user.IsActive && AuthSession.HasPermission("users.deactivate"))

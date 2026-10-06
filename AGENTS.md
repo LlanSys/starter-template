@@ -32,7 +32,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - After protected data has been issued, `DataProtection:ApplicationName` is immutable without an explicit migration or security reset.
 - Target framework: `.NET 10`
 - Architecture: modular monolith with Clean Architecture boundaries and bounded-context feature folders.
-- Retained platform contexts: `IAM`, `Shared`, and `ControlPlane`. `Banking` and `HR` are temporarily retained while IAM is decoupled, then removed by the domain-neutral refactor plan.
+- Retained platform contexts: `IAM`, `Shared`, and `ControlPlane`. Application business contexts belong in downstream clones.
 
 ## Architecture Rules
 
@@ -56,7 +56,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - All user-facing errors from the UI must be sanitized through the shared messaging pattern.
 - Provider-specific integration DTOs belong beside the provider adapter. Shared contracts should stay provider-neutral and should not expose Stripe, M-Pesa, Azure, or other provider wire payloads.
 - When a capability supports multiple runtime providers per operation, use a router/factory over isolated provider adapters. Do not make one provider adapter understand another provider's DTOs, credentials, or callbacks.
-- Application-layer command/query handlers must use bounded-context Unit of Work interfaces (`ISharedUnitOfWork`, `IBankingUnitOfWork`, etc.) for persistence orchestration, not raw `IRepository<T>`. Always call `CompleteAsync` with a `CancellationToken` after write operations.
+- Application-layer command/query handlers must use bounded-context Unit of Work interfaces (`ISharedUnitOfWork`, `IIamUnitOfWork`, etc.) for persistence orchestration, not raw `IRepository<T>`. Always call `CompleteAsync` with a `CancellationToken` after write operations.
 - Pass `CancellationToken` to all async I/O calls (`ReadAsStringAsync`, `CompleteAsync`, `SaveChangesAsync`, etc.) where the parameter is available.
 - Use `StringComparison.OrdinalIgnoreCase` for case-insensitive comparisons. Reserve `ToUpperInvariant()`/`ToLowerInvariant()` for value normalization (stored keys, wire formats, display strings) — never for equality checks. C# `switch` on normalized strings is acceptable when `StringComparison` is not supported by the expression.
 - Always use `Guid.CreateVersion7()` instead of `Guid.NewGuid()` to ensure time-ordered identifiers.
@@ -73,9 +73,13 @@ This file is the canonical source of truth and working contract for AI coding to
 - Use `CountAsync` only when the count is returned, logged, or used for a decision.
 - Avoid N+1 query patterns. Batch identifiers and map results in memory.
 - Cursor pagination must fetch `pageSize + 1` before trimming.
-- **StarterTemplate supports multiple database providers (PostgreSQL and SQL Server).** When adding EF Core migrations, you MUST generate separate migrations for each provider's DbContext and specify the correct output directory. For example, for the IAM bounded context: `dotnet ef migrations add <Name> -c IamSqlServerDBContext -o Migrations/IAM` and `dotnet ef migrations add <Name> -c IamPostgreSqlDBContext -o Migrations/IamPostgreSqlDB`. Do not rely on default output directories.
+- **StarterTemplate supports multiple database providers (PostgreSQL and SQL Server).** When adding EF Core migrations, you MUST generate separate migrations for each provider's DbContext and specify the correct output directory. For example, for the IAM bounded context: `dotnet ef migrations add <Name> -c IamSqlServerDBContext -o Features/IAM/Migrations/SqlServer` and `dotnet ef migrations add <Name> -c IamPostgreSqlDBContext -o Features/IAM/Migrations/PostgreSql`. Do not rely on default output directories.
 - **Database Context Factories:** When creating `IDesignTimeDbContextFactory<T>` implementations, always specify a provider-specific fallback connection string using `DesignTimeConfigurationFactory.GetConnectionString(..., fallbackConnectionName: "DefaultPostgreSqlConnection")` (or `"DefaultSqlConnection"`) to prevent parsing crashes from incompatible connection string parameters.
 - **Idempotent Migrations:** EF Core index creations are globally intercepted by custom SQL generators (`IdempotentSqlServerMigrationsSqlGenerator` and `IdempotentNpgsqlMigrationsSqlGenerator`) to inject `IF NOT EXISTS` logic. Do not write manual raw SQL for idempotency on index creation—the generator handles this automatically.
+
+- The six InitialStarter migrations target fresh databases only. Never apply them as upgrades to an existing application database. Shared baselines include the provider-specific Quartz tables.
+- PostgreSQL uses application-stamped byte concurrency tokens; SQL Server uses native rowversion.
+- Passkey challenges are temporary tenant-scoped records, deliberately hard-deleted on consumption/expiry. Credential ceremonies require user verification and persisted ownership/uniqueness checks.
 
 ## Validation, Logging, And Caching
 

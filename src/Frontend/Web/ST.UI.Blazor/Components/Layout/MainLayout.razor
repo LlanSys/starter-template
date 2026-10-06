@@ -54,7 +54,7 @@
         if (firstRender)
         {
             await AuthSession.InitializeAsync();
-            if (AuthSession.IsAuthenticated && AuthSession.HasPermission("controlplane.manage"))
+            if (AuthSession.IsAuthenticated && AuthSession.HasPermission("control_plane.manage"))
             {
                 var response = await AuditService.GetImpersonationRecordsAsync(activeOnly: true);
                 if (response.IsSuccess && response.Data != null)

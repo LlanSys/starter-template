@@ -1,7 +1,5 @@
 using ST.Domain.Shared.Contracts.Common;
-using ST.Persistence.Features.Banking.DataContext;
 using ST.Persistence.Features.ControlPlane.DataContext;
-using ST.Persistence.Features.HR.DataContext;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.Shared.DataContext;
 using Microsoft.EntityFrameworkCore;
@@ -37,17 +35,7 @@ public class MigrationGuardrailTests
         AssertNoPendingModelChanges<SharedPostgreSqlDBContext>(options => options.UseNpgsql("Host=localhost;Database=dummy;Username=postgres;Password=postgres"));
     }
 
-    [Fact]
-    public void HrSqlServer_ShouldNotHavePendingModelChanges()
-    {
-        AssertNoPendingModelChanges<HrSqlServerDBContext>(options => options.UseSqlServer("Server=.;Database=dummy;Integrated Security=true"));
-    }
 
-    [Fact]
-    public void HrPostgreSql_ShouldNotHavePendingModelChanges()
-    {
-        AssertNoPendingModelChanges<HrPostgreSqlDBContext>(options => options.UseNpgsql("Host=localhost;Database=dummy;Username=postgres;Password=postgres"));
-    }
 
     [Fact]
     public void ControlPlaneSqlServer_ShouldNotHavePendingModelChanges()

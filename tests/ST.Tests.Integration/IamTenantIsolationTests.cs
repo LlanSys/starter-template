@@ -57,7 +57,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
         {
             await context.Database.EnsureCreatedAsync();
 
-            var menu1 = MenuItem.Create(null, null, $"menu-1-{tenant1}", "Menu 1", "Desc 1", "/m1", "icon1", "top", null, null, 1, "test");
+            var menu1 = MenuItem.Create(null, $"menu-1-{tenant1}", "Menu 1", "Desc 1", "/m1", "icon1", "top", null, null, 1, "test");
             context.MenuItems.Add(menu1);
             await context.SaveChangesAsync();
         }
@@ -66,7 +66,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
         tenantProvider.TenantId = tenant2;
         using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
         {
-            var menu2 = MenuItem.Create(null, null, $"menu-2-{tenant2}", "Menu 2", "Desc 2", "/m2", "icon2", "top", null, null, 2, "test");
+            var menu2 = MenuItem.Create(null, $"menu-2-{tenant2}", "Menu 2", "Desc 2", "/m2", "icon2", "top", null, null, 2, "test");
             context.MenuItems.Add(menu2);
             await context.SaveChangesAsync();
         }
@@ -109,7 +109,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
         {
             await context.Database.EnsureCreatedAsync();
 
-            var menu1 = MenuItem.Create(null, null, $"menu-3-{tenant1}", "Menu 3", "Desc 1", "/m3", "icon1", "top", null, null, 1, "test");
+            var menu1 = MenuItem.Create(null, $"menu-3-{tenant1}", "Menu 3", "Desc 1", "/m3", "icon1", "top", null, null, 1, "test");
             context.MenuItems.Add(menu1);
             await context.SaveChangesAsync();
         }
@@ -118,7 +118,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
         tenantProvider.TenantId = tenant2;
         using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
         {
-            var menu2 = MenuItem.Create(null, null, $"menu-4-{tenant2}", "Menu 4", "Desc 2", "/m4", "icon2", "top", null, null, 2, "test");
+            var menu2 = MenuItem.Create(null, $"menu-4-{tenant2}", "Menu 4", "Desc 2", "/m4", "icon2", "top", null, null, 2, "test");
             context.MenuItems.Add(menu2);
             await context.SaveChangesAsync();
         }

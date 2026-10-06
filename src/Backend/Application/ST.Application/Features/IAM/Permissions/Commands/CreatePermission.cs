@@ -27,7 +27,7 @@ internal sealed class CreatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             }
 
             var permission = Permission.Create(
-                command.Request.DepartmentId,
+
                 command.Request.Context,
                 command.Request.Resource,
                 command.Request.Action,

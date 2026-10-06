@@ -1,10 +1,6 @@
 using ST.Application.Behaviours;
 using ST.Application.Configuration;
 using ST.Application.Contracts.Implementations.Common;
-using ST.Application.Features.Banking.Customers.Contracts.Implementations;
-using ST.Application.Features.Banking.Customers.Contracts.Interfaces;
-using ST.Application.Features.HR.Employees.Contracts.Implementations;
-using ST.Application.Features.HR.Employees.Contracts.Interfaces;
 using ST.Application.Contracts.Interfaces.Common;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
@@ -52,8 +48,6 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
-        services.AddScoped<ICustomerNumberGenerator, CustomerNumberGenerator>();
-        services.AddScoped<IEmployeeNumberGenerator, EmployeeNumberGenerator>();
         services.AddScoped<IServiceManager, ServiceManager>();
 
     }
