@@ -15,7 +15,7 @@ This document records the intended CI/CD architecture. The executable source of 
 ## Pipeline Shape
 
 1. **Build and test**
-   - Restore explicit projects so Linux CI does not require unsupported MAUI workloads.
+   - Restore the backend and Blazor projects on Linux CI; no mobile workloads are required.
    - Build and test in `Release` mode.
    - Publish API/UI artifacts.
    - Build one `efbundle` per bounded-context DbContext.

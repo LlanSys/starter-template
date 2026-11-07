@@ -9,22 +9,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers;
 
-internal sealed class GetAdminRoles(RoleManager<AppRole> roleManager, IamDBContext context)
+internal sealed class GetAdminRoles(RoleManager<AppRole> roleManager, IamDBContext context, ST.Application.Features.IAM.Users.Contracts.Interfaces.IRoleAvailability availability)
     : IRequestHandler<GetAdminRolesQuery, AppResponse<IReadOnlyList<AdminRoleListResponse>>>
 {
     public async Task<AppResponse<IReadOnlyList<AdminRoleListResponse>>> Handle(GetAdminRolesQuery request, CancellationToken cancellationToken)
     {
-        var userCounts = await context.UserRoles
-            .AsNoTracking()
-            .GroupBy(static userRole => userRole.RoleId)
-            .Select(static group => new { RoleId = group.Key, Count = group.Count() })
-            .ToDictionaryAsync(static item => item.RoleId, static item => item.Count, cancellationToken)
-            .ConfigureAwait(false);
-
+        var available = await availability.AvailableIdsAsync(cancellationToken).ConfigureAwait(false);
         var roles = await roleManager.Roles
             .AsNoTracking()
             .OrderBy(static role => role.Name)
             .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        roles = roles.Where(role => available.Contains(role.Id)).ToList();
+        var roleIds = roles.Select(role => role.Id).ToArray();
+        var userCounts = await context.UserRoles
+            .AsNoTracking()
+            .Where(userRole => roleIds.Contains(userRole.RoleId))
+            .GroupBy(static userRole => userRole.RoleId)
+            .Select(static group => new { RoleId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(static item => item.RoleId, static item => item.Count, cancellationToken)
             .ConfigureAwait(false);
 
         var result = roles

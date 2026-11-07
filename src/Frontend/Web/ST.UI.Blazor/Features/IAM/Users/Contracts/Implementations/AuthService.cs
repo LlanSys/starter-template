@@ -5,7 +5,7 @@ using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.UI.Blazor.Configuration;
 using ST.UI.Blazor.Features.Shared.BackendApi;
 using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces;
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
+using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace ST.UI.Blazor.Features.IAM.Users.Contracts.Implementations;

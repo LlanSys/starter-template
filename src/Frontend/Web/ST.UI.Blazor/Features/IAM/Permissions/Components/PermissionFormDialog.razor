@@ -1,3 +1,4 @@
+@inject IAuthSession AuthSession
 @inject IIamAdminService IamAdminService
 @inject ISnackbar Snackbar
 
@@ -6,6 +7,7 @@
     <EditForm FormName="iam-permission-form" Model="_model" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
             <MudGrid Spacing="2">
+                <MudItem xs="12"><MudSelect T="string" @bind-Value="_model.ModuleKey" Label="Module" Variant="Variant.Outlined" Margin="Margin.Dense">@foreach(var module in AuthSession.CurrentUser?.EnabledModules ?? []) { <MudSelectItem Value="@module">@(module.ToLowerInvariant() switch { "iam" => "Identity and access", "core" => "Core workspace", "payments" => "Payments", "showcase" => "Showcase", _ => module })</MudSelectItem> }</MudSelect></MudItem>
                 <MudItem xs="12" sm="4">
                     <MudSelect T="string" Value="_model.Context" ValueChanged="OnContextChanged" Label="Context" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
                         @foreach (var context in _referenceData.PermissionContexts)
@@ -139,6 +141,7 @@
     private sealed class PermissionFormModel
     {
         public Guid Id { get; set; }
+        public string ModuleKey { get; set; } = "iam";
 
         public string Context { get; set; } = string.Empty;
         public string Resource { get; set; } = string.Empty;
@@ -150,6 +153,7 @@
             => new()
             {
                 Id = permission.Id,
+                ModuleKey = permission.ModuleKey,
 
                 Context = permission.Context,
                 Resource = permission.Resource,
@@ -162,6 +166,7 @@
             => new()
             {
 
+                ModuleKey = ModuleKey,
                 Context = Context,
                 Resource = Resource,
                 Action = Action,
@@ -173,6 +178,7 @@
             {
                 Id = Id,
 
+                ModuleKey = ModuleKey,
                 Context = Context,
                 Resource = Resource,
                 Action = Action,

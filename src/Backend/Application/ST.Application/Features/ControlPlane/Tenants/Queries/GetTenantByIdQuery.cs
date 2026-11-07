@@ -8,6 +8,7 @@ namespace ST.Application.Features.ControlPlane.Tenants.Queries;
 
 public record GetTenantByIdQuery(Guid Id) : IRequest<AppResponse<TenantResponse>>, ICachableRequest
 {
+    public bool BypassCache => true; // Operator configuration must reflect approvals and entitlement edits immediately.
     public string CacheGroup => "tenants";
     public string Discriminator => Id.ToString();
     public string? CacheUserId => null;

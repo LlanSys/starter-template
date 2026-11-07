@@ -63,9 +63,7 @@ internal static class UserMessageSanitizer
 
         if (LooksTechnical(message))
         {
-            return IsDevelopment
-                ? $"[DEV WARNING: Technical Error] {message.Trim()}"
-                : fallback;
+            return fallback;
         }
 
         return message.Trim();

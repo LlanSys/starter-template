@@ -1,6 +1,5 @@
 @inherits LayoutComponentBase
 @inject IAuthSession AuthSession
-@inject IAuditService AuditService
 @using ST.UI.Blazor.Features.ControlPlane.Auditing.Contracts
 @using ST.SharedKernel.Dtos.Common
 
@@ -13,22 +12,9 @@
 
     <main class="workspace">
         <header class="app-top-row px-4">
-            <div>
-                <span class="top-kicker">StarterTemplate</span>
-                <strong>Operations Console</strong>
-            </div>
-            <div class="topbar-meta">
-                <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Size="Size.Small" />
-                <span>POC Workspace</span>
-            </div>
+            <WorkspaceSwitcher />
+            <UserProfileMenu />
         </header>
-
-        @if (_isImpersonating && _impersonationTarget != null)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Square="true" Class="px-4 py-2 m-0" Style="border-radius: 0;">
-                <strong>Impersonation Active:</strong> You are currently impersonating tenant <strong>@_impersonationTarget</strong>. Actions are logged.
-            </MudAlert>
-        }
 
         <article class="content px-4">
             <RequireAuthenticated>
@@ -44,31 +30,3 @@
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
 </div>
-
-@code {
-    private bool _isImpersonating;
-    private string? _impersonationTarget;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await AuthSession.InitializeAsync();
-            if (AuthSession.IsAuthenticated && AuthSession.HasPermission("control_plane.manage"))
-            {
-                var response = await AuditService.GetImpersonationRecordsAsync(activeOnly: true);
-                if (response.IsSuccess && response.Data != null)
-                {
-                    var currentUserId = AuthSession.CurrentUser?.AppUserId;
-                    var activeSession = response.Data.FirstOrDefault(x => x.ActorId == currentUserId);
-                    if (activeSession != null)
-                    {
-                        _isImpersonating = true;
-                        _impersonationTarget = activeSession.TargetTenantName;
-                        StateHasChanged();
-                    }
-                }
-            }
-        }
-    }
-}

@@ -9,12 +9,13 @@ namespace ST.Infrastructure.Contracts.Implementations.Common;
 
 internal sealed class CurrentTenantProvider(
     IHttpContextAccessor httpContextAccessor,
-    IOptions<OrgSettings> options) : ICurrentTenantProvider
+    IOptions<OrgSettings> options, WorkspaceTenantOverride? workspace = null) : ICurrentTenantProvider
 {
     public Guid TenantId
     {
         get
         {
+            if (workspace?.TenantId is Guid scopedTenant) return scopedTenant;
             var settings = options.Value;
             var user = httpContextAccessor.HttpContext?.User;
 

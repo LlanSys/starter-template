@@ -1,8 +1,20 @@
+@inject IAuthSession AuthSession
+@if (!_sessionReady)
+{
+    <p role="status" class="pa-4">Checking your session…</p>
+}
+else
+{
 <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
             <NotAuthorized>
-                @{
+                @if (AuthSession.IsAuthenticated)
+                {
+                    <LayoutView Layout="typeof(Layout.MainLayout)"><h1 class="platform-page-title">Page unavailable</h1><p>This page is not available in your workspace.</p><MudButton Href="/dashboard" Color="Color.Primary">Dashboard</MudButton></LayoutView>
+                }
+                else
+                {
                     Navigation.NavigateTo("/iam/sign-in", forceLoad: true);
                 }
             </NotAuthorized>
@@ -11,7 +23,16 @@
     </Found>
 </Router>
 
+}
 @code {
+    private bool _sessionReady;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await AuthSession.InitializeAsync();
+        _sessionReady = true;
+        StateHasChanged();
+    }
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 }

@@ -1,98 +1,22 @@
 @page "/control-panel"
 @layout ControlPlaneLayout
-
-@rendermode InteractiveServer
-@inject IAuthSession AuthSession
-@inject IIamAdminService IamAdminService
+@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@using ST.UI.Blazor.Features.ControlPlane.Modules.Pages
 @inject NavigationManager Navigation
-@inject ISnackbar Snackbar
-
 <PageTitle>Control Panel | StarterTemplate</PageTitle>
-
-<RequireAuthenticated>
-    <section class="dashboard-page">
-        @if (!_isReady)
-        {
-            <MudPaper Class="status-card" Elevation="0">Loading control panel...</MudPaper>
-        }
-        else
-        {
-            <div class="dashboard-hero compact-hero">
-                <div>
-                    <span class="eyebrow">Platform</span>
-                    <h1>Control Panel.</h1>
-                    <p>Manage platform-wide settings, SaaS tenants, and deployment stamps.</p>
-                </div>
-            </div>
-
-            <div class="admin-module-grid">
-                @foreach (var module in _modules)
-                {
-                    <MudPaper Class="admin-tile" Elevation="0">
-                        <MudIcon Icon="@MenuIconMapper.Resolve(module.Icon)" Class="tile-icon" />
-                        <div>
-                            <strong>@module.Title</strong>
-                            <span>@module.Description</span>
-                        </div>
-                        <MudButton Href="@module.Url" Variant="Variant.Text" Size="Size.Small" Class="st-small-button" EndIcon="@Icons.Material.Filled.ArrowForward">
-                            Open
-                        </MudButton>
-                    </MudPaper>
-                }
-            </div>
-        }
-    </section>
-</RequireAuthenticated>
-
+<h1 class="platform-page-title mb-4">Control Panel</h1>
+<MudTabs ActivePanelIndex="_index" ActivePanelIndexChanged="SelectTab" Elevation="0" Rounded="false" PanelClass="pt-4" KeepPanelsAlive="false">
+    <MudTabPanel Text="Deployment Stamps"><AdminDeploymentStamps Embedded="true" /></MudTabPanel>
+    <MudTabPanel Text="Tenants"><AdminTenants Embedded="true" /></MudTabPanel>
+    <MudTabPanel Text="Modules"><Modules Embedded="true" /></MudTabPanel>
+</MudTabs>
 @code {
-    private readonly List<MenuResponse> _modules = [];
-    private bool _isReady;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
+    private int _index;
+    protected override void OnParametersSet() => _index = Tab switch { "tenants" => 1, "modules" => 2, _ => 0 };
+    private void SelectTab(int index)
     {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        await AuthSession.InitializeAsync();
-        if (AuthSession.IsAuthenticated)
-        {
-            await LoadModulesAsync();
-            StateHasChanged();
-        }
-    }
-
-    private async Task LoadModulesAsync()
-    {
-        var response = await IamAdminService.GetNavigationMenusAsync("ControlPanel");
-        if (!response.IsSuccess || response.Data is null)
-        {
-            Snackbar.Add(response.Message ?? "We could not load control panel menus.", Severity.Error);
-            _isReady = true;
-            return;
-        }
-
-        _modules.Clear();
-        var allMenus = Flatten(response.Data);
-        _modules.AddRange(allMenus);
-        _isReady = true;
-    }
-
-    private static IEnumerable<MenuResponse> Flatten(IEnumerable<MenuResponse>? menus)
-    {
-        if (menus is null)
-        {
-            yield break;
-        }
-
-        foreach (var menu in menus)
-        {
-            yield return menu;
-            foreach (var child in Flatten(menu.Children))
-            {
-                yield return child;
-            }
-        }
+        _index = index;
+        Navigation.NavigateTo("/control-panel?tab=" + (index switch { 1 => "tenants", 2 => "modules", _ => "stamps" }), replace: true);
     }
 }

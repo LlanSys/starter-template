@@ -1,17 +1,23 @@
 # StarterTemplate - Living Architecture And Delivery Plan
 
+> Active SaaS delivery sequence: [Vendor, demo and tenant experience plan](docs/architecture/vendor-demo-tenant-experience-plan.md). Approved for incremental implementation; vendor-first slices with a mandatory vendor-owned demo tenant and tenant-isolation acceptance in every phase.
+
 > Current starter baseline: IAM, Shared and ControlPlane only. The historical roadmap below records earlier implementation decisions; it does not require retention of removed business contexts. The active refactor/certification status is [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Six InitialStarter migrations target fresh databases only.
 
 
 > Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
 
-> Last updated: 2026-10-06
+> Last updated: 2026-10-30
 >
 > This file is the canonical roadmap for the StarterTemplate solution.
 > It defines the architectural guardrails, execution order, and production-hardening specifications.
 > Update it at the end of every meaningful work session.
 
 ---
+
+## Frontend simplification (2026-10-29)
+
+The supported frontend is the Interactive Server Blazor Web App. UI contracts moved into Blazor feature folders; MAUI, the separate RCL, and mobile CI were removed. Backend API DTOs remain in SharedKernel. Quartz jobs use the version 4 ValueTask/cancellation contract and asynchronous scope disposal.
 
 ## 1. Purpose
 
@@ -22,7 +28,7 @@ The solution is structured as a **Logical Modular Monolith**:
 - **Bounded Contexts:** Clear separation of concerns (IAM, Workforce, Banking, Shared) with separate database schemas and DbContexts to prevent cross-context table joins.
 - **Clean Architecture:** Strict inward-pointing dependency directions (Domain & SharedKernel -> Application -> Infrastructure & Persistence -> API & UI Hosts).
 - **Vertical Slice Structure:** Cross-layer feature folders to maximize readability and reduce code scatteredness.
-- **Client Decoupling:** Both Blazor Web and MAUI Hybrid serve as clean HTTP API clients, ensuring the web host requires zero database connectivity or secrets.
+- **Client Decoupling:** Blazor Web serves as a clean HTTP API client, ensuring the web host requires zero database connectivity or secrets.
 
 ---
 
@@ -47,14 +53,7 @@ StarterTemplate is a SaaS-ready template, not a single-client application templa
 This means configuration, Key Vault, database, storage, cache, messaging, and CI/CD decisions must follow the selected stamp model. See `docs/architecture/saas-multitenancy-strategy.md`.
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                      ST.UI.Rcl                         │ (Shared Razor Components)
-└───────────┬────────────────────────────────┬───────────┘
-            │ (HTTP REST)                    │ (HTTP REST)
-┌───────────▼───────────┐        ┌───────────▼───────────┐
-│     ST.UI.Blazor      │        │      ST.UI.Maui       │ (UI Hosts)
-└───────────┬───────────┘        └───────────┬───────────┘
-            └────────────────┬───────────────┘
+                    ST.UI.Blazor
                              │ (JSON over HTTP)
                     ┌────────▼────────┐
                     │     ST.Api      │ (Host Controller Gateway)
@@ -94,7 +93,7 @@ Every public top-level type must live in its own file named after that type. Thi
 ### 3.1 Architecture Work Completed
 - **Decoupled Frontend:** Blazor Web App (`ST.UI.Blazor`) restructured as a pure API consumer over HTTP (removes database dependencies, secrets, and MediatR references from the Web UI project).
 - **Multi-Context Persistence:** Separate DbContexts (`IamDBContext`, `HrDBContext`, `BankingDBContext`, and `SharedDBContext`) created.
-- **Shared Kernel & Validation:** Created `ST.SharedKernel` (DTOs) and `ST.SharedKernel.Validation` (Validators) to share validation logic between client-side Blazor/MAUI and backend MediatR behaviors.
+- **Shared Kernel & Validation:** Created `ST.SharedKernel` (DTOs) and `ST.SharedKernel.Validation` (Validators) to share validation logic between Blazor and API clients and backend MediatR behaviors.
 - **IAM/Auth Enterprise Baseline:** Auth endpoints expose login, refresh, logout, current-user, permission-based authorization, server-side session tracking, sliding refresh token rotation, MFA enrollment/disable, trusted-device support, inactivity warning/logout, and profile-picture upload through a storage abstraction.
 - **Audit Actor Stamping:** Persistence audit fields use the current actor provider where available and fall back to `System` only for background/startup work.
 - **Profile Image Storage:** User profile pictures are supported through `IProfilePictureStorage`; local development stores files under API static assets, while Azure Blob/Azurite providers are available behind the same abstraction for cloud and local-platform hardening.
@@ -301,3 +300,20 @@ Verification for neutral authentication: API and Blazor builds passed; full unit
 Verification: API and Blazor builds passed; unit suite 91/91, architecture suite 80/80, JSON parsing and whitespace checks passed. Seventeen new tests cover lifecycle/credential preservation, tenant/deleted-account rejection, Identity/event failure rollback, session/token cleanup, endpoint permission requirements and revoked/valid bearer sessions. Existing analyzer/package warnings remain.
 
 Remaining Phase 1: invitation/email-confirmation delivery and browser certification, legacy AppUser fields/factories, employee/customer ID search bridge and employee grant/revoke/link handlers, Department scope and neutral catalogs. No invitation was sent, no passwords were emailed or reset by the new activation flow, and no schema or migration changed. Banking/HR removal and fresh provider migration certification remain later phases.
+
+## UI first pass (2026-10-29)
+
+Simplified sidebar branding, moved name-only account actions into both shell headers, removed dashboard filler, and unified authentication pages around a compact centred card. Alternate sign-in options share a three-column icon row. Google is disabled pending a backend integration. Release Blazor compilation passes; browser and provider authentication acceptance remain unverified.
+
+## Menu administration cleanup (2026-10-29)
+
+Create/Edit Menu now uses a compact layout, searchable Page, and multi-selection Roles/Permissions chips. Hidden technical fields retain existing data. Added validated primitive-collection persistence, any-role/all-permissions navigation filtering, role-sensitive cache keys, and both provider migrations. Local SQL Server ST received the additive migration; PostgreSQL deployment and signed-in visual acceptance remain separate.
+
+## Control Panel and module lifecycle (2026-10-29)
+
+Implemented tabbed Deployment Stamps/Tenants/Modules tables, grouped/pinned sidebar navigation, Payments as an independent module, and module Disable/Enable/Retire actions. Verification and boundaries are recorded in docs/architecture/vendor-demo-tenant-experience-plan.md.
+
+
+## Vendor/demo/customer hierarchy completion (2026-10-30)
+
+Catalogue, tenant overrides, dependency/flag policy, shared workspace initialization, invitation/MFA onboarding and approved managed support are implemented. Current source and acceptance evidence: [completion checklist](docs/architecture/vendor-demo-tenant-completion-checklist.md) and [experience plan](docs/architecture/vendor-demo-tenant-experience-plan.md). The final browser scope and regression evidence are recorded there, including the manual customer-credential boundary. External billing/providers, messaging transport and actual isolated cloud rollout remain separate certifications.

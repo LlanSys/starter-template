@@ -3,7 +3,7 @@ using ST.SharedKernel.Features.Shared.Payments.Dtos;
 using ST.UI.Blazor.Configuration;
 using ST.UI.Blazor.Features.Shared.BackendApi;
 using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces;
-using ST.UI.Rcl.Features.Shared.Payments.Contracts.Interfaces;
+using ST.UI.Blazor.Features.Shared.Payments.Contracts.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace ST.UI.Blazor.Features.Shared.Payments.Contracts.Implementations;

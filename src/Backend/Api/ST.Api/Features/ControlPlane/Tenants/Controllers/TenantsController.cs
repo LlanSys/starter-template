@@ -22,6 +22,16 @@ public sealed class TenantsController(ISender sender) : BaseController
     public async Task<IActionResult> GetAllTenants()
         => HandleResponse(await sender.Send(new GetAllTenantsQuery()).ConfigureAwait(false));
 
+    [HttpPost("{id:guid}/workspace")]
+    [RequirePermission("control_plane.manage")]
+    public async Task<IActionResult> InitializeWorkspace(Guid id, InitializeWorkspaceRequest request, [FromServices] ST.Domain.Shared.Contracts.Common.ICurrentActorProvider actor, CancellationToken ct)
+        => HandleResponse(await sender.Send(new InitializeWorkspaceCommand(id, request, actor.ActorId),ct).ConfigureAwait(false));
+
+    [HttpGet("{id:guid}/workspace")]
+    [RequirePermission("control_plane.manage")]
+    public async Task<IActionResult> WorkspaceStatus(Guid id, [FromServices] ST.Application.Features.ControlPlane.Tenants.Contracts.ITenantWorkspaceProvisioner provisioner, CancellationToken ct)
+        => HandleResponse(await provisioner.GetStatusAsync(id,ct).ConfigureAwait(false));
+
     [HttpGet("{id:guid}")]
     [RequirePermission("control_plane.manage")]
     public async Task<IActionResult> GetTenantById(Guid id)

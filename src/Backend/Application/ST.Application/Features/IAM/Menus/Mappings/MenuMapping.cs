@@ -23,7 +23,7 @@ public static class MenuMapping
             menu.RequiredModule,
             menu.DisplayOrder,
             menu.IsActive,
-            children ?? []);
+            children ?? []) { RequiredRoleNames = menu.RequiredRoleNames, RequiredPermissionKeys = menu.RequiredPermissionKeys };
     }
 
     public static IReadOnlyList<MenuResponse> ToTree(this IReadOnlyList<MenuItem> menus)

@@ -16,4 +16,17 @@ public sealed record CurrentUserResponse(
     List<string>? Permissions = null,
     string? SessionId = null,
     bool MfaEnrollmentRequired = false,
-    Uri? ProfilePictureUrl = null);
+    Uri? ProfilePictureUrl = null)
+{
+    public Guid? SupportGrantId { get; init; }
+    public bool IsReadOnlySupport { get; init; }
+    public DateTimeOffset? SupportExpiresAt { get; init; }
+    public string? WorkspaceName { get; init; }
+
+    public IReadOnlyList<string> UnavailablePermissions { get; init; } = [];
+    public IReadOnlyList<string> AvailablePages { get; init; } = [];
+    public IReadOnlyList<string> EnabledModules { get; init; } = [];
+    public bool IsPlatformStaff { get; init; }
+    public bool IsReadOnlyDemo { get; init; }
+    public bool IsDemoWorkspace { get; init; }
+}

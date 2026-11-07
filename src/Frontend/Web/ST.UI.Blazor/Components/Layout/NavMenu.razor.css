@@ -178,3 +178,22 @@
         display: block;
     }
 }
+
+/* Branding sits directly on the navigation surface. */
+.brand-row { padding: .75rem 1rem; border-bottom: 0; }
+.brand-lockup { background: transparent; color: #fff; padding: 0; border-radius: 0; min-height: 2.25rem; }
+.brand-mark { background: transparent; border: 1px solid #64748b; border-radius: .35rem; }
+.nav-scrollable { padding: .5rem .85rem 1rem; }
+.nav-link { font-size: .875rem; }
+
+/* NavLink is a child component; pierce isolation for layout rules. */
+::deep .nav-link { display: flex; align-items: center; gap: .75rem; padding: .6rem .75rem; font-size: .875rem; }
+::deep .nav-link .mud-icon-root { flex: 0 0 1.25rem; width: 1.25rem; }
+
+.nav-bottom { flex: 0 0 auto; padding: .5rem .85rem 0; border-top: 1px solid rgba(255,255,255,.1); }
+.nav-bottom-inset { flex: 0 0 calc(3rem + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 800px) {
+    .nav-bottom, .nav-bottom-inset { display: none; }
+    .navbar-toggler:checked ~ .nav-bottom { display: block; }
+    .navbar-toggler:checked ~ .nav-bottom-inset { display: block; }
+}

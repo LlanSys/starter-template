@@ -1,3 +1,6 @@
+@using ST.SharedKernel.Features.ControlPlane.Modules.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
 @inject IIamAdminService IamAdminService
 @inject ISnackbar Snackbar
 
@@ -6,21 +9,16 @@
     <EditForm FormName="iam-menu-form" Model="_model" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
             <MudGrid Spacing="2">
-                <MudItem xs="12" sm="4">
+                <MudItem xs="12" sm="6">
                     <MudTextField @bind-Value="_model.Title" Label="Title" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
                 </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudTextField Value="@GeneratedKey" Label="Generated key" Margin="Margin.Dense" Variant="Variant.Outlined" ReadOnly="true" HelperText="Generated from the title. Use lowercase words separated by hyphens." />
-                </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudSelect T="string" Value="_model.Placement" ValueChanged="OnPlacementChanged" Label="Placement" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Value="_model.Placement" ValueChanged="OnPlacementChanged" Label="Show in" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
                         @foreach (var placement in _referenceData.MenuPlacements)
                         {
                             <MudSelectItem Value="@placement.Key">@placement.Label</MudSelectItem>
                         }
                     </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="6">
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudSelect T="Guid?" @bind-Value="_model.ParentId" Label="Parent" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" ToStringFunc="ParentLabel">
@@ -31,38 +29,30 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect @bind-Value="_model.Url" Label="Route" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
-                        @foreach (var route in RouteOptions)
-                        {
-                            <MudSelectItem Value="@route.Key">@route.Label (@route.Key)</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <MudAutocomplete T="string" Value="_model.Url" ValueChanged="OnPageSelected" ReadOnly="@(ExistingMenu?.CatalogueKey is not null)" Label="Page" SearchFunc="SearchPagesAsync"
+                                     ToStringFunc="PageLabel" MinCharacters="0" MaxItems="30" Clearable="true"
+                                     Strict="true" CoerceValue="false" Margin="Margin.Dense" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect @bind-Value="_model.Icon" Label="Icon" Margin="Margin.Dense" Variant="Variant.Outlined">
-                        @foreach (var option in _referenceData.MenuIcons)
-                        {
-                            <MudSelectItem Value="@option.Key">
-                                <MudIcon Icon="@MenuIconMapper.Resolve(option.Key)" Size="Size.Small" Class="me-1" />
-                                @option.Label
-                            </MudSelectItem>
-                        }
-                    </MudSelect>
+                    <MudAutocomplete T="string" @bind-Value="_model.Icon" Label="Search icons"
+                                     SearchFunc="MenuIconMapper.SearchAsync" Margin="Margin.Dense" Variant="Variant.Outlined"
+                                     MinCharacters="0" MaxItems="50" Strict="true" CoerceValue="false">
+                        <ItemTemplate Context="iconKey">
+                            <MudIcon Icon="@MenuIconMapper.Resolve(iconKey)" Size="Size.Small" Class="me-2" />@iconKey
+                        </ItemTemplate>
+                        <MoreItemsTemplate><MudText Typo="Typo.caption" Class="pa-2">Refine the name or style to see more icons.</MudText></MoreItemsTemplate>
+                    </MudAutocomplete>
                 </MudItem>
-                <MudItem xs="12">
-                    <MudSelect @bind-Value="_model.RequiredPermissionKey" Label="Required Permission" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true">
-                        @foreach (var permission in _permissions)
-                        {
-                            <MudSelectItem Value="@permission.Key">@permission.Key</MudSelectItem>
-                        }
-                    </MudSelect>
+                <MudItem xs="12" sm="6"><MudTextField Value="@ModuleLabel(_model.RequiredModule)" Label="Module" ReadOnly="true" Margin="Margin.Dense" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12" sm="6"><MudNumericField T="int" @bind-Value="_model.DisplayOrder" Label="Position" Min="0" Max="10000" Margin="Margin.Dense" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12"><MudText Typo="Typo.subtitle2">Visibility</MudText></MudItem>
+                <MudItem xs="12" sm="6">
+                    <MenuAccessPicker Label="Roles" Options="_roles" @bind-Values="_model.RequiredRoleNames" Disabled="_isSaving" />
                 </MudItem>
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="_model.RequiredModule" Label="Required module key" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" />
+                <MudItem xs="12" sm="6">
+                    <MenuAccessPicker Label="Permissions" Options="_permissionKeys" @bind-Values="_model.RequiredPermissionKeys" Disabled="_isSaving" />
                 </MudItem>
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" Margin="Margin.Dense" Variant="Variant.Outlined" />
-                </MudItem>
+                <MudItem xs="12"><MudText Typo="Typo.caption">Any selected role and all selected permissions must match.</MudText></MudItem>
                 @if (ExistingMenu is not null)
                 {
                     <MudItem xs="12">
@@ -74,12 +64,15 @@
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
+        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="@(_isSaving || !_cataloguesLoaded)" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
-    private readonly List<PermissionResponse> _permissions = [];
+    private IReadOnlyList<CatalogueEntryResponse> _pages = [];
+    private IReadOnlyList<string> _permissionKeys = [];
+    private IReadOnlyList<string> _roles = [];
+    private bool _cataloguesLoaded;
 
     private IamReferenceDataResponse _referenceData = new([], [], [], [], [], []);
     private MenuFormModel _model = new();
@@ -94,8 +87,9 @@
     [Parameter]
     public IReadOnlyList<MenuResponse> Menus { get; set; } = [];
 
+    private static string ModuleLabel(string? module) => module?.ToLowerInvariant() switch { "iam" => "Identity and access", "core" => "Core workspace", "payments" => "Payments", "showcase" => "Showcase", _ => module ?? "" };
     private string SaveLabel => ExistingMenu is null ? "Create" : "Update";
-    private string GeneratedKey => Slugify(_model.Title);
+
 
     private IReadOnlyList<MenuResponse> ParentOptions =>
         [.. Menus.Where(menu =>
@@ -105,7 +99,7 @@
 
     private IReadOnlyList<CatalogOptionResponse> RouteOptions =>
         [.. _referenceData.MenuRoutes
-            .Where(route => string.Equals(route.ParentKey, _model.Placement, StringComparison.OrdinalIgnoreCase))
+            .DistinctBy(route => route.Key)
             .OrderBy(static route => route.Label)];
 
     protected override async Task OnInitializedAsync()
@@ -126,22 +120,58 @@
         }
 
         _referenceData = response.Data;
+        var available = await Api.SendAsync<IReadOnlyList<CatalogueEntryResponse>>(HttpMethod.Get, "api/v1/modules/available");
+        _pages = available.Data?.Where(x => x.Kind == "Page" && x.IsImplemented && x.IsActive).ToArray() ?? [];
     }
 
     private async Task LoadPermissionsAsync()
     {
-        var response = await IamAdminService.SearchPermissionsAsync(new PermissionSearchRequest(IsActive: true, PageSize: 50));
-        if (!response.IsSuccess || response.Data is null)
+        var roles = await IamAdminService.GetRolesAsync();
+        if (!roles.IsSuccess || roles.Data is null)
         {
-            Snackbar.Add(response.Message ?? "We could not load permissions.", Severity.Warning);
+            Snackbar.Add(UserMessageSanitizer.Normalize(roles.Message, "Could not load roles."), Severity.Warning);
             return;
         }
+        _roles = roles.Data.Select(role => role.Name).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        var permissions = new List<string>();
+        Guid? cursor = null;
+        do
+        {
+            var response = await IamAdminService.SearchPermissionsAsync(new PermissionSearchRequest(IsActive: true, PageSize: 100, Cursor: cursor));
+            if (!response.IsSuccess || response.Data is null)
+            {
+                Snackbar.Add(UserMessageSanitizer.Normalize(response.Message, "Could not load permissions."), Severity.Warning);
+                return;
+            }
+            permissions.AddRange(response.Data.Items.Select(permission => permission.Key));
+            Guid? next = response.Data.HasNextPage ? response.Data.NextCursor : null;
+            if (next is null || next == cursor) break;
+            cursor = next;
+        } while (true);
+        _permissionKeys = permissions.Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        _cataloguesLoaded = true;
+    }
 
-        _permissions.AddRange(response.Data.Items.OrderBy(static permission => permission.Key));
+    private void OnPageSelected(string? path)
+    {
+        _model.Url = path ?? "";
+        var page = _pages.Where(x => x.Path == path).OrderBy(x => x.Placement == "Sidebar" ? 0 : 1).FirstOrDefault();
+        if (page is null) return;
+        _model.RequiredModule = page.ModuleKey; _model.Title = page.Title; _model.Icon = page.Icon;
+        _model.Placement = page.Placement; _model.DisplayOrder = page.DisplayOrder;
+        _model.ParentId = page.ParentKey is { Length: > 0 } parentKey ? Menus.FirstOrDefault(x => x.CatalogueKey == parentKey || x.Key == parentKey)?.Id : null;
+        _model.RequiredPermissionKeys = page.PermissionKeys; _model.RequiredRoleNames = page.RoleNames;
+    }
+    private string PageLabel(string? url) => RouteOptions.FirstOrDefault(route => string.Equals(route.Key, url, StringComparison.OrdinalIgnoreCase))?.Label ?? url ?? string.Empty;
+    private Task<IEnumerable<string>> SearchPagesAsync(string? text, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(RouteOptions.Where(route => string.IsNullOrWhiteSpace(text) || route.Label.Contains(text, StringComparison.OrdinalIgnoreCase)).Select(route => route.Key));
     }
 
     private async Task SaveAsync()
     {
+        if (!_cataloguesLoaded || _isSaving) return;
         if (string.IsNullOrWhiteSpace(_model.Title) || string.IsNullOrWhiteSpace(_model.Placement))
         {
             Snackbar.Add("Menu title and placement are required.", Severity.Warning);
@@ -186,23 +216,11 @@
         return Menus.FirstOrDefault(menu => menu.Id == parentId.Value)?.Title ?? "Current parent";
     }
 
-    private static string Slugify(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "menu-key";
-        }
-
-        var chars = value.Trim().ToLowerInvariant()
-            .Select(static character => char.IsLetterOrDigit(character) ? character : '-')
-            .ToArray();
-
-        return string.Join('-', new string(chars).Split('-', StringSplitOptions.RemoveEmptyEntries));
-    }
-
     private sealed class MenuFormModel
     {
         public Guid Id { get; set; }
+        public int ExpectedVersion { get; set; }
+        public int DisplayOrder { get; set; }
         public Guid? ParentId { get; set; }
 
         public string Title { get; set; } = string.Empty;
@@ -210,7 +228,8 @@
         public string Url { get; set; } = string.Empty;
         public string Icon { get; set; } = "Menu";
         public string Placement { get; set; } = "AdminCenter";
-        public string? RequiredPermissionKey { get; set; }
+        public IReadOnlyList<string> RequiredRoleNames { get; set; } = [];
+        public IReadOnlyList<string> RequiredPermissionKeys { get; set; } = [];
         public string? RequiredModule { get; set; }
         public bool IsActive { get; set; } = true;
 
@@ -218,6 +237,8 @@
             => new()
             {
                 Id = menu.Id,
+                ExpectedVersion = menu.OverrideVersion,
+                DisplayOrder = menu.DisplayOrder,
                 ParentId = menu.ParentId,
 
                 Title = menu.Title,
@@ -225,7 +246,8 @@
                 Url = menu.Url,
                 Icon = menu.Icon,
                 Placement = menu.Placement,
-                RequiredPermissionKey = menu.RequiredPermissionKey,
+                RequiredRoleNames = menu.RequiredRoleNames,
+                RequiredPermissionKeys = menu.RequiredPermissionKeys.Concat(string.IsNullOrWhiteSpace(menu.RequiredPermissionKey) ? [] : new[] { menu.RequiredPermissionKey! }).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
                 RequiredModule = menu.RequiredModule,
                 IsActive = menu.IsActive
             };
@@ -234,13 +256,15 @@
             => new()
             {
                 ParentId = ParentId,
+                DisplayOrder = DisplayOrder,
 
                 Title = Title,
                 Description = Description,
                 Url = Url,
                 Icon = Icon,
                 Placement = Placement,
-                RequiredPermissionKey = RequiredPermissionKey,
+                RequiredRoleNames = RequiredRoleNames,
+                RequiredPermissionKeys = RequiredPermissionKeys,
                 RequiredModule = RequiredModule
             };
 
@@ -248,14 +272,17 @@
             => new()
             {
                 Id = Id,
+                ExpectedVersion = ExpectedVersion,
                 ParentId = ParentId,
+                DisplayOrder = DisplayOrder,
 
                 Title = Title,
                 Description = Description,
                 Url = Url,
                 Icon = Icon,
                 Placement = Placement,
-                RequiredPermissionKey = RequiredPermissionKey,
+                RequiredRoleNames = RequiredRoleNames,
+                RequiredPermissionKeys = RequiredPermissionKeys,
                 RequiredModule = RequiredModule,
                 IsActive = IsActive
             };

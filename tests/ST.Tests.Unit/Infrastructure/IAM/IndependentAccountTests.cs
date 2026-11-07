@@ -277,7 +277,7 @@ public sealed class IndependentAccountTests
                     new Claim("permission", "Accounts.View")], "test"))
             }
         };
-        var handler = new GetCurrentUser(http, fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance);
+        var handler = new GetCurrentUser(http, fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance, new ST.Tests.Unit.TestFixtures.TestModulePolicy());
 
         var response = await handler.Handle(new GetCurrentUserCommand(), CancellationToken.None);
 
@@ -299,7 +299,7 @@ public sealed class IndependentAccountTests
     {
         using var fixture = new Fixture();
         var handler = new GetCurrentUser(new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
-            fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance);
+            fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance, new ST.Tests.Unit.TestFixtures.TestModulePolicy());
         var response = await handler.Handle(new GetCurrentUserCommand(), CancellationToken.None);
         Assert.False(response.IsSuccess);
         Assert.Null(response.Data);

@@ -1,5 +1,7 @@
 # StarterTemplate - Execution Strategy
 
+> Active SaaS delivery sequence: [Vendor, demo and tenant experience plan](docs/architecture/vendor-demo-tenant-experience-plan.md). Approved for incremental implementation; vendor-first slices with a mandatory vendor-owned demo tenant and tenant-isolation acceptance in every phase.
+
 > Current starter baseline: IAM, Shared and ControlPlane only. The historical roadmap below records earlier implementation decisions; it does not require retention of removed business contexts. The active refactor/certification status is [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Six InitialStarter migrations target fresh databases only.
 
 
@@ -349,3 +351,8 @@ Verification for neutral authentication: API and Blazor builds passed; full unit
 Verification: API and Blazor builds passed; unit suite 91/91, architecture suite 80/80, JSON parsing and whitespace checks passed. Seventeen new tests cover lifecycle/credential preservation, tenant/deleted-account rejection, Identity/event failure rollback, session/token cleanup, endpoint permission requirements and revoked/valid bearer sessions. Existing analyzer/package warnings remain.
 
 Remaining Phase 1: invitation/email-confirmation delivery and browser certification, legacy AppUser fields/factories, employee/customer ID search bridge and employee grant/revoke/link handlers, Department scope and neutral catalogs. No invitation was sent, no passwords were emailed or reset by the new activation flow, and no schema or migration changed. Banking/HR removal and fresh provider migration certification remain later phases.
+
+
+## Vendor/demo/customer delivery checkpoint (2026-10-30)
+
+The approved local slice is implemented and verified. Refer to docs/architecture/vendor-demo-tenant-completion-checklist.md for the exact automated/manual evidence and remaining external certifications. The final integration set is 28 passed plus one explicit transport skip; unit and architecture suites passed. Demo and customer provisioning share global defaults, support requires customer approval, and the local Preview customer awaits its initial administrator. Keep future billing/provider and isolated cloud rollout work separate from this local acceptance.

@@ -1,0 +1,42 @@
+@page "/admin/support"
+@attribute [Authorize(Policy = "Page:/admin/support")]
+@using ST.SharedKernel.Features.ControlPlane.Support
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+@inject IDialogService Dialogs
+<PageTitle>Support access | StarterTemplate</PageTitle>
+<h1 class="platform-page-title my-3">Support access</h1>
+@if(_message is not null) { <MudAlert Dense="true" Severity="Severity.Info" Class="my-3">@_message</MudAlert> }
+@if(_selected is not null) {
+<MudPaper Outlined="true" Elevation="0" Class="pa-4 mb-4">
+<MudText Typo="Typo.h6">Approve support access</MudText>
+<MudText Class="my-2">@_selected.Reason</MudText>
+<ST.UI.Blazor.Features.IAM.Menus.Components.MenuAccessPicker Label="Approved permissions" Options="_selected.PermissionKeys" @bind-Values="_permissions" />
+<MudNumericField T="int" @bind-Value="_minutes" Label="Minutes" Min="5" Max="_selected.DurationMinutes" Variant="Variant.Outlined" Margin="Margin.Dense" />
+<MudSwitch T="bool" @bind-Value="_readOnly" Disabled="_selected.ReadOnly" Label="Read-only" Color="Color.Primary" />
+<MudButton OnClick="ApproveAsync" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Disabled="_busy">Approve</MudButton><MudButton OnClick="@(()=>_selected=null)" Size="Size.Small">Cancel</MudButton>
+</MudPaper>
+}
+<MudTable Items="_grants" Dense="true" Hover="true" Elevation="0" Breakpoint="Breakpoint.None">
+<HeaderContent><MudTh>Vendor</MudTh><MudTh>Reason</MudTh><MudTh>Permissions</MudTh><MudTh>Access</MudTh><MudTh>Status</MudTh><MudTh>Expires</MudTh><MudTh>Actions</MudTh></HeaderContent>
+<RowTemplate><MudTd>Vendor support</MudTd><MudTd>@context.Reason</MudTd><MudTd>@string.Join(", ",context.PermissionKeys)</MudTd><MudTd>@(context.ReadOnly ? "Read-only" : "Scoped writes")</MudTd><MudTd>@context.Status</MudTd><MudTd>@context.ExpiresAt?.ToLocalTime().ToString("g")</MudTd><MudTd>
+<MudTooltip Text="Activity"><MudIconButton Icon="@Icons.Material.Filled.History" OnClick="@(()=>_auditFor=context.Id)" Size="Size.Small" aria-label="Support activity" /></MudTooltip>
+@if(context.Status=="Pending") { <MudTooltip Text="Review request"><MudIconButton OnClick="@(()=>Review(context))" Icon="@Icons.Material.Filled.FactCheck" Size="Size.Small" aria-label="Review support request" /></MudTooltip> }
+@if(context.Status is "Pending" or "Approved") { <MudTooltip Text="Revoke access"><MudIconButton OnClick="@(()=>RevokeAsync(context))" Icon="@Icons.Material.Filled.Block" Size="Size.Small" aria-label="Revoke support access" /></MudTooltip> }
+</MudTd></RowTemplate><NoRecordsContent>No support requests.</NoRecordsContent><PagerContent><MudTablePager /></PagerContent>
+</MudTable>
+@if(_auditFor is { } auditId) { <ST.UI.Blazor.Features.ControlPlane.Support.Components.SupportAuditListing GrantId="auditId" Platform="false" /> }
+@code {
+ private Guid? _auditFor;
+ private IReadOnlyList<SupportGrantResponse> _grants=[];private SupportGrantResponse? _selected;private IReadOnlyList<string> _permissions=[];private int _minutes;private bool _readOnly=true,_busy;private string? _message;
+ protected override async Task OnAfterRenderAsync(bool first) { if(first) {await LoadAsync();StateHasChanged();} }
+ private async Task LoadAsync() {var result=await Api.SendAsync<IReadOnlyList<SupportGrantResponse>>(HttpMethod.Get,"api/v1/iam/support");_grants=result.Data ?? [];if(!result.IsSuccess)_message=UserMessageSanitizer.Normalize(result.Message,"Could not load support requests.");}
+ private void Review(SupportGrantResponse grant) {_selected=grant;_permissions=grant.PermissionKeys;_minutes=grant.DurationMinutes;_readOnly=grant.ReadOnly;}
+ private async Task ApproveAsync() {
+ if(_selected is null)return;_busy=true;try {
+ var confirmation=await Dialogs.ShowMessageBoxAsync("Approve customer support",$"Allow the requested access for {_minutes} minutes?",yesText:"Approve",cancelText:"Cancel");if(confirmation!=true)return;
+ var result=await Api.SendAsync<SupportResult>(HttpMethod.Post,$"api/v1/iam/support/{_selected.Id}/approve",new SupportRequest(_selected.TenantId,_selected.Reason,_permissions.ToArray(),_readOnly,_minutes));_message=UserMessageSanitizer.Normalize(result.Message,"Support approval updated.");if(result.IsSuccess)_selected=null;await LoadAsync();
+ }finally{_busy=false;}
+ }
+ private async Task RevokeAsync(SupportGrantResponse grant) {var result=await Api.SendAsync<SupportResult>(HttpMethod.Post,$"api/v1/iam/support/{grant.Id}/revoke");_message=UserMessageSanitizer.Normalize(result.Message,"Support access revoked.");await LoadAsync();}
+}

@@ -1,15 +1,11 @@
 <MudDialog>
     <DialogContent>
-        <div class="d-flex flex-column align-center text-center pa-4">
-            <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Color="Color.Warning" Style="font-size: 4rem; margin-bottom: 1rem;" />
-            <MudText Typo="Typo.h5" Style="font-weight: 700; margin-bottom: 0.5rem;">Are you sure?</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary">@Message</MudText>
-        </div>
+        <MudText Typo="Typo.body2">@Message</MudText>
     </DialogContent>
     <DialogActions>
-        <div class="d-flex justify-center w-100 pa-2" style="gap: 1rem;">
+        <div class="d-flex justify-end w-100" style="gap: 1rem;">
             <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
-            <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" OnClick="Confirm">Yes, @ConfirmText!</MudButton>
+            <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" OnClick="Confirm">@ConfirmText</MudButton>
         </div>
     </DialogActions>
 </MudDialog>

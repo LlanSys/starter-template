@@ -13,7 +13,7 @@ public sealed class PermissionAuthorizationHandlerTests
         var requirement = new PermissionRequirement("users.edit");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler().HandleAsync(context);
+        await new PermissionAuthorizationHandler(new ST.Tests.Unit.TestFixtures.TestModulePolicy()).HandleAsync(context);
 
         Assert.True(context.HasSucceeded);
     }
@@ -25,7 +25,7 @@ public sealed class PermissionAuthorizationHandlerTests
         var requirement = new PermissionRequirement("roles.delete");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler().HandleAsync(context);
+        await new PermissionAuthorizationHandler(new ST.Tests.Unit.TestFixtures.TestModulePolicy()).HandleAsync(context);
 
         Assert.True(context.HasSucceeded);
     }
@@ -37,9 +37,25 @@ public sealed class PermissionAuthorizationHandlerTests
         var requirement = new PermissionRequirement("users.edit");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler().HandleAsync(context);
+        await new PermissionAuthorizationHandler(new ST.Tests.Unit.TestFixtures.TestModulePolicy()).HandleAsync(context);
 
         Assert.False(context.HasSucceeded);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public async Task PlatformAccessRequiresStaffAndExplicitPermission(bool staff, bool permission, bool expected)
+    {
+        var claims = new List<Claim> { new(ClaimTypes.Role, "System Administrator") };
+        if (staff) claims.Add(new Claim("platform_staff", "true"));
+        if (permission) claims.Add(new Claim("permission", "control_plane.manage"));
+        var requirement = new PermissionRequirement("control_plane.manage");
+        var context = new AuthorizationHandlerContext([requirement], CreatePrincipal(claims.ToArray()), null);
+        await new PermissionAuthorizationHandler(new ST.Tests.Unit.TestFixtures.TestModulePolicy()).HandleAsync(context);
+        Assert.Equal(expected, context.HasSucceeded);
     }
 
     private static ClaimsPrincipal CreatePrincipal(params Claim[] claims)

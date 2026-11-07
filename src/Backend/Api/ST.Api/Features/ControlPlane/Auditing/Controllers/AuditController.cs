@@ -28,8 +28,8 @@ public class AuditController(ISender sender) : BaseController
         [FromBody] StartImpersonationRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new StartImpersonationCommand(request.TargetTenantId, request.Reason, request.DurationHours);
-        return HandleResponse(await sender.Send(command, cancellationToken).ConfigureAwait(false));
+        await Task.CompletedTask.ConfigureAwait(false);
+        return Conflict(AppResponses.Failure<ImpersonationRecordResponse>("Managed tenant support is not yet available."));
     }
 
     [HttpPost("impersonate/end")]

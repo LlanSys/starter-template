@@ -50,7 +50,7 @@ internal sealed class MfaEnrollmentMiddleware(
             return false;
         }
 
-        if (ShouldSkip(context.Request.Path) || context.User.Identity?.IsAuthenticated != true)
+        if (context.Items.ContainsKey("TrustedWorkspaceProxy") || ShouldSkip(context.Request.Path) || context.User.Identity?.IsAuthenticated != true)
         {
             return false;
         }
@@ -58,7 +58,7 @@ internal sealed class MfaEnrollmentMiddleware(
         var roleRequiresMfa = context.User.Claims
             .Where(static claim => string.Equals(claim.Type, ClaimTypes.Role, StringComparison.OrdinalIgnoreCase))
             .Select(static claim => claim.Value)
-            .Any(role => _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+            .Any(role => (string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase) || _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
 
         if (!roleRequiresMfa)
         {

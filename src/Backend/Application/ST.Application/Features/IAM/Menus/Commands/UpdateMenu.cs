@@ -12,7 +12,7 @@ namespace ST.Application.Features.IAM.Menus.Commands;
 
 
 
-internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<UpdateMenuCommandHandler> logger)
+internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<UpdateMenuCommandHandler> logger, IEffectiveNavigation navigation)
     : IRequestHandler<UpdateMenuCommand, AppResponse<MenuResponse>>
 {
     public async Task<AppResponse<MenuResponse>> Handle(UpdateMenuCommand command, CancellationToken cancellationToken)
@@ -20,8 +20,12 @@ internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
         try
         {
             var request = command.Request;
+            var registered = (await navigation.GetAsync(cancellationToken).ConfigureAwait(false)).FirstOrDefault(x => x.Menu.Id == command.Id && x.Definition is not null);
+            if (registered?.Definition is { } page)
+                return await navigation.SaveOverrideAsync(page.Key, request, command.UserId, cancellationToken).ConfigureAwait(false);
             var catalogError = await ValidateCatalogAsync(unitOfWork, request.Placement, request.Icon, request.Url, request.RequiredPermissionKey, cancellationToken)
                 .ConfigureAwait(false);
+            catalogError ??= await MenuVisibilityValidation.ValidateAsync(unitOfWork, request.RequiredRoleNames, request.RequiredPermissionKeys, cancellationToken).ConfigureAwait(false);
             if (catalogError is not null)
             {
                 return AppResponses.Failure<MenuResponse>(catalogError);
@@ -68,6 +72,7 @@ internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
                 request.DisplayOrder,
                 request.IsActive,
                 command.UserId);
+            menu.SetVisibility(request.RequiredRoleNames ?? menu.RequiredRoleNames, request.RequiredPermissionKeys ?? menu.RequiredPermissionKeys);
             await unitOfWork.MenuRepository.UpdateAsync(menu, cancellationToken).ConfigureAwait(false);
             var saved = await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false) > 0;
 
@@ -99,7 +104,8 @@ internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
             return $"Menu placement '{placement}' is not registered.";
         }
 
-        var iconExists = await unitOfWork.MenuIconRepository
+        var iconExists = ST.SharedKernel.Features.IAM.Menus.MaterialIconKeys.Contains(icon)
+            || await unitOfWork.MenuIconRepository
             .AnyAsync(item => item.IsActive && item.Key == icon.Trim(), cancellationToken)
             .ConfigureAwait(false);
 

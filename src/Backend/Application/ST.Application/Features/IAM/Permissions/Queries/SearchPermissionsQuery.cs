@@ -15,6 +15,7 @@ namespace ST.Application.Features.IAM.Permissions.Queries;
 public sealed record SearchPermissionsQuery(PermissionSearchRequest SearchRequest, string UserId)
     : IRequest<AppResponse<PagedResponse<PermissionResponse, Guid>>>, ICachableRequest
 {
+    public bool BypassCache => true;
     public string CacheGroup => "permissions";
 
     public string Discriminator => CacheKeys.Discriminator(SearchRequest);

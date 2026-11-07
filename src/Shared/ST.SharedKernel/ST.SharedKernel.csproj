@@ -23,4 +23,7 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Features/IAM/Menus/MaterialIconKeys.txt" LogicalName="ST.MaterialIconKeys" />
+  </ItemGroup>
 </Project>

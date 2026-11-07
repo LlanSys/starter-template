@@ -18,7 +18,7 @@ internal sealed class PermissionContextConfiguration : IEntityTypeConfiguration<
     {
         builder.HasKey(item => item.Id);
         builder.Property(item => item.Key).HasMaxLength(80).IsRequired();
-        builder.HasIndex(item => item.Key).IsUnique().HasDatabaseName("UX_PermissionContexts_Key");
+        builder.HasIndex(item => new { item.TenantId, item.Key }).IsUnique().HasDatabaseName("UX_PermissionContexts_Key");
         builder.Property(item => item.Label).HasMaxLength(120).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(300).IsRequired();
         builder.Property(item => item.CreatedBy).HasMaxLength(120).IsRequired();
@@ -33,10 +33,10 @@ internal sealed class PermissionResourceConfiguration : IEntityTypeConfiguration
         builder.ToTable("PermissionResources");
         builder.HasKey(item => item.Id);
         builder.Property(item => item.Key).HasMaxLength(80).IsRequired();
-        builder.HasIndex(item => item.Key).HasDatabaseName("IX_PermissionResources_Key");
+        builder.HasIndex(item => new { item.TenantId, item.Key }).HasDatabaseName("IX_PermissionResources_Key");
         builder.Property(item => item.Label).HasMaxLength(120).IsRequired();
         builder.Property(item => item.ContextKey).HasMaxLength(80).IsRequired();
-        builder.HasIndex(item => new { item.ContextKey, item.Key }).IsUnique().HasDatabaseName("UX_PermissionResources_Context_Key");
+        builder.HasIndex(item => new { item.TenantId, item.ContextKey, item.Key }).IsUnique().HasDatabaseName("UX_PermissionResources_Context_Key");
         builder.Property(item => item.Description).HasMaxLength(300).IsRequired();
         builder.Property(item => item.CreatedBy).HasMaxLength(120).IsRequired();
         builder.Property(item => item.UpdatedBy).HasMaxLength(120);
@@ -51,7 +51,7 @@ internal sealed class PermissionActionConfiguration : IEntityTypeConfiguration<P
         builder.ToTable("PermissionActions");
         builder.HasKey(item => item.Id);
         builder.Property(item => item.Key).HasMaxLength(80).IsRequired();
-        builder.HasIndex(item => item.Key).IsUnique().HasDatabaseName("UX_PermissionActions_Key");
+        builder.HasIndex(item => new { item.TenantId, item.Key }).IsUnique().HasDatabaseName("UX_PermissionActions_Key");
         builder.Property(item => item.Label).HasMaxLength(120).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(300).IsRequired();
         builder.Property(item => item.CreatedBy).HasMaxLength(120).IsRequired();
@@ -67,7 +67,7 @@ internal sealed class MenuPlacementConfiguration : IEntityTypeConfiguration<Menu
         builder.ToTable("MenuPlacements");
         builder.HasKey(item => item.Id);
         builder.Property(item => item.Key).HasMaxLength(80).IsRequired();
-        builder.HasIndex(item => item.Key).IsUnique().HasDatabaseName("UX_MenuPlacements_Key");
+        builder.HasIndex(item => new { item.TenantId, item.Key }).IsUnique().HasDatabaseName("UX_MenuPlacements_Key");
         builder.Property(item => item.Label).HasMaxLength(120).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(300).IsRequired();
         builder.Property(item => item.CreatedBy).HasMaxLength(120).IsRequired();
@@ -83,7 +83,7 @@ internal sealed class MenuIconConfiguration : IEntityTypeConfiguration<MenuIcon>
         builder.ToTable("MenuIcons");
         builder.HasKey(item => item.Id);
         builder.Property(item => item.Key).HasMaxLength(80).IsRequired();
-        builder.HasIndex(item => item.Key).IsUnique().HasDatabaseName("UX_MenuIcons_Key");
+        builder.HasIndex(item => new { item.TenantId, item.Key }).IsUnique().HasDatabaseName("UX_MenuIcons_Key");
         builder.Property(item => item.Label).HasMaxLength(120).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(300).IsRequired();
         builder.Property(item => item.CreatedBy).HasMaxLength(120).IsRequired();
@@ -99,10 +99,10 @@ internal sealed class MenuRouteConfiguration : IEntityTypeConfiguration<MenuRout
         builder.ToTable("MenuRoutes");
         builder.HasKey(item => item.Id);
         builder.Property(item => item.Key).HasMaxLength(120).IsRequired();
-        builder.HasIndex(item => item.Key).IsUnique().HasDatabaseName("UX_MenuRoutes_Key");
+        builder.HasIndex(item => new { item.TenantId, item.Key }).IsUnique().HasDatabaseName("UX_MenuRoutes_Key");
         builder.Property(item => item.Label).HasMaxLength(120).IsRequired();
         builder.Property(item => item.Url).HasMaxLength(240).IsRequired();
-        builder.HasIndex(item => item.Url).IsUnique().HasDatabaseName("UX_MenuRoutes_Url");
+        builder.HasIndex(item => new { item.TenantId, item.Url }).IsUnique().HasDatabaseName("UX_MenuRoutes_Url");
         builder.Property(item => item.PlacementKey).HasMaxLength(80).IsRequired();
         builder.Property(item => item.Description).HasMaxLength(300).IsRequired();
         builder.Property(item => item.CreatedBy).HasMaxLength(120).IsRequired();

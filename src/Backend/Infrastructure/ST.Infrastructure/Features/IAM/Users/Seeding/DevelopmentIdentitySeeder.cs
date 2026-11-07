@@ -83,6 +83,21 @@ internal sealed class DevelopmentIdentitySeeder(
                 EnsureSucceeded(await userManager.AddToRoleAsync(user, adminRole).ConfigureAwait(false), "assign the bootstrap administrator role");
             }
 
+            if (_settings.GrantPlatformAccess)
+            {
+                var existingClaims = await userManager.GetClaimsAsync(user).ConfigureAwait(false);
+                var requiredClaims = new[]
+                {
+                    new System.Security.Claims.Claim("platform_staff", "true"),
+                    new System.Security.Claims.Claim("permission", "control_plane.manage")
+                };
+                foreach (var claim in requiredClaims)
+                {
+                    if (!existingClaims.Any(existing => existing.Type == claim.Type && existing.Value == claim.Value))
+                        EnsureSucceeded(await userManager.AddClaimAsync(user, claim).ConfigureAwait(false), "grant configured bootstrap platform access");
+                }
+            }
+
             ServiceLogDefinitions.LogDevelopmentAdminSeeded(logger, email);
         }
         catch (Exception ex)

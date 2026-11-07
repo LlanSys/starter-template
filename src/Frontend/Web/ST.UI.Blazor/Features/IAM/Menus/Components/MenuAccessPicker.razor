@@ -1,0 +1,29 @@
+<MudAutocomplete T="string" Value="@((string?)null)" ValueChanged="AddAsync" Label="@Label"
+                 SearchFunc="SearchAsync" Strict="true" CoerceValue="false" Clearable="true"
+                 MinCharacters="0" MaxItems="30" Margin="Margin.Dense" Variant="Variant.Outlined" Disabled="Disabled" />
+<div class="d-flex flex-wrap gap-1 mt-1">
+    @foreach (var value in Values)
+    {
+        <MudChip T="string" Value="@value" OnClose="@(() => RemoveAsync(value))" Size="Size.Small" Disabled="Disabled">@value</MudChip>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<string> Options { get; set; } = [];
+    [Parameter] public IReadOnlyList<string> Values { get; set; } = [];
+    [Parameter] public EventCallback<IReadOnlyList<string>> ValuesChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private Task<IEnumerable<string>> SearchAsync(string? text, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Options.Where(value => !Values.Contains(value, StringComparer.OrdinalIgnoreCase)
+            && (string.IsNullOrWhiteSpace(text) || value.Contains(text, StringComparison.OrdinalIgnoreCase))));
+    }
+    private Task AddAsync(string? value)
+        => string.IsNullOrWhiteSpace(value) || !Options.Contains(value, StringComparer.OrdinalIgnoreCase)
+            ? Task.CompletedTask : ValuesChanged.InvokeAsync(Values.Append(value).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+    private Task RemoveAsync(string value)
+        => ValuesChanged.InvokeAsync(Values.Where(item => !string.Equals(item, value, StringComparison.OrdinalIgnoreCase)).ToArray());
+}

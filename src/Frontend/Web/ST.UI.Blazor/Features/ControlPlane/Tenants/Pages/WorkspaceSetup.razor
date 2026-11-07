@@ -1,0 +1,43 @@
+@page "/control-panel/tenants/{TenantId:guid}/setup"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+<PageTitle>Workspace setup | StarterTemplate</PageTitle>
+<MudButton Href="/control-panel?tab=tenants" Size="Size.Small" StartIcon="@Icons.Material.Filled.ArrowBack">Tenants</MudButton>
+<h1 class="platform-page-title my-3">@(_tenant?.DisplayName ?? "Workspace setup")</h1>
+@if(_message is not null) { <MudAlert Dense="true" Class="my-3" Severity="Severity.Info">@_message</MudAlert> }
+<MudTable Items="_steps" Dense="true" Elevation="0" Class="mb-4">
+<HeaderContent><MudTh>Step</MudTh><MudTh>Status</MudTh></HeaderContent>
+<RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Status</MudTd></RowTemplate>
+</MudTable>
+@if(_tenant?.Status=="Active" && _tenant.Identifier is not ("default" or "vendor-demo")) {
+<MudPaper Outlined="true" Elevation="0" Class="pa-4" Style="max-width:640px">
+<MudText Typo="Typo.h6">Initial administrator</MudText>
+<MudTextField @bind-Value="_email" Label="Email" ReadOnly="_status?.AdministratorEmail is not null" Variant="Variant.Outlined" Margin="Margin.Dense" />
+<MudGrid Spacing="2"><MudItem xs="12" sm="6"><MudTextField @bind-Value="_first" Label="First name" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem><MudItem xs="12" sm="6"><MudTextField @bind-Value="_last" Label="Last name" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem></MudGrid>
+<MudButton OnClick="PrepareAsync" Disabled="_busy || _status?.EmailConfirmed==true" Color="Color.Primary" Variant="Variant.Filled" Class="mt-3">@(_status?.InvitationSent==true ? "Resend invitation" : "Set up and send invitation")</MudButton>
+@if(_status?.EmailConfirmed==true) { <MudButton Href="@($"/iam/sign-in?workspace={Uri.EscapeDataString(_tenant.Identifier)}")" Class="mt-3">Open workspace sign-in</MudButton> }
+</MudPaper>
+}
+@code {
+ [Parameter] public Guid TenantId {get;set;}
+ private TenantResponse? _tenant; private WorkspaceSetupResponse? _status;private string _email="",_first="",_last="";private string? _message;private bool _busy;
+ private List<Step> _steps=[];
+ protected override async Task OnAfterRenderAsync(bool first) { if(first) { await LoadAsync();StateHasChanged(); } }
+ private async Task LoadAsync() {
+ var tenant=await Api.SendAsync<TenantResponse>(HttpMethod.Get,$"api/v1/control-plane/tenants/{TenantId}");_tenant=tenant.Data;
+ var status=await Api.SendAsync<WorkspaceSetupResponse>(HttpMethod.Get,$"api/v1/control-plane/tenants/{TenantId}/workspace");_status=status.Data;
+ if(_status?.AdministratorEmail is not null) {_first=_status.FirstName;_last=_status.LastName;}
+ _email=_status?.AdministratorEmail ?? _tenant?.ContactEmail ?? _email;
+ _steps=[new("Approval and deployment",_tenant?.Status ?? "Unavailable"),new("Modules",string.Join(", ",_tenant?.EnabledModules ?? [])),new("Workspace",_status?.Version>0 ? "Ready" : "Awaiting setup"),new("Invitation",_status?.InvitationSent==true ? "Sent" : "Not sent"),new("Email verification",_status?.EmailConfirmed==true ? "Complete" : "Pending"),new("Administrator MFA",_status?.MfaEnabled==true ? "Complete" : "Required on sign-in")];
+ }
+ private async Task PrepareAsync() {
+ _busy=true;try {
+ var result=await Api.SendAsync<WorkspaceSetupResponse>(HttpMethod.Post,$"api/v1/control-plane/tenants/{TenantId}/workspace",new InitializeWorkspaceRequest(_email,_first,_last));
+ _message=UserMessageSanitizer.Normalize(result.Message,result.IsSuccess ? "Workspace is ready. Invitation sent." : "Setup could not complete.");await LoadAsync();
+ }finally{_busy=false;}
+ }
+ private sealed record Step(string Name,string Status);
+}

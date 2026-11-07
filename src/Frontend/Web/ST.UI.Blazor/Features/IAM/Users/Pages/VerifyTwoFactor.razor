@@ -7,15 +7,8 @@
 <PageTitle>Verify sign in | StarterTemplate</PageTitle>
 
 <section class="auth-shell compact">
-    <div class="auth-copy">
-        <span class="eyebrow">Step-up verification</span>
-        <h1>Verification Code</h1>
-        <p>
-            Enter the 6-digit code from your authenticator app to continue.
-        </p>
-    </div>
-
     <div class="auth-card">
+        <div class="auth-heading"><h1>Verify your sign-in</h1><p>Enter the 6-digit code from your authenticator app.</p></div>
         <EditForm FormName="@VerifyTwoFactorFormName" Model="VerificationModel" OnValidSubmit="VerifyAsync">
             <DataAnnotationsValidator />
             <input type="hidden" name="VerificationModel.UserId" value="@VerificationModel!.UserId" />

@@ -1,3 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using ST.Infrastructure.Contracts.Implementations.Common;
+using ST.Domain.Features.ControlPlane.Contracts;
+using ST.SharedKernel.Features.ControlPlane.Demo;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.Application.Features.IAM.Users.Commands;
@@ -30,13 +34,14 @@ internal sealed class RefreshToken(
     ISessionService sessionService,
     IHttpContextAccessor httpContextAccessor,
     IOptions<JwtSettings> jwtSettings,
-    ILogger<RefreshToken> logger) : IRequestHandler<RefreshTokenCommand, AppResponse<RefreshTokenResponse>>
+    ILogger<RefreshToken> logger, WorkspaceTenantOverride? workspace = null, IControlPlaneUnitOfWork? controlPlane = null, ST.Application.Features.ControlPlane.Support.ISupportSessionGuard? supportGuard = null) : IRequestHandler<RefreshTokenCommand, AppResponse<RefreshTokenResponse>>
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
 
     public async Task<AppResponse<RefreshTokenResponse>> Handle(RefreshTokenCommand command, CancellationToken cancellationToken)
     {
         var request = command.Request;
+        var previousTenant = workspace?.TenantId;
 
         try
         {
@@ -47,7 +52,31 @@ internal sealed class RefreshToken(
                 return AppResponses.Failure<RefreshTokenResponse>("Invalid access token format");
             }
 
-            var userId = principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tokenTenant) && workspace is not null)
+            {
+                if (controlPlane is not null && !await controlPlane.Tenants.AnyAsync(x => x.Id == tokenTenant && x.Status == ST.Domain.Features.ControlPlane.Tenants.Enums.TenantStatus.Active, cancellationToken).ConfigureAwait(false)) return AppResponses.Failure<RefreshTokenResponse>("This workspace is not available.");
+                workspace.TenantId = tokenTenant;
+            }
+            if (principal.HasClaim("demo_workspace", "true"))
+            {
+                if (workspace is null || controlPlane is null || principal.FindFirstValue("tenant_id") != DemoWorkspace.TenantId.ToString())
+                    return AppResponses.Failure<RefreshTokenResponse>("The demo session cannot be refreshed.");
+                workspace.TenantId = DemoWorkspace.TenantId;
+                var sourceId = principal.FindFirstValue("demo_actor_id");
+                var source = await userManager.Users.IgnoreQueryFilters().FirstOrDefaultAsync(user => user.Id == sourceId && user.IsActive && !user.IsDeleted && user.TwoFactorEnabled, cancellationToken).ConfigureAwait(false);
+                if (source is null || !await controlPlane.Tenants.AnyAsync(tenant => tenant.Id == DemoWorkspace.TenantId && tenant.IsDemo && tenant.Status == ST.Domain.Features.ControlPlane.Tenants.Enums.TenantStatus.Active, cancellationToken).ConfigureAwait(false))
+                    return AppResponses.Failure<RefreshTokenResponse>("The demo session is no longer available.");
+                var authority = await userManager.GetClaimsAsync(source).ConfigureAwait(false);
+                if (!authority.Any(claim => claim.Type == "platform_staff" && claim.Value == "true") || !authority.Any(claim => claim.Type == "permission" && claim.Value == "control_plane.manage"))
+                    return AppResponses.Failure<RefreshTokenResponse>("The demo session is no longer available.");
+            }
+
+            ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant? supportGrant = null;
+            if (principal.HasClaim(x => x.Type == "support_grant_id")) {
+                supportGrant = supportGuard is null ? null : await supportGuard.ValidateAsync(principal,cancellationToken).ConfigureAwait(false);
+                if (supportGrant is null) return AppResponses.Failure<RefreshTokenResponse>("The support session expired or was revoked.");
+            }
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
             if (string.IsNullOrWhiteSpace(userId))
             {
                 SecurityLogDefinitions.LogSecurityEvent(logger, "InvalidAccessTokenFormat", string.Empty, "No user ID found in access token");
@@ -125,6 +154,8 @@ internal sealed class RefreshToken(
 
             Guid? activeSessionId = Guid.TryParse(sessionId, out var parsedSessionId) ? parsedSessionId : null;
             var userClaims = await claimsService.GetUserClaimsAsync(user, activeSessionId).ConfigureAwait(false);
+            if (supportGrant is not null) userClaims = userClaims.Where(x => x.Type != ClaimTypes.Role && x.Type != "platform_staff" && (x.Type != "permission" || supportGrant.PermissionKeys.Contains(x.Value,StringComparer.OrdinalIgnoreCase))).ToList();
+            if (ST.SharedKernel.Features.ControlPlane.PlatformAccess.HasMfa(principal)) userClaims.Add(new Claim("amr", "mfa"));
             if (!userClaims.Any())
             {
                 ServiceLogDefinitions.LogFailedToGetUserClaims(logger, userId);
@@ -187,7 +218,7 @@ internal sealed class RefreshToken(
                 tokenExpiry,
                 refreshTokenExpiresAt,
                 userInfo,
-                userClaims));
+                userClaims.Select(claim => new ClaimResponse(claim.Type, claim.Value)).ToList()));
         }
         catch (Exception ex)
         {
@@ -195,5 +226,10 @@ internal sealed class RefreshToken(
 
             return AppResponses.Failure<RefreshTokenResponse>("Unable to refresh token. Please sign in again.");
         }
+        finally
+        {
+            if (workspace is not null) workspace.TenantId = previousTenant;
+        }
+
     }
 }

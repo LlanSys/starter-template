@@ -1,0 +1,11 @@
+@using ST.SharedKernel.Features.ControlPlane.Support
+@inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient Api
+<MudText Typo="Typo.h6" Class="mt-4 mb-2">Support activity</MudText>
+@if(_message is not null) { <MudAlert Dense="true" Severity="Severity.Error">@_message</MudAlert> }
+<MudTable Items="_items" Dense="true" Elevation="0" Breakpoint="Breakpoint.None"><HeaderContent><MudTh>Time</MudTh><MudTh>Actor</MudTh><MudTh>Action</MudTh><MudTh>Result</MudTh></HeaderContent><RowTemplate><MudTd>@context.At.ToLocalTime().ToString("g")</MudTd><MudTd>@context.ActorId</MudTd><MudTd>@context.Action</MudTd><MudTd>@context.StatusCode</MudTd></RowTemplate><PagerContent><MudTablePager /></PagerContent></MudTable>
+@code {
+ [Parameter] public Guid GrantId {get;set;}
+ [Parameter] public bool Platform {get;set;}
+ private IReadOnlyList<SupportAuditResponse> _items=[];private string? _message;
+ protected override async Task OnParametersSetAsync() {var response=await Api.SendAsync<IReadOnlyList<SupportAuditResponse>>(HttpMethod.Get,$"api/v1/{(Platform ? "control-plane" : "iam")}/support/{GrantId}/audit");_items=response.Data??[];_message=response.IsSuccess ? null : UserMessageSanitizer.Normalize(response.Message,"Could not load support activity.");}
+}

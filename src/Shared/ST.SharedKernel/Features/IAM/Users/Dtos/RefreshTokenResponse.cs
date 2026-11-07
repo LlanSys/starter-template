@@ -1,5 +1,5 @@
 
-using System.Security.Claims;
+
 
 namespace ST.SharedKernel.Features.IAM.Users.Dtos;
 public record RefreshTokenResponse(
@@ -10,5 +10,5 @@ public record RefreshTokenResponse(
     DateTimeOffset TokenExpiresAt,
     DateTimeOffset RefreshTokenExpiresAt,
     AppUserResponse UserInfo,
-    List<Claim> UserClaims
+    List<ClaimResponse> UserClaims
 );

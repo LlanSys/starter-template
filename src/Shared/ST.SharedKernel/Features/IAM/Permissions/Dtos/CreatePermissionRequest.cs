@@ -2,6 +2,7 @@ namespace ST.SharedKernel.Features.IAM.Permissions.Dtos;
 
 public sealed record CreatePermissionRequest
 {
+    public string ModuleKey { get; init; } = "iam";
 
 
     public required string Context { get; init; }

@@ -1,4 +1,6 @@
+@attribute [Authorize(Policy = "Page:/payments") ]
 @page "/features/payments"
+@page "/payments"
 
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession

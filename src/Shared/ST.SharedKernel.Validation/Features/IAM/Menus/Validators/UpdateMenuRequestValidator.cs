@@ -20,6 +20,8 @@ public sealed class UpdateMenuRequestValidator : Validator<UpdateMenuRequest>
             Url = x.Url,
             Icon = x.Icon,
             Placement = x.Placement,
+            RequiredRoleNames = x.RequiredRoleNames,
+            RequiredPermissionKeys = x.RequiredPermissionKeys,
             RequiredPermissionKey = x.RequiredPermissionKey
         }).SetValidator(new CreateMenuRequestValidator());
     }

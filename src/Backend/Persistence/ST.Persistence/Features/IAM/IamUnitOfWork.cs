@@ -29,6 +29,8 @@ public sealed class IamUnitOfWork(
     ILogger<IamUnitOfWork> logger
 ) : BaseUnitOfWork<IamDBContext>(context, publisher, logger), IIamUnitOfWork
 {
+    public IRepository<ST.Domain.Features.IAM.Users.Entities.AppRole> RoleRepository { get; } = new Repository<ST.Domain.Features.IAM.Users.Entities.AppRole>(context);
+    public IRepository<ST.Domain.Features.IAM.Menus.Entities.NavigationOverride> NavigationOverrides { get; } = new Repository<ST.Domain.Features.IAM.Menus.Entities.NavigationOverride>(context);
     public IUserRepository UserRepository { get; } = userRepository;
     public ISessionRepository SessionRepository { get; } = sessionRepository;
     public ITokenRepository TokenRepository { get; } = tokenRepository;

@@ -1,3 +1,5 @@
+@implements IAsyncDisposable
+@inject ILogger<NavMenu> Logger
 @inject IAuthSession AuthSession
 @inject IIamAdminService IamAdminService
 
@@ -28,8 +30,14 @@
             }
             else
             {
-                @foreach (var menu in _menus)
+                var previousSection = -1;
+                @foreach (var menu in _menus.Where(menu => menu.Url != "/overview" && !IsPlatformChild(menu)).OrderBy(Section))
                 {
+                    @if (previousSection >= 0 && previousSection != Section(menu))
+                    {
+                        <div class="nav-separator" aria-hidden="true"></div>
+                    }
+                    previousSection = Section(menu);
                     <section class="nav-group">
                         @RenderMenu(menu)
                     </section>
@@ -37,11 +45,22 @@
             }
         </nav>
     </div>
-
-    <UserProfileMenu />
+    <nav class="nav-bottom" aria-label="Resources">
+        <AuthorizeView Policy="ControlPlane.Manage">
+            <NavLink class="nav-link" href="/control-panel/demo"><MudIcon Icon="@Icons.Material.Filled.Science" Size="Size.Small" /><span>Demo workspace</span></NavLink>
+        </AuthorizeView>
+        @foreach (var menu in _menus.Where(menu => menu.Url == "/overview"))
+        {
+            @RenderMenu(menu)
+        }
+    </nav>
+    <div class="nav-bottom-inset" aria-hidden="true"></div>
 </div>
 
 @code {
+    private static int Section(MenuResponse menu) => menu.Url.Equals("/dashboard", StringComparison.OrdinalIgnoreCase) ? 0
+        : menu.Url.StartsWith("/admin", StringComparison.OrdinalIgnoreCase) || menu.Url.Equals("/control-panel", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
+    private static bool IsPlatformChild(MenuResponse menu) => menu.Url.StartsWith("/control-panel/", StringComparison.OrdinalIgnoreCase);
     private readonly List<MenuResponse> _menus = [];
     private bool _isLoading = true;
     private string? _loadError;
@@ -61,19 +80,39 @@
             return;
         }
 
+        await ReloadNavigationAsync();
+        _pollTask = PollPolicyAsync();
+    }
+    private readonly CancellationTokenSource _lifetime = new();
+    private Task? _pollTask;
+    private async Task ReloadNavigationAsync()
+    {
         var response = await IamAdminService.GetNavigationMenusAsync("Sidebar");
-        if (response.IsSuccess && response.Data is not null && response.Data.Count > 0)
-        {
-            _menus.Clear();
-            _menus.AddRange(response.Data);
-        }
-        else if (!response.IsSuccess)
-        {
-            _loadError = "Menus unavailable.";
-        }
-
+        _menus.Clear();
+        if (response.IsSuccess && response.Data is not null) { _menus.AddRange(response.Data); _loadError = null; }
+        else _loadError = "Navigation unavailable.";
         _isLoading = false;
         StateHasChanged();
+    }
+    private async Task PollPolicyAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while(await timer.WaitForNextTickAsync(_lifetime.Token))
+            {
+                try { await InvokeAsync(async () => { await AuthSession.RefreshAsync(); if (AuthSession.IsAuthenticated) await ReloadNavigationAsync(); else { _menus.Clear(); StateHasChanged(); } }); }
+                catch (Exception ex) when (!_lifetime.IsCancellationRequested) { ST.UI.Blazor.Logging.NavigationPolicyLogDefinitions.RefreshFailed(Logger, ex); }
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (ObjectDisposedException) when (_lifetime.IsCancellationRequested) { }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        await _lifetime.CancelAsync();
+        if (_pollTask is not null) await _pollTask;
+        _lifetime.Dispose();
     }
 
     private RenderFragment RenderMenu(MenuResponse menu) => builder =>
@@ -107,7 +146,7 @@
 
         builder.OpenElement(sequence++, "div");
         builder.AddAttribute(sequence++, "class", "nav-children");
-        foreach (var child in menu.Children)
+        foreach (var child in menu.Children.Where(child => !IsPlatformChild(child)))
         {
             builder.AddContent(sequence++, RenderMenu(child));
         }

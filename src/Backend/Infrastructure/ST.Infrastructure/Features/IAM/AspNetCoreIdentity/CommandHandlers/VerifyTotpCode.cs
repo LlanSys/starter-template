@@ -134,6 +134,7 @@ internal sealed class VerifyTotpCode(
                 return AppResponses.Failure<VerifyOtpResponse>("Could not retrieve user claims");
             }
 
+            userClaims.Add(new System.Security.Claims.Claim("amr", "mfa"));
             var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
             var tokenExpiry = jwtService.GetTokenExpiry(tokenResponse);
             var refreshToken = jwtService.CreateRefreshToken();

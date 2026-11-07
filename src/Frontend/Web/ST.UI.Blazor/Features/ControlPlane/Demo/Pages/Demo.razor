@@ -1,0 +1,47 @@
+@using ST.UI.Blazor.Features.ControlPlane.Demo
+@page "/control-panel/demo"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+@inject ITokenStorage Tokens
+@inject ProtectedSessionStorage SessionStorage
+@inject NavigationManager Navigation
+@inject IDialogService Dialogs
+<PageTitle>Demo workspace | StarterTemplate</PageTitle>
+<h1 class="platform-page-title">Demo workspace</h1>
+<MudPaper Outlined="true" Elevation="0" Class="pa-4 mt-4">
+    <MudText Typo="Typo.h6">Vendor demo</MudText>
+    <MudText Class="my-3">An isolated tenant with the available modules enabled. Payments and invitations do not send live transactions.</MudText>
+    @if (_message is not null) { <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">@_message</MudAlert> }
+    <MudSelect T="bool" @bind-Value="_readOnly" Label="Experience" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+        <MudSelectItem Value="false">Tenant administrator</MudSelectItem>
+        <MudSelectItem Value="true">Read-only user</MudSelectItem>
+    </MudSelect>
+    <MudButton OnClick="EnterAsync" Disabled="_busy" Color="Color.Primary" Variant="Variant.Filled">@(_busy ? "Preparing demo…" : "Enter demo")</MudButton>
+<MudButton OnClick="ResetAsync" Disabled="_busy" Color="Color.Warning" StartIcon="@Icons.Material.Filled.RestartAlt" Class="ml-3">Reset demo</MudButton>
+</MudPaper>
+@code {
+    private bool _busy, _readOnly;
+    private string? _message;
+    private async Task ResetAsync() {
+        if(await Dialogs.ShowMessageBoxAsync("Reset demo", "End all demo sessions and restore the default demo navigation?",yesText:"Reset",cancelText:"Cancel")!=true)return;
+        _busy=true;try {var result=await Api.SendAsync<bool>(HttpMethod.Post,"api/v1/control-plane/demo/reset");_message=UserMessageSanitizer.Normalize(result.Message,result.IsSuccess ? "Demo reset complete." : "Could not reset demo.");}finally{_busy=false;}
+    }
+    private async Task EnterAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try {
+            var previous = await Tokens.GetAsync();
+            var response = await Api.SendAsync<LoginResponse>(HttpMethod.Post, $"api/v1/control-plane/demo/enter?readOnly={_readOnly}");
+            if (!response.IsSuccess || response.Data is null) { _message = UserMessageSanitizer.Normalize(response.Message, "Could not enter demo."); return; }
+            await SessionStorage.SetAsync("workspace.platform", new PlatformSessionBackup(previous.AccessToken, previous.RefreshToken, previous.SessionId));
+            await SessionStorage.SetAsync("auth.workspace_tokens", new ST.UI.Blazor.Features.IAM.Users.Models.WorkspaceTokens(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId));
+            if (!await Tokens.SaveAsync(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId)) { _message = "Could not save the demo session."; return; }
+            Navigation.NavigateTo("/dashboard", forceLoad: true);
+        } finally { _busy = false; }
+    }
+}

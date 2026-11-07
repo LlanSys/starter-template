@@ -102,6 +102,6 @@ internal sealed class DisableTotp(
     {
         return _mfaSettings.Enabled
             && _mfaSettings.EnforceEnrollment
-            && roles.Any(role => _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+            && roles.Any(role => (string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase) || _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
     }
 }

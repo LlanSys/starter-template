@@ -12,7 +12,7 @@ namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 internal sealed class UpdateUserRoles(
     UserManager<AppUser> userManager,
     RoleManager<AppRole> roleManager,
-    ILogger<UpdateUserRoles> logger)
+    ILogger<UpdateUserRoles> logger, ST.Application.Features.IAM.Users.Contracts.Interfaces.IRoleAvailability availability)
     : IRequestHandler<UpdateUserRolesCommand, AppResponse<UserRolesResponse>>
 {
     public async Task<AppResponse<UserRolesResponse>> Handle(UpdateUserRolesCommand command, CancellationToken cancellationToken)
@@ -32,16 +32,23 @@ internal sealed class UpdateUserRoles(
                 .Order(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var allowed = await availability.AvailableIdsAsync(cancellationToken).ConfigureAwait(false);
             foreach (var role in requestedRoles)
             {
-                if (!await roleManager.RoleExistsAsync(role).ConfigureAwait(false))
+                var registered = await roleManager.FindByNameAsync(role).ConfigureAwait(false);
+                if (registered is null || !allowed.Contains(registered.Id))
                 {
                     return AppResponses.Failure<UserRolesResponse>($"Role {role} does not exist.");
                 }
             }
 
             var existingRoles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-            var rolesToRemove = existingRoles.Except(requestedRoles, StringComparer.OrdinalIgnoreCase).ToList();
+            var rolesToRemove = new List<string>();
+            foreach (var existing in existingRoles.Except(requestedRoles, StringComparer.OrdinalIgnoreCase))
+            {
+                var registered = await roleManager.FindByNameAsync(existing).ConfigureAwait(false);
+                if (registered is not null && allowed.Contains(registered.Id)) rolesToRemove.Add(existing);
+            }
             var rolesToAdd = requestedRoles.Except(existingRoles, StringComparer.OrdinalIgnoreCase).ToList();
 
             if (rolesToRemove.Count > 0)

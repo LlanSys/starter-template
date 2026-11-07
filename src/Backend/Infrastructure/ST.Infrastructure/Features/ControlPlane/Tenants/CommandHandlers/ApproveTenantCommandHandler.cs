@@ -46,7 +46,7 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             return AppResponses.Failure<TenantResponse>("Tenant not found.");
         }
 
-        if (tenant.Status != TenantStatus.PendingApproval)
+        if (tenant.Status is not (TenantStatus.PendingApproval or TenantStatus.ProvisioningFailed))
         {
             return AppResponses.Failure<TenantResponse>($"Cannot approve tenant from status {tenant.Status}.");
         }
@@ -57,7 +57,8 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             return AppResponses.Failure<TenantResponse>("Deployment stamp for this tenant could not be found.");
         }
 
-        tenant.Approve(_actorProvider.ActorId);
+        if(tenant.Status == TenantStatus.ProvisioningFailed) tenant.RetryProvisioning();
+        else tenant.Approve(_actorProvider.ActorId);
 
         if (stamp.IsolationTier == IsolationTier.Isolated)
         {

@@ -35,7 +35,7 @@ internal sealed class InviteAdminUser(UserManager<AppUser> users, ICurrentTenant
                 return AppResponses.Failure<bool>("Account invitation delivery is not configured.");
 
             var token = await users.GenerateUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user)).ConfigureAwait(false);
-            var link = new Uri(baseUri, $"/iam/accept-invitation?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}");
+            var link = new Uri(baseUri, $"/iam/accept-invitation?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}&tenantId={user.TenantId:D}");
             var result = await email.SendEmailAsync(new SendEmailRequest
             {
                 To = user.Email,

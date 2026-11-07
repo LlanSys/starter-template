@@ -44,6 +44,7 @@ internal static class PermissionSeed
     private static Permission Create(string id, string context, string resource, string action, string description)
     {
         var permission = Permission.Create( context, resource, action, description, "System");
+        permission.SetModule(resource == "payments" ? "payments" : "iam");
         permission.Id = Guid.Parse(id);
         permission.TenantId = SeedTenantId;
         permission.CreatedAt = SeedCreatedAt;

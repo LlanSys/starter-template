@@ -10,7 +10,7 @@ namespace ST.Application.Features.IAM.ReferenceData.Queries;
 
 
 
-internal sealed class GetIamReferenceDataQueryHandler(IIamUnitOfWork unitOfWork, ILogger<GetIamReferenceDataQueryHandler> logger)
+internal sealed class GetIamReferenceDataQueryHandler(IIamUnitOfWork unitOfWork, ILogger<GetIamReferenceDataQueryHandler> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
     : IRequestHandler<GetIamReferenceDataQuery, AppResponse<IamReferenceDataResponse>>
 {
     public async Task<AppResponse<IamReferenceDataResponse>> Handle(GetIamReferenceDataQuery query, CancellationToken cancellationToken)
@@ -73,6 +73,15 @@ internal sealed class GetIamReferenceDataQueryHandler(IIamUnitOfWork unitOfWork,
                     cancellationToken)
                 .ConfigureAwait(false);
 
+            var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
+            var standardPermissions = access.Catalogue.Where(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(ST.Application.Features.ControlPlane.Modules.ModuleCatalogueMapping.ToPermissionResponse).ToArray();
+            contexts = standardPermissions.Select(x => new CatalogOptionResponse(x.Context, x.Context switch { "iam" => "Identity and access", "shared" => "Shared", "platform" => "Platform", _ => x.Context })).Concat(contexts).DistinctBy(x => x.Key).ToList();
+            resources = standardPermissions.Select(x => new CatalogOptionResponse(x.Resource, x.Resource, "", x.Context)).Concat(resources).DistinctBy(x => (x.Key, x.ParentKey)).ToList();
+            actions = standardPermissions.Select(x => new CatalogOptionResponse(x.Action, x.Action)).Concat(actions).DistinctBy(x => x.Key).ToList();
+            placements = new[] { new CatalogOptionResponse("Sidebar", "Sidebar"), new CatalogOptionResponse("AdminCenter", "Admin Center"), new CatalogOptionResponse("Features", "Features") }.Concat(placements).DistinctBy(x => x.Key).ToList();
+            var availablePaths = access.AvailablePages.Where(x => !string.IsNullOrEmpty(x.Path)).Select(x => x.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            routes = access.AvailablePages.Where(x => !string.IsNullOrEmpty(x.Path)).Select(x => new CatalogOptionResponse(x.Path, x.Title, "", x.Placement))
+                .Concat(routes.Where(x => availablePaths.Contains(x.Key))).DistinctBy(x => (x.Key, x.ParentKey)).ToList();
             var response = new IamReferenceDataResponse(contexts, resources, actions, placements, icons, routes);
             return AppResponses.Success("IAM reference data loaded.", response);
         }

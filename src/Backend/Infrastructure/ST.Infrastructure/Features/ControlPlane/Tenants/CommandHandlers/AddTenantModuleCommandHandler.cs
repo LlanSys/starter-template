@@ -34,7 +34,7 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
 
     public async Task<AppResponse<TenantResponse>> Handle(AddTenantModuleCommand request, CancellationToken cancellationToken)
     {
-        var tenant = await _unitOfWork.Tenants.FindAll()
+        var tenant = await _unitOfWork.Tenants.FindAll().AsTracking()
             .Include(t => t.Modules)
             .FirstOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken)
             .ConfigureAwait(false);
@@ -45,6 +45,10 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
         }
 
         var moduleKey = request.Request.ModuleKey.Trim();
+        var definition = await _unitOfWork.Modules.FirstOrDefaultAsync(module => module.Key == moduleKey && module.IsActive && !module.IsRetired, cancellationToken).ConfigureAwait(false);
+        if (definition is null || !(moduleKey.Equals("Core", StringComparison.OrdinalIgnoreCase) || moduleKey.Equals("IAM", StringComparison.OrdinalIgnoreCase) || moduleKey.Equals("Showcase", StringComparison.OrdinalIgnoreCase) || moduleKey.Equals("Payments", StringComparison.OrdinalIgnoreCase)))
+            return AppResponses.Failure<TenantResponse>("Select an active, implemented module from the catalogue.");
+        moduleKey = definition.Key;
         var existingModule = tenant.Modules.FirstOrDefault(m => string.Equals(m.ModuleKey, moduleKey, StringComparison.OrdinalIgnoreCase));
 
         if (existingModule != null)
@@ -63,14 +67,14 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
         }
         else
         {
-            tenant.Modules.Add(new TenantModule
+            await _unitOfWork.TenantModules.CreateAsync(new TenantModule
             {
                 TenantId = tenant.Id,
                 ModuleKey = moduleKey,
                 IsActive = true,
                 ExpiresAt = request.Request.ExpiresAt,
                 CreatedBy = _actorProvider.ActorId
-            });
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);

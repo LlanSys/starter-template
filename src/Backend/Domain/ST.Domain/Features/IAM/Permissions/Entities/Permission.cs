@@ -6,6 +6,8 @@ namespace ST.Domain.Features.IAM.Permissions.Entities;
 public sealed class Permission : BaseEntity, ISoftDeletable
 {
 
+    public string ModuleKey { get; private set; } = "iam";
+    public void SetModule(string moduleKey) { ArgumentException.ThrowIfNullOrWhiteSpace(moduleKey); ModuleKey = moduleKey.Trim().ToLowerInvariant(); }
     public string Key { get; private set; } = string.Empty;
     public string Context { get; private set; } = string.Empty;
     public string Resource { get; private set; } = string.Empty;

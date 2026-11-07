@@ -1,0 +1,62 @@
+@page "/control-panel/support"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@using ST.SharedKernel.Features.ControlPlane.Support
+@using ST.SharedKernel.Features.ControlPlane.Modules.Dtos
+@using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using ST.UI.Blazor.Features.ControlPlane.Demo
+@inject IBackendApiClient Api
+@inject ITokenStorage Tokens
+@inject ProtectedSessionStorage SessionStorage
+@inject NavigationManager Navigation
+<PageTitle>Customer support | StarterTemplate</PageTitle>
+<MudButton Href="/control-panel?tab=tenants" Size="Size.Small" StartIcon="@Icons.Material.Filled.ArrowBack">Tenants</MudButton>
+<h1 class="platform-page-title my-3">Customer support</h1>
+@if(_message is not null) { <MudAlert Dense="true" Class="my-3" Severity="Severity.Info">@_message</MudAlert> }
+<MudExpansionPanels Elevation="0"><MudExpansionPanel Text="Request access" Expanded="true">
+<MudGrid Spacing="2">
+<MudItem xs="12" sm="6"><MudSelect T="Guid" @bind-Value="_tenant" Label="Customer workspace" Variant="Variant.Outlined" Margin="Margin.Dense">@foreach(var t in _tenants) { <MudSelectItem Value="t.Id">@t.DisplayName</MudSelectItem> }</MudSelect></MudItem>
+<MudItem xs="12" sm="6"><MudNumericField T="int" @bind-Value="_minutes" Label="Minutes" Min="5" Max="120" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+<MudItem xs="12"><MudTextField @bind-Value="_reason" Label="Reason" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+<MudItem xs="12"><ST.UI.Blazor.Features.IAM.Menus.Components.MenuAccessPicker Label="Requested permissions" Options="_permissionOptions" @bind-Values="_selected" /></MudItem>
+<MudItem xs="12"><MudSwitch T="bool" @bind-Value="_readOnly" Label="Read-only" Color="Color.Primary" /></MudItem>
+</MudGrid>
+<MudButton OnClick="RequestAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="mt-3">Request tenant approval</MudButton>
+</MudExpansionPanel></MudExpansionPanels>
+<MudTable Items="_grants" Dense="true" Hover="true" Elevation="0" Class="mt-4" Breakpoint="Breakpoint.None">
+<HeaderContent><MudTh>Workspace</MudTh><MudTh>Reason</MudTh><MudTh>Access</MudTh><MudTh>Status</MudTh><MudTh>Expires</MudTh><MudTh>Actions</MudTh></HeaderContent>
+<RowTemplate><MudTd>@(_tenants.FirstOrDefault(x=>x.Id==context.TenantId)?.DisplayName ?? context.TenantId.ToString())</MudTd><MudTd>@context.Reason</MudTd><MudTd>@(context.ReadOnly ? "Read-only" : "Scoped writes")</MudTd><MudTd>@context.Status</MudTd><MudTd>@context.ExpiresAt?.ToLocalTime().ToString("g")</MudTd><MudTd>
+<MudTooltip Text="Activity"><MudIconButton Icon="@Icons.Material.Filled.History" OnClick="@(()=>_auditFor=context.Id)" Size="Size.Small" aria-label="Support activity" /></MudTooltip>
+@if(context.Status=="Approved" && context.ExpiresAt>DateTimeOffset.UtcNow) { <MudTooltip Text="Enter support session"><MudIconButton Icon="@Icons.Material.Filled.Login" OnClick="@(()=>EnterAsync(context))" Disabled="_busy" Size="Size.Small" aria-label="Enter support session" /></MudTooltip> }
+@if(context.Status is "Pending" or "Approved") { <MudTooltip Text="Revoke"><MudIconButton Icon="@Icons.Material.Filled.Block" OnClick="@(()=>RevokeAsync(context))" Disabled="_busy" Size="Size.Small" aria-label="Revoke support" /></MudTooltip> }
+</MudTd></RowTemplate><NoRecordsContent>No support requests.</NoRecordsContent><PagerContent><MudTablePager /></PagerContent>
+</MudTable>
+@if(_auditFor is { } auditId) { <ST.UI.Blazor.Features.ControlPlane.Support.Components.SupportAuditListing GrantId="auditId" Platform="true" /> }
+@code {
+ private Guid? _auditFor;
+ [SupplyParameterFromQuery(Name="tenant")] public Guid? SelectedTenant {get;set;}
+ private Guid _tenant;private int _minutes=30;private bool _readOnly=true,_busy;private string _reason="";private string? _message;
+ private IReadOnlyList<TenantResponse> _tenants=[];private IReadOnlyList<SupportGrantResponse> _grants=[];
+ private IReadOnlyList<string> _permissionOptions=[];
+ private IReadOnlyList<string> _selected=["menus.view"];
+ protected override async Task OnAfterRenderAsync(bool first) { if(first) { _tenant=SelectedTenant??Guid.Empty;await LoadAsync();StateHasChanged(); } }
+ private async Task LoadAsync() {
+ _tenants=(await Api.SendAsync<IReadOnlyList<TenantResponse>>(HttpMethod.Get,"api/v1/control-plane/tenants")).Data?.Where(x=>x.Identifier is not ("default" or "vendor-demo") && x.Status=="Active").ToArray() ?? [];
+ _grants=(await Api.SendAsync<IReadOnlyList<SupportGrantResponse>>(HttpMethod.Get,"api/v1/control-plane/support")).Data ?? [];
+ var modules=(await Api.SendAsync<IReadOnlyList<ModuleResponse>>(HttpMethod.Get,"api/v1/control-plane/modules")).Data ?? [];
+ var permissions=new List<CatalogueEntryResponse>();foreach(var module in modules.Where(x=>x.IsActive && x.IsImplemented)) { var c=await Api.SendAsync<IReadOnlyList<CatalogueEntryResponse>>(HttpMethod.Get,$"api/v1/control-plane/modules/{module.Key}/catalogue");permissions.AddRange(c.Data?.Where(x=>x.Kind=="Permission" && !x.Key.StartsWith("support.",StringComparison.OrdinalIgnoreCase)) ?? []); }
+ _permissionOptions=permissions.Select(x=>x.Key).ToArray();
+ }
+ private async Task RequestAsync() { _busy=true;try {var result=await Api.SendAsync<SupportResult>(HttpMethod.Post,"api/v1/control-plane/support",new SupportRequest(_tenant,_reason,_selected.ToArray(),_readOnly,_minutes));_message=UserMessageSanitizer.Normalize(result.Message,result.IsSuccess ? "Request sent for customer approval." : "Could not request support.");await LoadAsync();}finally{_busy=false;} }
+ private async Task RevokeAsync(SupportGrantResponse grant) { var result=await Api.SendAsync<SupportResult>(HttpMethod.Post,$"api/v1/control-plane/support/{grant.Id}/revoke");_message=UserMessageSanitizer.Normalize(result.Message,"Support request revoked.");await LoadAsync(); }
+ private async Task EnterAsync(SupportGrantResponse grant) {
+ _busy=true;try {var previous=await Tokens.GetAsync();var result=await Api.SendAsync<SupportResult>(HttpMethod.Post,$"api/v1/control-plane/support/{grant.Id}/enter");var session=result.Data?.Session;
+ if(!result.IsSuccess || session is null) {_message=UserMessageSanitizer.Normalize(result.Message,"Could not enter support.");return;}
+ await SessionStorage.SetAsync("workspace.platform",new PlatformSessionBackup(previous.AccessToken,previous.RefreshToken,previous.SessionId));
+ await SessionStorage.SetAsync("auth.workspace_tokens",new ST.UI.Blazor.Features.IAM.Users.Models.WorkspaceTokens(session.Token,session.RefreshToken,session.SessionId));
+ await Tokens.SaveAsync(session.Token,session.RefreshToken,session.SessionId);Navigation.NavigateTo("/dashboard",forceLoad:true);
+ }finally{_busy=false;}
+ }
+}

@@ -13,7 +13,7 @@ Clone StarterTemplate into the new application's directory and run its rename sc
 .\scripts\rename-template.ps1 -NewName MyApplication -NamespacePrefix MA
 ```
 
-Review the diff and set the clone's Git remote to its own repository. The script updates product/project/namespace names, Dockerfiles and MAUI XAML, and assigns fresh host UserSecretsId values. It does not copy local secret contents or configure live cloud resources. Allocate distinct host ports and Compose project/volume names before starting applications side by side.
+Review the diff and set the clone's Git remote to its own repository. The script updates product/project/namespace names, Dockerfiles, and assigns fresh host UserSecretsId values. It does not copy local secret contents or configure live cloud resources. Allocate distinct host ports and Compose project/volume names before starting applications side by side.
 
 Keep DataProtection:ApplicationName stable after the first protected cookie, token or TOTP secret is issued. See [Renaming the template](renaming-the-template.md).
 

@@ -16,6 +16,7 @@ internal sealed class CreateRole(RoleManager<AppRole> roleManager, ILogger<Creat
         try
         {
             var roleName = command.Request.Name.Trim();
+            if (roleName.Equals("System Administrator", StringComparison.OrdinalIgnoreCase)) return AppResponses.Failure<AdminRoleListResponse>("This role name is reserved for platform setup.");
             if (string.IsNullOrWhiteSpace(roleName))
             {
                 return AppResponses.Failure<AdminRoleListResponse>("Role name is required.");

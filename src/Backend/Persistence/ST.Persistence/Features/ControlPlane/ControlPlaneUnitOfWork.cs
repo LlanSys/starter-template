@@ -12,6 +12,12 @@ public class ControlPlaneUnitOfWork : IControlPlaneUnitOfWork
 {
     private readonly ControlPlaneDBContext _context;
 
+    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant> SupportGrants => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant>(_context);
+    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit> SupportAudit => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit>(_context);
+    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleDefinition> Modules => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleDefinition>(_context);
+    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry> Catalogue => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry>(_context);
+    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag> FeatureFlags => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag>(_context);
+    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule> TenantModules => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule>(_context);
     public ITenantRepository Tenants { get; }
     public IDeploymentStampRepository DeploymentStamps { get; }
     public IImpersonationRecordRepository ImpersonationRecords { get; }

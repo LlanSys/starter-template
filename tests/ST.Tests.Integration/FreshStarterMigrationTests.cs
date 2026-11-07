@@ -53,7 +53,7 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
             var context = (DbContext)scope.ServiceProvider.GetRequiredService(type);
             Assert.False(context.Database.HasPendingModelChanges());
             await context.Database.MigrateAsync();
-            Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+            Assert.Equal(context.Database.GetMigrations(), await context.Database.GetAppliedMigrationsAsync());
             Assert.Empty(await context.Database.GetPendingMigrationsAsync());
             await context.Database.MigrateAsync();
             string script = context.GetService<IMigrator>().GenerateScript(options: MigrationsSqlGenerationOptions.Idempotent);
@@ -61,7 +61,7 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
             var batches = postgres ? new[] { script } : System.Text.RegularExpressions.Regex.Split(script, @"^GO\s*$", System.Text.RegularExpressions.RegexOptions.Multiline);
             foreach (var batch in batches.Where(batch => !string.IsNullOrWhiteSpace(batch)))
                 await context.Database.ExecuteSqlRawAsync(batch);
-            Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+            Assert.Equal(context.Database.GetMigrations(), await context.Database.GetAppliedMigrationsAsync());
         }
         await VerifyConcurrencyAsync(provider, contexts[0]);
     }

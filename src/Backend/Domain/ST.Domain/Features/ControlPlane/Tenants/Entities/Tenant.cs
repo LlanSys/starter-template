@@ -14,6 +14,14 @@ public class Tenant : IAuditable, IHasDomainEvents
     public required string DisplayName { get; set; }
     public required string HostName { get; set; }
     public string? ContactEmail { get; set; }
+    public bool IsDemo { get; set; }
+    public int DemoFixtureVersion { get; set; }
+    public DateTimeOffset? DemoResetAt { get; set; }
+    public int WorkspaceVersion { get; set; }
+    public DateTimeOffset? WorkspaceInitializedAt { get; set; }
+    public string? AdministratorUserId { get; set; }
+    public string? AdministratorEmail { get; set; }
+    public DateTimeOffset? InvitationSentAt { get; set; }
     public int MaxUsers { get; set; }
     public SubscriptionTier SubscriptionTier { get; set; }
     public TenantStatus Status { get; set; } = TenantStatus.PendingApproval;
@@ -27,6 +35,11 @@ public class Tenant : IAuditable, IHasDomainEvents
         Status = TenantStatus.PendingProvisioning;
         UpdatedBy = actorId;
         UpdatedAt = DateTimeOffset.UtcNow; // We will use TimeProvider in application layer, but here standard fallback
+    }
+
+    public void RetryProvisioning() {
+        if(Status != TenantStatus.ProvisioningFailed) throw new InvalidOperationException("Only failed provisioning can be retried.");
+        Status=TenantStatus.PendingProvisioning;
     }
 
     public void MarkAsProvisioning()

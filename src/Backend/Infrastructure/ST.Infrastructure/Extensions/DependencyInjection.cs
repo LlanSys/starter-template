@@ -50,7 +50,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Quartz;
-using Quartz.Simpl;
+using Quartz.Impl;
 using QuestPDF.Infrastructure;
 using Serilog;
 using Serilog.Core;
@@ -75,6 +75,11 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(configuration, nameof(configuration));
 
+        services.AddScoped<WorkspaceTenantOverride>();
+        services.AddScoped<ST.Domain.Shared.Contracts.Common.IWorkspaceTenantOverride>(provider => provider.GetRequiredService<WorkspaceTenantOverride>());
+        services.AddScoped<ST.Application.Features.ControlPlane.Demo.IDemoFixture, ST.Infrastructure.Features.ControlPlane.Demo.NavigationDemoFixture>();
+        services.AddScoped<ST.Application.Features.ControlPlane.Support.ISupportSessionGuard, ST.Infrastructure.Features.ControlPlane.Support.SupportSessionGuard>();
+        services.AddScoped<ST.Application.Features.ControlPlane.Tenants.Contracts.ITenantWorkspaceProvisioner, ST.Infrastructure.Features.ControlPlane.Provisioning.TenantWorkspaceProvisioner>();
         services.AddSingleton(JsonSerializerOptionsFactory.Create());
         services.Configure<ObservabilitySettings>(configuration.GetSection(ObservabilitySettings.SectionName));
         services.Configure<AuthProviderSettings>(configuration.GetSection(AuthProviderSettings.SectionName));
@@ -162,7 +167,10 @@ public static class DependencyInjection
         services.AddHttpClient<ST.Application.Features.ControlPlane.Tenants.Contracts.IStampProvisioner, ST.Infrastructure.Features.ControlPlane.Provisioning.GitHubActionsStampProvisioner>();
         services.AddScoped<ICurrentTenantProvider, CurrentTenantProvider>();
         services.AddScoped<ITenantConnectionResolver, TenantConnectionResolver>();
+        services.AddScoped<ST.Application.Features.IAM.Menus.IEffectiveNavigation, ST.Application.Features.IAM.Menus.EffectiveNavigation>();
+        services.AddScoped<ST.Application.Features.IAM.Users.Contracts.Interfaces.IRoleAvailability, ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers.RoleAvailability>();
         services.AddScoped<ITenantModuleResolver, TenantModuleResolver>();
+        services.AddScoped<ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy, ST.Infrastructure.Features.ControlPlane.Modules.EffectiveModulePolicy>();
         services.AddScoped<ICurrentActorProvider, CurrentActorProvider>();
         services.AddScoped<IFeatureFlagService, ConfigurationFeatureFlagService>();
         services.AddScoped<IPdfReportService, QuestPdfReportService>();
@@ -673,8 +681,8 @@ public static class DependencyInjection
     /// <para>
     /// <b>Architecture decision:</b> We use the Azure Monitor OpenTelemetry Distro
     /// (<c>Azure.Monitor.OpenTelemetry.AspNetCore</c>). The Distro is
-    /// Microsoft's strategic direction — it follows the OTel standard, meaning
-    /// you can swap the exporter (Azure Monitor → Jaeger/Grafana/etc.) by changing
+    /// Microsoft's strategic direction â€” it follows the OTel standard, meaning
+    /// you can swap the exporter (Azure Monitor â†’ Jaeger/Grafana/etc.) by changing
     /// one line.
     /// </para>
     /// <para>
@@ -691,7 +699,7 @@ public static class DependencyInjection
     /// <b>Serilog relationship:</b> Serilog continues to handle log routing
     /// (Console, Seq, File). The OTel pipeline handles traces and metrics.
     /// Logs flow to Azure Monitor via Serilog's ILogger integration with
-    /// <c>ReadFrom.Services()</c> — not via a Serilog sink.
+    /// <c>ReadFrom.Services()</c> â€” not via a Serilog sink.
     /// </para>
     /// </remarks>
     public static IServiceCollection ConfigureObservability(
@@ -976,13 +984,13 @@ public static class DependencyInjection
         services.AddQuartz(q =>
         {
             // Use a unique ID for this scheduler instance
-            q.SchedulerId = "BT_Q_Scheduler";
+            q.ConfigureScheduler(options => options.InstanceId = "BT_Q_Scheduler");
 
             q.UseJobFactory<MicrosoftDependencyInjectionJobFactory>();
 
             q.UsePersistentStore(s =>
             {
-                s.UseProperties = true;
+                s.ConfigureStore(options => options.StoreJobDataAsStrings = true);
 
                 s.UseNewtonsoftJsonSerializer();
 
@@ -1012,14 +1020,14 @@ public static class DependencyInjection
 
     public static IApplicationBuilder UseInfrastructureLoggingMiddleware(this IApplicationBuilder app)
     {
-        // Serilog request logging must be first — it wraps the entire pipeline
+        // Serilog request logging must be first â€” it wraps the entire pipeline
         // so it can measure the full request duration including auth, routing etc.
         app.UseSerilogRequestLogging(options =>
         {
             options.MessageTemplate =
                 "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
 
-            // Log level based on outcome — errors and 5xx are Error, 4xx are Warning
+            // Log level based on outcome â€” errors and 5xx are Error, 4xx are Warning
             options.GetLevel = (httpContext, elapsed, ex) => ex != null
                 ? LogEventLevel.Error
                 : httpContext.Response.StatusCode >= 500
@@ -1039,7 +1047,7 @@ public static class DependencyInjection
             };
         });
 
-        // Custom middleware — adds X-Correlation-ID response header,
+        // Custom middleware â€” adds X-Correlation-ID response header,
         // optionally logs request bodies at Debug level
         app.UseMiddleware<LoggingMiddleware>();
 

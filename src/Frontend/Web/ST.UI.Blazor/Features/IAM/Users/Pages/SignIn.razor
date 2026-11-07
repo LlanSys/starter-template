@@ -1,3 +1,6 @@
+@using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
+@inject ST.UI.Blazor.Features.IAM.Users.Implementations.WorkspaceSelection WorkspaceSelection
+@inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient Api
 @page "/"
 @page "/iam/sign-in"
 @layout AuthLayout
@@ -7,30 +10,23 @@
 @inject ILogger<SignIn> Logger
 @inject ISnackbar Snackbar
 @inject IOptions<BackendApiSettings> BackendApiSettings
-@inject ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces.IAuthService AuthService
+@inject ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces.IAuthService AuthService
 @inject IJSRuntime JSRuntime
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
+@inject ITokenStorage Tokens
 @implements IAsyncDisposable
 
 <PageTitle>Sign in | StarterTemplate</PageTitle>
 
 <section class="auth-shell">
-    <div class="auth-copy">
-        <span class="eyebrow">Identity and access</span>
-        <h1>Sign in to the operations console.</h1>
-        <p>
-            This flow talks to the API, stores protected tokens in browser storage, and keeps the UI independent from backend Application internals.
-        </p>
-        <div class="auth-proof">
-            <span>Production path</span>
-            <strong>UI → API → Application → Domain → Persistence</strong>
-        </div>
-    </div>
-
     <div class="auth-card">
+        <div class="auth-heading"><h1>Sign in</h1></div>
+        @if (_canReturnToPlatform) { <MudButton OnClick="RecoverPlatformAsync" StartIcon="@Icons.Material.Filled.ArrowBack" Class="mb-3">Return to platform</MudButton> }
         <EditForm FormName="@SignInFormName" Model="FormModel" OnValidSubmit="SignInAsync">
             <DataAnnotationsValidator />
 
             <div class="form-stack">
+                <div><label for="workspace">Workspace</label><input id="workspace" class="form-control" @bind="_workspaceIdentifier" autocomplete="organization" /></div>
                 <div>
                     <label for="username">Username or email</label>
                     <InputText id="username" class="form-control form-control-lg" @bind-Value="FormModel!.UserName" autocomplete="username webauthn" />
@@ -55,23 +51,29 @@
                     @(_isBusy ? "Signing in..." : "Sign in")
                 </button>
 
-                <div class="auth-separator" style="text-align: center; margin: 1rem 0;">
-                    <span style="background-color: var(--mud-palette-surface); padding: 0 10px; color: var(--mud-palette-text-secondary); font-size: 0.875rem; text-transform: uppercase;">or</span>
-                </div>
-
-                <button class="btn btn-outline-primary btn-lg w-100 mb-2" type="button" @onclick="SignInWithPasskeyAsync" disabled="@_isBusy">
-                    Sign in with passkey
-                </button>
-
+                <div class="auth-separator"><span>Or continue with</span></div>
                 @{
                     var apiBaseUrl = BackendApiSettings.Value.BaseUrl.TrimEnd('/');
                     var returnUrl = Uri.EscapeDataString($"{Navigation.BaseUri}iam/sso-callback");
-                    var ssoLoginUrl = $"{apiBaseUrl}/api/v1/iam/auth/sso/login?returnUrl={returnUrl}";
+                    var ssoLoginUrl = $"{apiBaseUrl}/api/v1/iam/auth/sso/login?returnUrl={returnUrl}&tenantId={_selectedWorkspace?.TenantId}";
                 }
-
-                <a class="btn btn-outline-secondary btn-lg w-100" href="@ssoLoginUrl">
-                    Sign in with Microsoft
-                </a>
+                <div class="auth-providers" aria-label="Other sign-in methods">
+                    <button class="auth-provider" type="button" disabled title="Google sign-in is not configured" aria-describedby="google-availability">
+                        <MudIcon Icon="@Icons.Custom.Brands.Google" Size="Size.Small" />Google
+                    </button>
+                    @if (_isBusy)
+                    {
+                        <button class="auth-provider" type="button" disabled><MudIcon Icon="@Icons.Custom.Brands.Microsoft" Size="Size.Small" />Microsoft</button>
+                    }
+                    else
+                    {
+                        <button class="auth-provider" type="button" @onclick="SignInWithMicrosoftAsync"><MudIcon Icon="@Icons.Custom.Brands.Microsoft" Size="Size.Small" />Microsoft</button>
+                    }
+                    <button class="auth-provider" type="button" @onclick="SignInWithPasskeyAsync" disabled="@_isBusy">
+                        <MudIcon Icon="@Icons.Material.Filled.Key" Size="Size.Small" />Passkey
+                    </button>
+                </div>
+                <span id="google-availability" class="visually-hidden">Google sign-in is not configured.</span>
             </div>
         </EditForm>
 
@@ -84,6 +86,33 @@
     [SupplyParameterFromForm(FormName = SignInFormName)]
     private SignInFormModel? FormModel { get; set; }
 
+    [SupplyParameterFromQuery(Name = "workspace")] public string? WorkspaceIdentifier { get; set; }
+    [SupplyParameterFromQuery(Name = "tenantId")] public Guid? TenantId { get; set; }
+    private string _workspaceIdentifier = "";
+    private ST.UI.Blazor.Features.IAM.Users.Models.WorkspaceSelectionInfo? _selectedWorkspace;
+    private async Task<bool> ResolveWorkspaceAsync(string? identifier = null, Guid? tenantId = null)
+    {
+        var query = tenantId.HasValue ? $"tenantId={tenantId}" : "identifier=" + Uri.EscapeDataString(identifier ?? "");
+        var response = await Api.SendAsync<WorkspaceInfoResponse>(HttpMethod.Get, "api/v1/workspaces/resolve?" + query, requiresAuthentication: false);
+        if (!response.IsSuccess || response.Data is null) { _message = UserMessageSanitizer.Normalize(response.Message, "Workspace is not available."); _isError = true; return false; }
+        var workspace = response.Data;
+        _selectedWorkspace = new(workspace.TenantId, workspace.Identifier, workspace.Name);
+        _workspaceIdentifier = workspace.Identifier;
+        await WorkspaceSelection.SetAsync(_selectedWorkspace);
+        return true;
+    }
+    private bool _canReturnToPlatform;
+    private async Task RecoverPlatformAsync() {
+      var backup=await SessionStorage.GetAsync<ST.UI.Blazor.Features.ControlPlane.Demo.PlatformSessionBackup>("workspace.platform");if(!backup.Success || backup.Value is null)return;
+      await Tokens.ClearAsync();var current=await Tokens.GetAsync();
+      if(string.IsNullOrWhiteSpace(current.AccessToken)) await Tokens.SaveAsync(backup.Value.AccessToken,backup.Value.RefreshToken,backup.Value.SessionId);
+      await SessionStorage.DeleteAsync("workspace.platform");Navigation.NavigateTo("/control-panel",forceLoad:true);
+    }
+    private async Task SignInWithMicrosoftAsync() {
+      if(!await ResolveWorkspaceAsync(_workspaceIdentifier))return;
+      var url=BackendApiSettings.Value.BaseUrl.TrimEnd('/')+"/api/v1/iam/auth/sso/login?returnUrl="+Uri.EscapeDataString(Navigation.BaseUri+"iam/sso-callback")+"&tenantId="+_selectedWorkspace!.TenantId;
+      Navigation.NavigateTo(url,forceLoad:true);
+    }
     private bool _isBusy;
     private bool _isError;
     private string? _message;
@@ -104,6 +133,14 @@
             return;
         }
 
+        _canReturnToPlatform=(await SessionStorage.GetAsync<ST.UI.Blazor.Features.ControlPlane.Demo.PlatformSessionBackup>("workspace.platform")).Success;
+        _selectedWorkspace = await WorkspaceSelection.GetAsync();
+        if ((TenantId.HasValue && _selectedWorkspace?.TenantId != TenantId) || (!string.IsNullOrWhiteSpace(WorkspaceIdentifier) && !string.Equals(_selectedWorkspace?.Identifier, WorkspaceIdentifier, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (await ResolveWorkspaceAsync(WorkspaceIdentifier, TenantId)) Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+            else StateHasChanged();
+            return;
+        }
         await AuthSession.InitializeAsync();
         if (AuthSession.IsAuthenticated)
         {
@@ -111,6 +148,14 @@
             return;
         }
 
+        if (_selectedWorkspace is null)
+        {
+            if (await ResolveWorkspaceAsync()) Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+            else StateHasChanged();
+            return;
+        }
+        _workspaceIdentifier = _selectedWorkspace.Identifier;
+        StateHasChanged();
         // Start Conditional UI passkey flow
         await StartConditionalPasskeyAsync();
     }
@@ -125,12 +170,12 @@
 
             await Task.WhenAll(isSupportedTask, optionsTask);
 
-            if (!isSupportedTask.Result)
+            if (!await isSupportedTask)
             {
                 return;
             }
 
-            var optionsResponse = optionsTask.Result;
+            var optionsResponse = await optionsTask;
             if (!optionsResponse.IsSuccess || optionsResponse.Data is null)
             {
                 return;
@@ -193,6 +238,7 @@
 
         try
         {
+            if (!await ResolveWorkspaceAsync(_workspaceIdentifier)) return;
             var form = FormModel ??= new();
             var request = new PasswordLoginRequest(form.UserName, form.Password, form.RememberMe, form.ReturnUrl, "blazor-server");
             var response = await AuthSession.SignInAsync(request);
@@ -249,6 +295,7 @@
 
     private async Task SignInWithPasskeyAsync()
     {
+        if (!await ResolveWorkspaceAsync(_workspaceIdentifier)) return;
         _isBusy = true;
         _message = null;
         _isError = false;

@@ -6,7 +6,7 @@ using ST.SharedKernel.Features.Shared.Common.Enums;
 using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces;
 using ST.UI.Blazor.Features.Shared.Messaging;
 using ST.UI.Blazor.Logging;
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
+using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 using ST.UI.Blazor.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -15,6 +15,7 @@ namespace ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Implementations;
 internal sealed class BackendApiClient(
     HttpClient httpClient,
     ITokenStorage storage,
+    ST.UI.Blazor.Features.IAM.Users.Implementations.WorkspaceSelection selection,
     IOptions<BackendApiSettings> apiSettings,
     ILogger<BackendApiClient> logger) : IBackendApiClient
 {
@@ -50,6 +51,8 @@ internal sealed class BackendApiClient(
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             using var message = CreateRequest(method, endpoint, request);
+            var selected = await selection.GetAsync().ConfigureAwait(false);
+            if (selected is not null) message.Headers.TryAddWithoutValidation(_apiSettings.TenantHeaderName, selected.TenantId.ToString());
 
             if (requiresAuthentication)
             {

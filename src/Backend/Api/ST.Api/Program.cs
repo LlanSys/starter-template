@@ -331,7 +331,10 @@ try
     //app.UsePreAuthMiddleware();
 
     app.UseAuthentication();
+    app.UseMiddleware<ST.Api.Middleware.DemoWorkspaceMiddleware>();
+    app.UseMiddleware<ST.Api.Middleware.SupportSessionMiddleware>();
 
+    app.UseMiddleware<ST.Api.Middleware.ModuleAvailabilityMiddleware>();
     app.UsePostAuthMiddleware();
 
     app.UseAuthorization();

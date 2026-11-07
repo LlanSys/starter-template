@@ -9,13 +9,20 @@ namespace ST.Application.Features.IAM.Menus.Commands;
 
 
 
-internal sealed class DeleteMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeleteMenuCommandHandler> logger)
+internal sealed class DeleteMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeleteMenuCommandHandler> logger, IEffectiveNavigation navigation)
     : IRequestHandler<DeleteMenuCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(DeleteMenuCommand command, CancellationToken cancellationToken)
     {
         try
         {
+            var standard = (await navigation.GetAsync(cancellationToken).ConfigureAwait(false)).FirstOrDefault(x => x.Menu.Id == command.Id && x.Definition is not null);
+            if (standard is not null)
+            {
+                var item = standard.Menu;
+                var overrideResult = await navigation.SaveOverrideAsync(standard.Definition!.Key, new ST.SharedKernel.Features.IAM.Menus.Dtos.UpdateMenuRequest { Id = item.Id, Title = item.Title, Url = item.Url, Icon = item.Icon, Placement = item.Placement, ParentId = item.ParentId, IsActive = false, DisplayOrder = item.DisplayOrder, RequiredRoleNames = item.RequiredRoleNames, RequiredPermissionKeys = item.RequiredPermissionKeys, ExpectedVersion = standard.OverrideVersion }, command.UserId, cancellationToken).ConfigureAwait(false);
+                return overrideResult.IsSuccess ? AppResponses.Success(true) : AppResponses.Failure<bool>(overrideResult.Message);
+            }
             var menu = await unitOfWork.MenuRepository.FindByIdAsync(command.Id, cancellationToken).ConfigureAwait(false);
             if (menu is null)
             {

@@ -12,6 +12,7 @@ namespace ST.Application.Features.IAM.ReferenceData.Queries;
 public sealed record GetReferenceCatalogQuery(string CatalogType)
     : IRequest<AppResponse<IReadOnlyList<ReferenceCatalogItemResponse>>>, ICachableRequest
 {
+    public bool BypassCache => true;
     public string CacheGroup => "iam-reference-data";
     public string Discriminator => CacheKeys.Discriminator(new { CatalogType });
     public string? CacheUserId => null;

@@ -16,7 +16,3 @@ jobs:
   frontend:
     name: Frontend
     uses: ./.github/workflows/frontend-ci.yml
-
-  mobile:
-    name: Mobile
-    uses: ./.github/workflows/mobile-ci.yml

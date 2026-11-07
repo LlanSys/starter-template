@@ -172,6 +172,7 @@ internal sealed class Login(
                 return AppResponses.Failure<LoginResponse>("Could not retrieve user claims");
             }
 
+            if (twoFactorEnabled && rememberedTwoFactorClient) userClaims.Add(new Claim("amr", "mfa"));
             var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(tokenResponse))
             {
@@ -274,6 +275,6 @@ internal sealed class Login(
             return false;
         }
 
-        return roles.Any(role => _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+        return roles.Any(role => (string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase) || _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
     }
 }

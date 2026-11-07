@@ -15,7 +15,7 @@ namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 internal sealed class UpdateRolePermissions(
     RoleManager<AppRole> roleManager,
     IamDBContext context,
-    ILogger<UpdateRolePermissions> logger)
+    ILogger<UpdateRolePermissions> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
     : IRequestHandler<UpdateRolePermissionsCommand, AppResponse<RolePermissionsResponse>>
 {
     public async Task<AppResponse<RolePermissionsResponse>> Handle(UpdateRolePermissionsCommand command, CancellationToken cancellationToken)
@@ -35,6 +35,8 @@ internal sealed class UpdateRolePermissions(
                 .Order(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
+            if (requestedKeys.Any(key => !access.PermissionAvailable(key))) return AppResponses.Failure<RolePermissionsResponse>("Select permissions from enabled modules; platform permissions cannot be assigned here.");
             var validKeys = await context.Permissions
                 .AsNoTracking()
                 .Where(permission => requestedKeys.Contains(permission.Key) && permission.IsActive)
@@ -43,6 +45,7 @@ internal sealed class UpdateRolePermissions(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
+            validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
             var invalidKeys = requestedKeys
                 .Except(validKeys, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -56,7 +59,7 @@ internal sealed class UpdateRolePermissions(
                 .Where(static claim => claim.Type == "permission")
                 .ToList();
 
-            foreach (var claim in existingClaims.Where(claim => !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)))
+            foreach (var claim in existingClaims.Where(claim => access.PermissionAvailable(claim.Value) && !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)))
             {
                 var removeResult = await roleManager.RemoveClaimAsync(role, claim).ConfigureAwait(false);
                 if (!removeResult.Succeeded)
@@ -78,6 +81,10 @@ internal sealed class UpdateRolePermissions(
                 }
             }
 
+            if (role.ModuleKey is not null && requestedKeys.Any(key => !string.Equals(access.Catalogue.FirstOrDefault(x => x.Key == key)?.ModuleKey ?? access.PrivatePermissionModules.GetValueOrDefault(key), role.ModuleKey,StringComparison.OrdinalIgnoreCase))) {
+                role.ModuleKey=null;
+                if(!(await roleManager.UpdateAsync(role).ConfigureAwait(false)).Succeeded) return AppResponses.Failure<RolePermissionsResponse>("Could not update the role scope.");
+            }
             return AppResponses.Success(
                 "Role permissions updated.",
                 new RolePermissionsResponse(role.Id, role.Name ?? string.Empty, requestedKeys));

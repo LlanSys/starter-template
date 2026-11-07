@@ -15,6 +15,9 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
     public string Placement { get; private set; } = string.Empty;
     public string? RequiredPermissionKey { get; private set; }
     public string? RequiredModule { get; private set; }
+    public string[] RequiredRoleNames { get; private set; } = [];
+    public string[] RequiredPermissionKeys { get; private set; } = [];
+
     public int DisplayOrder { get; private set; }
     public bool IsActive { get; private set; } = true;
     public bool IsDeleted { get; set; }
@@ -102,6 +105,27 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
         IsActive = isActive;
         SetUpdatedInfo(updatedBy);
     }
+
+    public void SetVisibility(IEnumerable<string>? roles, IEnumerable<string>? permissions)
+    {
+        RequiredRoleNames = Normalize(roles);
+        RequiredPermissionKeys = Normalize(permissions);
+    }
+
+    public bool IsVisibleTo(IReadOnlySet<string> roles, IReadOnlySet<string> permissions, bool hasFullAccess)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+        ArgumentNullException.ThrowIfNull(permissions);
+        var required = RequiredPermissionKeys.AsEnumerable();
+        if (RequiredPermissionKey is not null) required = required.Append(RequiredPermissionKey);
+        return (RequiredRoleNames.Length == 0 || RequiredRoleNames.Any(roles.Contains))
+            && required.All(key => string.Equals(key, "control_plane.manage", StringComparison.OrdinalIgnoreCase)
+                ? permissions.Contains(key) : hasFullAccess || permissions.Contains(key));
+    }
+
+    private static string[] Normalize(IEnumerable<string>? values)
+        => values?.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
 
     public void MarkAsDeleted(string deletedBy)
     {

@@ -37,6 +37,11 @@ public class ControlPlaneDBContext : DbContext
         _logger = logger;
     }
 
+    public DbSet<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleDefinition> ModuleDefinitions { get; set; }
+    public DbSet<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry> ModuleCatalogue { get; set; }
+    public DbSet<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag> ModuleFeatureFlags { get; set; }
+    public DbSet<ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant> SupportGrants { get; set; }
+    public DbSet<ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit> SupportAudit { get; set; }
     public DbSet<Tenant> Tenants { get; set; }
     public DbSet<TenantModule> TenantModules { get; set; }
     public DbSet<DeploymentStamp> DeploymentStamps { get; set; }

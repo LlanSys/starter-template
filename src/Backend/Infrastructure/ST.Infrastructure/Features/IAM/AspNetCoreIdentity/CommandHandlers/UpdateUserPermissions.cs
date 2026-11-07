@@ -15,7 +15,7 @@ namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 internal sealed class UpdateUserPermissions(
     UserManager<AppUser> userManager,
     IamDBContext context,
-    ILogger<UpdateUserPermissions> logger)
+    ILogger<UpdateUserPermissions> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
     : IRequestHandler<UpdateUserPermissionsCommand, AppResponse<UserPermissionsResponse>>
 {
     public async Task<AppResponse<UserPermissionsResponse>> Handle(UpdateUserPermissionsCommand command, CancellationToken cancellationToken)
@@ -35,6 +35,8 @@ internal sealed class UpdateUserPermissions(
                 .Order(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
+            if (requestedKeys.Any(key => !access.PermissionAvailable(key))) return AppResponses.Failure<UserPermissionsResponse>("Select permissions from enabled modules; platform permissions cannot be assigned here.");
             var validKeys = await context.Permissions
                 .AsNoTracking()
                 .Where(permission => requestedKeys.Contains(permission.Key) && permission.IsActive)
@@ -42,6 +44,7 @@ internal sealed class UpdateUserPermissions(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
+            validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
             var invalidKeys = requestedKeys.Except(validKeys, StringComparer.OrdinalIgnoreCase).ToList();
             if (invalidKeys.Count > 0)
             {
@@ -52,7 +55,7 @@ internal sealed class UpdateUserPermissions(
                 .Where(static claim => claim.Type == "permission")
                 .ToList();
 
-            foreach (var claim in existingClaims.Where(claim => !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)))
+            foreach (var claim in existingClaims.Where(claim => access.PermissionAvailable(claim.Value) && !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)))
             {
                 var removeResult = await userManager.RemoveClaimAsync(user, claim).ConfigureAwait(false);
                 if (!removeResult.Succeeded)

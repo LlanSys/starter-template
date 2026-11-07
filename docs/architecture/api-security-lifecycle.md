@@ -13,7 +13,7 @@ The API reports its version via the `X-API-Version` header.
 When endpoints are deprecated, the `api-supported-versions` and `api-deprecated-versions` headers are included in the response.
 
 ## 3. Cross-Site Request Forgery (CSRF) Stance
-The StarterTemplate solution uses a decoupled architecture where the Blazor Web App and MAUI clients act as pure HTTP clients consuming the API.
+The StarterTemplate solution uses a decoupled architecture where the Blazor Web App acts as an HTTP client consuming the API.
 Authentication is managed via `JwtBearer` tokens stored securely by the client and passed in the `Authorization` header.
 
 Because the API does **not** rely on ambient authority (i.e., it does not authenticate requests using cookies automatically sent by the browser), CSRF attacks are structurally impossible against the API endpoints.

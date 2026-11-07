@@ -91,8 +91,8 @@
                                          OnEdit="@(() => OpenFormDialogAsync(context))"
                                          OnDelete="@(() => ConfirmDeleteAsync(context))"
                                          CanView="@AuthSession.HasPermission("roles.manage_permissions")"
-                                         CanEdit="@AuthSession.HasPermission("roles.manage_permissions")"
-                                         CanDelete="@AuthSession.HasPermission("roles.manage_permissions")"
+                                         CanEdit="@(!context.IsStandard && AuthSession.HasPermission("roles.manage_permissions"))"
+                                         CanDelete="@(!context.IsStandard && AuthSession.HasPermission("roles.manage_permissions"))"
                                          ExtraActions="@(["Review role usage"])"
                                          OnExtraAction="@((action) => HandlePermissionActionAsync(context, action))" />
                     </MudTd>

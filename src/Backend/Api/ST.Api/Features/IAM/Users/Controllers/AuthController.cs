@@ -188,16 +188,18 @@ public sealed class AuthController(ISender sender) : BaseController
 
     [HttpGet("sso/login")]
     [AllowAnonymous]
-    public IActionResult SsoLogin([FromQuery] string returnUrl = "/")
+    public IActionResult SsoLogin([FromServices] ST.Domain.Shared.Contracts.Common.ICurrentTenantProvider tenant, [FromQuery] string returnUrl = "/", [FromQuery] Guid? tenantId = null)
     {
         var redirectUrl = Url.Action(nameof(SsoCallback), "Auth", new { returnUrl });
         var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
+        properties.Items["workspace_tenant"] = (tenantId ?? tenant.TenantId).ToString();
+        properties.Items["workspace_return"] = returnUrl;
         return Challenge(properties, "EntraId");
     }
 
     [HttpGet("sso/callback")]
     [AllowAnonymous]
-    public async Task<IActionResult> SsoCallback([FromQuery] string returnUrl = "/")
+    public async Task<IActionResult> SsoCallback([FromServices] ST.Domain.Shared.Contracts.Common.IWorkspaceTenantOverride workspace, [FromServices] ST.Domain.Features.ControlPlane.Contracts.IControlPlaneUnitOfWork plane, [FromQuery] string returnUrl = "/")
     {
         var result = await HttpContext.AuthenticateAsync(Microsoft.AspNetCore.Identity.IdentityConstants.ExternalScheme).ConfigureAwait(false);
         if (!result.Succeeded)
@@ -205,6 +207,10 @@ public sealed class AuthController(ISender sender) : BaseController
             return BadRequest("External authentication failed.");
         }
 
+        if (!Guid.TryParse((result.Properties?.Items.TryGetValue("workspace_tenant", out var selectedWorkspace) == true ? selectedWorkspace : null), out var tenantId)
+            || !await plane.Tenants.AnyAsync(x => x.Id == tenantId && x.Status == ST.Domain.Features.ControlPlane.Tenants.Enums.TenantStatus.Active && !x.IsDemo, HttpContext.RequestAborted).ConfigureAwait(false)) return BadRequest("Workspace is unavailable.");
+        workspace.TenantId = tenantId;
+        returnUrl = (result.Properties?.Items.TryGetValue("workspace_return", out var storedReturn) == true ? storedReturn : null) ?? "/";
         var claims = result.Principal.Claims;
         var email = claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
             ?? claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;

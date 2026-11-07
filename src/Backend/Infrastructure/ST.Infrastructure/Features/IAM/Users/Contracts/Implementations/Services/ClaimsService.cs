@@ -84,7 +84,7 @@ internal sealed class ClaimsService(
             }
 
             var directClaims = await _userManager.GetClaimsAsync(user).ConfigureAwait(false);
-            claims.AddRange(directClaims.Where(c => c.Type == "permission"));
+            claims.AddRange(directClaims.Where(c => c.Type is "permission" or "platform_staff" or "demo_workspace" or "demo_actor_id" or "demo_readonly" or "support_grant_id" or "support_actor_id"));
 
             return [.. claims
                 .GroupBy(static claim => $"{claim.Type}:{claim.Value}", StringComparer.OrdinalIgnoreCase)
@@ -126,7 +126,7 @@ internal sealed class ClaimsService(
 
         // Get permissions assigned DIRECTLY to the USER (the "Permission 5" case)
         var directClaims = await _userManager.GetClaimsAsync(user).ConfigureAwait(false);
-        claims.AddRange(directClaims.Where(c => c.Type == "permission"));
+        claims.AddRange(directClaims.Where(c => c.Type is "permission" or "platform_staff" or "demo_workspace" or "demo_actor_id" or "demo_readonly" or "support_grant_id" or "support_actor_id"));
 
         // Return a distinct list (so Permission 1 isn't added twice if it's in both)
         return [.. claims.GroupBy(c => c.Value).Select(g => g.First())];

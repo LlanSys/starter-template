@@ -89,11 +89,7 @@ When a GitHub Actions run fails, check in this order.
 
    Test failures usually mean guardrails or behavioral tests intentionally blocked the change.
 
-4. If the error mentions MAUI workloads, check workflow scope first.
-
-   Backend guardrail workflows should not restore the whole solution unless they intentionally validate mobile projects too.
-
-   Full-solution or mobile workflows should install/restore the required MAUI workloads for supported platforms.
+4. The solution contains backend and Blazor projects only. No mobile workloads are required.
 
 5. If the error mentions a required check is expected, check branch protection.
 
@@ -123,9 +119,8 @@ Recommended examples:
 ```text
 backend-architecture.yml  Required backend architecture/build guardrail.
 backend-ci.yml            Backend Release build plus unit/integration tests.
-frontend-ci.yml           Blazor/RCL Release build.
-mobile-ci.yml             Supported MAUI target builds; currently manual/reusable.
-full-solution-ci.yml      Manual/scheduled orchestration across backend/frontend/mobile.
+frontend-ci.yml           Blazor Release build.
+full-solution-ci.yml      Manual/scheduled orchestration across backend/frontend.
 release.yml               Manual Release artifact packaging.
 ```
 

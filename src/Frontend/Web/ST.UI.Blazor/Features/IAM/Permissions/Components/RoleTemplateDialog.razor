@@ -1,0 +1,24 @@
+@using ST.SharedKernel.Features.ControlPlane.Modules.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+<MudDialog><DialogContent>
+    @if (_message is not null) { <MudAlert Dense="true" Severity="Severity.Warning">@_message</MudAlert> }
+    <MudSelect T="string" Value="_key" ValueChanged="SelectTemplate" Label="Role template" Variant="Variant.Outlined" Margin="Margin.Dense">@foreach(var template in _templates) { <MudSelectItem Value="@template.Key">@template.Title</MudSelectItem> }</MudSelect>
+    <MudTextField @bind-Value="_name" Label="Role name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="my-3" />
+    @if (Selected is { } selected) { <MudText Typo="Typo.subtitle2">Permissions</MudText><MudChipSet T="string">@foreach(var permission in selected.PermissionKeys) { <MudChip Size="Size.Small">@permission</MudChip> }</MudChipSet> }
+</DialogContent><DialogActions><MudButton OnClick="@(() => Dialog.Cancel())">Cancel</MudButton><MudButton OnClick="ApplyAsync" Disabled="_busy || Selected is null" Variant="Variant.Filled" Color="Color.Primary">Apply template</MudButton></DialogActions></MudDialog>
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    private IReadOnlyList<CatalogueEntryResponse> _templates = [];
+    private string _key = "", _name = "";
+    private string? _message;
+    private bool _busy;
+    private CatalogueEntryResponse? Selected => _templates.FirstOrDefault(x => x.Key == _key);
+    protected override async Task OnInitializedAsync() { var response = await Api.SendAsync<IReadOnlyList<CatalogueEntryResponse>>(HttpMethod.Get, "api/v1/modules/available"); _templates = response.Data?.Where(x => x.Kind == "RoleTemplate").ToArray() ?? []; }
+    private void SelectTemplate(string key) { _key = key; _name = Selected?.Title ?? ""; }
+    private async Task ApplyAsync()
+    {
+        if(_busy || Selected is not { } selected) return; _busy = true;
+        try { var response = await Api.SendAsync<AdminRoleListResponse>(HttpMethod.Post, "api/v1/iam/admin/roles/apply-template", new ApplyRoleTemplateRequest(_key, _name, selected.Version)); if(response.IsSuccess) Dialog.Close(DialogResult.Ok(response.Data)); else _message = UserMessageSanitizer.Normalize(response.Message, "Could not apply template."); } finally { _busy = false; }
+    }
+}

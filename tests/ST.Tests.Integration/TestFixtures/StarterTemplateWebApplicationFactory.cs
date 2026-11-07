@@ -63,6 +63,17 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             .Build();
     }
 
+    internal async Task RegisterTenantAsync(Guid id)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>();
+        if (await db.Tenants.AnyAsync(x=>x.Id==id)) return;
+        var tenant = new ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant { Id=id,Identifier=$"test-{id:N}",DisplayName="Test workspace",HostName=$"{id:N}.invalid",DeploymentStampId=Guid.Parse("0194f700-0000-7000-8000-000000000001"),CreatedBy="test-fixture",MaxUsers=100 };
+        tenant.Approve("test-fixture");tenant.MarkAsActive();
+        foreach(var module in new[]{"Core","IAM"}) tenant.Modules.Add(new ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule { TenantId=id,ModuleKey=module,CreatedBy="test-fixture" });
+        db.Tenants.Add(tenant);await db.SaveChangesAsync();
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

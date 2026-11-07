@@ -2,6 +2,7 @@ namespace ST.SharedKernel.Features.IAM.Permissions.Dtos;
 
 public sealed record UpdatePermissionRequest
 {
+    public string ModuleKey { get; init; } = "iam";
     public required Guid Id { get; init; }
 
 

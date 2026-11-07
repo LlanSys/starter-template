@@ -105,6 +105,17 @@ This file is the canonical source of truth and working contract for AI coding to
 
 ## Frontend Conventions
 
+- Menu administration selects registered pages and searchable role/permission collections. Keep generated keys, module keys and descriptions out of the form. Preserve existing hidden values on edits. Menu visibility narrows navigation; it never grants route/API access.
+
+- Menu icons use searchable installed MudBlazor Material styles. Persist icon keys, never user-supplied SVG. Regenerate the shared backend allowlist with scripts/update-material-icon-keys.ps1 when upgrading MudBlazor.
+
+- Authentication pages share AuthLayout and the compact centred auth-card composition. Keep instructions task-specific; do not expose implementation explanations in product copy.
+- Account actions live in the top-right header, with the user name and no role label. Sidebar navigation uses inset spacing and plain branding.
+
+- The supported frontend is ST.UI.Blazor, a Blazor Web App with global Interactive Server rendering with prerendering disabled so protected browser tokens can be restored after the circuit starts.
+- UI contracts belong in Features/{Context}/{Feature}/Contracts/Interfaces inside ST.UI.Blazor. Shared API DTOs remain in ST.SharedKernel.
+- MAUI and a separate Razor Class Library are not part of this template.
+
 - Blazor UI talks to the backend API boundary for app flows.
 - Use MudBlazor components where practical and keep UI compact, responsive, and consistent.
 - Use `wwwroot/css` for app CSS.
@@ -112,7 +123,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - Tables should support compact layout, horizontal overflow, pagination/search/filter patterns, and consistent actions.
 - Listing pages follow the shared compact layout: create actions occupy a separate top-right page action row, shown-count badges occupy the list heading's right edge, and search/filter controls occupy a full-width row below the heading.
 - New route guards must use native Blazor authorization: `@attribute [Authorize]`, `@layout` with a policy-protected layout, or `<AuthorizeView>`. Do not add new ad-hoc `HasPermission()` checks for route-level gating; leave existing `HasPermission()` calls for inline UI visibility unchanged.
-- Control Plane pages must use `ControlPlaneLayout` (`@layout ControlPlaneLayout`), which enforces the `ControlPlane.Manage` policy at the layout level before `OnInitializedAsync` fires.
+- Control Plane pages must use `ControlPlaneLayout` and declare `@attribute [Authorize(Policy = "ControlPlane.Manage")]` on the page. AuthorizeRouteView enforces the page policy before page initialization. Layout attributes alone are not route authorization.
 
 ## Azure And Configuration
 
@@ -160,3 +171,17 @@ Keep these files short and aligned with this file. Do not let them become indepe
 - Run scripts/check-local-endpoints.ps1 before starting local infrastructure; supply new Compose files explicitly. See docs/development/workstation-endpoints.md.
 
 - Local platform setup initializes missing optional payment fields through `scripts/initialize-payment-settings.ps1`. Preserve existing API user-secrets; keep provider credentials blank until supplied and record external-provider certification separately from core starter certification.
+
+## Vendor and demo boundaries
+
+- Reserved control_plane permissions require explicit platform_staff identity membership and the permission; tenant role names never grant platform authority.
+- DevelopmentSeed:GrantPlatformAccess is opt-in for only the configured bootstrap identity and defaults false. Keep the local opt-in in user-secrets.
+- IAM roles and catalogue uniqueness are tenant-scoped. Provider migrations must preserve ownership and reject ambiguous shared-role backfills.
+- Module definitions may be admin-created, but activation depends on a deployed implementation registration. Tenant assignment uses the active, implemented catalogue.
+- Demo is a reserved vendor-owned tenant. Its scoped proxy sessions carry no platform authority, preserve the vendor audit actor, and recheck vendor access. Keep demo tokens per browser tab, use normal MFA for vendor entry, and block uncertified outbound integrations.
+- Managed support uses customer-approved grants, explicit scope/duration, live vendor-authority checks and audited proxy sessions. Never substitute an audit-only impersonation record for a support session. Preserve the vendor actor, deny out-of-scope actions, enforce revocation/expiry on API requests and refresh, and retain a path back to the saved platform session.
+- Module catalogue defaults are global; customer navigation and access customizations remain tenant-owned. Availability is the intersection of implementation, global lifecycle, dependencies, tenant entitlement and flags. Never copy a vendor catalogue to provision a customer.
+- New module assignments with application-generated identifiers must be explicitly added through the ControlPlane Unit of Work repository; do not rely on EF attaching them through an already tracked tenant navigation collection.
+
+- Control Panel uses tabbed reusable table listings; keep direct routes working. Sidebar order is Dashboard, workspace modules, administration, then bottom-pinned demo/overview above the inset.
+- Payments is a distinct module entitlement. Disabling or retiring a module must deny its APIs as well as hide navigation. Retire retains data and is terminal; Core/IAM are essential.

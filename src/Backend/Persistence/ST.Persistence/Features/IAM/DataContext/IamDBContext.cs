@@ -60,6 +60,8 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
     public DbSet<MenuPlacement> MenuPlacements { get; set; }
     public DbSet<MenuIcon> MenuIcons { get; set; }
     public DbSet<MenuRoute> MenuRoutes { get; set; }
+    public DbSet<NavigationOverride> NavigationOverrides { get; set; }
+
     public Guid CurrentTenantId => _tenantProvider?.TenantId ?? Guid.Empty;
 
     private List<IDomainEvent> _collectedDomainEvents = [];

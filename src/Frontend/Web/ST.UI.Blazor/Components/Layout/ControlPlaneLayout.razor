@@ -14,14 +14,8 @@
 
     <main class="workspace">
         <header class="app-top-row px-4">
-            <div>
-                <span class="top-kicker">Platform</span>
-                <strong>Control Panel</strong>
-            </div>
-            <div class="topbar-meta">
-                <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Small" />
-                <span>Platform Administration</span>
-            </div>
+            <WorkspaceSwitcher />
+            <UserProfileMenu />
         </header>
 
         @if (_isImpersonating && _impersonationTarget != null)

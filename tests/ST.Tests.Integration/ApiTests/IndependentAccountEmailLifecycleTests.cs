@@ -17,6 +17,7 @@ public sealed class IndependentAccountEmailLifecycleTests(StarterTemplateWebAppl
     public async Task InvitationRecoveryLogoutAndDisablePreserveTheRealAuthenticationBoundary()
     {
         Guid tenant = Guid.CreateVersion7();
+        await factory.RegisterTenantAsync(tenant);
         using var admin = factory.CreateClient();
         admin.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(TestAuthHandler.AuthenticationScheme);
         admin.DefaultRequestHeaders.Add("X-Test-TenantId", tenant.ToString());

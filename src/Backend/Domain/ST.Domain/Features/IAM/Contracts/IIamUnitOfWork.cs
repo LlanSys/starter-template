@@ -9,6 +9,8 @@ namespace ST.Domain.Features.IAM.Contracts;
 
 public interface IIamUnitOfWork : ITransactionalUnitOfWork
 {
+    IRepository<ST.Domain.Features.IAM.Users.Entities.AppRole> RoleRepository { get; }
+    IRepository<ST.Domain.Features.IAM.Menus.Entities.NavigationOverride> NavigationOverrides { get; }
     IUserRepository UserRepository { get; }
     ISessionRepository SessionRepository { get; }
     ITokenRepository TokenRepository { get; }

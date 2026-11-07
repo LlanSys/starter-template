@@ -1,3 +1,5 @@
+@inject IDialogService DialogService
+@attribute [Authorize(Policy = "Page:/admin/iam") ]
 @page "/admin/iam"
 
 @rendermode InteractiveServer
@@ -18,6 +20,7 @@
                     @if (_activeTab == 0 && AuthSession.HasPermission("roles.create"))
                     {
                         <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddModerator" OnClick="OpenRoleCreateDialogAsync">Create role</MudButton>
+                        <MudButton OnClick="ApplyTemplateAsync" Size="Size.Small" StartIcon="@Icons.Material.Filled.Rule">Apply template</MudButton>
                     }
                     else if (_activeTab == 1 && AuthSession.HasPermission("roles.manage_permissions"))
                     {
@@ -39,7 +42,7 @@
 
             @if (_activeTab == 0)
             {
-                <AdminRoles @ref="_rolesTab" />
+                <AdminRoles @key="_roleRevision" @ref="_rolesTab" />
             }
             else if (_activeTab == 1)
             {
@@ -58,6 +61,13 @@
 </RequireAuthenticated>
 
 @code {
+    private int _roleRevision;
+    private async Task ApplyTemplateAsync()
+    {
+        var dialog = await DialogService.ShowAsync<RoleTemplateDialog>("Apply role template", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Canceled == false) _roleRevision++;
+    }
     private int _activeTab;
     private AdminRoles? _rolesTab;
     private AdminPermissions? _permissionsTab;

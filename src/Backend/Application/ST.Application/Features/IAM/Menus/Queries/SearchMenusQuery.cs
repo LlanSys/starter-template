@@ -15,6 +15,7 @@ namespace ST.Application.Features.IAM.Menus.Queries;
 public sealed record SearchMenusQuery(MenuSearchRequest SearchRequest, string UserId)
     : IRequest<AppResponse<PagedResponse<MenuResponse, Guid>>>, ICachableRequest
 {
+    public bool BypassCache => true;
     public string CacheGroup => "menus";
     public string Discriminator => CacheKeys.Discriminator(SearchRequest);
     public string? CacheUserId => null;

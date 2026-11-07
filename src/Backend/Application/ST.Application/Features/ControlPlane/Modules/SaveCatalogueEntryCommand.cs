@@ -1,0 +1,5 @@
+using MediatR;
+using ST.SharedKernel.Dtos.Common;
+using ST.SharedKernel.Features.ControlPlane.Modules.Dtos;
+namespace ST.Application.Features.ControlPlane.Modules;
+public sealed record SaveCatalogueEntryCommand(string ModuleKey, Guid? Id, SaveCatalogueEntryRequest Request, string ActorId) : IRequest<AppResponse<CatalogueEntryResponse>>;

@@ -9,7 +9,7 @@ namespace ST.Application.Features.IAM.Permissions.Commands;
 
 
 
-internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeletePermissionCommandHandler> logger)
+internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeletePermissionCommandHandler> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
     : IRequestHandler<DeletePermissionCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(DeletePermissionCommand command, CancellationToken cancellationToken)
@@ -22,6 +22,8 @@ internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
                 return AppResponses.Failure<bool>($"Permission {command.Id} not found.");
             }
 
+            var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
+            if (access.Catalogue.Any(x => x.Key == permission.Key && x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission)) return AppResponses.Failure<bool>("Standard permissions are managed in the platform module catalogue.");
             permission.MarkAsDeleted(command.UserId);
             await unitOfWork.PermissionRepository.UpdateAsync(permission, cancellationToken).ConfigureAwait(false);
             var saved = await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false) > 0;

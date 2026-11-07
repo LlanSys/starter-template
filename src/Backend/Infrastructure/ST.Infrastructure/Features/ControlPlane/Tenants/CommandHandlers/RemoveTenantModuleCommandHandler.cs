@@ -34,7 +34,7 @@ public class RemoveTenantModuleCommandHandler : IRequestHandler<RemoveTenantModu
 
     public async Task<AppResponse<TenantResponse>> Handle(RemoveTenantModuleCommand request, CancellationToken cancellationToken)
     {
-        var tenant = await _unitOfWork.Tenants.FindAll()
+        var tenant = await _unitOfWork.Tenants.FindAll().AsTracking()
             .Include(t => t.Modules)
             .FirstOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken)
             .ConfigureAwait(false);
@@ -45,6 +45,7 @@ public class RemoveTenantModuleCommandHandler : IRequestHandler<RemoveTenantModu
         }
 
         var moduleKey = request.Request.ModuleKey.Trim();
+        if (moduleKey.Equals("Core", StringComparison.OrdinalIgnoreCase) || moduleKey.Equals("IAM", StringComparison.OrdinalIgnoreCase)) return AppResponses.Failure<TenantResponse>("Core workspace and identity capabilities are required for every tenant.");
         var existingModule = tenant.Modules.FirstOrDefault(m => string.Equals(m.ModuleKey, moduleKey, StringComparison.OrdinalIgnoreCase));
 
         if (existingModule != null && existingModule.IsActive)

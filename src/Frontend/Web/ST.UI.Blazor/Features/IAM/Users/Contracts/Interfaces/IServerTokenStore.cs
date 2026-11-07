@@ -1,4 +1,4 @@
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
+using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 
 namespace ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 

@@ -14,7 +14,7 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
         builder.HasKey(menu => menu.Id);
 
         builder.Property(menu => menu.Key).HasMaxLength(120).IsRequired();
-        builder.HasIndex(menu => menu.Key).IsUnique().HasDatabaseName("UX_MenuItems_Key");
+        builder.HasIndex(menu => new { menu.TenantId, menu.Key }).IsUnique().HasDatabaseName("UX_MenuItems_Key");
 
         builder.Property(menu => menu.Title).HasMaxLength(120).IsRequired();
         builder.Property(menu => menu.Description).HasMaxLength(300).IsRequired();
@@ -23,6 +23,8 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
         builder.Property(menu => menu.Placement).HasMaxLength(40).IsRequired();
         builder.Property(menu => menu.RequiredPermissionKey).HasMaxLength(160);
         builder.Property(menu => menu.RequiredModule).HasMaxLength(128);
+        builder.PrimitiveCollection(menu => menu.RequiredRoleNames).IsRequired();
+        builder.PrimitiveCollection(menu => menu.RequiredPermissionKeys).IsRequired();
         builder.Property(menu => menu.DisplayOrder).HasDefaultValue(0);
 
         builder.Property(menu => menu.CreatedBy).HasMaxLength(120).IsRequired();

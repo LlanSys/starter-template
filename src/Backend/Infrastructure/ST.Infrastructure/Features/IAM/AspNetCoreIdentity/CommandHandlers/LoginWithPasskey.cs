@@ -141,7 +141,8 @@ internal sealed class LoginWithPasskey(
 
         var activeSessionId = sessionCreationResult.Data;
         var userClaims = await claimsService.GetUserClaimsAsync(user, activeSessionId).ConfigureAwait(false);
-        var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
+        userClaims.Add(new System.Security.Claims.Claim("amr", "mfa"));
+            var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
         var refreshToken = jwtService.CreateRefreshToken();
 
         var refreshTokenEntity = ST.Domain.Features.IAM.Users.Entities.RefreshToken.Create(

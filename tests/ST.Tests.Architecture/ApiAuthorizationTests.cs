@@ -18,6 +18,8 @@ public sealed class ApiAuthorizationTests
     private static readonly string[] ActionsAllowedWithoutPermissionRequirement =
     [
         "IamAdminController.GetNavigationMenus",
+        "TenantSupportController.Exit", // Live support grant must match the current proxy; self-exit grants no customer authority.
+        "PublicWorkspaceController.Resolve", // Public routing metadata only; no customer data or privileges.
         "PaymentsController.StripeWebhook",
         "PaymentsController.MpesaStkCallback",
         "PaymentsController.MpesaC2BValidation",

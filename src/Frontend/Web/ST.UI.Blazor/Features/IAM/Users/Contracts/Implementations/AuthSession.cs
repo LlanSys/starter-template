@@ -3,7 +3,7 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.UI.Blazor.Features.Shared.Messaging;
 using ST.UI.Blazor.Logging;
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
+using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 
 namespace ST.UI.Blazor.Features.IAM.Users.Contracts.Implementations;
 
@@ -15,7 +15,13 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
 
     public bool IsAuthenticated => CurrentUser?.IsAuthenticated != false && CurrentUser is not null;
 
-    public CurrentUserResponse? CurrentUser { get; private set; }
+    public event Action? AuthenticationChanged;
+    private CurrentUserResponse? _currentUser;
+    public CurrentUserResponse? CurrentUser
+    {
+        get => _currentUser;
+        private set { _currentUser = value; AuthenticationChanged?.Invoke(); }
+    }
 
     public string? ProfilePictureDataUri { get; private set; }
 
@@ -221,6 +227,9 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
             return true;
         }
 
+        if (permission.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase)) return CurrentUser?.IsPlatformStaff == true && CurrentUser.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true;
+
+        if (CurrentUser?.UnavailablePermissions.Contains(permission, StringComparer.OrdinalIgnoreCase) == true) return false;
         return HasFullAccess
             || CurrentUser?.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true;
     }

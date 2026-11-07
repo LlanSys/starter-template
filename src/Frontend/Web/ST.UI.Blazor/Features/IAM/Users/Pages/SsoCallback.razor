@@ -9,13 +9,8 @@
 <PageTitle>SSO Callback | StarterTemplate</PageTitle>
 
 <section class="auth-shell">
-    <div class="auth-copy">
-        <span class="eyebrow">Identity and access</span>
-        <h1>Authenticating with Microsoft...</h1>
-        <p>Please wait while we verify your external credentials and securely log you into the application.</p>
-    </div>
-
-    <div class="auth-card" style="text-align: center; padding: 3rem;">
+    <div class="auth-card">
+        <div class="auth-heading"><h1>Signing in</h1></div>
         @if (_isError)
         {
             <div class="alert alert-danger" role="alert">@_message</div>
