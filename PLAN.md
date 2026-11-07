@@ -17,7 +17,7 @@
 
 ## Frontend simplification (2026-10-29)
 
-The supported frontend is the Interactive Server Blazor Web App. UI contracts moved into Blazor feature folders; MAUI, the separate RCL, and mobile CI were removed. Backend API DTOs remain in SharedKernel. Quartz jobs use the version 4 ValueTask/cancellation contract and asynchronous scope disposal.
+The supported frontend is the Interactive Server Blazor Web App. UI contracts moved into Blazor feature folders; MAUI, the separate RCL, and mobile CI were removed. Backend API DTOs remain in SharedKernel. Quartz jobs use the version 4 ValueTask/cancellation contract and asynchronous scope disposal. The Shared `Quartz46SchemaCompatibility` migrations upgrade SQL Server and PostgreSQL for Quartz 4.6.2 while preserving queued jobs and triggers.
 
 ## 1. Purpose
 

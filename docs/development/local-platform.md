@@ -118,7 +118,7 @@ Default app endpoints:
 
 For Docker sign-in, configure the `APP_GOOGLE_SSO_*` and `APP_ENTRA_SSO_*` values in the ignored `ops/local/.env` and enable the providers you configured. The default API callbacks are `http://localhost:8180/signin-google` and `http://localhost:8180/signin-oidc`. Rerun the app deployment script to apply changes.
 
-For a local sign-in smoke test against an older scheduler schema, set `APP_BACKGROUND_JOBS_ENABLED=false` in `ops/local/.env`. Restore the setting to `true` after the Quartz schema is compatible. This switch disables the scheduler for the API container.
+Apply the Shared `Quartz46SchemaCompatibility` migration before starting the scheduler on an older database. It adds the required Quartz 4.6.2 tables and columns for SQL Server and PostgreSQL and keeps existing jobs, triggers and JSON job data. Rolling back the migration history retains the added schema to protect scheduler data. The Docker API enables background jobs by default. `APP_BACKGROUND_JOBS_ENABLED=false` remains available for local troubleshooting.
 
 The full app deployment is for deployability confidence and local smoke tests. For day-to-day breakpoint debugging, continue running API and Blazor from Visual Studio while keeping the infrastructure containers running.
 
