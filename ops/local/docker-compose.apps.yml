@@ -24,6 +24,13 @@ services:
       EmailSettings__ClientBaseUrl: http://localhost:${APP_BLAZOR_HOST_PORT:-8181}
       ExternalSignIn__PublicApiOrigin: http://localhost:${APP_API_HOST_PORT:-8180}
       ExternalSignIn__ClientOrigins__0: http://localhost:${APP_BLAZOR_HOST_PORT:-8181}
+      GoogleSso__Enabled: ${APP_GOOGLE_SSO_ENABLED:-false}
+      GoogleSso__ClientId: ${APP_GOOGLE_SSO_CLIENT_ID:-}
+      GoogleSso__ClientSecret: ${APP_GOOGLE_SSO_CLIENT_SECRET:-}
+      EntraId__Enabled: ${APP_ENTRA_SSO_ENABLED:-false}
+      EntraId__TenantId: ${APP_ENTRA_SSO_TENANT_ID:-}
+      EntraId__ClientId: ${APP_ENTRA_SSO_CLIENT_ID:-}
+      EntraId__ClientSecret: ${APP_ENTRA_SSO_CLIENT_SECRET:-}
       EmailSettings__LocalMailpit__Host: mailpit
       EmailSettings__LocalMailpit__Port: "1025"
       DevelopmentSeed__Enabled: "false"

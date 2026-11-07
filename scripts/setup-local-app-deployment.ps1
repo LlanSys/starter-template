@@ -114,6 +114,8 @@ $composeArguments = @(
     '--profile', 'apps'
 )
 
+& (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles @($composeFile, $appsComposeFile)
+
 & docker @composeArguments up -d --build --wait
 if ($LASTEXITCODE -ne 0) {
     throw "Local app deployment failed with exit code $LASTEXITCODE."

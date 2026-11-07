@@ -94,6 +94,8 @@ foreach ($key in $requiredKeys) {
     }
 }
 
+& (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles $composeFile
+
 $volumeNames = @(
     'startertemplate_rabbitmq-data',
     'startertemplate_redis-data',
@@ -159,8 +161,6 @@ if (-not $SkipPull) {
         throw "Docker Compose pull failed with exit code $LASTEXITCODE."
     }
 }
-
-& (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles $composeFile
 
 & docker @composeArguments up -d --wait
 if ($LASTEXITCODE -ne 0) {

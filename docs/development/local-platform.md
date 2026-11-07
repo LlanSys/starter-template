@@ -98,7 +98,7 @@ The app deployment overlay:
 - Builds `ST.Api` from `ops/docker/api.Dockerfile`.
 - Builds `ST.UI.Blazor` from `ops/docker/blazor.Dockerfile`.
 - Uses RabbitMQ, Redis, Mailpit, and Azurite through Docker service names.
-- Sets `DevelopmentSeed:ResetExistingAdminPassword=true` for app containers so stale local Identity password hashes and lockouts can be recovered predictably during Docker smoke tests.
+- Disables development identity seeding for the app containers. Use an account already configured in the local database.
 - Stores ASP.NET Core Data Protection keys in Redis using `DataProtection:KeyEncryptionMode=None` for local-only development.
 - Keeps Azure Blob, Key Vault, Service Bus, and provider production settings untouched.
 
@@ -112,9 +112,11 @@ Default app endpoints:
 
 | App | Endpoint |
 | --- | --- |
-| API | `http://localhost:8080` |
-| Scalar | `http://localhost:8080/scalar/v1` |
-| Blazor UI | `http://localhost:8081` |
+| API | `http://localhost:8180` |
+| Scalar | `http://localhost:8180/scalar/v1` |
+| Blazor UI | `http://localhost:8181` |
+
+For Docker sign-in, configure the `APP_GOOGLE_SSO_*` and `APP_ENTRA_SSO_*` values in the ignored `ops/local/.env` and enable the providers you configured. The default API callbacks are `http://localhost:8180/signin-google` and `http://localhost:8180/signin-oidc`. Rerun the app deployment script to apply changes.
 
 The full app deployment is for deployability confidence and local smoke tests. For day-to-day breakpoint debugging, continue running API and Blazor from Visual Studio while keeping the infrastructure containers running.
 
@@ -130,8 +132,8 @@ The full app deployment is for deployability confidence and local smoke tests. F
 | Seq | `http://localhost:5344` | Structured logs, optional profile |
 | Azurite Blob | `http://localhost:10020` | Storage emulator, optional profile |
 | SQL Server | `localhost,14335` | Containerized database, optional profile |
-| Containerized API | `http://localhost:8080` | Optional local deployment profile |
-| Containerized Blazor | `http://localhost:8081` | Optional local deployment profile |
+| Containerized API | `http://localhost:8180` | Optional local deployment profile |
+| Containerized Blazor | `http://localhost:8181` | Optional local deployment profile |
 
 ## Operations
 

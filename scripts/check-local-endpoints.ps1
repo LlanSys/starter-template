@@ -22,16 +22,20 @@ foreach ($container in $containers) {
         $groups[$directory] = @($groups[$directory] + ($files -split ',') | Select-Object -Unique)
     }
 }
+$suppliedDirectories = @()
 foreach ($file in $ComposeFiles) {
     $fullPath = (Resolve-Path -LiteralPath $file).Path
     $directory = Split-Path -Parent $fullPath
+    $suppliedDirectories += $directory
     if (-not $groups.ContainsKey($directory)) { $groups[$directory] = @() }
     $groups[$directory] = @($groups[$directory] + $fullPath | Select-Object -Unique)
 }
 if (-not $groups.Count) { throw 'No Compose files found. Supply -ComposeFiles.' }
-$ports = @()
-$roots = @($RepositoryPaths)
-foreach ($directory in $groups.Keys) {
+$composePorts = @{}
+$git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+$repositoryRoots = @{}
+$orderedDirectories = @($groups.Keys | Where-Object { $_ -notin $suppliedDirectories }) + $suppliedDirectories
+foreach ($directory in ($orderedDirectories | Select-Object -Unique)) {
     $files = @($groups[$directory] | Sort-Object)
     # Base definitions must precede application overrides.
     $files = @($files | Sort-Object { if ($_ -match 'compose.apps') { 1 } else { 0 } })
@@ -45,24 +49,39 @@ foreach ($directory in $groups.Keys) {
     $json = & docker @arguments config --format json 2>$null
     if ($LASTEXITCODE -ne 0) { throw "Cannot resolve Compose configuration in $directory. Check local env values." }
     $config = $json | ConvertFrom-Json
-    foreach ($service in $config.services.PSObject.Properties) {
+    $root = $directory
+    while ($root -and -not (Test-Path -LiteralPath (Join-Path $root '.git'))) {
+        $root = Split-Path -Parent $root
+    }
+
+    $repositoryIdentity = $directory
+    if ($root) {
+        $repositoryIdentity = $root
+        if ($git) {
+            $commonDirectory = & $git.Source -C $root rev-parse --path-format=absolute --git-common-dir 2>$null
+            if ($LASTEXITCODE -eq 0 -and $commonDirectory) {
+                $repositoryIdentity = $commonDirectory
+            }
+        }
+    }
+
+    # A supplied Compose checkout takes precedence over a discovered linked worktree of the same project.
+    $allocationKey = "$($config.name)|$repositoryIdentity"
+    if ($root) { $repositoryRoots[$allocationKey] = $root }
+    $composePorts[$allocationKey] = @(foreach ($service in $config.services.PSObject.Properties) {
         foreach ($mapping in $service.Value.ports) {
             if (-not $mapping.published) { continue }
             if ("$($mapping.published)" -notmatch '^\d+$') { throw 'Port ranges require individual allocations.' }
-            $ports += [pscustomobject]@{
+            [pscustomobject]@{
                 Owner = "$($config.name)/$($service.Name)"
                 Port = [int]$mapping.published
                 Protocol = $(if ($mapping.protocol) { $mapping.protocol } else { 'tcp' })
             }
         }
-    }
-    $root = $directory
-    while ($root -and -not (Test-Path -LiteralPath (Join-Path $root '.git'))) {
-        $root = Split-Path -Parent $root
-    }
-    if ($root) { $roots += $root }
+    })
 }
-$roots = @($roots | Select-Object -Unique)
+$ports = @($composePorts.Values | ForEach-Object { $_ })
+$roots = @($RepositoryPaths + @($repositoryRoots.Values) | Select-Object -Unique)
 $secrets = @()
 foreach ($root in $roots) {
     $source = Join-Path $root 'src'
