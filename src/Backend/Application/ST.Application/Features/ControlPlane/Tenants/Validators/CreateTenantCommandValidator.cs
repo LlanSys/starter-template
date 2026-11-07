@@ -28,6 +28,13 @@ public class CreateTenantCommandValidator : AbstractValidator<CreateTenantComman
             .EmailAddress().WithMessage("Contact Email must be a valid email address.")
             .When(v => !string.IsNullOrEmpty(v.Request.ContactEmail));
 
+        When(command => command.Request.InitialAdministrator is not null, () =>
+        {
+            RuleFor(command => command.Request.InitialAdministrator!.AdministratorEmail).NotEmpty().EmailAddress().MaximumLength(256);
+            RuleFor(command => command.Request.InitialAdministrator!.FirstName).NotEmpty().MaximumLength(100);
+            RuleFor(command => command.Request.InitialAdministrator!.LastName).NotEmpty().MaximumLength(100);
+        });
+
         RuleFor(v => v.Request.DeploymentStampId)
             .NotEmpty().WithMessage("Deployment Stamp ID is required.");
 

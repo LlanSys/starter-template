@@ -68,6 +68,11 @@ else if (AuthSession.IsAuthenticated)
                 Navigation.NavigateTo("/iam/security");
                 return;
             }
+            else if (AuthSession.CurrentUser?.AdministratorSetupRequired == true && !IsSecuritySetupPage())
+            {
+                Navigation.NavigateTo("/iam/complete-administrator-setup");
+                return;
+            }
         }
         catch (TimeoutException ex)
         {

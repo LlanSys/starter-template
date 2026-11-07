@@ -15,6 +15,8 @@ public sealed record VerifyOtpRequest
     [RegularExpression(@"^\d{6}$", ErrorMessage = "Code must contain only digits")]
     public string Code { get; init; } = string.Empty;
 
+    public string? ChallengeToken { get; init; }
+
     public bool RememberMe { get; init; }
 
     public bool RememberDevice { get; init; }

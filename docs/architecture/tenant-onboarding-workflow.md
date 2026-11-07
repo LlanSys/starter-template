@@ -1,6 +1,6 @@
 # Tenant Onboarding Workflow
 
-This document outlines the end-to-end operational workflows for onboarding new tenants to the StarterTemplate SaaS platform. Because the platform supports both **Pooled** and **Isolated** isolation tiers, the onboarding steps vary based on the level of isolation required by the client.
+This document outlines the operational workflows for onboarding new tenants to the StarterTemplate SaaS platform. See [secure workspace onboarding](secure-workspace-onboarding.md) for KYC review, invitation delivery, acceptance, and MFA. Because the platform supports both **Pooled** and **Isolated** isolation tiers, the onboarding steps vary based on the level of isolation required by the client.
 
 ## 1. Onboarding a Pooled Tenant
 
@@ -20,7 +20,7 @@ A pooled tenant shares compute, database, and caching infrastructure with other 
 
 3. **Provisioning Complete:**
    - The system creates the tenant record in the Control Plane database.
-   - The tenant is immediately active. When users for this tenant log in, the application routes their traffic to the shared infrastructure and uses their `TenantId` to filter data automatically.
+   - The tenant awaits KYC. A reviewer records the evidence reference and approves KYC. Approval can activate a pooled tenant on the existing stamp. Workspace routing uses its `TenantId` to scope data.
 
 ---
 
@@ -71,7 +71,7 @@ An isolated tenant receives their own dedicated physical infrastructure. They do
 
 ## 3. Post-Provisioning Activation Runbook (Isolated Tenants)
 
-After the `provision-isolated-stamp.yml` GitHub Actions workflow completes, the tenant record is still in `Provisioning` status. The provisioning workflow cannot automatically activate the tenant because the API does not expose a public inbound webhook for GitHub Actions callbacks. Activation is a deliberate operator gate.
+After the `provision-isolated-stamp.yml` GitHub Actions workflow completes, the tenant record is still in `Provisioning` status. Activation requires an authenticated provisioning completion call and a recorded KYC approval.
 
 ### Steps
 
@@ -87,9 +87,9 @@ After the `provision-isolated-stamp.yml` GitHub Actions workflow completes, the 
    - Call `PUT /api/v1/control-plane/stamps/{stampId}` with the Key Vault URI.
    - This allows the application to resolve per-tenant secrets at runtime via Managed Identity.
 
-4. **Activate the tenant.**
-   - Call `POST /api/v1/control-plane/tenants/{tenantId}/activate`.
-   - The tenant status transitions to `Active`.
+4. **Confirm the provisioned workspace.**
+   - The authenticated provisioning integration calls `POST /api/v1/controlplane/webhooks/provisioning-completed/{tenantId}` with the deployment details.
+   - A workspace with a recorded KYC approval transitions from `Provisioning` to `Active`.
    - `TenantResolutionMiddleware` will now resolve the tenant for incoming requests on the provisioned hostname.
 
 5. **Verify end-to-end.**
@@ -108,6 +108,6 @@ If the `provision-isolated-stamp.yml` workflow fails, or the `GitHubActionsStamp
 
 2. **Fix the root cause** — Update the configuration (e.g., rotate the PAT in `dotnet user-secrets` or Key Vault).
 
-3. **Retry provisioning** — Call `POST /api/v1/control-plane/tenants/{tenantId}/activate`. The activate handler transitions the status to `Active` (for manual/already-provisioned cases). If infrastructure was never created, run the provisioning workflow manually from GitHub Actions UI before calling activate.
+3. **Retry provisioning.** Call `POST /api/v1/control-plane/tenants/{tenantId}/provisioning/retry`. The retry starts provisioning again for a workspace with recorded KYC approval. Activation follows the authenticated completion callback.
 
 4. **Alternatively, provision manually** — Navigate to GitHub Actions → **Provision Isolated Stamp** → **Run workflow**, provide `stamp_id`, `resource_group`, and `database_provider`, then follow the Post-Provisioning Activation Runbook above.

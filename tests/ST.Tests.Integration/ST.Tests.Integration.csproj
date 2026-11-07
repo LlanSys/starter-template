@@ -18,9 +18,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="MassTransit" Version="9.2.4" />
-    <PackageReference Include="MassTransit.EntityFrameworkCore" Version="9.2.4" />
-    <PackageReference Include="MassTransit.RabbitMQ" Version="9.2.4" />
+    <PackageReference Include="MassTransit" Version="[$(MassTransitVersion)]" />
+    <PackageReference Include="MassTransit.EntityFrameworkCore" Version="[$(MassTransitVersion)]" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="[$(MassTransitVersion)]" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.14" />

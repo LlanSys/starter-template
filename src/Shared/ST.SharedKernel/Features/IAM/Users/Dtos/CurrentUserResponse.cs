@@ -18,6 +18,7 @@ public sealed record CurrentUserResponse(
     bool MfaEnrollmentRequired = false,
     Uri? ProfilePictureUrl = null)
 {
+    public bool AdministratorSetupRequired { get; init; }
     public Guid? SupportGrantId { get; init; }
     public bool IsReadOnlySupport { get; init; }
     public DateTimeOffset? SupportExpiresAt { get; init; }

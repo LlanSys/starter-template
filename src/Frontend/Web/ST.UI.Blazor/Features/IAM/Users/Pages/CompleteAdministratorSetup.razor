@@ -1,0 +1,65 @@
+@page "/iam/complete-administrator-setup"
+@layout AuthLayout
+@attribute [Authorize]
+@using ST.SharedKernel.Features.IAM.Users.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IAuthSession AuthSession
+@inject IAuthService AuthService
+@inject ITokenStorage Tokens
+@inject IBackendApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Finish administrator setup | StarterTemplate</PageTitle>
+<section class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-heading"><h1>Finish administrator setup</h1></div>
+        <p>Complete setup after verifying your authenticator to open your workspace.</p>
+        @if (_message is not null)
+        {
+            <div role="alert" class="alert alert-danger">@_message</div>
+        }
+        <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="CompleteAsync">Finish setup</button>
+        <button type="button" class="btn btn-outline-secondary mt-2" @onclick="SignInAgainAsync">Sign in again</button>
+    </div>
+</section>
+
+@code {
+    private string? _message;
+    private bool _busy;
+
+    private async Task CompleteAsync()
+    {
+        _busy = true;
+        try
+        {
+            var completed = await Api.SendAsync<bool>(HttpMethod.Post,
+                "api/v1/workspaces/administrator-invitation/complete", requiresAuthentication: true);
+            if (!completed.IsSuccess)
+            {
+                _message = UserMessageSanitizer.Normalize(completed.Message, "Could not finish setup.");
+                return;
+            }
+
+            var (access, refresh, _) = await Tokens.GetAsync();
+            if (string.IsNullOrWhiteSpace(access) || string.IsNullOrWhiteSpace(refresh)
+                || !(await AuthService.RefreshTokenAsync(new RefreshTokenRequest(access, refresh))).IsSuccess)
+            {
+                await SignInAgainAsync();
+                return;
+            }
+
+            await AuthSession.RefreshAsync();
+            Navigation.NavigateTo("/dashboard", replace: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SignInAgainAsync()
+    {
+        await AuthSession.SignOutAsync();
+        Navigation.NavigateTo("/iam/sign-in", replace: true);
+    }
+}

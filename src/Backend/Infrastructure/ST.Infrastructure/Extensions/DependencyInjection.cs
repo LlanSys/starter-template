@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using ST.Persistence.Common.Configuration;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using ST.Application.Contracts.Interfaces.Common;
@@ -40,6 +41,9 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using ST.Infrastructure.Features.ControlPlane.Tenants.Services;
+using ST.Application.Features.ControlPlane.Tenants.Contracts;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -75,6 +79,17 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(configuration, nameof(configuration));
 
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<AdministratorInvitationSettings>()
+            .Bind(configuration.GetSection(AdministratorInvitationSettings.SectionName))
+            .Validate(settings => settings.ValidityHours is >= 1 and <= 72, "Invitation validity must be between 1 and 72 hours.")
+            .ValidateOnStart();
+        services.AddScoped<SignInChallengeFactory>();
+        services.AddScoped<SsoCodeStore>();
+        services.AddScoped<IExternalIdentityConnection, ExternalIdentityConnection>();
+        services.AddScoped<IAdministratorInvitationService, AdministratorInvitationService>();
+        services.AddScoped<AdministratorInvitationDelivery>();
+        services.AddHostedService<AdministratorInvitationWorker>();
         services.AddScoped<WorkspaceTenantOverride>();
         services.AddScoped<ST.Domain.Shared.Contracts.Common.IWorkspaceTenantOverride>(provider => provider.GetRequiredService<WorkspaceTenantOverride>());
         services.AddScoped<ST.Application.Features.ControlPlane.Demo.IDemoFixture, ST.Infrastructure.Features.ControlPlane.Demo.NavigationDemoFixture>();
@@ -289,12 +304,32 @@ public static class DependencyInjection
             ConfigureJwtBearer(options, jwtSettings);
         });
 
+        var google = configuration.GetSection(GoogleSsoSettings.SectionName).Get<GoogleSsoSettings>() ?? new();
+        var external = configuration.GetSection(ExternalSignInSettings.SectionName).Get<ExternalSignInSettings>() ?? new();
+        services.AddOptions<ExternalSignInSettings>().Bind(configuration.GetSection(ExternalSignInSettings.SectionName));
+        services.AddOptions<GoogleSsoSettings>().Bind(configuration.GetSection(GoogleSsoSettings.SectionName))
+            .Validate(settings => !settings.Enabled || (!string.IsNullOrWhiteSpace(settings.ClientId)
+                && !string.IsNullOrWhiteSpace(settings.ClientSecret)), "Google sign-in requires its client ID and secret.")
+            .ValidateOnStart();
+
+        if ((entraIdSettings.Enabled || google.Enabled) && (!IsExternalOrigin(external.PublicApiOrigin)
+            || external.ClientOrigins.Length == 0 || external.ClientOrigins.Any(origin => !IsExternalOrigin(origin))))
+        {
+            throw new InvalidOperationException("Enabled external sign-in requires an approved public API origin and frontend origins.");
+        }
+
         if (entraIdSettings.Enabled)
         {
             authenticationBuilder.AddOpenIdConnect("EntraId", options =>
-            {
-                ConfigureEntraId(options, entraIdSettings);
-            });
+                ConfigureExternalProvider(options, entraIdSettings.Authority, entraIdSettings.ClientId,
+                    entraIdSettings.ClientSecret, entraIdSettings.CallbackPath, external.PublicApiOrigin));
+        }
+
+        if (google.Enabled)
+        {
+            authenticationBuilder.AddOpenIdConnect("Google", options =>
+                ConfigureExternalProvider(options, "https://accounts.google.com", google.ClientId, google.ClientSecret,
+                    google.CallbackPath, external.PublicApiOrigin));
         }
 
         var passkeySettings = configuration.GetSection(PasskeySettings.SectionName).Get<PasskeySettings>()
@@ -489,27 +524,51 @@ public static class DependencyInjection
         });
     }
 
-    private static void ConfigureEntraId(OpenIdConnectOptions options, EntraIdSettings settings)
+    private static bool IsExternalOrigin(string origin) =>
+        Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
+        && uri.AbsolutePath == "/" && string.IsNullOrEmpty(uri.UserInfo)
+        && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment);
+
+    private static void ConfigureExternalProvider(OpenIdConnectOptions options, string authority, string clientId,
+        string clientSecret, string callbackPath, string publicApiOrigin)
     {
-        ArgumentNullException.ThrowIfNull(settings);
-
-        if (!settings.Enabled)
-        {
-            return;
-        }
-
-        options.Authority = settings.Authority;
-        options.ClientId = settings.ClientId;
-        options.ClientSecret = settings.ClientSecret;
-        options.CallbackPath = settings.CallbackPath;
+        options.Authority = authority;
+        options.ClientId = clientId;
+        options.ClientSecret = clientSecret;
+        options.CallbackPath = callbackPath;
         options.SignInScheme = IdentityConstants.ExternalScheme;
         options.ResponseType = "code";
+        options.UsePkce = true;
+        options.MapInboundClaims = false;
         options.SaveTokens = false;
-        options.GetClaimsFromUserInfoEndpoint = true;
         options.Scope.Clear();
         options.Scope.Add("openid");
         options.Scope.Add("profile");
         options.Scope.Add("email");
+        options.Events.OnRedirectToIdentityProvider = context =>
+        {
+            context.ProtocolMessage.RedirectUri = new Uri(new Uri(publicApiOrigin), callbackPath).AbsoluteUri;
+            return Task.CompletedTask;
+        };
+        options.Events.OnTokenValidated = context =>
+        {
+            if (context.Principal?.Identity is not ClaimsIdentity identity
+                || string.IsNullOrWhiteSpace(context.SecurityToken.Issuer)
+                || string.IsNullOrWhiteSpace(identity.FindFirst("sub")?.Value))
+            {
+                context.Fail("Required provider identity claims are missing.");
+                return Task.CompletedTask;
+            }
+
+            foreach (var existing in identity.FindAll("st_validated_issuer").ToArray())
+            {
+                identity.RemoveClaim(existing);
+            }
+
+            identity.AddClaim(new Claim("st_validated_issuer", context.SecurityToken.Issuer));
+            return Task.CompletedTask;
+        };
     }
 
     private static void RegisterRedisCache(IServiceCollection services, string connectionString)

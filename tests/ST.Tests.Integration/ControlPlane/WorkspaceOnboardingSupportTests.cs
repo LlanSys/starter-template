@@ -33,7 +33,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
             var cp = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>();
             foreach (var id in new[] { a, b })
             {
-                var t = new Tenant { Id = id, Identifier = $"onboard-{id:N}", DisplayName = "Onboarding test", HostName = $"{id:N}.invalid", DeploymentStampId = Platform, CreatedBy = "test-vendor", MaxUsers = 50 }; t.Approve("test-vendor"); t.MarkAsActive();
+                var t = new Tenant { Id = id, Identifier = $"onboard-{id:N}", DisplayName = "Onboarding test", HostName = $"{id:N}.invalid", DeploymentStampId = Platform, CreatedBy = "test-vendor", MaxUsers = 50 }; t.Approve("test-vendor", DateTimeOffset.UnixEpoch, "review-1"); t.MarkAsActive();
                 foreach (var key in new[] { "Core", "IAM", "Payments" }) t.Modules.Add(new TenantModule { TenantId = id, ModuleKey = key, CreatedBy = "test-vendor" }); cp.Add(t);
             }
             await cp.SaveChangesAsync();
@@ -42,28 +42,86 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
         var email = $"workspace-{a:N}@example.test";
         var request = new InitializeWorkspaceRequest(email, "Tenant", "Owner", true);
         var setup = await Post<WorkspaceSetupResponse>(vendor, $"/api/v1/control-plane/tenants/{a}/workspace", request);
-        Assert.True(setup.InvitationSent); Assert.False(setup.EmailConfirmed); Assert.False(setup.MfaEnabled);
-        var other = await Post<WorkspaceSetupResponse>(vendor, $"/api/v1/control-plane/tenants/{b}/workspace", request with { SendInvitation = false }); Assert.Equal(1, other.Version);
+        Assert.Equal("Pending", setup.InvitationState);
+        Assert.False(setup.EmailConfirmed);
+        await Post<WorkspaceSetupResponse>(vendor, $"/api/v1/control-plane/tenants/{b}/workspace", request);
         await Post<WorkspaceSetupResponse>(vendor, $"/api/v1/control-plane/tenants/{a}/workspace", request with { SendInvitation = false });
+
+        using var anonymous = factory.CreateClient(new() { HandleCookies = false });
+        anonymous.DefaultRequestHeaders.Add("X-Tenant-Id", a.ToString());
+        using var otherWorkspace = factory.CreateClient(new() { HandleCookies = false });
+        otherWorkspace.DefaultRequestHeaders.Add("X-Tenant-Id", b.ToString());
+        var (invitationId, token) = await ReadInvitationAsync(a, email);
+        var inspect = new InspectAdministratorInvitationRequest(invitationId, token);
+        await Post<AdministratorInvitationPreview>(anonymous, "/api/v1/workspaces/administrator-invitation/inspect", inspect);
+        using (var wrongWorkspace = await otherWorkspace.PostAsJsonAsync("/api/v1/workspaces/administrator-invitation/inspect", inspect))
+            Assert.False((await wrongWorkspace.Content.ReadFromJsonAsync<AppResponse<AdministratorInvitationPreview>>())!.IsSuccess);
+
         using (var scope = factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); var ids = await db.Users.IgnoreQueryFilters().Where(x => x.Email == email).Select(x => x.TenantId).ToListAsync(); Assert.Equal(2, ids.Count); Assert.Contains(a, ids); Assert.Contains(b, ids);
+            var db = scope.ServiceProvider.GetRequiredService<IamDBContext>();
+            Assert.False(await db.Users.IgnoreQueryFilters().AnyAsync(user => user.Email == email));
         }
-        using var mail = factory.Services.GetRequiredService<IHttpClientFactory>().CreateClient(); mail.BaseAddress = factory.MailpitApi;
-        using var summary = await mail.GetFromJsonAsync<JsonDocument>("/api/v1/messages"); var message = summary!.RootElement.GetProperty("messages").EnumerateArray().Single(x => x.GetProperty("Subject").GetString() == "Your account invitation" && x.GetProperty("To").EnumerateArray().Any(y => y.GetProperty("Address").GetString() == email));
-        using var content = await mail.GetFromJsonAsync<JsonDocument>("/api/v1/message/" + message.GetProperty("ID").GetString()); var html = content!.RootElement.GetProperty("HTML").GetString()!;
-        var link = new Uri(WebUtility.HtmlDecode(Regex.Match(html, "href=\"([^\"]+)\"").Groups[1].Value)); var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(link.Query); Assert.Equal(a.ToString(), query["tenantId"].ToString());
-        var adminId = query["userId"].ToString(); const string password = "TenantOnboard42!";
-        using var anonymous = factory.CreateClient(new() { HandleCookies = false }); anonymous.DefaultRequestHeaders.Add("X-Tenant-Id", a.ToString());
-        await Post<bool>(anonymous, "/api/v1/iam/auth/invitation/accept", new AcceptAccountInvitationRequest(adminId, query["token"].ToString(), password, password));
-        var login = await Post<LoginResponse>(anonymous, "/api/v1/iam/auth/login", new { UserName = email, Password = password, RememberMe = false, DeviceFingerprint = "onboard-test" });
+
+        await Post<bool>(vendor, $"/api/v1/control-plane/tenants/{a}/workspace/invitation/revoke", null);
+        using (var revokedInvitation = await anonymous.PostAsJsonAsync("/api/v1/workspaces/administrator-invitation/inspect", inspect))
+            Assert.False((await revokedInvitation.Content.ReadFromJsonAsync<AppResponse<AdministratorInvitationPreview>>())!.IsSuccess);
+        await Post<bool>(vendor, $"/api/v1/control-plane/tenants/{a}/workspace/invitation/resend", null);
+        (_, token) = await ReadInvitationAsync(a, email, token);
+
+        const string password = "TenantOnboard42!";
+        var acceptance = new AcceptAdministratorInvitationRequest(invitationId, token, password);
+        var attempts = await Task.WhenAll(
+            anonymous.PostAsJsonAsync("/api/v1/workspaces/administrator-invitation/accept", acceptance),
+            anonymous.PostAsJsonAsync("/api/v1/workspaces/administrator-invitation/accept", acceptance));
+        using (attempts[0])
+        using (attempts[1])
+        {
+            Assert.Single(attempts, response => response.IsSuccessStatusCode);
+            Assert.All(attempts, response => Assert.True((int)response.StatusCode < 500));
+        }
+
+        using (var replay = await anonymous.PostAsJsonAsync("/api/v1/workspaces/administrator-invitation/accept", acceptance))
+            Assert.False((await replay.Content.ReadFromJsonAsync<AppResponse<bool>>())!.IsSuccess);
+
+        var (otherInvitation, otherToken) = await ReadInvitationAsync(b, email);
+        await Post<bool>(otherWorkspace, "/api/v1/workspaces/administrator-invitation/accept",
+            new AcceptAdministratorInvitationRequest(otherInvitation, otherToken, password));
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IamDBContext>();
+            var tenants = await db.Users.IgnoreQueryFilters().Where(user => user.Email == email).Select(user => user.TenantId).ToListAsync();
+            Assert.Equal(2, tenants.Count);
+            Assert.Contains(a, tenants);
+            Assert.Contains(b, tenants);
+        }
+
+        var credentials = new { UserName = email, Password = password, RememberMe = false, DeviceFingerprint = "onboard-test" };
+        var login = await Post<LoginResponse>(anonymous, "/api/v1/iam/auth/login", credentials);
         using var tenant = Bearer(login.Token);
         using (var blocked = await tenant.GetAsync("/api/v1/iam/admin/roles")) Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
-        using var enrolledResponse = await tenant.PostAsync("/api/v1/iam/users/totp/setup", null); var enrollment = await enrolledResponse.Content.ReadFromJsonAsync<AppResponse<TwoFactorSetupInfo>>(); Assert.True(enrollment!.IsSuccess, enrollment.Message);
-        var otp = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(enrollment.Data!.ManualEntryKey));
-        var mfa = await Post<VerifyOtpResponse>(anonymous, "/api/v1/iam/users/totp/verify", new VerifyOtpRequest { UserId = adminId, Code = otp.ComputeTotp(), DeviceFingerprint = "onboard-test" }); tenant.DefaultRequestHeaders.Authorization = new("Bearer", mfa.Token);
+        var enrollment = await Post<TwoFactorSetupInfo>(tenant, "/api/v1/iam/users/totp/setup", null);
+        var otp = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(enrollment.ManualEntryKey));
+        var verify = new VerifyOtpRequest { UserId = login.UserId, Code = otp.ComputeTotp(), DeviceFingerprint = "onboard-test" };
+        var enrolled = await Post<VerifyOtpResponse>(tenant, "/api/v1/iam/users/totp/verify", verify);
+        tenant.DefaultRequestHeaders.Authorization = new("Bearer", enrolled.Token);
+        using (var early = await tenant.PostAsJsonAsync("/api/v1/workspaces/administrator-invitation/complete", new { mfaVerified = true }))
+            Assert.Equal(HttpStatusCode.Forbidden, early.StatusCode);
+
+        var challenge = await Post<LoginResponse>(anonymous, "/api/v1/iam/auth/login", credentials);
+        Assert.True(challenge.Requires2FA);
+        var mfa = await Post<VerifyOtpResponse>(anonymous, "/api/v1/iam/users/totp/verify",
+            verify with { Code = otp.ComputeTotp(), ChallengeToken = challenge.Token });
+        var beforeComplete = await Post<RefreshTokenResponse>(anonymous, "/api/v1/iam/auth/refresh-token", new RefreshTokenRequest(mfa.Token, mfa.RefreshToken));
+        tenant.DefaultRequestHeaders.Authorization = new("Bearer", beforeComplete.Token);
+        await Post<bool>(tenant, "/api/v1/workspaces/administrator-invitation/complete", null);
+        var refreshed = await Post<RefreshTokenResponse>(anonymous, "/api/v1/iam/auth/refresh-token",
+            new RefreshTokenRequest(beforeComplete.Token, beforeComplete.RefreshToken));
+        tenant.DefaultRequestHeaders.Authorization = new("Bearer", refreshed.Token);
         using (var roles = await tenant.GetAsync("/api/v1/iam/admin/roles")) Assert.Equal(HttpStatusCode.OK, roles.StatusCode);
-        var status = await vendor.GetFromJsonAsync<AppResponse<WorkspaceSetupResponse>>($"/api/v1/control-plane/tenants/{a}/workspace"); Assert.True(status!.Data!.EmailConfirmed); Assert.True(status.Data.MfaEnabled);
+        var status = await vendor.GetFromJsonAsync<AppResponse<WorkspaceSetupResponse>>($"/api/v1/control-plane/tenants/{a}/workspace");
+        Assert.Equal("Accepted", status!.Data!.InvitationState);
+        Assert.True(status.Data.MfaEnabled);
         var supportRequest = new SupportRequest(a, "Investigate role visibility", ["menus.view", "roles.view"], true, 15);
         var grant = (await Post<SupportResult>(vendor, "/api/v1/control-plane/support", supportRequest)).Grant;
         using (var early = await vendor.PostAsync($"/api/v1/control-plane/support/{grant.Id}/enter", null)) Assert.False((await early.Content.ReadFromJsonAsync<AppResponse<SupportResult>>())!.IsSuccess);
@@ -113,6 +171,35 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
         using (var blocked = await sourceRevoked.GetAsync("/api/v1/iam/admin/roles")) Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
 
     }
+    private async Task<(Guid Id, string Token)> ReadInvitationAsync(Guid tenantId, string email, string? previousToken = null)
+    {
+        using var mail = factory.Services.GetRequiredService<IHttpClientFactory>().CreateClient();
+        mail.BaseAddress = factory.MailpitApi;
+        for (var attempt = 0; attempt < 24; attempt++)
+        {
+            using var summary = await mail.GetFromJsonAsync<JsonDocument>("/api/v1/messages");
+            var messages = summary!.RootElement.GetProperty("messages").EnumerateArray()
+                .Where(message => message.GetProperty("Subject").GetString() == "Your workspace administrator invitation"
+                    && message.GetProperty("To").EnumerateArray().Any(address => address.GetProperty("Address").GetString() == email));
+            foreach (var message in messages)
+            {
+                using var content = await mail.GetFromJsonAsync<JsonDocument>("/api/v1/message/" + message.GetProperty("ID").GetString());
+                var html = content!.RootElement.GetProperty("HTML").GetString()!;
+                var link = new Uri(WebUtility.HtmlDecode(Regex.Match(html, "href=\"([^\"]+)\"").Groups[1].Value));
+                var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(link.Query);
+                var token = query["token"].ToString();
+                if (query["workspace"].ToString() == $"onboard-{tenantId:N}" && token != previousToken)
+                {
+                    return (Guid.Parse(query["invitation"].ToString()), token);
+                }
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+        }
+
+        throw new InvalidOperationException("The administrator invitation did not arrive in Mailpit.");
+    }
+
     [Fact]
     public async Task DemoResetEndsDemoSessionsWithoutChangingCustomerNavigation()
     {
@@ -127,7 +214,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
             var db = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>(); var reserved = ST.SharedKernel.Features.ControlPlane.Demo.DemoWorkspace.TenantId;
             if (!await db.Tenants.AnyAsync(x => x.Id == reserved))
             {
-                var reservedTenant = new Tenant { Id = reserved, Identifier = ST.SharedKernel.Features.ControlPlane.Demo.DemoWorkspace.Identifier, DisplayName = "Vendor demo", HostName = "vendor-demo.invalid", DeploymentStampId = Platform, IsDemo = true, CreatedBy = "test-vendor", MaxUsers = 100 }; reservedTenant.Approve("test-vendor"); reservedTenant.MarkAsActive();
+                var reservedTenant = new Tenant { Id = reserved, Identifier = ST.SharedKernel.Features.ControlPlane.Demo.DemoWorkspace.Identifier, DisplayName = "Vendor demo", HostName = "vendor-demo.invalid", DeploymentStampId = Platform, IsDemo = true, CreatedBy = "test-vendor", MaxUsers = 100 }; reservedTenant.Approve("test-vendor", DateTimeOffset.UnixEpoch, "review-1"); reservedTenant.MarkAsActive();
                 foreach (var key in new[] { "Core", "IAM" }) reservedTenant.Modules.Add(new TenantModule { TenantId = reserved, ModuleKey = key, CreatedBy = "test-vendor" }); db.Add(reservedTenant); await db.SaveChangesAsync();
             }
             else { db.RemoveRange(await db.TenantModules.Where(x => x.TenantId == reserved && x.ModuleKey == "Payments").ToListAsync()); await db.SaveChangesAsync(); }
@@ -156,7 +243,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
         var created=await Post<TenantResponse>(vendor,"/api/v1/control-plane/tenants",new CreateTenantRequest { Identifier=key,DisplayName="Visible customer",HostName=key+".invalid",SubscriptionTier="Free",DeploymentStampId=Platform });
         var listed=await vendor.GetFromJsonAsync<AppResponse<List<TenantResponse>>>("/api/v1/control-plane/tenants");Assert.Contains(listed!.Data!,x=>x.Id==created.Id && x.Status=="PendingApproval");
         await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}");
-        await Post<TenantResponse>(vendor,$"/api/v1/control-plane/tenants/{created.Id}/approve",null);
+        await Post<TenantResponse>(vendor,$"/api/v1/control-plane/tenants/{created.Id}/approve", new ApproveTenantRequest("review-created"));
         var active=await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}");Assert.Equal("Active",active!.Data!.Status);
         foreach(var module in new[]{"Core","IAM","Payments"})await Post<TenantResponse>(vendor,$"/api/v1/control-plane/tenants/{created.Id}/modules",new{ModuleKey=module});
         var assigned=await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}");Assert.Contains("Payments",assigned!.Data!.EnabledModules);
@@ -167,7 +254,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
     {
         await using var scope = factory.Services.CreateAsyncScope(); scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = tenant;
         var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(); var name = $"support-{Guid.CreateVersion7():N}"; var user = AppUser.CreateSystemUser(tenant, name, name + "@example.test", "test"); user.IsActive = true; user.EmailConfirmed = true; user.TwoFactorEnabled = true; Assert.True((await users.CreateAsync(user)).Succeeded);
-        Assert.True((await users.AddClaimsAsync(user, staff ? [new("platform_staff", "true"), new("permission", "control_plane.manage")] : [new("permission", "support.approve")])).Succeeded);
+        Assert.True((await users.AddClaimsAsync(user, staff ? [new("platform_staff", "true"), new("permission", "control_plane.manage"), new("permission", "control_plane.approve_kyc")] : [new("permission", "support.approve")])).Succeeded);
         var sessions = scope.ServiceProvider.GetRequiredService<ISessionService>(); var session = await sessions.CreateSessionAsync(user.Id, Guid.CreateVersion7(), "127.0.0.1", "test"); Assert.True(session.IsSuccess);
         var claims = await scope.ServiceProvider.GetRequiredService<IClaimsService>().GetUserClaimsAsync(user, session.Data); claims.Add(new Claim("amr", "mfa")); return (await scope.ServiceProvider.GetRequiredService<IJwtService>().CreateTokenAsync(claims), user.Id);
     }

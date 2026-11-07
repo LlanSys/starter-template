@@ -37,7 +37,7 @@ internal sealed class GetCurrentUser(
                 return AppResponses.Failure<CurrentUserResponse>("User not found.");
 
             var roles = await userManager.GetRolesAsync(appUser).ConfigureAwait(false);
-            var rolesList = roles.ToList();
+            var rolesList = appUser.RequiresAdministratorSetup ? [] : roles.ToList();
 
             var twoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(appUser).ConfigureAwait(false);
             var emailConfirmed = await userManager.IsEmailConfirmedAsync(appUser).ConfigureAwait(false);
@@ -58,7 +58,7 @@ internal sealed class GetCurrentUser(
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
             permissions = permissions.Where(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || access.PermissionAvailable(key)).ToList();
             var sessionId = httpContextAccessor.HttpContext?.User.FindFirstValue("session_id");
-            var mfaEnrollmentRequired = !httpContextAccessor.HttpContext!.Items.ContainsKey("TrustedWorkspaceProxy") && IsMfaEnrollmentRequired(twoFactorEnabled, rolesList);
+            var mfaEnrollmentRequired = !httpContextAccessor.HttpContext!.Items.ContainsKey("TrustedWorkspaceProxy") && ((!twoFactorEnabled && appUser.RequiresAdministratorSetup) || IsMfaEnrollmentRequired(twoFactorEnabled, rolesList));
 
             return AppResponses.Success("CurrentUser", new CurrentUserResponse(
                 userId,
@@ -78,6 +78,7 @@ internal sealed class GetCurrentUser(
                 mfaEnrollmentRequired,
                 ProfilePictureUrlMapping.ToCurrentUserRoute(appUser.ProfilePictureUrl))
             {
+                AdministratorSetupRequired = appUser.RequiresAdministratorSetup,
                 SupportGrantId = supportId, IsReadOnlySupport = support?.ReadOnly ?? false, SupportExpiresAt = support?.ExpiresAt,
                 WorkspaceName = support is null ? null : (await httpContextAccessor.HttpContext.RequestServices.GetRequiredService<ST.Domain.Features.ControlPlane.Contracts.IControlPlaneUnitOfWork>().Tenants.FindByIdAsync(support.WorkspaceId,cancellationToken).ConfigureAwait(false))?.DisplayName,
                 UnavailablePermissions = access.Catalogue.Where(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && !access.PermissionAvailable(x.Key)).Select(x => x.Key).Concat(access.PrivatePermissionModules.Keys.Where(key => !access.PermissionAvailable(key))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -99,11 +100,9 @@ internal sealed class GetCurrentUser(
 
     private bool IsMfaEnrollmentRequired(bool twoFactorEnabled, IEnumerable<string> roles)
     {
-        if (!_mfaSettings.Enabled || !_mfaSettings.EnforceEnrollment || twoFactorEnabled)
-        {
-            return false;
-        }
-
-        return roles.Any(role => (string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase) || _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
+        return !twoFactorEnabled && roles.Any(role =>
+            string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase)
+            || (_mfaSettings.Enabled && _mfaSettings.EnforceEnrollment
+                && _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
     }
 }

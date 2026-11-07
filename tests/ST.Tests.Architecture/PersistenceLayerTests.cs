@@ -90,7 +90,7 @@ public sealed class PersistenceLayerTests
     public void Declared_DbSet_Entities_Should_Support_Soft_Delete()
     {
         var hardDeleteOnlyEntities = GetDeclaredDbSetEntityTypes()
-            .Where(t => !typeof(ISoftDeletable).IsAssignableFrom(t) && t.Name != "PasskeyChallenge" &&
+            .Where(t => !typeof(ISoftDeletable).IsAssignableFrom(t) && t.Name is not ("PasskeyChallenge" or "SsoAuthorizationCode") &&
                         !(t.Namespace?.Contains(".ControlPlane.") ?? false) &&
                         !(t.Namespace?.Contains(".Shared.") ?? false))
             .Select(t => t.FullName)

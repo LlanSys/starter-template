@@ -47,6 +47,8 @@ This file is the canonical source of truth and working contract for AI coding to
 ## Backend Conventions
 
 - Use MediatR request/handler flows already established in the repo.
+- Use namespace using directives and short type names in handwritten C# and Razor. Use descriptive aliases for real collisions. Preserve generated migrations and string-based contracts.
+- Inject `TimeProvider` for runtime clock reads and timers. Register `TimeProvider.System` at composition roots and replace it in tests. Capture one instant per decision and pass values into domain operations. Preserve timestamp fields, wire contracts, and deterministic seeds.
 - Commands/queries and handlers should remain feature-owned.
 - Each public top-level type must live in its own file named after that type. This applies to classes, records, structs, interfaces, and enums; do not bundle multiple public DTOs, validators, settings POCOs, entities, or helper types in one file.
 - Use `AppResponse<T>` for expected business outcomes.
@@ -79,7 +81,7 @@ This file is the canonical source of truth and working contract for AI coding to
 
 - The six InitialStarter migrations target fresh databases only. Never apply them as upgrades to an existing application database. Shared baselines include the provider-specific Quartz tables.
 - PostgreSQL uses application-stamped byte concurrency tokens; SQL Server uses native rowversion.
-- Passkey challenges are temporary tenant-scoped records, deliberately hard-deleted on consumption/expiry. Credential ceremonies require user verification and persisted ownership/uniqueness checks.
+- Passkey challenges and external sign-in authorization codes are temporary tenant-scoped records, deliberately hard-deleted on consumption or expiry. Credential ceremonies require user verification and persisted ownership/uniqueness checks.
 
 ## Validation, Logging, And Caching
 
@@ -92,6 +94,10 @@ This file is the canonical source of truth and working contract for AI coding to
 ## IAM And Security
 
 - IAM is a core platform capability, not an application-specific feature.
+- Customer workspaces require KYC approval with a stable reviewer, a captured UTC instant, and an evidence reference before activation, provisioning retries, or first-administrator onboarding. Use `control_plane.approve_kyc` for approval. Preserve existing accounts during upgrades and obtain real review evidence for existing customer workspaces.
+- Persist first-administrator invitation intent separately from accounts. Use durable delivery leases, expiring hashed tokens, explicit acceptance and current-session authenticator proof before granting administrator access. Existing accounts authenticate using their established credentials. Ordinary IAM account invitation and recovery stay separate.
+- Microsoft and Google sign-in bind a validated issuer and subject to the resolved workspace. Validate callback origins and protect workspace and intent in OIDC state. Consume hashed codes once in IAM and keep bearer/refresh tokens out of distributed cache.
+- Keep MassTransit on the approved shared 8.x pin defined in `Directory.Build.props` with exact package ranges.
 - Account responses and token claims are domain-neutral. Use AppUserMapping for backend account DTOs and LoginResponseMapping for UI login fallbacks; preserve tenant, session, permission and MFA state.
 - Administrative endpoints require permission-based authorization, not only `[Authorize]`.
 - Admin MFA enforcement is intentional; non-admin MFA can be policy-driven.

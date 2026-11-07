@@ -12,6 +12,8 @@ internal class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.ToTable("Tenants");
         builder.Property(x => x.AdministratorUserId).HasMaxLength(128);
         builder.Property(x => x.AdministratorEmail).HasMaxLength(256);
+        builder.Property(x => x.KycApprovedBy).HasMaxLength(128);
+        builder.Property(x => x.KycEvidenceReference).HasMaxLength(256);
 
         builder.HasKey(x => x.Id);
 

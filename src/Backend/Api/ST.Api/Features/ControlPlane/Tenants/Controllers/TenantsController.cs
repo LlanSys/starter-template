@@ -6,6 +6,9 @@ using ST.Application.Features.ControlPlane.Tenants.Commands;
 using ST.Application.Features.ControlPlane.Tenants.Queries;
 using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos;
 using MediatR;
+using ST.SharedKernel.Features.ControlPlane;
+using ST.Application.Features.ControlPlane.Tenants.Contracts;
+using ST.Domain.Shared.Contracts.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,12 +27,22 @@ public sealed class TenantsController(ISender sender) : BaseController
 
     [HttpPost("{id:guid}/workspace")]
     [RequirePermission("control_plane.manage")]
-    public async Task<IActionResult> InitializeWorkspace(Guid id, InitializeWorkspaceRequest request, [FromServices] ST.Domain.Shared.Contracts.Common.ICurrentActorProvider actor, CancellationToken ct)
+    public async Task<IActionResult> InitializeWorkspace(Guid id, InitializeWorkspaceRequest request, [FromServices] ICurrentActorProvider actor, CancellationToken ct)
         => HandleResponse(await sender.Send(new InitializeWorkspaceCommand(id, request, actor.ActorId),ct).ConfigureAwait(false));
+
+    [HttpPost("{id:guid}/workspace/invitation/resend")]
+    [RequirePermission(PlatformAccess.Permission)]
+    public async Task<IActionResult> ResendInvitation(Guid id, [FromServices] IAdministratorInvitationService invitations, CancellationToken cancellationToken)
+        => HandleResponse(await invitations.ChangeDeliveryAsync(id, false, cancellationToken).ConfigureAwait(false));
+
+    [HttpPost("{id:guid}/workspace/invitation/revoke")]
+    [RequirePermission(PlatformAccess.Permission)]
+    public async Task<IActionResult> RevokeInvitation(Guid id, [FromServices] IAdministratorInvitationService invitations, CancellationToken cancellationToken)
+        => HandleResponse(await invitations.ChangeDeliveryAsync(id, true, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("{id:guid}/workspace")]
     [RequirePermission("control_plane.manage")]
-    public async Task<IActionResult> WorkspaceStatus(Guid id, [FromServices] ST.Application.Features.ControlPlane.Tenants.Contracts.ITenantWorkspaceProvisioner provisioner, CancellationToken ct)
+    public async Task<IActionResult> WorkspaceStatus(Guid id, [FromServices] ITenantWorkspaceProvisioner provisioner, CancellationToken ct)
         => HandleResponse(await provisioner.GetStatusAsync(id,ct).ConfigureAwait(false));
 
     [HttpGet("{id:guid}")]
@@ -69,9 +82,14 @@ public sealed class TenantsController(ISender sender) : BaseController
         => HandleResponse(await sender.Send(new SuspendTenantCommand(id)).ConfigureAwait(false));
 
     [HttpPost("{id:guid}/approve")]
-    [RequirePermission("control_plane.manage")]
-    public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
-        => HandleResponse(await sender.Send(new ApproveTenantCommand(id), cancellationToken).ConfigureAwait(false));
+    [RequirePermission(PlatformAccess.ApproveKycPermission)]
+    public async Task<IActionResult> Approve(Guid id, ApproveTenantRequest request, CancellationToken cancellationToken)
+        => HandleResponse(await sender.Send(new ApproveTenantCommand(id, request.EvidenceReference), cancellationToken).ConfigureAwait(false));
+
+    [HttpPost("{id:guid}/provisioning/retry")]
+    [RequirePermission(PlatformAccess.Permission)]
+    public async Task<IActionResult> RetryProvisioning(Guid id, CancellationToken cancellationToken)
+        => HandleResponse(await sender.Send(new ApproveTenantCommand(id, null, Retry: true), cancellationToken).ConfigureAwait(false));
 
     [HttpPost("{id:guid}/modules")]
     [RequirePermission("control_plane.manage")]

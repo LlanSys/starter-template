@@ -52,6 +52,7 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
     public DbSet<Fido2Credential> Fido2Credentials { get; set; }
     public DbSet<TempTotpSecret> TempTotpSecrets { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<SsoAuthorizationCode> SsoAuthorizationCodes { get; set; }
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<MenuItem> MenuItems { get; set; }
     public DbSet<PermissionContext> PermissionContexts { get; set; }

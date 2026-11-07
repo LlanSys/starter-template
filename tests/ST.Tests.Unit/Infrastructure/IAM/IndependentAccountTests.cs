@@ -238,7 +238,7 @@ public sealed class IndependentAccountTests
         Assert.True((await fixture.Users.AddClaimAsync(user, new Claim("permission", "Accounts.View"))).Succeeded);
         Assert.True((await fixture.Users.AddClaimAsync(user, new Claim("employee_id", Guid.CreateVersion7().ToString()))).Succeeded);
         var sessionId = Guid.CreateVersion7();
-        var service = new ClaimsService(fixture.Users, fixture.Roles, NullLogger<ClaimsService>.Instance);
+        var service = new ClaimsService(fixture.Users, fixture.Roles, NullLogger<ClaimsService>.Instance, TimeProvider.System);
 
         var claims = await service.GetUserClaimsAsync(user, sessionId);
 
@@ -828,8 +828,8 @@ public sealed class IndependentAccountTests
             Activate = new ActivateAdminUser(Users, uow, Tenant, NullLogger<ActivateAdminUser>.Instance);
             Deactivate = new DeactivateAdminUser(Users, uow, Tenant, NullLogger<DeactivateAdminUser>.Instance);
             Reset = new ResetPassword(Users, uow, Substitute.For<ST.Application.Contracts.Interfaces.Common.ICacheService>(), Publisher, Tenant, NullLogger<ResetPassword>.Instance);
-            AcceptInvitation = new AcceptAccountInvitation(Users, uow, Tenant, NullLogger<AcceptAccountInvitation>.Instance);
-            Invite = new InviteAdminUser(Users, Tenant, Email, Microsoft.Extensions.Options.Options.Create(EmailSettings), NullLogger<InviteAdminUser>.Instance);
+            AcceptInvitation = new AcceptAccountInvitation(Users, uow, Tenant, NullLogger<AcceptAccountInvitation>.Instance, Substitute.For<ST.Domain.Features.ControlPlane.Contracts.IControlPlaneUnitOfWork>());
+            Invite = new InviteAdminUser(Users, Tenant, Email, Microsoft.Extensions.Options.Options.Create(EmailSettings), NullLogger<InviteAdminUser>.Instance, Substitute.For<ST.Domain.Features.ControlPlane.Contracts.IControlPlaneUnitOfWork>());
         }
 
         public async Task AddRoleAsync(string name)

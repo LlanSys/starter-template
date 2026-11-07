@@ -1,4 +1,6 @@
 @using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
+@using ST.SharedKernel.Features.IAM.Users.Dtos
+@using Microsoft.AspNetCore.WebUtilities
 @inject ST.UI.Blazor.Features.IAM.Users.Implementations.WorkspaceSelection WorkspaceSelection
 @inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient Api
 @page "/"
@@ -52,28 +54,18 @@
                 </button>
 
                 <div class="auth-separator"><span>Or continue with</span></div>
-                @{
-                    var apiBaseUrl = BackendApiSettings.Value.BaseUrl.TrimEnd('/');
-                    var returnUrl = Uri.EscapeDataString($"{Navigation.BaseUri}iam/sso-callback");
-                    var ssoLoginUrl = $"{apiBaseUrl}/api/v1/iam/auth/sso/login?returnUrl={returnUrl}&tenantId={_selectedWorkspace?.TenantId}";
-                }
                 <div class="auth-providers" aria-label="Other sign-in methods">
-                    <button class="auth-provider" type="button" disabled title="Google sign-in is not configured" aria-describedby="google-availability">
-                        <MudIcon Icon="@Icons.Custom.Brands.Google" Size="Size.Small" />Google
-                    </button>
-                    @if (_isBusy)
+                    @foreach (var provider in _ssoProviders)
                     {
-                        <button class="auth-provider" type="button" disabled><MudIcon Icon="@Icons.Custom.Brands.Microsoft" Size="Size.Small" />Microsoft</button>
-                    }
-                    else
-                    {
-                        <button class="auth-provider" type="button" @onclick="SignInWithMicrosoftAsync"><MudIcon Icon="@Icons.Custom.Brands.Microsoft" Size="Size.Small" />Microsoft</button>
+                        <button class="auth-provider" type="button" disabled="@_isBusy"
+                                @onclick="() => SignInWithProviderAsync(provider.Scheme)">
+                            <MudIcon Icon="@(provider.Scheme == "Google" ? Icons.Custom.Brands.Google : Icons.Custom.Brands.Microsoft)" Size="Size.Small" />@provider.DisplayName
+                        </button>
                     }
                     <button class="auth-provider" type="button" @onclick="SignInWithPasskeyAsync" disabled="@_isBusy">
                         <MudIcon Icon="@Icons.Material.Filled.Key" Size="Size.Small" />Passkey
                     </button>
                 </div>
-                <span id="google-availability" class="visually-hidden">Google sign-in is not configured.</span>
             </div>
         </EditForm>
 
@@ -108,10 +100,23 @@
       if(string.IsNullOrWhiteSpace(current.AccessToken)) await Tokens.SaveAsync(backup.Value.AccessToken,backup.Value.RefreshToken,backup.Value.SessionId);
       await SessionStorage.DeleteAsync("workspace.platform");Navigation.NavigateTo("/control-panel",forceLoad:true);
     }
-    private async Task SignInWithMicrosoftAsync() {
-      if(!await ResolveWorkspaceAsync(_workspaceIdentifier))return;
-      var url=BackendApiSettings.Value.BaseUrl.TrimEnd('/')+"/api/v1/iam/auth/sso/login?returnUrl="+Uri.EscapeDataString(Navigation.BaseUri+"iam/sso-callback")+"&tenantId="+_selectedWorkspace!.TenantId;
-      Navigation.NavigateTo(url,forceLoad:true);
+    private SsoProviderResponse[] _ssoProviders = [];
+
+    private async Task SignInWithProviderAsync(string scheme)
+    {
+        if (string.IsNullOrWhiteSpace(BackendApiSettings.Value.PublicBaseUrl) || !await ResolveWorkspaceAsync(_workspaceIdentifier))
+        {
+            return;
+        }
+
+        var path = $"{BackendApiSettings.Value.PublicBaseUrl.TrimEnd('/')}/api/v{BackendApiSettings.Value.Version}/iam/auth/sso/login";
+        var url = QueryHelpers.AddQueryString(path, new Dictionary<string, string?>
+        {
+            ["returnUrl"] = new Uri(new Uri(Navigation.BaseUri), "iam/sso-callback").AbsoluteUri,
+            ["tenantId"] = _selectedWorkspace!.TenantId.ToString(),
+            ["provider"] = scheme
+        });
+        Navigation.NavigateTo(url, forceLoad: true);
     }
     private bool _isBusy;
     private bool _isError;
@@ -141,6 +146,13 @@
             else StateHasChanged();
             return;
         }
+        if (!string.IsNullOrWhiteSpace(BackendApiSettings.Value.PublicBaseUrl))
+        {
+            var providers = await Api.SendAsync<SsoProviderResponse[]>(HttpMethod.Get,
+                $"api/v{BackendApiSettings.Value.Version}/iam/auth/sso/providers", requiresAuthentication: false);
+            _ssoProviders = providers.Data ?? [];
+        }
+
         await AuthSession.InitializeAsync();
         if (AuthSession.IsAuthenticated)
         {

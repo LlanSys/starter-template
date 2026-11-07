@@ -1,0 +1,133 @@
+@page "/iam/administrator-invitation"
+@layout AuthLayout
+@rendermode InteractiveServer
+@using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
+@using ST.SharedKernel.Features.IAM.Users.Dtos
+@using ST.UI.Blazor.Configuration
+@inject IOptions<BackendApiSettings> BackendSettings
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject WorkspaceSelection Selection
+@inject IBackendApiClient Api
+@inject NavigationManager Navigation
+@inject IAuthSession AuthSession
+
+<PageTitle>Administrator invitation | StarterTemplate</PageTitle>
+<HeadContent><meta name="referrer" content="no-referrer" /></HeadContent>
+
+<section class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-heading"><h1>Administrator invitation</h1></div>
+        @if (_preview is not null && !_accepted)
+        {
+            <p>You're invited to administer <strong>@_preview.WorkspaceName</strong> as <strong>@_preview.Email</strong>.</p>
+            <div class="form-stack">
+                <label for="administrator-password">@(_preview.ExistingAccount ? "Current password" : "Create a password")</label>
+                <input id="administrator-password" type="password" class="form-control" @bind="_password"
+                       autocomplete="@(_preview.ExistingAccount ? "current-password" : "new-password")" maxlength="128" />
+                @if (!_preview.ExistingAccount)
+                {
+                    <label for="administrator-confirm">Confirm password</label>
+                    <input id="administrator-confirm" type="password" class="form-control" @bind="_confirmation" autocomplete="new-password" maxlength="128" />
+                }
+                <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="AcceptAsync">Accept invitation</button>
+            </div>
+            @foreach (var provider in _providers)
+            {
+                <form method="post" action="@($"{BackendSettings.Value.PublicBaseUrl!.TrimEnd('/')}/api/v{BackendSettings.Value.Version}/iam/auth/sso/accept")" class="mt-2">
+                    <input type="hidden" name="tenantId" value="@_tenantId" />
+                    <input type="hidden" name="invitationId" value="@Invitation" />
+                    <input type="hidden" name="invitationToken" value="@Token" />
+                    <input type="hidden" name="provider" value="@provider.Scheme" />
+                    <input type="hidden" name="returnUrl" value="@($"{Navigation.BaseUri}iam/sso-callback")" />
+                    <button type="submit" class="btn btn-outline-secondary">Accept with @provider.DisplayName</button>
+                </form>
+            }
+        }
+        @if (_accepted)
+        {
+            <p role="status">Invitation accepted. Sign in to set up or verify your authenticator and finish.</p>
+        }
+        @if (_message is not null)
+        {
+            <div role="alert" class="alert alert-danger">@_message</div>
+        }
+        <a href="@($"/iam/sign-in?workspace={Uri.EscapeDataString(Workspace ?? string.Empty)}")">Go to sign in</a>
+    </div>
+</section>
+
+@code {
+    [SupplyParameterFromQuery] public string? Workspace { get; set; }
+    [SupplyParameterFromQuery] public Guid Invitation { get; set; }
+    [SupplyParameterFromQuery] public string? Token { get; set; }
+
+    private const string Path = "api/v1/workspaces/administrator-invitation";
+    private AdministratorInvitationPreview? _preview;
+    private SsoProviderResponse[] _providers = [];
+    private Guid _tenantId;
+    private string _password = string.Empty;
+    private string _confirmation = string.Empty;
+    private string? _message;
+    private bool _accepted;
+    private bool _busy;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        if (Invitation == Guid.Empty || string.IsNullOrWhiteSpace(Token) || string.IsNullOrWhiteSpace(Workspace))
+        {
+            _message = "This invitation is unavailable.";
+            StateHasChanged();
+            return;
+        }
+
+        var resolution = await Api.SendAsync<WorkspaceInfoResponse>(HttpMethod.Get,
+            $"api/v1/workspaces/resolve?identifier={Uri.EscapeDataString(Workspace)}", requiresAuthentication: false);
+        if (resolution.Data is not { } workspace)
+        {
+            _message = "This workspace is unavailable.";
+            StateHasChanged();
+            return;
+        }
+
+        _tenantId = workspace.TenantId;
+        await Selection.SetAsync(new(workspace.TenantId, workspace.Identifier, workspace.Name));
+        var response = await Api.SendAsync<AdministratorInvitationPreview>(HttpMethod.Post, $"{Path}/inspect",
+            new InspectAdministratorInvitationRequest(Invitation, Token), requiresAuthentication: false);
+        _preview = response.Data;
+        if (_preview is not null && !string.IsNullOrWhiteSpace(BackendSettings.Value.PublicBaseUrl))
+        {
+            var providers = await Api.SendAsync<SsoProviderResponse[]>(HttpMethod.Get,
+                $"api/v{BackendSettings.Value.Version}/iam/auth/sso/providers", requiresAuthentication: false);
+            _providers = providers.Data ?? [];
+        }
+        _message = response.IsSuccess ? null : UserMessageSanitizer.Normalize(response.Message, "This invitation is unavailable.");
+        StateHasChanged();
+    }
+
+    private async Task AcceptAsync()
+    {
+        if (_preview is null || string.IsNullOrWhiteSpace(Token) || string.IsNullOrEmpty(_password)
+            || (!_preview.ExistingAccount && _password != _confirmation))
+        {
+            _message = "Enter the password and confirm it when creating a new account.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var response = await Api.SendAsync<bool>(HttpMethod.Post, $"{Path}/accept",
+                new AcceptAdministratorInvitationRequest(Invitation, Token, _password), requiresAuthentication: false);
+            _accepted = response.IsSuccess;
+            _message = _accepted ? null : UserMessageSanitizer.Normalize(response.Message, "The invitation could not be accepted.");
+        }
+        finally
+        {
+            _password = string.Empty;
+            _confirmation = string.Empty;
+            _busy = false;
+        }
+    }
+}

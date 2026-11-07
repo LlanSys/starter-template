@@ -65,7 +65,7 @@
         await AuthSession.InitializeAsync();
 
         var model = VerificationModel ??= new();
-        model.UserId = UserId ?? AuthSession.PendingTwoFactorUserId ?? model.UserId ?? string.Empty;
+        model.UserId = AuthSession.PendingTwoFactorUserId ?? string.Empty;
         if (string.IsNullOrWhiteSpace(model.UserId))
         {
             Navigation.NavigateTo("/iam/sign-in");
@@ -98,6 +98,7 @@
             return;
         }
 
-        Navigation.NavigateTo("/dashboard");
+        Navigation.NavigateTo(AuthSession.CurrentUser?.AdministratorSetupRequired == true
+            ? "/iam/complete-administrator-setup" : "/dashboard");
     }
 }

@@ -8,7 +8,9 @@ using ST.Application.Features.Shared.EmailTemplates.Mappings;
 using ST.Application.Utilities;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
+using StoredRefreshToken = ST.Domain.Features.IAM.Users.Entities.RefreshToken;
 using ST.Infrastructure.Configuration;
+using ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Services;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.SharedKernel.Dtos.Common;
@@ -36,7 +38,9 @@ internal sealed class Login(
     IIamUnitOfWork iamUnitOfWork,
     IOptions<JwtSettings> jwtSettings,
     IOptions<MfaSettings> mfaSettings,
-    ILogger<Login> logger) : IRequestHandler<LoginCommand, AppResponse<LoginResponse>>
+    ILogger<Login> logger,
+    SignInChallengeFactory challengeFactory,
+    TimeProvider timeProvider) : IRequestHandler<LoginCommand, AppResponse<LoginResponse>>
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
     private readonly MfaSettings _mfaSettings = mfaSettings.Value;
@@ -105,42 +109,11 @@ internal sealed class Login(
 
             var rememberedTwoFactorClient = twoFactorEnabled
                 && await signInManager.IsTwoFactorClientRememberedAsync(user).ConfigureAwait(false);
-            var requiresTwoFactorChallenge = signInResult.RequiresTwoFactor || (twoFactorEnabled && !rememberedTwoFactorClient);
+            var requiresTwoFactorChallenge = signInResult.RequiresTwoFactor || (twoFactorEnabled && (!rememberedTwoFactorClient || user.RequiresAdministratorSetup));
 
             if (requiresTwoFactorChallenge)
             {
-                var tempClaims = new List<Claim>
-                {
-                    new(ClaimTypes.NameIdentifier, user.Id),
-                    new(ClaimTypes.Name, user.UserName ?? string.Empty),
-                    new("temp_auth", "true")
-                };
-
-                var tempToken = await jwtService.CreateTempTokenAsync(tempClaims, TimeSpan.FromMinutes(10)).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(tempToken))
-                {
-                    ServiceLogDefinitions.LogFailedToGenerateAccessToken(logger, user.Id);
-                    return AppResponses.Failure<LoginResponse>("Could not generate temporary authentication token");
-                }
-
-                var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-                var userInfoWith2FA = appUserResponse with { Roles = [.. roles] };
-
-
-                return AppResponses.Success("Two-factor authentication required", new LoginResponse(
-                    user.Id,
-                    user.FirstName ?? string.Empty,
-                    user.LastName ?? string.Empty,
-                    user.Email ?? string.Empty,
-                    true,
-                    false,
-                    false,
-                    tempToken,
-                    string.Empty,
-                    null,
-                    DateTimeOffset.UtcNow.AddMinutes(10),
-                    userInfoWith2FA,
-                    tempClaims.ToClaimResponses()));
+                return await challengeFactory.CreateAsync(user).ConfigureAwait(false);
             }
 
             var sessionId = Guid.CreateVersion7();
@@ -187,10 +160,12 @@ internal sealed class Login(
                 return AppResponses.Failure<LoginResponse>("Could not generate refresh token");
             }
 
-            var refreshTokenEntity = ST.Domain.Features.IAM.Users.Entities.RefreshToken.Create(
+            var now = timeProvider.GetUtcNow();
+            var refreshTokenEntity = StoredRefreshToken.Create(
+                now,
                 user.Id,
                 refreshToken,
-                DateTimeOffset.UtcNow.AddHours(_jwtSettings.RefreshTokenExpiryHours),
+                now.AddHours(_jwtSettings.RefreshTokenExpiryHours),
                 user.Id,
                 httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString());
 
@@ -207,7 +182,8 @@ internal sealed class Login(
 
             var rolesResponse = await userManager.GetRolesAsync(user).ConfigureAwait(false);
             var userRoles = new Collection<string>(rolesResponse.ToList());
-            var mfaEnrollmentRequired = IsMfaEnrollmentRequired(twoFactorEnabled, rolesResponse);
+            var mfaEnrollmentRequired = (!twoFactorEnabled && user.RequiresAdministratorSetup)
+                || IsMfaEnrollmentRequired(twoFactorEnabled, rolesResponse);
             // Reload the user via UserManager to ensure we operate on the EF-tracked instance
             var trackedUser = await userManager.FindByIdAsync(user.Id).ConfigureAwait(false);
             if (trackedUser == null)
@@ -216,7 +192,7 @@ internal sealed class Login(
                 return AppResponses.Failure<LoginResponse>("Could not complete login.");
             }
 
-            trackedUser.RecordSuccessfulLogin();
+            trackedUser.RecordSuccessfulLogin(now);
             var finalAppUserResponse = appUserResponse with { Roles = userRoles, LastLoginAt = trackedUser.LastLoginAt };
 
             var userUpdateResult = await userManager.UpdateAsync(trackedUser).ConfigureAwait(false);
@@ -270,11 +246,9 @@ internal sealed class Login(
 
     private bool IsMfaEnrollmentRequired(bool twoFactorEnabled, IEnumerable<string> roles)
     {
-        if (!_mfaSettings.Enabled || !_mfaSettings.EnforceEnrollment || twoFactorEnabled)
-        {
-            return false;
-        }
-
-        return roles.Any(role => (string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase) || _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
+        return !twoFactorEnabled && roles.Any(role =>
+            string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase)
+            || (_mfaSettings.Enabled && _mfaSettings.EnforceEnrollment
+                && _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
     }
 }

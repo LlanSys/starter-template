@@ -12,12 +12,23 @@
 <HeaderContent><MudTh>Step</MudTh><MudTh>Status</MudTh></HeaderContent>
 <RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Status</MudTd></RowTemplate>
 </MudTable>
-@if(_tenant?.Status=="Active" && _tenant.Identifier is not ("default" or "vendor-demo")) {
+@if(_tenant?.Status=="Active" && _tenant.KycApprovedAt.HasValue && _tenant.Identifier is not ("default" or "vendor-demo")) {
 <MudPaper Outlined="true" Elevation="0" Class="pa-4" Style="max-width:640px">
 <MudText Typo="Typo.h6">Initial administrator</MudText>
 <MudTextField @bind-Value="_email" Label="Email" ReadOnly="_status?.AdministratorEmail is not null" Variant="Variant.Outlined" Margin="Margin.Dense" />
 <MudGrid Spacing="2"><MudItem xs="12" sm="6"><MudTextField @bind-Value="_first" Label="First name" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem><MudItem xs="12" sm="6"><MudTextField @bind-Value="_last" Label="Last name" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem></MudGrid>
-<MudButton OnClick="PrepareAsync" Disabled="_busy || _status?.EmailConfirmed==true" Color="Color.Primary" Variant="Variant.Filled" Class="mt-3">@(_status?.InvitationSent==true ? "Resend invitation" : "Set up and send invitation")</MudButton>
+@if (_status?.InvitationState is null)
+{
+    <MudButton OnClick="PrepareAsync" Disabled="_busy" Color="Color.Primary" Variant="Variant.Filled" Class="mt-3">Queue administrator invitation</MudButton>
+}
+else if (_status.InvitationState is "Pending" or "Revoked")
+{
+    <MudButton OnClick="@(() => ChangeInvitationAsync("resend"))" Disabled="_busy" Variant="Variant.Outlined" Class="mt-3">Resend invitation</MudButton>
+}
+@if (_status?.InvitationState is "Pending" or "Claimed")
+{
+    <MudButton OnClick="@(() => ChangeInvitationAsync("revoke"))" Disabled="_busy" Color="Color.Error" Class="mt-3">Revoke invitation</MudButton>
+}
 @if(_status?.EmailConfirmed==true) { <MudButton Href="@($"/iam/sign-in?workspace={Uri.EscapeDataString(_tenant.Identifier)}")" Class="mt-3">Open workspace sign-in</MudButton> }
 </MudPaper>
 }
@@ -31,13 +42,28 @@
  var status=await Api.SendAsync<WorkspaceSetupResponse>(HttpMethod.Get,$"api/v1/control-plane/tenants/{TenantId}/workspace");_status=status.Data;
  if(_status?.AdministratorEmail is not null) {_first=_status.FirstName;_last=_status.LastName;}
  _email=_status?.AdministratorEmail ?? _tenant?.ContactEmail ?? _email;
- _steps=[new("Approval and deployment",_tenant?.Status ?? "Unavailable"),new("Modules",string.Join(", ",_tenant?.EnabledModules ?? [])),new("Workspace",_status?.Version>0 ? "Ready" : "Awaiting setup"),new("Invitation",_status?.InvitationSent==true ? "Sent" : "Not sent"),new("Email verification",_status?.EmailConfirmed==true ? "Complete" : "Pending"),new("Administrator MFA",_status?.MfaEnabled==true ? "Complete" : "Required on sign-in")];
+ _steps=[new("KYC", _tenant?.KycApprovedAt.HasValue == true ? "Approved" : "Awaiting review"),new("Deployment",_tenant?.Status ?? "Unavailable"),new("Modules",string.Join(", ",_tenant?.EnabledModules ?? [])),new("Workspace",_status?.Version>0 ? "Ready" : "Awaiting setup"),new("Invitation",_status?.InvitationState switch { "Pending" => _status.InvitationSent ? "Sent" : "Queued", "Claimed" => "Setup in progress", "Accepted" => "Accepted", "Revoked" => "Revoked", _ => "Not queued" }),new("Email verification",_status?.EmailConfirmed==true ? "Complete" : "Pending"),new("Administrator MFA",_status?.MfaEnabled==true ? "Complete" : "Required on sign-in")];
  }
  private async Task PrepareAsync() {
  _busy=true;try {
  var result=await Api.SendAsync<WorkspaceSetupResponse>(HttpMethod.Post,$"api/v1/control-plane/tenants/{TenantId}/workspace",new InitializeWorkspaceRequest(_email,_first,_last));
- _message=UserMessageSanitizer.Normalize(result.Message,result.IsSuccess ? "Workspace is ready. Invitation sent." : "Setup could not complete.");await LoadAsync();
+ _message=UserMessageSanitizer.Normalize(result.Message,result.IsSuccess ? "The invitation was queued for delivery." : "Setup could not complete.");await LoadAsync();
  }finally{_busy=false;}
  }
+ private async Task ChangeInvitationAsync(string action)
+ {
+     _busy = true;
+     try
+     {
+         var result = await Api.SendAsync<bool>(HttpMethod.Post, $"api/v1/control-plane/tenants/{TenantId}/workspace/invitation/{action}");
+         _message = UserMessageSanitizer.Normalize(result.Message, result.IsSuccess ? "Invitation updated." : "The invitation could not be updated.");
+         await LoadAsync();
+     }
+     finally
+     {
+         _busy = false;
+     }
+ }
+
  private sealed record Step(string Name,string Status);
 }

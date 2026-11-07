@@ -26,25 +26,63 @@ public class Tenant : IAuditable, IHasDomainEvents
     public SubscriptionTier SubscriptionTier { get; set; }
     public TenantStatus Status { get; set; } = TenantStatus.PendingApproval;
 
-    public void Approve(string actorId)
+    public static readonly Guid PlatformTenantId = Guid.Parse("0194f700-0000-7000-8000-000000000001");
+
+    public DateTimeOffset? KycApprovedAt { get; private set; }
+    public string? KycApprovedBy { get; private set; }
+    public string? KycEvidenceReference { get; private set; }
+
+    public bool IsCustomerWorkspace => !IsDemo && Id != PlatformTenantId;
+    public bool CanProvision => !IsCustomerWorkspace || KycApprovedAt.HasValue;
+    public bool CanInviteAdministrator => IsCustomerWorkspace && KycApprovedAt.HasValue && Status == TenantStatus.Active;
+
+    public void Approve(string actorId, DateTimeOffset now, string? evidenceReference)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
-        if (Status != TenantStatus.PendingApproval)
-            throw new InvalidOperationException($"Cannot approve tenant from status {Status}");
+        if (IsCustomerWorkspace)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(evidenceReference);
+            if (evidenceReference.Trim().Length > 256)
+            {
+                throw new ArgumentException("The evidence reference must be at most 256 characters.", nameof(evidenceReference));
+            }
 
-        Status = TenantStatus.PendingProvisioning;
+            if (KycApprovedAt.HasValue)
+            {
+                throw new InvalidOperationException("KYC is already approved.");
+            }
+
+            KycApprovedAt = now;
+            KycApprovedBy = actorId;
+            KycEvidenceReference = evidenceReference.Trim();
+        }
+        else if (Status != TenantStatus.PendingApproval)
+        {
+            throw new InvalidOperationException("The platform workspace is already initialized.");
+        }
+
+        if (Status == TenantStatus.PendingApproval)
+        {
+            Status = TenantStatus.PendingProvisioning;
+        }
+
         UpdatedBy = actorId;
-        UpdatedAt = DateTimeOffset.UtcNow; // We will use TimeProvider in application layer, but here standard fallback
+        UpdatedAt = now;
     }
 
-    public void RetryProvisioning() {
-        if(Status != TenantStatus.ProvisioningFailed) throw new InvalidOperationException("Only failed provisioning can be retried.");
-        Status=TenantStatus.PendingProvisioning;
+    public void RetryProvisioning()
+    {
+        if (!CanProvision || Status != TenantStatus.ProvisioningFailed)
+        {
+            throw new InvalidOperationException("Only approved workspaces with failed provisioning can retry.");
+        }
+
+        Status = TenantStatus.PendingProvisioning;
     }
 
     public void MarkAsProvisioning()
     {
-        if (Status != TenantStatus.PendingProvisioning)
+        if (!CanProvision || Status != TenantStatus.PendingProvisioning)
             throw new InvalidOperationException($"Cannot start provisioning from status {Status}");
 
         Status = TenantStatus.Provisioning;
@@ -52,7 +90,7 @@ public class Tenant : IAuditable, IHasDomainEvents
 
     public void MarkAsActive()
     {
-        if (Status is not (TenantStatus.PendingProvisioning or TenantStatus.Provisioning or TenantStatus.Suspended))
+        if (!CanProvision || Status is not (TenantStatus.PendingProvisioning or TenantStatus.Provisioning or TenantStatus.Suspended))
             throw new InvalidOperationException($"Cannot activate tenant from status {Status}");
 
         Status = TenantStatus.Active;
@@ -70,8 +108,8 @@ public class Tenant : IAuditable, IHasDomainEvents
     {
         Status = TenantStatus.ProvisioningFailed;
     }
-    private readonly System.Collections.Generic.List<IDomainEvent> _domainEvents = [];
-    public System.Collections.Generic.IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    private readonly List<IDomainEvent> _domainEvents = [];
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     public void RaiseDomainEvent(IDomainEvent domainEvent)
     {

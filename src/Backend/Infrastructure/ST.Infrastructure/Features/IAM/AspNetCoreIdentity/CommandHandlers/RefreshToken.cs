@@ -11,6 +11,7 @@ using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Entities;
+using StoredRefreshToken = ST.Domain.Features.IAM.Users.Entities.RefreshToken;
 using ST.Infrastructure.Configuration;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
@@ -34,6 +35,7 @@ internal sealed class RefreshToken(
     ISessionService sessionService,
     IHttpContextAccessor httpContextAccessor,
     IOptions<JwtSettings> jwtSettings,
+    TimeProvider timeProvider,
     ILogger<RefreshToken> logger, WorkspaceTenantOverride? workspace = null, IControlPlaneUnitOfWork? controlPlane = null, ST.Application.Features.ControlPlane.Support.ISupportSessionGuard? supportGuard = null) : IRequestHandler<RefreshTokenCommand, AppResponse<RefreshTokenResponse>>
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
@@ -46,7 +48,7 @@ internal sealed class RefreshToken(
         try
         {
             var principal = jwtService.GetPrincipalFromToken(request.AccessToken, false);
-            if (principal == null)
+            if (principal?.Identity?.IsAuthenticated != true || principal.HasClaim("temp_auth", "true"))
             {
                 SecurityLogDefinitions.LogSecurityEvent(logger, "InvalidAccessTokenFormat", string.Empty, "Invalid access token format provided for refresh");
                 return AppResponses.Failure<RefreshTokenResponse>("Invalid access token format");
@@ -97,14 +99,16 @@ internal sealed class RefreshToken(
             }
 
             var sessionId = principal.FindFirstValue("session_id");
-            if (!string.IsNullOrWhiteSpace(sessionId))
+            if (!Guid.TryParse(sessionId, out var activeSessionId))
             {
-                var sessionValidation = await sessionService.IsSessionValidAsync(sessionId, userId, cancellationToken).ConfigureAwait(false);
-                if (!sessionValidation.IsSuccess)
-                {
-                    SecurityLogDefinitions.LogSecurityEvent(logger, "InvalidSessionRefreshAttempt", userId, sessionValidation.Message ?? "Invalid session");
-                    return AppResponses.Failure<RefreshTokenResponse>("Your session is no longer active. Please sign in again.");
-                }
+                return AppResponses.Failure<RefreshTokenResponse>("Your session is no longer active. Please sign in again.");
+            }
+
+            var sessionValidation = await sessionService.IsSessionValidAsync(sessionId, userId, cancellationToken).ConfigureAwait(false);
+            if (!sessionValidation.IsSuccess)
+            {
+                SecurityLogDefinitions.LogSecurityEvent(logger, "InvalidSessionRefreshAttempt", userId, sessionValidation.Message ?? "Invalid session");
+                return AppResponses.Failure<RefreshTokenResponse>("Your session is no longer active. Please sign in again.");
             }
 
             var storedRefreshToken = await iamUnitOfWork.TokenRepository.GetRefreshTokenAsync(request.RefreshToken, userId).ConfigureAwait(false);
@@ -114,7 +118,8 @@ internal sealed class RefreshToken(
                 return AppResponses.Failure<RefreshTokenResponse>("Invalid refresh token");
             }
 
-            if (storedRefreshToken.ExpiresAt <= DateTimeOffset.UtcNow)
+            var now = timeProvider.GetUtcNow();
+            if (storedRefreshToken.ExpiresAt <= now)
             {
                 SecurityLogDefinitions.LogSecurityEvent(logger, "ExpiredRefreshToken", userId, "Expired refresh token used");
                 await iamUnitOfWork.ExecuteInTransactionWithRetryAsync(async () =>
@@ -152,10 +157,11 @@ internal sealed class RefreshToken(
                 return AppResponses.Failure<RefreshTokenResponse>("Token mismatch");
             }
 
-            Guid? activeSessionId = Guid.TryParse(sessionId, out var parsedSessionId) ? parsedSessionId : null;
             var userClaims = await claimsService.GetUserClaimsAsync(user, activeSessionId).ConfigureAwait(false);
             if (supportGrant is not null) userClaims = userClaims.Where(x => x.Type != ClaimTypes.Role && x.Type != "platform_staff" && (x.Type != "permission" || supportGrant.PermissionKeys.Contains(x.Value,StringComparer.OrdinalIgnoreCase))).ToList();
             if (ST.SharedKernel.Features.ControlPlane.PlatformAccess.HasMfa(principal)) userClaims.Add(new Claim("amr", "mfa"));
+            if (principal.HasClaim("administrator_mfa", "true"))
+                userClaims.Add(new Claim("administrator_mfa", "true"));
             if (!userClaims.Any())
             {
                 ServiceLogDefinitions.LogFailedToGetUserClaims(logger, userId);
@@ -183,10 +189,11 @@ internal sealed class RefreshToken(
                 return AppResponses.Failure<RefreshTokenResponse>("Could not determine token expiry");
             }
 
-            var newRefreshTokenEntity = ST.Domain.Features.IAM.Users.Entities.RefreshToken.Create(
+            var newRefreshTokenEntity = StoredRefreshToken.Create(
+                now,
                 userId,
                 newRefreshTokenResponse,
-                DateTimeOffset.UtcNow.AddHours(_jwtSettings.RefreshTokenExpiryHours),
+                now.AddHours(_jwtSettings.RefreshTokenExpiryHours),
                 userId,
                 httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString(),
                 storedRefreshToken.TokenFamily);

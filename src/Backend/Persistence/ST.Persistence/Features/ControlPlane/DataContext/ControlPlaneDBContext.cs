@@ -43,6 +43,7 @@ public class ControlPlaneDBContext : DbContext
     public DbSet<ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant> SupportGrants { get; set; }
     public DbSet<ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit> SupportAudit { get; set; }
     public DbSet<Tenant> Tenants { get; set; }
+    public DbSet<TenantAdministratorInvitation> AdministratorInvitations { get; set; }
     public DbSet<TenantModule> TenantModules { get; set; }
     public DbSet<DeploymentStamp> DeploymentStamps { get; set; }
     public DbSet<ImpersonationRecord> ImpersonationRecords { get; set; }

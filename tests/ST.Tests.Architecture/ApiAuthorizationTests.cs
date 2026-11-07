@@ -19,6 +19,15 @@ public sealed class ApiAuthorizationTests
     [
         "IamAdminController.GetNavigationMenus",
         "TenantSupportController.Exit", // Live support grant must match the current proxy; self-exit grants no customer authority.
+        "AdministratorInvitationController.Inspect",
+        "AdministratorInvitationController.Accept",
+        "AdministratorInvitationController.Complete",
+        "ExternalSignInController.Providers",
+        "ExternalSignInController.SsoLogin",
+        "ExternalSignInController.AcceptWithProvider",
+        "ExternalSignInController.PrepareConnection",
+        "ExternalSignInController.StartConnection",
+        "ExternalSignInController.SsoCallback",
         "PublicWorkspaceController.Resolve", // Public routing metadata only; no customer data or privileges.
         "PaymentsController.StripeWebhook",
         "PaymentsController.MpesaStkCallback",

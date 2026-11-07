@@ -148,7 +148,7 @@ internal sealed class AuthService(IBackendApiClient apiClient, ITokenStorage sto
             HttpMethod.Post,
             Format(_apiSettings.Endpoints.Iam.Users.VerifyTotp),
             request,
-            requiresAuthentication: false,
+            requiresAuthentication: string.IsNullOrEmpty(request.ChallengeToken),
             unavailableMessage: "The identity service is unavailable. Please try again.",
             timeoutMessage: "The identity service timed out. Please try again.");
     }

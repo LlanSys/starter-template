@@ -79,6 +79,10 @@ dotnet ef database update --project src/Backend/Persistence/ST.Persistence/ST.Pe
 
 For PostgreSQL substitute PostgreSql for SqlServer in all three context names. Each context owns its migration history table. Shared creates Quartz tables along with platform payment, notification and outbox persistence. Run application hosts from Visual Studio after migrations.
 
+## Invite a first workspace administrator
+
+Use the customer workspace onboarding flow for the initial administrator. It requires KYC approval, completed provisioning, explicit invitation acceptance, and authenticator verification. See [secure workspace onboarding](../architecture/secure-workspace-onboarding.md) for setup and Microsoft and Google configuration.
+
 ## Invite an independent account
 
 Create an account in IAM account administration with selected roles and an explicit initial password. Activate the account, then use Send Invitation. Email delivery must be configured; NoOp delivery deliberately cannot report invitation success. The recipient follows the protected, expiring link and chooses a password. Acceptance confirms email, replaces the initial password, clears the forced password-change flag and revokes prior sessions/refresh tokens. Reusing the link fails. Activation alone preserves the existing password and email confirmation state.

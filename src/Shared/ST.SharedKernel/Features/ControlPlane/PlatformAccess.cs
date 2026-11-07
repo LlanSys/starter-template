@@ -5,6 +5,7 @@ public static class PlatformAccess
 {
     public const string StaffClaim = "platform_staff";
     public const string Permission = "control_plane.manage";
+    public const string ApproveKycPermission = "control_plane.approve_kyc";
     public static bool HasMfa(ClaimsPrincipal user)
     {
         ArgumentNullException.ThrowIfNull(user);

@@ -20,13 +20,16 @@ public sealed class TenantApprovalTests
     {
         var tenant = CreateTenant();
         Assert.Equal(TenantStatus.PendingApproval, tenant.Status);
-        Assert.Throws<ArgumentException>(() => tenant.Approve(" "));
+        Assert.Throws<ArgumentException>(() => tenant.Approve(" ", DateTimeOffset.UnixEpoch, "review-1"));
         Assert.Equal(TenantStatus.PendingApproval, tenant.Status);
-        tenant.Approve("administrator-id");
+        tenant.Approve("administrator-id", DateTimeOffset.UnixEpoch, "review-1");
         Assert.Equal(TenantStatus.PendingProvisioning, tenant.Status);
         Assert.Equal("administrator-id", tenant.UpdatedBy);
-        Assert.NotNull(tenant.UpdatedAt);
-        Assert.Throws<InvalidOperationException>(() => tenant.Approve("other-id"));
+        Assert.Equal(DateTimeOffset.UnixEpoch, tenant.UpdatedAt);
+        Assert.Equal(DateTimeOffset.UnixEpoch, tenant.KycApprovedAt);
+        Assert.Equal("review-1", tenant.KycEvidenceReference);
+        Assert.Equal("administrator-id", tenant.KycApprovedBy);
+        Assert.Throws<InvalidOperationException>(() => tenant.Approve("other-id", DateTimeOffset.UnixEpoch, "review-2"));
     }
 
     [Fact]
@@ -37,7 +40,7 @@ public sealed class TenantApprovalTests
         Assert.Throws<InvalidOperationException>(tenant.Suspend);
         Assert.Throws<InvalidOperationException>(tenant.MarkAsProvisioning);
         Assert.Equal(TenantStatus.PendingApproval, tenant.Status);
-        tenant.Approve("administrator-id");
+        tenant.Approve("administrator-id", DateTimeOffset.UnixEpoch, "review-1");
         tenant.MarkAsProvisioning();
         tenant.MarkAsActive();
         tenant.Suspend();
@@ -51,6 +54,7 @@ public sealed class TenantApprovalTests
     [InlineData(TenantStatus.Provisioning)]
     [InlineData(TenantStatus.ProvisioningFailed)]
     [InlineData(TenantStatus.Active)]
+    [InlineData(TenantStatus.Suspended)]
     public async Task ActivateEndpointHandlerCannotBypassApprovalOrProvisioning(TenantStatus status)
     {
         var tenant = CreateTenant();
@@ -59,7 +63,7 @@ public sealed class TenantApprovalTests
         uow.Tenants.FindByIdAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(tenant);
         var actor = Substitute.For<ICurrentActorProvider>();
         actor.ActorId.Returns("administrator-id");
-        var handler = new ActivateTenantCommandHandler(uow, NullLogger<ActivateTenantCommandHandler>.Instance, actor);
+        var handler = new ActivateTenantCommandHandler(uow, NullLogger<ActivateTenantCommandHandler>.Instance, actor, TimeProvider.System);
         var result = await handler.Handle(new ActivateTenantCommand(tenant.Id), CancellationToken.None);
         Assert.False(result.IsSuccess);
         Assert.Equal(status, tenant.Status);
@@ -90,12 +94,14 @@ public sealed class TenantApprovalTests
     public async Task SuspendedTenantCanReactivateWithStableAuditActor()
     {
         var tenant = CreateTenant();
-        tenant.Status = TenantStatus.Suspended;
+        tenant.Approve("reviewer-id", DateTimeOffset.UnixEpoch, "review-1");
+        tenant.MarkAsActive();
+        tenant.Suspend();
         var uow = Substitute.For<IControlPlaneUnitOfWork>();
         uow.Tenants.FindByIdAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(tenant);
         var actor = Substitute.For<ICurrentActorProvider>();
         actor.ActorId.Returns("administrator-id");
-        var handler = new ActivateTenantCommandHandler(uow, NullLogger<ActivateTenantCommandHandler>.Instance, actor);
+        var handler = new ActivateTenantCommandHandler(uow, NullLogger<ActivateTenantCommandHandler>.Instance, actor, TimeProvider.System);
         using var cancellation = new CancellationTokenSource();
         var result = await handler.Handle(new ActivateTenantCommand(tenant.Id), cancellation.Token);
         Assert.True(result.IsSuccess);
@@ -106,6 +112,7 @@ public sealed class TenantApprovalTests
 
     [Theory]
     [InlineData(nameof(TenantsController.Approve))]
+    [InlineData(nameof(TenantsController.RetryProvisioning))]
     [InlineData(nameof(TenantsController.ActivateTenant))]
     [InlineData(nameof(TenantsController.SuspendTenant))]
     public void AdministrativeTransitionsRequireAuthenticationAndControlPlanePermission(string methodName)
@@ -113,7 +120,8 @@ public sealed class TenantApprovalTests
         Assert.NotNull(typeof(TenantsController).GetCustomAttribute<AuthorizeAttribute>());
         var method = typeof(TenantsController).GetMethod(methodName)!;
         Assert.Null(method.GetCustomAttribute<AllowAnonymousAttribute>());
-        Assert.Equal(PermissionAuthorizationConstants.BuildPolicyName("control_plane.manage"),
+        Assert.Equal(PermissionAuthorizationConstants.BuildPolicyName(methodName == nameof(TenantsController.Approve)
+            ? "control_plane.approve_kyc" : "control_plane.manage"),
             method.GetCustomAttribute<RequirePermissionAttribute>()!.Policy);
     }
 

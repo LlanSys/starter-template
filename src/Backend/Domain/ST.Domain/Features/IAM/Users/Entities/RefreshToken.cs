@@ -52,6 +52,18 @@ public class RefreshToken : BaseEntity, ISoftDeletable
         string? createdByIp = null,
         string? tokenFamily = null)
     {
+        return Create(DateTimeOffset.UtcNow, appUserId, token, expiresAt, createdBy, createdByIp, tokenFamily);
+    }
+
+    public static RefreshToken Create(
+        DateTimeOffset now,
+        string appUserId,
+        string token,
+        DateTimeOffset expiresAt,
+        string createdBy,
+        string? createdByIp = null,
+        string? tokenFamily = null)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(appUserId);
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
         ArgumentException.ThrowIfNullOrWhiteSpace(createdBy);
@@ -62,7 +74,7 @@ public class RefreshToken : BaseEntity, ISoftDeletable
             AppUserId = appUserId,
             Token = token,
             ExpiresAt = expiresAt,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
             CreatedBy = createdBy,
             CreatedByIp = createdByIp,
             TokenFamily = string.IsNullOrWhiteSpace(tokenFamily)

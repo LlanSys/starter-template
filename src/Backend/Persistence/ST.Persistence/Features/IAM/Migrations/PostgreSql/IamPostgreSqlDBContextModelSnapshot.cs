@@ -2201,6 +2201,12 @@ namespace ST.Persistence.Features.IAM.Migrations.PostgreSql
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid?>("AdministratorInvitationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AdministratorSetupCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
@@ -2866,6 +2872,39 @@ namespace ST.Persistence.Features.IAM.Migrations.PostgreSql
                         .HasDatabaseName("IX_RefreshTokens_AppUserId_ExpiresAt_RevokedAt");
 
                     b.ToTable("RefreshTokens", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.IAM.Users.Entities.SsoAuthorizationCode", b =>
+                {
+                    b.Property<string>("Hash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ConnectionProvider")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SecurityStampHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Hash");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.ToTable("SsoAuthorizationCodes", (string)null);
                 });
 
             modelBuilder.Entity("ST.Domain.Features.IAM.Users.Entities.TempTotpSecret", b =>

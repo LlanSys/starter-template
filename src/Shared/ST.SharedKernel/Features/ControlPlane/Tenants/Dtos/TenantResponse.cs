@@ -20,6 +20,7 @@ public class TenantResponse
 
     public IReadOnlyList<string> EnabledModules { get; set; } = [];
 
+    public DateTimeOffset? KycApprovedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
 }

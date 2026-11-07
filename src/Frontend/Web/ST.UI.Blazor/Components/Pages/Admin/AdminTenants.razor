@@ -1,4 +1,7 @@
 @page "/control-panel/tenants"
+@using ST.SharedKernel.Dtos.Common
+@using ST.SharedKernel.Features.ControlPlane
+@using ST.UI.Blazor.Features.ControlPlane.Tenants.Components
 @layout ControlPlaneLayout
 @attribute [Authorize(Policy = "ControlPlane.Manage")]
 @rendermode InteractiveServer
@@ -151,7 +154,7 @@
         {
             await ConfirmActivateAsync(tenant);
         }
-        else if (action is "Approve tenant" or "Retry provisioning")
+        else if (action is "Approve KYC" or "Retry provisioning")
         {
             await ConfirmApproveAsync(tenant);
         }
@@ -164,19 +167,21 @@
         {
             actions.Add("Manage modules");
 
-            if (tenant.Status == "PendingApproval")
+            if (tenant.KycApprovedAt is null && tenant.Identifier is not ("default" or "vendor-demo")
+                && AuthSession.HasPermission(PlatformAccess.ApproveKycPermission))
             {
-                actions.Add("Approve tenant");
+                actions.Add("Approve KYC");
             }
-            else if (tenant.Status == "Active")
+
+            if (tenant.Status == "Active")
             {
                 if (tenant.Identifier != "default" && tenant.Identifier != "vendor-demo") {
                     actions.Add("Set up workspace"); actions.Add("Request support"); actions.Add("Suspend tenant");
                 }
                 // Support entry remains disabled until scoped support grants are enforced.
             }
-            else if (tenant.Status == "ProvisioningFailed") { actions.Add("Retry provisioning"); }
-            else if (tenant.Status == "Suspended")
+            else if (tenant.Status == "ProvisioningFailed" && tenant.KycApprovedAt.HasValue) { actions.Add("Retry provisioning"); }
+            else if (tenant.Status == "Suspended" && tenant.KycApprovedAt.HasValue)
             {
                 actions.Add("Activate tenant");
             }
@@ -259,21 +264,25 @@
 
     private async Task ConfirmApproveAsync(TenantResponse tenant)
     {
-        var parameters = new DialogParameters
+        AppResponse<TenantResponse> response;
+        if (tenant.Status == "ProvisioningFailed" && tenant.KycApprovedAt.HasValue)
         {
-            { nameof(ConfirmDialog.Message), $"{(tenant.Status == "ProvisioningFailed" ? "Retry provisioning for" : "Approve")} {tenant.DisplayName}?" },
-            { nameof(ConfirmDialog.ConfirmText), tenant.Status == "ProvisioningFailed" ? "Retry" : "Approve" }
-        };
-
-        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
-            tenant.Status == "ProvisioningFailed" ? "Retry provisioning" : "Approve workspace",
-            parameters,
-            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
-
-        var result = await dialog.Result;
-        if (result is not { Canceled: false }) return;
-
-        var response = await TenantService.ApproveAsync(tenant.Id);
+            var confirmation = await DialogService.ShowAsync<ConfirmDialog>(
+                "Retry provisioning",
+                new DialogParameters
+                {
+                    { nameof(ConfirmDialog.Message), $"Retry provisioning for {tenant.DisplayName}?" },
+                    { nameof(ConfirmDialog.ConfirmText), "Retry" }
+                });
+            if (await confirmation.Result is not { Canceled: false }) return;
+            response = await TenantService.RetryProvisioningAsync(tenant.Id);
+        }
+        else
+        {
+            var dialog = await DialogService.ShowAsync<TenantKycDialog>($"Approve KYC for {tenant.DisplayName}");
+            if (await dialog.Result is not { Canceled: false, Data: string evidence }) return;
+            response = await TenantService.ApproveAsync(tenant.Id, new ApproveTenantRequest(evidence));
+        }
         if (!response.IsSuccess)
         {
             Snackbar.Add(response.Message ?? "Tenant approval failed.", Severity.Error);

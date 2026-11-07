@@ -45,7 +45,7 @@ internal sealed partial class CompleteTenantProvisioningCommandHandler : IReques
         LogCompletingProvisioning(request.TenantId);
 
         var tenant = await _unitOfWork.Tenants.FindByIdAsync(request.TenantId, cancellationToken).ConfigureAwait(false);
-        if (tenant == null || tenant.Status != TenantStatus.Provisioning)
+        if (tenant == null || !tenant.CanProvision || tenant.Status != TenantStatus.Provisioning)
         {
             LogTenantNotFoundOrNotProvisioning(request.TenantId);
             return AppResponses.Failure<bool>("Tenant not found or not in provisioning state.");

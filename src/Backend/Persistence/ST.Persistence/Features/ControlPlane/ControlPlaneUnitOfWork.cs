@@ -3,6 +3,9 @@ using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Domain.Features.ControlPlane.Tenants.Contracts.Repositories;
 using ST.Persistence.Features.ControlPlane.DataContext;
 using System;
+using ST.Domain.Features.ControlPlane.Tenants.Entities;
+using ST.Domain.Shared.Contracts.Repositories;
+using ST.Persistence.Common.Repositories;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,6 +21,7 @@ public class ControlPlaneUnitOfWork : IControlPlaneUnitOfWork
     public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry> Catalogue => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry>(_context);
     public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag> FeatureFlags => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag>(_context);
     public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule> TenantModules => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule>(_context);
+    public IRepository<TenantAdministratorInvitation> AdministratorInvitations => new Repository<TenantAdministratorInvitation>(_context);
     public ITenantRepository Tenants { get; }
     public IDeploymentStampRepository DeploymentStamps { get; }
     public IImpersonationRecordRepository ImpersonationRecords { get; }

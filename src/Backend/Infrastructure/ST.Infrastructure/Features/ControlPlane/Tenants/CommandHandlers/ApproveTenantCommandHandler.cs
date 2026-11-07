@@ -22,17 +22,20 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
     private readonly ILogger<ApproveTenantCommandHandler> _logger;
     private readonly IStampProvisioner _stampProvisioner;
     private readonly ICurrentActorProvider _actorProvider;
+    private readonly TimeProvider _timeProvider;
 
     public ApproveTenantCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<ApproveTenantCommandHandler> logger,
         IStampProvisioner stampProvisioner,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider,
+        TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _stampProvisioner = stampProvisioner;
         _actorProvider = actorProvider;
+        _timeProvider = timeProvider;
     }
 
     public async Task<AppResponse<TenantResponse>> Handle(ApproveTenantCommand request, CancellationToken cancellationToken)
@@ -46,10 +49,17 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             return AppResponses.Failure<TenantResponse>("Tenant not found.");
         }
 
-        if (tenant.Status is not (TenantStatus.PendingApproval or TenantStatus.ProvisioningFailed))
+        if (!tenant.IsCustomerWorkspace)
         {
-            return AppResponses.Failure<TenantResponse>($"Cannot approve tenant from status {tenant.Status}.");
+            return AppResponses.Failure<TenantResponse>("KYC applies to customer workspaces.");
         }
+
+        if (request.Retry ? tenant.Status != TenantStatus.ProvisioningFailed || !tenant.CanProvision : tenant.KycApprovedAt.HasValue)
+        {
+            return AppResponses.Failure<TenantResponse>("The workspace is unavailable for this transition.");
+        }
+
+        var needsProvisioning = request.Retry || tenant.Status == TenantStatus.PendingApproval;
 
         var stamp = await _unitOfWork.DeploymentStamps.FirstOrDefaultAsync(s => s.Id == tenant.DeploymentStampId, cancellationToken).ConfigureAwait(false);
         if (stamp == null)
@@ -57,12 +67,20 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             return AppResponses.Failure<TenantResponse>("Deployment stamp for this tenant could not be found.");
         }
 
-        if(tenant.Status == TenantStatus.ProvisioningFailed) tenant.RetryProvisioning();
-        else tenant.Approve(_actorProvider.ActorId);
+        if (request.Retry)
+        {
+            tenant.RetryProvisioning();
+        }
+        else
+        {
+            tenant.Approve(_actorProvider.ActorId, _timeProvider.GetUtcNow(), request.EvidenceReference);
+        }
 
-        if (stamp.IsolationTier == IsolationTier.Isolated)
+        if (needsProvisioning && stamp.IsolationTier == IsolationTier.Isolated)
         {
             tenant.MarkAsProvisioning();
+            await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);
+            await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
             try
             {
@@ -83,9 +101,9 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
                 // Optionally log the failure, but we want to allow retry via UI or manual intervention.
             }
         }
-        else
+        else if (needsProvisioning)
         {
-            // If it's a shared stamp, no infra to provision, go straight to Active.
+            // A pooled workspace uses the existing infrastructure.
             tenant.MarkAsActive();
         }
 
@@ -105,6 +123,7 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             DeploymentStampId = tenant.DeploymentStampId,
             DatabaseProvider = tenant.DatabaseProvider,
             DatabaseConnectionString = tenant.DatabaseConnectionString != null ? "********" : null,
+            KycApprovedAt = tenant.KycApprovedAt,
             CreatedAt = tenant.CreatedAt,
             UpdatedAt = tenant.UpdatedAt
         };

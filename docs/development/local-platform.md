@@ -201,7 +201,7 @@ Development explicitly disables external Data Protection key storage and selects
 
 ## Messaging License Decision
 
-StarterTemplate pins MassTransit `8.5.10`, which targets .NET 10 and is published under Apache-2.0. MassTransit v9 is a commercial release and is not used by the reusable template. Revisit this decision deliberately if a future application purchases MassTransit v9 support and features.
+StarterTemplate pins MassTransit `8.5.12`, which targets .NET 10 and is published under Apache-2.0. MassTransit v9 is a commercial release and is not used by the reusable template. Revisit this decision deliberately if a future application purchases MassTransit v9 support and features.
 
 Seq first-run administrator credentials use `SEQ_PASSWORD` from the ignored local `.env`. The setup script generates this value when missing. Changing it does not reset credentials in an existing Seq data volume.
 

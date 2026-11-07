@@ -48,6 +48,7 @@ public class GetTenantByIdQueryHandler : IRequestHandler<GetTenantByIdQuery, App
             DatabaseConnectionString = tenant.DatabaseConnectionString != null ? "********" : null,
             EnabledModules = tenant.Modules?.Where(m => m.IsActive).Select(m => m.ModuleKey).ToList() ?? [],
             CreatedAt = tenant.CreatedAt,
+            KycApprovedAt = tenant.KycApprovedAt,
             UpdatedAt = tenant.UpdatedAt
         };
 

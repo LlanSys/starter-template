@@ -1,3 +1,4 @@
+using MassTransit.EntityFrameworkCoreIntegration;
 using ST.Persistence.Features.ControlPlane.DataContext;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.Shared.DataContext;
@@ -12,14 +13,21 @@ namespace ST.Tests.Integration;
 public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : DbFixture
 {
-    [Fact]
-    public async Task AllRetainedContextsMigrateAnEmptyDatabaseAndRerunIdempotently()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AllRetainedContextsMigrateAndRerunIdempotently(bool upgrade)
     {
         bool postgres = fixture is PostgreSqlDbFixture;
         string connection = fixture.GetConnectionString();
-        if (!postgres)
+        var database = upgrade ? "StarterUpgrade" : "StarterCertification";
+        if (postgres)
         {
-            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connection) { InitialCatalog = "StarterCertification" };
+            connection = new Npgsql.NpgsqlConnectionStringBuilder(connection) { Database = database }.ConnectionString;
+        }
+        else
+        {
+            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connection) { InitialCatalog = database };
             connection = builder.ConnectionString;
         }
         var services = new ServiceCollection();
@@ -48,11 +56,43 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
         Type[] contexts = postgres
             ? [typeof(ControlPlanePostgreSqlDBContext), typeof(IamPostgreSqlDBContext), typeof(SharedPostgreSqlDBContext)]
             : [typeof(ControlPlaneSqlServerDBContext), typeof(IamSqlServerDBContext), typeof(SharedSqlServerDBContext)];
+        var outboxId = Guid.CreateVersion7();
         foreach (var type in contexts)
         {
             var context = (DbContext)scope.ServiceProvider.GetRequiredService(type);
             Assert.False(context.Database.HasPendingModelChanges());
+            var previous = context.Database.GetMigrations().LastOrDefault(id => id.EndsWith("_WorkspaceOnboardingAndSupport", StringComparison.Ordinal)
+                || (context is SharedDBContext && id.EndsWith("_InitialStarter", StringComparison.Ordinal)));
+            if (upgrade && previous is not null)
+            {
+                await context.GetService<IMigrator>().MigrateAsync(previous);
+                if (context is ControlPlaneDBContext)
+                {
+                    await context.Database.ExecuteSqlRawAsync("UPDATE \"Tenants\" SET \"DisplayName\" = 'Existing customer record' WHERE \"Identifier\" = 'default'");
+                }
+                if (context is SharedDBContext)
+                {
+                    await context.Database.ExecuteSqlInterpolatedAsync(
+                        $"INSERT INTO \"OutboxState\" (\"OutboxId\", \"LockId\", \"Created\", \"BusName\") VALUES ({outboxId}, {outboxId}, {DateTime.UtcNow}, {"legacy"})");
+                }
+            }
+
             await context.Database.MigrateAsync();
+            if (upgrade && context is ControlPlaneDBContext control)
+            {
+                var retained = await control.Tenants.SingleAsync(tenant => tenant.Identifier == "default");
+                Assert.Equal("Existing customer record", retained.DisplayName);
+                Assert.Null(retained.KycApprovedAt);
+            }
+
+            if (upgrade && context is SharedDBContext)
+            {
+                Assert.True(await context.Set<OutboxState>().AnyAsync(state => state.OutboxId == outboxId));
+                var busNames = await context.Database.SqlQuery<string>(
+                    $"SELECT \"BusName\" AS \"Value\" FROM \"OutboxState\" WHERE \"OutboxId\" = {outboxId}").ToListAsync();
+                Assert.Equal("legacy", Assert.Single(busNames));
+            }
+
             Assert.Equal(context.Database.GetMigrations(), await context.Database.GetAppliedMigrationsAsync());
             Assert.Empty(await context.Database.GetPendingMigrationsAsync());
             await context.Database.MigrateAsync();

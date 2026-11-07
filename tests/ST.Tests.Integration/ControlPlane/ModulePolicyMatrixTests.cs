@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Identity;
+using ST.Domain.Features.IAM.Users.Entities;
+using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.ControlPlane.Tenants.Entities;
 using ST.Persistence.Features.ControlPlane.DataContext;
 using ST.SharedKernel.Dtos.Common;
@@ -24,13 +27,27 @@ public sealed class ModulePolicyMatrixTests(StarterTemplateWebApplicationFactory
             foreach (var id in new[] { tenantA, tenantB, tenantC })
             {
                 var tenant = new Tenant { Id = id, Identifier = $"matrix-{id:N}", DisplayName = $"Matrix {id:N}", HostName = $"{id:N}.invalid", DeploymentStampId = Guid.Parse("0194f700-0000-7000-8000-000000000001"), MaxUsers = 50, CreatedBy = "integration-vendor" };
-                tenant.Approve("integration-vendor"); tenant.MarkAsActive();
+                tenant.Approve("integration-vendor", DateTimeOffset.UnixEpoch, "review-1"); tenant.MarkAsActive();
                 foreach(var module in id == tenantC ? new[] { "Core", "IAM" } : new[] { "Core", "IAM", "Payments" }) tenant.Modules.Add(new TenantModule { TenantId = id, ModuleKey = module, CreatedBy = "integration-vendor" });
                 context.Tenants.Add(tenant);
             }
             await context.SaveChangesAsync();
         }
-        using var vendor = Client(Guid.Parse("0194f700-0000-7000-8000-000000000001"), true);
+        string vendorId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = Tenant.PlatformTenantId;
+            var manager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var account = AppUser.CreateAccount(Tenant.PlatformTenantId, $"matrix-{tenantA:N}", "Matrix", "Operator",
+                $"matrix-{tenantA:N}@example.test", null, "integration-vendor");
+            account.IsActive = true;
+            account.EmailConfirmed = true;
+            account.TwoFactorEnabled = true;
+            Assert.True((await manager.CreateAsync(account)).Succeeded);
+            vendorId = account.Id;
+        }
+
+        using var vendor = Client(Tenant.PlatformTenantId, true, vendorId);
         using var a = Client(tenantA); using var b = Client(tenantB); using var c = Client(tenantC);
         try
         {
@@ -81,9 +98,9 @@ public sealed class ModulePolicyMatrixTests(StarterTemplateWebApplicationFactory
     {
         using var response = await client.PutAsJsonAsync("/api/v1/control-plane/modules/Payments/flags", new SaveModuleFlagRequest(tenant, "enabled", "Payments availability", enabled)); var result = await response.Content.ReadFromJsonAsync<AppResponse<bool>>(); Assert.True(result!.IsSuccess, result.Message);
     }
-    private HttpClient Client(Guid tenant, bool vendor = false)
+    private HttpClient Client(Guid tenant, bool vendor = false, string userId = "integration-vendor")
     {
-        var client = factory.CreateClient(); client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(TestAuthHandler.AuthenticationScheme); client.DefaultRequestHeaders.Add("X-Test-TenantId", tenant.ToString()); client.DefaultRequestHeaders.Add("X-Test-UserId", "integration-vendor");
+        var client = factory.CreateClient(); client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(TestAuthHandler.AuthenticationScheme); client.DefaultRequestHeaders.Add("X-Test-TenantId", tenant.ToString()); client.DefaultRequestHeaders.Add("X-Test-UserId", userId);
         client.DefaultRequestHeaders.Add("X-Test-Permissions", vendor ? "control_plane.manage" : "menus.view,menus.create,menus.edit,menus.delete,roles.view,roles.create,roles.manage_permissions,payments.view");
         if(vendor) client.DefaultRequestHeaders.Add("X-Test-PlatformStaff", "true"); return client;
     }

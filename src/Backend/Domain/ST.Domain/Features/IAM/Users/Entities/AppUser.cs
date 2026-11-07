@@ -19,6 +19,21 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
 {
     public Guid TenantId { get; set; }
 
+    public Guid? AdministratorInvitationId { get; private set; }
+    public DateTimeOffset? AdministratorSetupCompletedAt { get; private set; }
+    public bool RequiresAdministratorSetup => AdministratorInvitationId.HasValue && !AdministratorSetupCompletedAt.HasValue;
+
+    public void BeginAdministratorSetup(Guid invitationId)
+    {
+        AdministratorInvitationId = invitationId;
+        AdministratorSetupCompletedAt = null;
+    }
+
+    public void CompleteAdministratorSetup(DateTimeOffset now)
+    {
+        AdministratorSetupCompletedAt = now;
+    }
+
 
 
 
@@ -185,7 +200,12 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
 
     public void RecordSuccessfulLogin()
     {
-        LastLoginAt = DateTimeOffset.UtcNow;
+        RecordSuccessfulLogin(DateTimeOffset.UtcNow);
+    }
+
+    public void RecordSuccessfulLogin(DateTimeOffset now)
+    {
+        LastLoginAt = now;
         ResetFailedLoginAttempts();
     }
 

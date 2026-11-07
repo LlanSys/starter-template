@@ -10,8 +10,8 @@
   <ItemGroup>
     <PackageReference Include="Bogus" Version="35.6.5" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
-    <PackageReference Include="MassTransit" Version="9.2.4" />
-    <PackageReference Include="MassTransit.EntityFrameworkCore" Version="9.2.4" />
+    <PackageReference Include="MassTransit" Version="[$(MassTransitVersion)]" />
+    <PackageReference Include="MassTransit.EntityFrameworkCore" Version="[$(MassTransitVersion)]" />
     <PackageReference Include="MediatR" Version="14.2.0"></PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.14"></PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">

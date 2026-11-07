@@ -89,7 +89,8 @@ internal sealed class DevelopmentIdentitySeeder(
                 var requiredClaims = new[]
                 {
                     new System.Security.Claims.Claim("platform_staff", "true"),
-                    new System.Security.Claims.Claim("permission", "control_plane.manage")
+                    new System.Security.Claims.Claim("permission", "control_plane.manage"),
+                    new System.Security.Claims.Claim("permission", "control_plane.approve_kyc")
                 };
                 foreach (var claim in requiredClaims)
                 {

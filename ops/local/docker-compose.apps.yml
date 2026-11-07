@@ -22,6 +22,8 @@ services:
       EmailSettings__FromAddress: noreply@startertemplate.local
       EmailSettings__DisplayName: StarterTemplate
       EmailSettings__ClientBaseUrl: http://localhost:${APP_BLAZOR_HOST_PORT:-8181}
+      ExternalSignIn__PublicApiOrigin: http://localhost:${APP_API_HOST_PORT:-8180}
+      ExternalSignIn__ClientOrigins__0: http://localhost:${APP_BLAZOR_HOST_PORT:-8181}
       EmailSettings__LocalMailpit__Host: mailpit
       EmailSettings__LocalMailpit__Port: "1025"
       DevelopmentSeed__Enabled: "false"
@@ -55,6 +57,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       BackendApi__BaseUrl: http://api:8080/
+      BackendApi__PublicBaseUrl: http://localhost:${APP_API_HOST_PORT:-8180}
       SessionLifecycle__SignInPath: /iam/sign-in
       DataProtection__ApplicationName: StarterTemplate
       DataProtection__KeysPath: /var/startertemplate/dataprotection

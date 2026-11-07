@@ -1,5 +1,6 @@
 using ST.Infrastructure.Configuration;
 using ST.Api.Logging;
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Domain.Features.IAM.Users.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
@@ -45,11 +46,6 @@ internal sealed class MfaEnrollmentMiddleware(
 
     private async Task<bool> RequiresEnrollmentGateAsync(HttpContext context, UserManager<AppUser> userManager)
     {
-        if (!_mfaSettings.Enabled || !_mfaSettings.EnforceEnrollment)
-        {
-            return false;
-        }
-
         if (context.Items.ContainsKey("TrustedWorkspaceProxy") || ShouldSkip(context.Request.Path) || context.User.Identity?.IsAuthenticated != true)
         {
             return false;
@@ -58,7 +54,9 @@ internal sealed class MfaEnrollmentMiddleware(
         var roleRequiresMfa = context.User.Claims
             .Where(static claim => string.Equals(claim.Type, ClaimTypes.Role, StringComparison.OrdinalIgnoreCase))
             .Select(static claim => claim.Value)
-            .Any(role => (string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase) || _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
+            .Any(role => string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase)
+                || (_mfaSettings.Enabled && _mfaSettings.EnforceEnrollment && _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)))
+            || PlatformAccess.IsStaff(context.User);
 
         if (!roleRequiresMfa)
         {

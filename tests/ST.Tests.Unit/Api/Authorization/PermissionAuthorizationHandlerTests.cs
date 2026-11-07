@@ -1,4 +1,6 @@
 using ST.Api.Common.Authorization;
+using ST.SharedKernel.Features.ControlPlane;
+using ST.Tests.Unit.TestFixtures;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
@@ -13,7 +15,7 @@ public sealed class PermissionAuthorizationHandlerTests
         var requirement = new PermissionRequirement("users.edit");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler(new ST.Tests.Unit.TestFixtures.TestModulePolicy()).HandleAsync(context);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
 
         Assert.True(context.HasSucceeded);
     }
@@ -25,7 +27,7 @@ public sealed class PermissionAuthorizationHandlerTests
         var requirement = new PermissionRequirement("roles.delete");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler(new ST.Tests.Unit.TestFixtures.TestModulePolicy()).HandleAsync(context);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
 
         Assert.True(context.HasSucceeded);
     }
@@ -37,7 +39,7 @@ public sealed class PermissionAuthorizationHandlerTests
         var requirement = new PermissionRequirement("users.edit");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler(new ST.Tests.Unit.TestFixtures.TestModulePolicy()).HandleAsync(context);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
 
         Assert.False(context.HasSucceeded);
     }
@@ -54,8 +56,30 @@ public sealed class PermissionAuthorizationHandlerTests
         if (permission) claims.Add(new Claim("permission", "control_plane.manage"));
         var requirement = new PermissionRequirement("control_plane.manage");
         var context = new AuthorizationHandlerContext([requirement], CreatePrincipal(claims.ToArray()), null);
-        await new PermissionAuthorizationHandler(new ST.Tests.Unit.TestFixtures.TestModulePolicy()).HandleAsync(context);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
         Assert.Equal(expected, context.HasSucceeded);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlatformManagementAloneCannotApproveKyc(bool approvalGranted)
+    {
+        var claims = new List<Claim>
+        {
+            new("platform_staff", "true"),
+            new("permission", PlatformAccess.Permission)
+        };
+        if (approvalGranted)
+        {
+            claims.Add(new Claim("permission", PlatformAccess.ApproveKycPermission));
+        }
+
+        var requirement = new PermissionRequirement(PlatformAccess.ApproveKycPermission);
+        var context = new AuthorizationHandlerContext([requirement], CreatePrincipal(claims.ToArray()), null);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
+
+        Assert.Equal(approvalGranted, context.HasSucceeded);
     }
 
     private static ClaimsPrincipal CreatePrincipal(params Claim[] claims)

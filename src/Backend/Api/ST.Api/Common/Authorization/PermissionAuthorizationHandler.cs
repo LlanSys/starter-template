@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.SharedKernel.Features.ControlPlane;
 
 namespace ST.Api.Common.Authorization;
 
-internal sealed class PermissionAuthorizationHandler(ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy) : AuthorizationHandler<PermissionRequirement>
+internal sealed class PermissionAuthorizationHandler(IEffectiveModulePolicy policy) : AuthorizationHandler<PermissionRequirement>
 {
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
@@ -13,7 +15,11 @@ internal sealed class PermissionAuthorizationHandler(ST.Application.Features.Con
 
         if (requirement.Permission.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase))
         {
-            if (ST.SharedKernel.Features.ControlPlane.PlatformAccess.IsStaff(context.User)) context.Succeed(requirement);
+            if (PlatformAccess.IsStaff(context.User)
+                && context.User.HasClaim(PermissionAuthorizationConstants.ClaimType, requirement.Permission))
+            {
+                context.Succeed(requirement);
+            }
             return;
         }
 

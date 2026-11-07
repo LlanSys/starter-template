@@ -19,10 +19,10 @@
     <PackageReference Include="Azure.Storage.Blobs" Version="12.30.1" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
-    <PackageReference Include="MassTransit" Version="9.2.4" />
-    <PackageReference Include="MassTransit.Azure.ServiceBus.Core" Version="9.2.4" />
-    <PackageReference Include="MassTransit.EntityFrameworkCore" Version="9.2.4" />
-    <PackageReference Include="MassTransit.RabbitMQ" Version="9.2.4" />
+    <PackageReference Include="MassTransit" Version="[$(MassTransitVersion)]" />
+    <PackageReference Include="MassTransit.Azure.ServiceBus.Core" Version="[$(MassTransitVersion)]" />
+    <PackageReference Include="MassTransit.EntityFrameworkCore" Version="[$(MassTransitVersion)]" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="[$(MassTransitVersion)]" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">

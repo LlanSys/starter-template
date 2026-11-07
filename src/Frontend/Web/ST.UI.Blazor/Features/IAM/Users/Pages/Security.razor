@@ -1,4 +1,5 @@
 @page "/iam/security"
+@using ST.UI.Blazor.Features.IAM.Users.Components
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject IAuthService AuthService
@@ -24,6 +25,10 @@
         </div>
 
         <div class="security-grid">
+            @if (AuthSession.CurrentUser is { AdministratorSetupRequired: false } currentUser)
+            {
+                <ExternalProviderConnection TenantId="currentUser.TenantId" />
+            }
             <article class="security-card">
                 <div class="card-heading">
                     <span>Password</span>
@@ -350,6 +355,13 @@
         _verification.Code = string.Empty;
         await AuthSession.RefreshAsync();
         await LoadOtpStatusAsync();
+        if (AuthSession.CurrentUser?.AdministratorSetupRequired == true)
+        {
+            await AuthSession.SignOutAsync();
+            Navigation.NavigateTo("/iam/sign-in", replace: true);
+            return;
+        }
+
         Navigation.NavigateTo("/dashboard", replace: true);
     }
 

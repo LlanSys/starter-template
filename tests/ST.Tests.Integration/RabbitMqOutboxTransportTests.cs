@@ -58,8 +58,6 @@ public sealed class RabbitMqOutboxTransportTests
 
         try
         {
-            await host.StartAsync();
-
             await using var scope = host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<SharedDBContext>();
             var publisher = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
@@ -67,6 +65,7 @@ public sealed class RabbitMqOutboxTransportTests
             var delivery = probe.ExpectAsync(messageId);
 
             await db.Database.EnsureCreatedAsync();
+            await host.StartAsync();
             await using var transaction = await db.Database.BeginTransactionAsync();
 
             await publisher.Publish(new RabbitMqCertificationEvent(messageId, DateTimeOffset.UtcNow));

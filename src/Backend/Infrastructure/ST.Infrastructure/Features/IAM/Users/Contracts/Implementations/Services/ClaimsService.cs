@@ -15,7 +15,7 @@ namespace ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Service
 
 internal sealed class ClaimsService(
     UserManager<AppUser> userManager,
-    RoleManager<AppRole> roleManager, ILogger<ClaimsService> logger) : IClaimsService
+    RoleManager<AppRole> roleManager, ILogger<ClaimsService> logger, TimeProvider timeProvider) : IClaimsService
 {
     private readonly UserManager<AppUser> _userManager = userManager;
     private readonly RoleManager<AppRole> _roleManager = roleManager;
@@ -54,7 +54,7 @@ internal sealed class ClaimsService(
                 new(JwtRegisteredClaimNames.Sub, user.Id),
                 new(ClaimTypes.NameIdentifier, user.Id),
                 new(JwtRegisteredClaimNames.Jti, Guid.CreateVersion7().ToString()),
-                new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
+                new(JwtRegisteredClaimNames.Iat, timeProvider.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
 
                 new("tenant_id", user.TenantId.ToString()),
                 new(JwtRegisteredClaimNames.Name, $"{user.FirstName} {user.LastName}"),
@@ -64,6 +64,9 @@ internal sealed class ClaimsService(
 
             if (sessionId.HasValue && sessionId.Value != Guid.Empty)
                 claims.Add(new("session_id", sessionId.Value.ToString()));
+
+            if (user.RequiresAdministratorSetup)
+                return claims;
 
             var roles = await _userManager.GetRolesAsync(user).ConfigureAwait(false);
 
@@ -104,7 +107,7 @@ internal sealed class ClaimsService(
         {
             new(JwtRegisteredClaimNames.Sub, user.Id),
             new(JwtRegisteredClaimNames.Jti, Guid.CreateVersion7().ToString()),
-            new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
+            new(JwtRegisteredClaimNames.Iat, timeProvider.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
 
             new("tenant_id", user.TenantId.ToString()),
             new(JwtRegisteredClaimNames.Name, $"{user.FirstName} {user.LastName}"),

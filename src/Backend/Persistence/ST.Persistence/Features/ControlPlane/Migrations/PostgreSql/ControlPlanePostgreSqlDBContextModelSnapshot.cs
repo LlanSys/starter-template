@@ -1226,6 +1226,17 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     b.Property<bool>("IsDemo")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTimeOffset?>("KycApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("KycApprovedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("KycEvidenceReference")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<int>("MaxUsers")
                         .HasColumnType("integer");
 
@@ -1285,6 +1296,88 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                             SubscriptionTier = 0,
                             WorkspaceVersion = 0
                         });
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Tenants.Entities.TenantAdministratorInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ChangedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ClaimedUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset?>("DeliveredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.HasIndex("State", "DeliveredAt", "NextAttemptAt");
+
+                    b.ToTable("TenantAdministratorInvitations", (string)null);
                 });
 
             modelBuilder.Entity("ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule", b =>
@@ -1406,6 +1499,17 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                         .IsRequired();
 
                     b.Navigation("DeploymentStamp");
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Tenants.Entities.TenantAdministratorInvitation", b =>
+                {
+                    b.HasOne("ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule", b =>

@@ -89,7 +89,7 @@ public sealed class IndependentAccountEmailLifecycleTests(StarterTemplateWebAppl
         var enrollmentResult = await enrollment.Content.ReadFromJsonAsync<AppResponse<TwoFactorSetupInfo>>();
         Assert.True(enrollmentResult!.IsSuccess, enrollmentResult.Message);
         var authenticator = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(enrollmentResult.Data!.ManualEntryKey));
-        using var enrolled = await anonymous.PostAsJsonAsync("/api/v1/iam/users/totp/verify",
+        using var enrolled = await signedIn.PostAsJsonAsync("/api/v1/iam/users/totp/verify",
             new VerifyOtpRequest { UserId = id, Code = authenticator.ComputeTotp(), DeviceFingerprint = "certification" });
         enrolled.EnsureSuccessStatusCode();
         var enrolledResult = await enrolled.Content.ReadFromJsonAsync<AppResponse<VerifyOtpResponse>>();
@@ -98,7 +98,7 @@ public sealed class IndependentAccountEmailLifecycleTests(StarterTemplateWebAppl
         var mfaLogin = await LoginAsync(anonymous, name, recovered);
         Assert.False(mfaLogin.IsAuthenticated);
         using var verifiedMfa = await anonymous.PostAsJsonAsync("/api/v1/iam/users/totp/verify",
-            new VerifyOtpRequest { UserId = id, Code = authenticator.ComputeTotp(), DeviceFingerprint = "certification" });
+            new VerifyOtpRequest { UserId = id, Code = authenticator.ComputeTotp(), DeviceFingerprint = "certification", ChallengeToken = mfaLogin.Token });
         verifiedMfa.EnsureSuccessStatusCode();
         var verifiedMfaResult = await verifiedMfa.Content.ReadFromJsonAsync<AppResponse<VerifyOtpResponse>>();
         Assert.True(verifiedMfaResult!.IsSuccess, verifiedMfaResult.Message);

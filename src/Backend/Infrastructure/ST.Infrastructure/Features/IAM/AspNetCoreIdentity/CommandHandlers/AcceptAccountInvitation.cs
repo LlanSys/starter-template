@@ -1,5 +1,6 @@
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Contracts;
+using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Infrastructure.Logging;
@@ -11,7 +12,7 @@ using Microsoft.Extensions.Logging;
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class AcceptAccountInvitation(UserManager<AppUser> users, IIamUnitOfWork unitOfWork,
-    ICurrentTenantProvider tenantProvider, ILogger<AcceptAccountInvitation> logger)
+    ICurrentTenantProvider tenantProvider, ILogger<AcceptAccountInvitation> logger, IControlPlaneUnitOfWork controlPlane)
     : IRequestHandler<AcceptAccountInvitationCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(AcceptAccountInvitationCommand command, CancellationToken cancellationToken)
@@ -23,6 +24,12 @@ internal sealed class AcceptAccountInvitation(UserManager<AppUser> users, IIamUn
             if (user is null || !user.IsActive || user.IsDeleted || user.EmailConfirmed || user.TenantId == Guid.Empty
                 || user.TenantId != tenantProvider.TenantId || !string.Equals(request.Password, request.ConfirmPassword, StringComparison.Ordinal))
                 return Rejected();
+            if (await controlPlane.Tenants.AnyAsync(
+                tenant => tenant.Id == user.TenantId && tenant.AdministratorUserId == user.Id, cancellationToken).ConfigureAwait(false))
+            {
+                return Rejected();
+            }
+
             if (!await users.VerifyUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user), request.Token).ConfigureAwait(false))
                 return Rejected();
 

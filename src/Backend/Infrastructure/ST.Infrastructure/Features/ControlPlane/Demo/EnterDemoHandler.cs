@@ -24,7 +24,7 @@ using ST.SharedKernel.Features.IAM.Users.Dtos;
 namespace ST.Infrastructure.Features.ControlPlane.Demo;
 
 internal sealed class EnterDemoHandler(IControlPlaneUnitOfWork controlPlane, IHttpContextAccessor http,
-    IServiceScopeFactory scopes, UserManager<AppUser> platformUsers, ST.Application.Features.ControlPlane.Tenants.Contracts.ITenantWorkspaceProvisioner provisioner) : IRequestHandler<EnterDemoCommand, AppResponse<LoginResponse>>
+    IServiceScopeFactory scopes, UserManager<AppUser> platformUsers, ST.Application.Features.ControlPlane.Tenants.Contracts.ITenantWorkspaceProvisioner provisioner, TimeProvider timeProvider) : IRequestHandler<EnterDemoCommand, AppResponse<LoginResponse>>
 {
     public async Task<AppResponse<LoginResponse>> Handle(EnterDemoCommand request, CancellationToken cancellationToken)
     {
@@ -46,7 +46,7 @@ internal sealed class EnterDemoHandler(IControlPlaneUnitOfWork controlPlane, IHt
             demo = new Tenant { Id = DemoWorkspace.TenantId, Identifier = DemoWorkspace.Identifier, DisplayName = "Vendor demo",
                 HostName = "vendor-demo.invalid", IsDemo = true, DeploymentStampId = source.DeploymentStampId,
                 MaxUsers = 100, CreatedBy = request.ActorId };
-            demo.Approve(request.ActorId);
+            demo.Approve(request.ActorId, timeProvider.GetUtcNow(), null);
             demo.MarkAsActive();
             await controlPlane.Tenants.CreateAsync(demo, cancellationToken).ConfigureAwait(false);
             foreach (var module in ready) demo.Modules.Add(new TenantModule { TenantId = demo.Id, ModuleKey = module.Key, CreatedBy = request.ActorId });
