@@ -4,7 +4,7 @@ using ST.Domain.Features.ControlPlane.Modules.Entities;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.ControlPlane.Modules.Dtos;
 namespace ST.Application.Features.ControlPlane.Modules;
-internal sealed class SaveCatalogueEntryHandler(IControlPlaneUnitOfWork unit) : IRequestHandler<SaveCatalogueEntryCommand, AppResponse<CatalogueEntryResponse>>
+internal sealed class SaveCatalogueEntryHandler(IControlPlaneUnitOfWork unit, TimeProvider timeProvider) : IRequestHandler<SaveCatalogueEntryCommand, AppResponse<CatalogueEntryResponse>>
 {
     public async Task<AppResponse<CatalogueEntryResponse>> Handle(SaveCatalogueEntryCommand command, CancellationToken cancellationToken)
     {
@@ -44,7 +44,7 @@ internal sealed class SaveCatalogueEntryHandler(IControlPlaneUnitOfWork unit) : 
         entry.Icon = request.Icon; entry.Placement = request.Placement.Trim(); entry.DisplayOrder = request.DisplayOrder; entry.ShowInNavigation = request.ShowInNavigation;
         entry.PermissionKeys = permissions; entry.RoleNames = (request.RoleNames ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         entry.FeatureFlag = request.FeatureFlag; entry.IsActive = request.IsActive; if (existing is not null) entry.Version++;
-        entry.UpdatedBy = command.ActorId; entry.UpdatedAt = DateTimeOffset.UtcNow;
+        entry.UpdatedBy = command.ActorId; entry.UpdatedAt = timeProvider.GetUtcNow();
         if (existing is null) await unit.Catalogue.CreateAsync(entry, cancellationToken).ConfigureAwait(false);
         if (existing is not null) await unit.Catalogue.UpdateAsync(entry, cancellationToken).ConfigureAwait(false);
         await unit.CompleteAsync(cancellationToken).ConfigureAwait(false);

@@ -1,11 +1,12 @@
 using ST.Domain.Shared.Entities;
+using ST.Domain.Shared.Contracts.Common;
 namespace ST.Domain.Features.IAM.Menus.Entities;
-public sealed class NavigationOverride : BaseEntity, ST.Domain.Shared.Contracts.Common.ISoftDeletable
+public sealed class NavigationOverride : BaseEntity, ISoftDeletable
 {
     public bool IsDeleted { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
     public string? DeletedBy { get; set; }
-    public void MarkAsDeleted(string actor) { ArgumentException.ThrowIfNullOrWhiteSpace(actor); IsDeleted = true; DeletedAt = DateTimeOffset.UtcNow; DeletedBy = actor; }
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now) { ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy); IsDeleted = true; DeletedAt = now; DeletedBy = deletedBy; }
     public required string PageKey { get; set; }
     public required string Title { get; set; }
     public string Icon { get; set; } = "Menu";

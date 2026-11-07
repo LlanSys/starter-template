@@ -4,7 +4,7 @@ using ST.Domain.Features.ControlPlane.Modules.Entities;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.ControlPlane.Modules.Dtos;
 namespace ST.Application.Features.ControlPlane.Modules;
-internal sealed class SaveModuleHandler(IControlPlaneUnitOfWork unitOfWork) : IRequestHandler<SaveModuleCommand, AppResponse<ModuleResponse>>
+internal sealed class SaveModuleHandler(IControlPlaneUnitOfWork unitOfWork, TimeProvider timeProvider) : IRequestHandler<SaveModuleCommand, AppResponse<ModuleResponse>>
 {
     public async Task<AppResponse<ModuleResponse>> Handle(SaveModuleCommand command, CancellationToken cancellationToken)
     {
@@ -34,7 +34,7 @@ internal sealed class SaveModuleHandler(IControlPlaneUnitOfWork unitOfWork) : IR
             module.DependencyKeys = dependencies;
         }
         module.Name = command.Request.Name.Trim(); module.Description = command.Request.Description.Trim(); module.IsActive = command.Request.IsActive;
-        module.UpdatedAt = DateTimeOffset.UtcNow; module.UpdatedBy = command.ActorId;
+        module.UpdatedAt = timeProvider.GetUtcNow(); module.UpdatedBy = command.ActorId;
         await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
         return AppResponses.Success(new ModuleResponse(module.Id, module.Key, module.Name, module.Description, module.IsActive, ModuleImplementations.Contains(module.Key)));
     }

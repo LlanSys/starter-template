@@ -70,6 +70,19 @@ using ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 using Microsoft.Azure.StackExchangeRedis;
 using StackExchange.Redis;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
+using Azure.Communication.Email;
+using Azure.Identity;
+using Microsoft.Extensions.Options;
+using QuestPDF;
+using ST.Application.Features.ControlPlane.Demo;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Application.Features.ControlPlane.Support;
+using ST.Application.Features.IAM.Menus;
+using ST.Infrastructure.Features.ControlPlane.Demo;
+using ST.Infrastructure.Features.ControlPlane.Modules;
+using ST.Infrastructure.Features.ControlPlane.Provisioning;
+using ST.Infrastructure.Features.ControlPlane.Support;
+using ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers;
 
 namespace ST.Infrastructure.Extensions;
 
@@ -91,10 +104,10 @@ public static class DependencyInjection
         services.AddScoped<AdministratorInvitationDelivery>();
         services.AddHostedService<AdministratorInvitationWorker>();
         services.AddScoped<WorkspaceTenantOverride>();
-        services.AddScoped<ST.Domain.Shared.Contracts.Common.IWorkspaceTenantOverride>(provider => provider.GetRequiredService<WorkspaceTenantOverride>());
-        services.AddScoped<ST.Application.Features.ControlPlane.Demo.IDemoFixture, ST.Infrastructure.Features.ControlPlane.Demo.NavigationDemoFixture>();
-        services.AddScoped<ST.Application.Features.ControlPlane.Support.ISupportSessionGuard, ST.Infrastructure.Features.ControlPlane.Support.SupportSessionGuard>();
-        services.AddScoped<ST.Application.Features.ControlPlane.Tenants.Contracts.ITenantWorkspaceProvisioner, ST.Infrastructure.Features.ControlPlane.Provisioning.TenantWorkspaceProvisioner>();
+        services.AddScoped<IWorkspaceTenantOverride>(provider => provider.GetRequiredService<WorkspaceTenantOverride>());
+        services.AddScoped<IDemoFixture, NavigationDemoFixture>();
+        services.AddScoped<ISupportSessionGuard, SupportSessionGuard>();
+        services.AddScoped<ITenantWorkspaceProvisioner, TenantWorkspaceProvisioner>();
         services.AddSingleton(JsonSerializerOptionsFactory.Create());
         services.Configure<ObservabilitySettings>(configuration.GetSection(ObservabilitySettings.SectionName));
         services.Configure<AuthProviderSettings>(configuration.GetSection(AuthProviderSettings.SectionName));
@@ -179,13 +192,13 @@ public static class DependencyInjection
         }
 
         services.AddHttpClient<IApiService, ApiService>();
-        services.AddHttpClient<ST.Application.Features.ControlPlane.Tenants.Contracts.IStampProvisioner, ST.Infrastructure.Features.ControlPlane.Provisioning.GitHubActionsStampProvisioner>();
+        services.AddHttpClient<IStampProvisioner, GitHubActionsStampProvisioner>();
         services.AddScoped<ICurrentTenantProvider, CurrentTenantProvider>();
         services.AddScoped<ITenantConnectionResolver, TenantConnectionResolver>();
-        services.AddScoped<ST.Application.Features.IAM.Menus.IEffectiveNavigation, ST.Application.Features.IAM.Menus.EffectiveNavigation>();
-        services.AddScoped<ST.Application.Features.IAM.Users.Contracts.Interfaces.IRoleAvailability, ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers.RoleAvailability>();
+        services.AddScoped<IEffectiveNavigation, EffectiveNavigation>();
+        services.AddScoped<IRoleAvailability, RoleAvailability>();
         services.AddScoped<ITenantModuleResolver, TenantModuleResolver>();
-        services.AddScoped<ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy, ST.Infrastructure.Features.ControlPlane.Modules.EffectiveModulePolicy>();
+        services.AddScoped<IEffectiveModulePolicy, EffectiveModulePolicy>();
         services.AddScoped<ICurrentActorProvider, CurrentActorProvider>();
         services.AddScoped<IFeatureFlagService, ConfigurationFeatureFlagService>();
         services.AddScoped<IPdfReportService, QuestPdfReportService>();
@@ -203,7 +216,7 @@ public static class DependencyInjection
         services.AddScoped<S3ProfilePictureStorage>();
         services.AddScoped<IProfilePictureStorage>(sp =>
         {
-            var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ProfileImageStorageSettings>>().Value;
+            var settings = sp.GetRequiredService<IOptions<ProfileImageStorageSettings>>().Value;
             return GetProfileImageStorageProvider(settings) switch
             {
                 ProfileImageStorageProvider.Local => sp.GetRequiredService<LocalProfilePictureStorage>(),
@@ -299,10 +312,9 @@ public static class DependencyInjection
             options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
         })
-        .AddJwtBearer(options =>
-        {
-            ConfigureJwtBearer(options, jwtSettings);
-        });
+        .AddJwtBearer();
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<TimeProvider>((options, timeProvider) => ConfigureJwtBearer(options, jwtSettings, timeProvider));
 
         var google = configuration.GetSection(GoogleSsoSettings.SectionName).Get<GoogleSsoSettings>() ?? new();
         var external = configuration.GetSection(ExternalSignInSettings.SectionName).Get<ExternalSignInSettings>() ?? new();
@@ -341,7 +353,7 @@ public static class DependencyInjection
             {
                 options.ServerDomain = passkeySettings.ServerDomain;
                 options.ServerName = passkeySettings.ServerName;
-                options.Origins = new System.Collections.Generic.HashSet<string>(passkeySettings.Origins);
+                options.Origins = new HashSet<string>(passkeySettings.Origins);
                 options.TimestampDriftTolerance = 300000;
             });
         }
@@ -387,7 +399,7 @@ public static class DependencyInjection
         options.Tokens.ChangeEmailTokenProvider = TokenOptions.DefaultEmailProvider;
     }
 
-    internal static void ConfigureJwtBearer(JwtBearerOptions options, JwtSettings jwtSettings)
+    internal static void ConfigureJwtBearer(JwtBearerOptions options, JwtSettings jwtSettings, TimeProvider timeProvider)
     {
         options.SaveToken = true;
         options.RequireHttpsMetadata = false;
@@ -408,7 +420,7 @@ public static class DependencyInjection
             // CUSTOM LIFETIME VALIDATOR to handle NotBefore issues
             LifetimeValidator = (notBefore, expires, token, parameters) =>
             {
-                var now = DateTime.UtcNow;
+                var now = timeProvider.GetUtcNow().UtcDateTime;
 
                 // Check expiration (required)
                 if (expires.HasValue && expires.Value < now)
@@ -444,7 +456,7 @@ public static class DependencyInjection
                         context.Response.StatusCode,
                         Message = "Token has expired.",
                         ExpirationTime = expirationTime,
-                        CurrentTime = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+                        CurrentTime = timeProvider.GetUtcNow().UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
                         Error = context.Exception.Message
                     };
 
@@ -573,11 +585,11 @@ public static class DependencyInjection
 
     private static void RegisterRedisCache(IServiceCollection services, string connectionString)
     {
-        services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
         {
-            var configOptions = StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
+            var configOptions = ConfigurationOptions.Parse(connectionString);
             configOptions.AbortOnConnectFail = false;
-            return StackExchange.Redis.ConnectionMultiplexer.Connect(configOptions);
+            return ConnectionMultiplexer.Connect(configOptions);
         });
 
         RegisterStackExchangeRedisCache(services);
@@ -587,24 +599,24 @@ public static class DependencyInjection
         IServiceCollection services,
         AzureCacheSettings settings)
     {
-        services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
         {
-            var configOptions = StackExchange.Redis.ConfigurationOptions.Parse(settings.ConnectionString!);
-            configOptions.Protocol = StackExchange.Redis.RedisProtocol.Resp3;
+            var configOptions = ConfigurationOptions.Parse(settings.ConnectionString!);
+            configOptions.Protocol = RedisProtocol.Resp3;
             configOptions.Ssl = true;
             configOptions.AbortOnConnectFail = false;
             configOptions.Password = null;
 
-            var credentialOptions = new Azure.Identity.DefaultAzureCredentialOptions();
+            var credentialOptions = new DefaultAzureCredentialOptions();
             if (!string.IsNullOrWhiteSpace(settings.PrincipalId))
             {
                 credentialOptions.ManagedIdentityClientId = settings.PrincipalId;
             }
 
             configOptions.ConfigureForAzureWithTokenCredentialAsync(
-                new Azure.Identity.DefaultAzureCredential(credentialOptions)).GetAwaiter().GetResult();
+                new DefaultAzureCredential(credentialOptions)).GetAwaiter().GetResult();
 
-            return StackExchange.Redis.ConnectionMultiplexer.Connect(configOptions);
+            return ConnectionMultiplexer.Connect(configOptions);
         });
 
         RegisterStackExchangeRedisCache(services);
@@ -614,7 +626,7 @@ public static class DependencyInjection
     {
         services.AddStackExchangeRedisCache(options => { });
         services.AddOptions<RedisCacheOptions>()
-            .Configure<StackExchange.Redis.IConnectionMultiplexer>((options, multiplexer) =>
+            .Configure<IConnectionMultiplexer>((options, multiplexer) =>
             {
                 options.ConnectionMultiplexerFactory = () => Task.FromResult(multiplexer);
             });
@@ -915,7 +927,7 @@ public static class DependencyInjection
         {
             try
             {
-                services.AddSingleton(new Azure.Communication.Email.EmailClient(settings.AzureCommunication.ConnectionString));
+                services.AddSingleton(new EmailClient(settings.AzureCommunication.ConnectionString));
             }
             catch
             {
@@ -1023,7 +1035,7 @@ public static class DependencyInjection
             return;
         }
 
-        QuestPDF.Settings.License = GetQuestPdfLicense(settings.QuestPdf) switch
+        Settings.License = GetQuestPdfLicense(settings.QuestPdf) switch
         {
             QuestPdfLicense.Community => LicenseType.Community,
             QuestPdfLicense.Professional => LicenseType.Professional,

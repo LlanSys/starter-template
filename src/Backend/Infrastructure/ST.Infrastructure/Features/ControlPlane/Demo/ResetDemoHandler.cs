@@ -11,7 +11,7 @@ using ST.Persistence.Features.IAM.DataContext;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.ControlPlane.Demo;
 namespace ST.Infrastructure.Features.ControlPlane.Demo;
-internal sealed class ResetDemoHandler(IControlPlaneUnitOfWork plane,IServiceScopeFactory scopes,ITenantWorkspaceProvisioner provisioner) : IRequestHandler<ResetDemoCommand,AppResponse<bool>>
+internal sealed class ResetDemoHandler(IControlPlaneUnitOfWork plane,IServiceScopeFactory scopes,ITenantWorkspaceProvisioner provisioner, TimeProvider timeProvider) : IRequestHandler<ResetDemoCommand,AppResponse<bool>>
 {
  public async Task<AppResponse<bool>> Handle(ResetDemoCommand request,CancellationToken ct) {
   var demo=await plane.Tenants.FindByIdAsync(DemoWorkspace.TenantId,ct).ConfigureAwait(false);
@@ -26,7 +26,7 @@ internal sealed class ResetDemoHandler(IControlPlaneUnitOfWork plane,IServiceSco
   await unit.CompleteAsync(ct).ConfigureAwait(false);
   var fixtures=scope.ServiceProvider.GetServices<IDemoFixture>().ToArray();
   foreach(var fixture in fixtures) await fixture.ResetAsync(ct).ConfigureAwait(false);
-  demo.DemoFixtureVersion=fixtures.Select(x=>x.Version).DefaultIfEmpty(1).Max();demo.DemoResetAt=DateTimeOffset.UtcNow;demo.UpdatedBy=request.ActorId;
+  demo.DemoFixtureVersion=fixtures.Select(x=>x.Version).DefaultIfEmpty(1).Max();demo.DemoResetAt=timeProvider.GetUtcNow();demo.UpdatedBy=request.ActorId;
   await plane.CompleteAsync(ct).ConfigureAwait(false);
   var prepared=await provisioner.InitializeAsync(demo.Id,null,request.ActorId,ct).ConfigureAwait(false);
   return prepared.IsSuccess ? AppResponses.Success(true) : AppResponses.Failure<bool>(prepared.Message ?? "Demo setup failed.");

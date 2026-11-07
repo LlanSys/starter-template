@@ -4,12 +4,13 @@ using ST.Domain.Features.IAM.Contracts;
 using ST.SharedKernel.Dtos.Common;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.SharedKernel.Features.IAM.Menus.Dtos;
 
 namespace ST.Application.Features.IAM.Menus.Commands;
 
 
 
-internal sealed class DeleteMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeleteMenuCommandHandler> logger, IEffectiveNavigation navigation)
+internal sealed class DeleteMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeleteMenuCommandHandler> logger, IEffectiveNavigation navigation, TimeProvider timeProvider)
     : IRequestHandler<DeleteMenuCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(DeleteMenuCommand command, CancellationToken cancellationToken)
@@ -20,7 +21,7 @@ internal sealed class DeleteMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
             if (standard is not null)
             {
                 var item = standard.Menu;
-                var overrideResult = await navigation.SaveOverrideAsync(standard.Definition!.Key, new ST.SharedKernel.Features.IAM.Menus.Dtos.UpdateMenuRequest { Id = item.Id, Title = item.Title, Url = item.Url, Icon = item.Icon, Placement = item.Placement, ParentId = item.ParentId, IsActive = false, DisplayOrder = item.DisplayOrder, RequiredRoleNames = item.RequiredRoleNames, RequiredPermissionKeys = item.RequiredPermissionKeys, ExpectedVersion = standard.OverrideVersion }, command.UserId, cancellationToken).ConfigureAwait(false);
+                var overrideResult = await navigation.SaveOverrideAsync(standard.Definition!.Key, new UpdateMenuRequest { Id = item.Id, Title = item.Title, Url = item.Url, Icon = item.Icon, Placement = item.Placement, ParentId = item.ParentId, IsActive = false, DisplayOrder = item.DisplayOrder, RequiredRoleNames = item.RequiredRoleNames, RequiredPermissionKeys = item.RequiredPermissionKeys, ExpectedVersion = standard.OverrideVersion }, command.UserId, cancellationToken).ConfigureAwait(false);
                 return overrideResult.IsSuccess ? AppResponses.Success(true) : AppResponses.Failure<bool>(overrideResult.Message);
             }
             var menu = await unitOfWork.MenuRepository.FindByIdAsync(command.Id, cancellationToken).ConfigureAwait(false);
@@ -38,7 +39,7 @@ internal sealed class DeleteMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
                 return AppResponses.Failure<bool>("This menu has child menu items. Move or delete the children first.");
             }
 
-            menu.MarkAsDeleted(command.UserId);
+            menu.MarkAsDeleted(command.UserId, timeProvider.GetUtcNow());
             await unitOfWork.MenuRepository.UpdateAsync(menu, cancellationToken).ConfigureAwait(false);
             var saved = await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false) > 0;
 

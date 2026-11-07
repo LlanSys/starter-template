@@ -21,10 +21,14 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.ControlPlane;
 using ST.SharedKernel.Features.ControlPlane.Demo;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Application.Features.ControlPlane.Tenants.Contracts;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
+using ST.Domain.Features.ControlPlane.Tenants.Enums;
 namespace ST.Infrastructure.Features.ControlPlane.Demo;
 
 internal sealed class EnterDemoHandler(IControlPlaneUnitOfWork controlPlane, IHttpContextAccessor http,
-    IServiceScopeFactory scopes, UserManager<AppUser> platformUsers, ST.Application.Features.ControlPlane.Tenants.Contracts.ITenantWorkspaceProvisioner provisioner, TimeProvider timeProvider) : IRequestHandler<EnterDemoCommand, AppResponse<LoginResponse>>
+    IServiceScopeFactory scopes, UserManager<AppUser> platformUsers, ITenantWorkspaceProvisioner provisioner, TimeProvider timeProvider) : IRequestHandler<EnterDemoCommand, AppResponse<LoginResponse>>
 {
     public async Task<AppResponse<LoginResponse>> Handle(EnterDemoCommand request, CancellationToken cancellationToken)
     {
@@ -52,19 +56,19 @@ internal sealed class EnterDemoHandler(IControlPlaneUnitOfWork controlPlane, IHt
             foreach (var module in ready) demo.Modules.Add(new TenantModule { TenantId = demo.Id, ModuleKey = module.Key, CreatedBy = request.ActorId });
             await controlPlane.CompleteAsync(cancellationToken).ConfigureAwait(false);
         }
-        if (!demo.IsDemo || demo.Identifier != DemoWorkspace.Identifier || demo.Status != ST.Domain.Features.ControlPlane.Tenants.Enums.TenantStatus.Active)
+        if (!demo.IsDemo || demo.Identifier != DemoWorkspace.Identifier || demo.Status != TenantStatus.Active)
             return AppResponses.Failure<LoginResponse>("The demo workspace is unavailable.");
 
         foreach (var module in ready)
         {
             var assigned = demo.Modules.FirstOrDefault(item => string.Equals(item.ModuleKey, module.Key, StringComparison.OrdinalIgnoreCase));
             if (assigned is null) await controlPlane.TenantModules.CreateAsync(new TenantModule { TenantId = demo.Id, ModuleKey = module.Key, CreatedBy = request.ActorId }, cancellationToken).ConfigureAwait(false);
-            else { assigned.IsActive = true; assigned.ExpiresAt = null; assigned.UpdatedBy = request.ActorId; assigned.UpdatedAt = DateTimeOffset.UtcNow; }
+            else { assigned.IsActive = true; assigned.ExpiresAt = null; assigned.UpdatedBy = request.ActorId; assigned.UpdatedAt = timeProvider.GetUtcNow(); }
         }
         var flags = await controlPlane.FeatureFlags.ListAsync(q=>q.Where(x=>x.ScopeTenantId==Guid.Empty || x.ScopeTenantId==demo.Id),cancellationToken).ConfigureAwait(false);
         foreach(var flag in flags.Where(x=>x.ScopeTenantId==Guid.Empty && ready.Any(m=>string.Equals(m.Key,x.ModuleKey,StringComparison.OrdinalIgnoreCase)))) {
           var change=flags.FirstOrDefault(x=>x.ScopeTenantId==demo.Id && x.ModuleKey==flag.ModuleKey && x.Key==flag.Key);
-          if(change is null) await controlPlane.FeatureFlags.CreateAsync(new ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag { ScopeTenantId=demo.Id,ModuleKey=flag.ModuleKey,Key=flag.Key,Name=flag.Name,IsEnabled=true,CreatedBy=request.ActorId },cancellationToken).ConfigureAwait(false);
+          if(change is null) await controlPlane.FeatureFlags.CreateAsync(new ModuleFeatureFlag { ScopeTenantId=demo.Id,ModuleKey=flag.ModuleKey,Key=flag.Key,Name=flag.Name,IsEnabled=true,CreatedBy=request.ActorId },cancellationToken).ConfigureAwait(false);
           else { change.IsEnabled=true;await controlPlane.FeatureFlags.UpdateAsync(change,cancellationToken).ConfigureAwait(false); }
         }
         demo.DemoFixtureVersion = Math.Max(1,demo.DemoFixtureVersion);
@@ -76,15 +80,16 @@ internal sealed class EnterDemoHandler(IControlPlaneUnitOfWork controlPlane, IHt
         if (!prepared.IsSuccess) return AppResponses.Failure<LoginResponse>(prepared.Message ?? "Could not prepare demo.");
         var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
         var name = $"demo-{(request.ReadOnly ? "viewer" : "admin")}-{actor.Id}";
+        var now = timeProvider.GetUtcNow();
         var user = await users.FindByNameAsync(name).ConfigureAwait(false);
         if (user is null)
         {
-            user = AppUser.CreateSystemUser(demo.Id, name, $"{name}@example.invalid", request.ActorId);
+            user = AppUser.CreateSystemUser(now, demo.Id, name, $"{name}@example.invalid", request.ActorId);
             user.FirstName = actor.FirstName; user.LastName = "(Demo)"; user.IsActive = true; user.EmailConfirmed = true;
             Ensure(await users.CreateAsync(user).ConfigureAwait(false));
         }
-        var access = await scope.ServiceProvider.GetRequiredService<ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy>().GetAsync(cancellationToken).ConfigureAwait(false);
-        var keys = access.Catalogue.Where(entry => entry.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && access.EntryAvailable(entry)).Select(entry => entry.Key).ToList();
+        var access = await scope.ServiceProvider.GetRequiredService<IEffectiveModulePolicy>().GetAsync(cancellationToken).ConfigureAwait(false);
+        var keys = access.Catalogue.Where(entry => entry.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(entry)).Select(entry => entry.Key).ToList();
         var existingClaims = await users.GetClaimsAsync(user).ConfigureAwait(false);
         if (request.ReadOnly) keys = keys.Where(key => key.EndsWith(".view", StringComparison.OrdinalIgnoreCase) || key.EndsWith(".read", StringComparison.OrdinalIgnoreCase)).ToList();
         var desiredClaims = keys.Select(key => new Claim("permission", key)).Append(new Claim("demo_workspace", "true")).Append(new Claim("demo_actor_id", actor.Id)).Append(new Claim("demo_readonly", request.ReadOnly ? "true" : "false"));
@@ -106,7 +111,7 @@ internal sealed class EnterDemoHandler(IControlPlaneUnitOfWork controlPlane, IHt
         var token = await jwt.CreateTokenAsync(claims).ConfigureAwait(false);
         var refresh = jwt.CreateRefreshToken();
         var unit = scope.ServiceProvider.GetRequiredService<IIamUnitOfWork>();
-        await unit.TokenRepository.AddRefreshTokenAsync(RefreshToken.Create(user.Id, refresh, DateTimeOffset.UtcNow.AddHours(1), request.ActorId, null)).ConfigureAwait(false);
+        await unit.TokenRepository.AddRefreshTokenAsync(RefreshToken.Create(now, user.Id, refresh, now.AddHours(1), request.ActorId, null)).ConfigureAwait(false);
         await unit.CompleteAsync(cancellationToken).ConfigureAwait(false);
         return AppResponses.Success(new LoginResponse(user.Id, user.FirstName, user.LastName, user.Email!, false, false, true,
             token, refresh, session.Data.ToString(), jwt.GetTokenExpiry(token), user.ToAppUserResponse(), null));

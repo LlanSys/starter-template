@@ -9,9 +9,10 @@ public class ControlPlanePostgreSqlDBContext : ControlPlaneDBContext
 {
     public ControlPlanePostgreSqlDBContext(
         DbContextOptions<ControlPlanePostgreSqlDBContext> options,
+        TimeProvider timeProvider,
         ICurrentActorProvider? actorProvider = null,
         ILogger<ControlPlanePostgreSqlDBContext>? logger = null)
-        : base(options, actorProvider ?? new SystemActorProvider(), logger)
+        : base(options, timeProvider, actorProvider ?? new SystemActorProvider(), logger)
     {
     }
 

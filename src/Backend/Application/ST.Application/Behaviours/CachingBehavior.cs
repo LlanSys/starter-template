@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using ST.SharedKernel.Dtos.Common;
 
 namespace ST.Application.Behaviours;
 
@@ -30,7 +31,8 @@ namespace ST.Application.Behaviours;
 public sealed class CachingBehavior<TRequest, TResponse>(
     ICacheService cache,
     ICurrentTenantProvider tenantProvider,
-    ILogger<CachingBehavior<TRequest, TResponse>> logger)
+    ILogger<CachingBehavior<TRequest, TResponse>> logger,
+    TimeProvider timeProvider)
     : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>, ICachableRequest
 {
     // Version tokens live longer than the entries they version.
@@ -89,7 +91,7 @@ public sealed class CachingBehavior<TRequest, TResponse>(
             ttl,
             cancellationToken).ConfigureAwait(false);
 
-        if (response is ST.SharedKernel.Dtos.Common.IAppResponse appResponse && !appResponse.IsSuccess)
+        if (response is IAppResponse appResponse && !appResponse.IsSuccess)
         {
             // Do not cache failed responses (especially since errors don't serialize well).
             await cache.RemoveAsync(cacheKey, cancellationToken).ConfigureAwait(false);
@@ -114,8 +116,8 @@ public sealed class CachingBehavior<TRequest, TResponse>(
             ct).ConfigureAwait(false);
     }
 
-    private static string GenerateVersion()
-        => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+    private string GenerateVersion()
+        => timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
 
     private static string BuildTenantScope(Guid tenantId, string? userId)
     {

@@ -17,7 +17,7 @@ public sealed class ModuleHierarchyTests
         var first = Menu(Guid.CreateVersion7(), "first", "Sidebar");
         Assert.Empty(NavigationHierarchy.Visible([first], _ => true));
         var second = Menu(first.Id, "second", "Sidebar");
-        first.Update(second.Id, first.Key, first.Title, "", first.Url, "Menu", first.Placement, null, "core", 0, true, "test");
+        first.Update(DateTimeOffset.UnixEpoch, second.Id, first.Key, first.Title, "", first.Url, "Menu", first.Placement, null, "core", 0, true, "test");
         Assert.Empty(NavigationHierarchy.Visible([first, second], _ => true));
     }
     [Fact]

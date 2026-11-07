@@ -18,7 +18,7 @@ internal sealed class CreateAppUser(
     RoleManager<AppRole> roleManager,
     IIamUnitOfWork iamUnitOfWork,
     ICurrentTenantProvider tenantProvider,
-    ILogger<CreateAppUser> logger) : IRequestHandler<CreateAppUserCommand, AppResponse<AppUserResponse>>
+    ILogger<CreateAppUser> logger, TimeProvider timeProvider) : IRequestHandler<CreateAppUserCommand, AppResponse<AppUserResponse>>
 {
     public async Task<AppResponse<AppUserResponse>> Handle(CreateAppUserCommand command, CancellationToken ct)
     {
@@ -56,7 +56,8 @@ internal sealed class CreateAppUser(
             var response = await iamUnitOfWork.ExecuteInTransactionAsync(async () =>
             {
                 // Begin the IAM transaction before Identity saves the account or role membership.
-                var user = AppUser.CreateAccount(tenantProvider.TenantId, userName,
+                var now = timeProvider.GetUtcNow();
+                var user = AppUser.CreateAccount(now, tenantProvider.TenantId, userName,
                     request.FirstName, request.LastName, email, request.PhoneNumber, command.UserId);
                 var createResult = await userManager.CreateAsync(user, request.Password).ConfigureAwait(false);
                 if (!createResult.Succeeded)
@@ -73,11 +74,11 @@ internal sealed class CreateAppUser(
                     }
                 }
 
-                var profile = AppUserProfile.Create(user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UserId);
+                var profile = AppUserProfile.Create(now, user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UserId);
                 await iamUnitOfWork.AppUserProfileRepository.CreateAsync(profile, ct).ConfigureAwait(false);
                 await iamUnitOfWork.CompleteAsync(ct).ConfigureAwait(false);
                 // The transactional UoW dispatches this event after the operation, before committing.
-                user.RaiseAppUserCreatedEvent();
+                user.RaiseAppUserCreatedEvent(now);
                 return AppResponses.Success("User created successfully.", user.ToAppUserResponse(roles));
             }, ct).ConfigureAwait(false);
 

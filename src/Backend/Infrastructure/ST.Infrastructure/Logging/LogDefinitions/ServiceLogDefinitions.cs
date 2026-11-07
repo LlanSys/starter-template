@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using System;
+using System.Net;
 
 namespace ST.Infrastructure.Logging;
 
@@ -16,13 +17,13 @@ internal static partial class ServiceLogDefinitions
     public static partial void LogPasskeyAssertionException(ILogger logger, string username, Exception ex);
 
     [LoggerMessage(EventId = 2503, Level = LogLevel.Warning, Message = "SendGrid rejected the email payload. Status: {StatusCode}. Response: {Response}")]
-    public static partial void LogSendGridRejection(ILogger logger, System.Net.HttpStatusCode statusCode, string response);
+    public static partial void LogSendGridRejection(ILogger logger, HttpStatusCode statusCode, string response);
 
     [LoggerMessage(EventId = 2504, Level = LogLevel.Warning, Message = "ACS rejected the email payload. Status: {Status}. Error: {Message}")]
     public static partial void LogAcsRejection(ILogger logger, int status, string message);
 
     [LoggerMessage(EventId = 2505, Level = LogLevel.Warning, Message = "Resend rejected the email payload. Status: {StatusCode}. Response: {Response}")]
-    public static partial void LogResendRejection(ILogger logger, System.Net.HttpStatusCode statusCode, string response);
+    public static partial void LogResendRejection(ILogger logger, HttpStatusCode statusCode, string response);
     [LoggerMessage(EventId = 3400, Level = LogLevel.Error, Message = "Error composing email for template {EmailTemplate}")]
     public static partial void LogEmailComposeError(ILogger logger, string emailTemplate, Exception ex);
 

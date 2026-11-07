@@ -39,7 +39,7 @@
             var response = await Api.SendAsync<LoginResponse>(HttpMethod.Post, $"api/v1/control-plane/demo/enter?readOnly={_readOnly}");
             if (!response.IsSuccess || response.Data is null) { _message = UserMessageSanitizer.Normalize(response.Message, "Could not enter demo."); return; }
             await SessionStorage.SetAsync("workspace.platform", new PlatformSessionBackup(previous.AccessToken, previous.RefreshToken, previous.SessionId));
-            await SessionStorage.SetAsync("auth.workspace_tokens", new ST.UI.Blazor.Features.IAM.Users.Models.WorkspaceTokens(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId));
+            await SessionStorage.SetAsync("auth.workspace_tokens", new WorkspaceTokens(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId));
             if (!await Tokens.SaveAsync(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId)) { _message = "Could not save the demo session."; return; }
             Navigation.NavigateTo("/dashboard", forceLoad: true);
         } finally { _busy = false; }

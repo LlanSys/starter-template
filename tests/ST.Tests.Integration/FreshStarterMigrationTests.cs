@@ -7,6 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Data.SqlClient;
+using Npgsql;
+using ST.Domain.Features.ControlPlane.Tenants.Entities;
+using ST.Domain.Shared.Contracts.Common;
+using System.Text.RegularExpressions;
 
 namespace ST.Tests.Integration;
 
@@ -23,17 +28,18 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
         var database = upgrade ? "StarterUpgrade" : "StarterCertification";
         if (postgres)
         {
-            connection = new Npgsql.NpgsqlConnectionStringBuilder(connection) { Database = database }.ConnectionString;
+            connection = new NpgsqlConnectionStringBuilder(connection) { Database = database }.ConnectionString;
         }
         else
         {
-            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connection) { InitialCatalog = database };
+            var builder = new SqlConnectionStringBuilder(connection) { InitialCatalog = database };
             connection = builder.ConnectionString;
         }
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<ST.Domain.Shared.Contracts.Common.ICurrentTenantProvider, MigrationTenantProvider>();
-        services.AddSingleton<ST.Domain.Shared.Contracts.Common.ICurrentActorProvider, MigrationActorProvider>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<ICurrentTenantProvider, MigrationTenantProvider>();
+        services.AddSingleton<ICurrentActorProvider, MigrationActorProvider>();
         void Configure(DbContextOptionsBuilder options, string context)
         {
             if (postgres) options.UseNpgsql(connection, provider => provider.MigrationsHistoryTable("__EFMigrationsHistory_" + context));
@@ -98,7 +104,7 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
             await context.Database.MigrateAsync();
             string script = context.GetService<IMigrator>().GenerateScript(options: MigrationsSqlGenerationOptions.Idempotent);
             Assert.Contains("InitialStarter", script, StringComparison.Ordinal);
-            var batches = postgres ? new[] { script } : System.Text.RegularExpressions.Regex.Split(script, @"^GO\s*$", System.Text.RegularExpressions.RegexOptions.Multiline);
+            var batches = postgres ? new[] { script } : Regex.Split(script, @"^GO\s*$", RegexOptions.Multiline);
             foreach (var batch in batches.Where(batch => !string.IsNullOrWhiteSpace(batch)))
                 await context.Database.ExecuteSqlRawAsync(batch);
             Assert.Equal(context.Database.GetMigrations(), await context.Database.GetAppliedMigrationsAsync());
@@ -111,8 +117,8 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
         using var secondScope = provider.CreateScope();
         var first = (DbContext)firstScope.ServiceProvider.GetRequiredService(contextType);
         var second = (DbContext)secondScope.ServiceProvider.GetRequiredService(contextType);
-        var original = await first.Set<ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant>().FirstAsync();
-        var stale = await second.Set<ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant>().SingleAsync(tenant => tenant.Id == original.Id);
+        var original = await first.Set<Tenant>().FirstAsync();
+        var stale = await second.Set<Tenant>().SingleAsync(tenant => tenant.Id == original.Id);
         byte[] initialVersion = original.RowVersion.ToArray();
         original.DisplayName = "Concurrency winner";
         await first.SaveChangesAsync();
@@ -121,11 +127,11 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
     }
 
-    private sealed class MigrationTenantProvider : ST.Domain.Shared.Contracts.Common.ICurrentTenantProvider
+    private sealed class MigrationTenantProvider : ICurrentTenantProvider
     {
         public Guid TenantId => Guid.Empty;
     }
-    private sealed class MigrationActorProvider : ST.Domain.Shared.Contracts.Common.ICurrentActorProvider
+    private sealed class MigrationActorProvider : ICurrentActorProvider
     {
         public string ActorId => "MigrationCertification";
     }

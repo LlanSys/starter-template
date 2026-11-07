@@ -1,7 +1,9 @@
 using MediatR;
 using ST.SharedKernel.Dtos.Common;
+using ST.Application.Contracts.Interfaces.Common;
+using ST.Application.Utilities;
 namespace ST.Application.Features.IAM.Menus.Commands;
-public sealed record ResetNavigationOverrideCommand(string PageKey) : IRequest<AppResponse<bool>>, ST.Application.Contracts.Interfaces.Common.ICacheInvalidatorRequest
+public sealed record ResetNavigationOverrideCommand(string PageKey) : IRequest<AppResponse<bool>>, ICacheInvalidatorRequest
 {
-    public IReadOnlyList<string> GroupVersionKeysToInvalidate => [ST.Application.Utilities.CacheKeys.GroupVersion("menus")];
+    public IReadOnlyList<string> GroupVersionKeysToInvalidate => [CacheKeys.GroupVersion("menus")];
 }

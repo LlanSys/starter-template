@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ST.Persistence.Features.Shared.DataContext;
 using System.Collections.Concurrent;
+using ST.Domain.Shared.Contracts.Common;
+using System.Globalization;
 
 namespace ST.Tests.Integration;
 
@@ -24,9 +26,10 @@ public sealed class RabbitMqOutboxTransportTests
         var messageId = Guid.CreateVersion7();
 
         var builder = Host.CreateApplicationBuilder();
-        builder.Services.AddSingleton<ST.Domain.Shared.Contracts.Common.ICurrentTenantProvider, TestTenantProvider>();
-        builder.Services.AddSingleton<ST.Domain.Shared.Contracts.Common.ICurrentActorProvider, TestActorProvider>();
+        builder.Services.AddSingleton<ICurrentTenantProvider, TestTenantProvider>();
+        builder.Services.AddSingleton<ICurrentActorProvider, TestActorProvider>();
         builder.Services.AddSingleton<RabbitMqDeliveryProbe>();
+        builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddDbContext<SharedDBContext>(options => options.UseSqlite(connectionString));
         builder.Services.AddMassTransit(configurator =>
         {
@@ -40,7 +43,7 @@ public sealed class RabbitMqOutboxTransportTests
 
             configurator.UsingRabbitMq((context, rabbit) =>
             {
-                rabbit.Host(hostName, ushort.Parse(Environment.GetEnvironmentVariable("ST_RABBITMQ_PORT") ?? "5675", System.Globalization.CultureInfo.InvariantCulture), virtualHost, host =>
+                rabbit.Host(hostName, ushort.Parse(Environment.GetEnvironmentVariable("ST_RABBITMQ_PORT") ?? "5675", CultureInfo.InvariantCulture), virtualHost, host =>
                 {
                     host.Username(username);
                     host.Password(password);
@@ -162,12 +165,12 @@ internal sealed class RabbitMqFactAttribute : FactAttribute
     }
 }
 
-internal sealed class TestTenantProvider : ST.Domain.Shared.Contracts.Common.ICurrentTenantProvider
+internal sealed class TestTenantProvider : ICurrentTenantProvider
 {
     public Guid TenantId => Guid.Empty;
 }
 
-internal sealed class TestActorProvider : ST.Domain.Shared.Contracts.Common.ICurrentActorProvider
+internal sealed class TestActorProvider : ICurrentActorProvider
 {
     public string ActorId => "System";
 }

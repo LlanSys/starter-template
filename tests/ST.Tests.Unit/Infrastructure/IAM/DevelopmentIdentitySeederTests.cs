@@ -172,7 +172,7 @@ public sealed class DevelopmentIdentitySeederTests
         public Fixture(DevelopmentSeedSettings settings, params AppUser[] users)
         {
             _context = new IamDBContext(new DbContextOptionsBuilder<IamDBContext>()
-                .UseInMemoryDatabase(Guid.CreateVersion7().ToString()).Options);
+                .UseInMemoryDatabase(Guid.CreateVersion7().ToString()).Options, TimeProvider.System);
             _context.Users.AddRange(users);
             _context.SaveChanges();
             Users = Substitute.For<UserManager<AppUser>>(
@@ -189,7 +189,7 @@ public sealed class DevelopmentIdentitySeederTests
                 Substitute.For<IRoleStore<AppRole>>(), Array.Empty<IRoleValidator<AppRole>>(),
                 new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), NullLogger<RoleManager<AppRole>>.Instance);
             Roles.CreateAsync(Arg.Any<AppRole>()).Returns(IdentityResult.Success);
-            Seeder = new DevelopmentIdentitySeeder(Roles, Users, Options.Create(settings), NullLogger<DevelopmentIdentitySeeder>.Instance);
+            Seeder = new DevelopmentIdentitySeeder(Roles, Users, Options.Create(settings), NullLogger<DevelopmentIdentitySeeder>.Instance, TimeProvider.System);
             Users.ClearReceivedCalls();
             Roles.ClearReceivedCalls();
         }

@@ -12,6 +12,7 @@ using ST.SharedKernel.Features.ControlPlane.Demo;
 using ST.SharedKernel.Features.ControlPlane.Modules.Dtos;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.Tests.Integration.TestFixtures;
+using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos;
 namespace ST.Tests.Integration.ControlPlane;
 
 [Collection("Starter API")]
@@ -26,7 +27,7 @@ public sealed class VendorWorkspaceTests(StarterTemplateWebApplicationFactory fa
         using (var scope = factory.Services.CreateScope())
         {
             var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-            var actor = AppUser.CreateSystemUser(SourceTenant, $"vendor-{Guid.CreateVersion7()}", $"vendor-{Guid.CreateVersion7()}@example.test", "test-actor");
+            var actor = AppUser.CreateSystemUser(DateTimeOffset.UnixEpoch, SourceTenant, $"vendor-{Guid.CreateVersion7()}", $"vendor-{Guid.CreateVersion7()}@example.test", "test-actor");
             actor.IsActive = true; actor.EmailConfirmed = true; actor.TwoFactorEnabled = true;
             Assert.True((await users.CreateAsync(actor)).Succeeded);
             Assert.True((await users.AddClaimsAsync(actor, [new Claim("platform_staff", "true"), new Claim("permission", "control_plane.manage")])).Succeeded);
@@ -42,7 +43,7 @@ public sealed class VendorWorkspaceTests(StarterTemplateWebApplicationFactory fa
         Assert.True(draft!.IsSuccess);
         Assert.False(draft.Data!.IsImplemented);
         using var unavailable = await vendor.PostAsJsonAsync($"/api/v1/control-plane/tenants/{SourceTenant}/modules", new { ModuleKey = moduleKey });
-        Assert.False((await unavailable.Content.ReadFromJsonAsync<AppResponse<ST.SharedKernel.Features.ControlPlane.Tenants.Dtos.TenantResponse>>())!.IsSuccess);
+        Assert.False((await unavailable.Content.ReadFromJsonAsync<AppResponse<TenantResponse>>())!.IsSuccess);
         using var tenantAdmin = Client(actorId, false);
         using var deniedCatalogue = await tenantAdmin.GetAsync("/api/v1/control-plane/modules");
         Assert.Equal(HttpStatusCode.Forbidden, deniedCatalogue.StatusCode);

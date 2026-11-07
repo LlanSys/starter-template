@@ -8,6 +8,8 @@ using ST.Domain.Shared.Contracts.Repositories;
 using ST.Persistence.Common.Repositories;
 using System.Threading;
 using System.Threading.Tasks;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
+using ST.Domain.Features.ControlPlane.Support.Entities;
 
 namespace ST.Persistence.Features.ControlPlane;
 
@@ -15,12 +17,12 @@ public class ControlPlaneUnitOfWork : IControlPlaneUnitOfWork
 {
     private readonly ControlPlaneDBContext _context;
 
-    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant> SupportGrants => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant>(_context);
-    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit> SupportAudit => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit>(_context);
-    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleDefinition> Modules => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleDefinition>(_context);
-    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry> Catalogue => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry>(_context);
-    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag> FeatureFlags => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag>(_context);
-    public ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule> TenantModules => new ST.Persistence.Common.Repositories.Repository<ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule>(_context);
+    public IRepository<SupportGrant> SupportGrants => new Repository<SupportGrant>(_context);
+    public IRepository<SupportAudit> SupportAudit => new Repository<SupportAudit>(_context);
+    public IRepository<ModuleDefinition> Modules => new Repository<ModuleDefinition>(_context);
+    public IRepository<ModuleCatalogueEntry> Catalogue => new Repository<ModuleCatalogueEntry>(_context);
+    public IRepository<ModuleFeatureFlag> FeatureFlags => new Repository<ModuleFeatureFlag>(_context);
+    public IRepository<TenantModule> TenantModules => new Repository<TenantModule>(_context);
     public IRepository<TenantAdministratorInvitation> AdministratorInvitations => new Repository<TenantAdministratorInvitation>(_context);
     public ITenantRepository Tenants { get; }
     public IDeploymentStampRepository DeploymentStamps { get; }

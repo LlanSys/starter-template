@@ -3,6 +3,7 @@ using ST.SharedKernel.Dtos.Common;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 
 namespace ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 
@@ -22,7 +23,7 @@ public interface IAuthService
     Task<AppResponse<VerifyOtpResponse>> VerifyTotpAsync(VerifyOtpRequest request);
     Task<AppResponse<bool>> DisableTotpAsync();
     Task<AppResponse<OtpStatusResponse>> GetTotpStatusAsync(string userId);
-    Task<AppResponse<System.Text.Json.JsonElement>> RequestPasskeyRegistrationOptionsAsync();
+    Task<AppResponse<JsonElement>> RequestPasskeyRegistrationOptionsAsync();
     Task<AppResponse<bool>> RegisterPasskeyAsync(RegisterPasskeyRequest request);
     Task<AppResponse<PasskeyLoginOptionsResponse>> RequestPasskeyLoginOptionsAsync(RequestPasskeyLoginOptionsRequest request);
     Task<AppResponse<LoginResponse>> LoginWithPasskeyAsync(LoginWithPasskeyRequest request);

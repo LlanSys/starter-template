@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Persistence.Features.IAM.DataContext;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace ST.Tests.Unit;
 public sealed class TenantRoleIsolationTests
@@ -33,7 +34,7 @@ public sealed class TenantRoleIsolationTests
         Assert.Equal(firstTenant.TenantId, (await again.Roles.SingleAsync()).TenantId);
     }
     private sealed class TenantProvider(Guid tenantId) : ICurrentTenantProvider { public Guid TenantId => tenantId; }
-    private sealed class RoleTestContext(DbContextOptions<RoleTestContext> options, ICurrentTenantProvider tenant) : IamDBContext(options, tenant)
+    private sealed class RoleTestContext(DbContextOptions<RoleTestContext> options, ICurrentTenantProvider tenant) : IamDBContext(options, TimeProvider.System, tenant)
     {
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -41,7 +42,7 @@ public sealed class TenantRoleIsolationTests
             foreach (var entity in builder.Model.GetEntityTypes())
             {
                 var token = entity.FindProperty("RowVersion");
-                if (token is not null) token.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
+                if (token is not null) token.ValueGenerated = ValueGenerated.Never;
             }
         }
     }

@@ -9,13 +9,15 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ST.Infrastructure.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class UpdateUserPermissions(
     UserManager<AppUser> userManager,
     IamDBContext context,
-    ILogger<UpdateUserPermissions> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
+    ILogger<UpdateUserPermissions> logger, IEffectiveModulePolicy policy)
     : IRequestHandler<UpdateUserPermissionsCommand, AppResponse<UserPermissionsResponse>>
 {
     public async Task<AppResponse<UserPermissionsResponse>> Handle(UpdateUserPermissionsCommand command, CancellationToken cancellationToken)
@@ -44,7 +46,7 @@ internal sealed class UpdateUserPermissions(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
+            validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
             var invalidKeys = requestedKeys.Except(validKeys, StringComparer.OrdinalIgnoreCase).ToList();
             if (invalidKeys.Count > 0)
             {

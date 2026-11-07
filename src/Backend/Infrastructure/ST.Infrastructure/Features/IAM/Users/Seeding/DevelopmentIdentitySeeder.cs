@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 
 namespace ST.Infrastructure.Features.IAM.Users.Seeding;
 
@@ -15,7 +16,8 @@ internal sealed class DevelopmentIdentitySeeder(
     RoleManager<AppRole> roleManager,
     UserManager<AppUser> userManager,
     IOptions<DevelopmentSeedSettings> options,
-    ILogger<DevelopmentIdentitySeeder> logger)
+    ILogger<DevelopmentIdentitySeeder> logger,
+    TimeProvider timeProvider)
 {
     private const string BootstrapSeedActorId = "00000000-0000-0000-0000-000000000001";
     private readonly DevelopmentSeedSettings _settings = options.Value;
@@ -64,11 +66,12 @@ internal sealed class DevelopmentIdentitySeeder(
 
             if (user is null)
             {
-                user = AppUser.CreateSystemUser(_settings.TenantId, userName, email, BootstrapSeedActorId);
+                var now = timeProvider.GetUtcNow();
+                user = AppUser.CreateSystemUser(now, _settings.TenantId, userName, email, BootstrapSeedActorId);
                 user.FirstName = "Administrator";
                 user.IsActive = true;
                 user.EmailConfirmed = true;
-                user.ActivatedAt = DateTimeOffset.UtcNow;
+                user.ActivatedAt = now;
                 user.ActivatedBy = BootstrapSeedActorId;
                 EnsureSucceeded(await userManager.CreateAsync(user, _settings.AdminPassword).ConfigureAwait(false), "create the bootstrap administrator");
             }
@@ -88,9 +91,9 @@ internal sealed class DevelopmentIdentitySeeder(
                 var existingClaims = await userManager.GetClaimsAsync(user).ConfigureAwait(false);
                 var requiredClaims = new[]
                 {
-                    new System.Security.Claims.Claim("platform_staff", "true"),
-                    new System.Security.Claims.Claim("permission", "control_plane.manage"),
-                    new System.Security.Claims.Claim("permission", "control_plane.approve_kyc")
+                    new Claim("platform_staff", "true"),
+                    new Claim("permission", "control_plane.manage"),
+                    new Claim("permission", "control_plane.approve_kyc")
                 };
                 foreach (var claim in requiredClaims)
                 {

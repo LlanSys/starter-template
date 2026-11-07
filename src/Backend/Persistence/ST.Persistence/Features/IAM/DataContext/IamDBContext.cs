@@ -20,9 +20,11 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
     private readonly ICurrentTenantProvider? _tenantProvider;
     private readonly ICurrentActorProvider? _actorProvider;
     private readonly ILogger<IamDBContext>? _logger;
+    internal TimeProvider Clock { get; }
 
     public IamDBContext(
         DbContextOptions<IamDBContext> options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider? tenantProvider = null,
         ICurrentActorProvider? actorProvider = null,
         ILogger<IamDBContext>? logger = null
@@ -31,10 +33,12 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
         _tenantProvider = tenantProvider;
         _actorProvider = actorProvider;
         _logger = logger;
+        Clock = timeProvider;
     }
 
     protected IamDBContext(
         DbContextOptions options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider? tenantProvider = null,
         ICurrentActorProvider? actorProvider = null,
         ILogger<IamDBContext>? logger = null
@@ -43,6 +47,7 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
         _tenantProvider = tenantProvider;
         _actorProvider = actorProvider;
         _logger = logger;
+        Clock = timeProvider;
     }
     public DbSet<AppUserProfile> AppUserProfiles { get; set; }
     public DbSet<AppUserTotpSecret> AppUserTotpSecrets { get; set; }
@@ -98,7 +103,7 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
             var domainEvents = DBContextHelper.CollectDomainEvents(ChangeTracker);
             DBContextHelper.ClearDomainEventsFromAggregates(ChangeTracker);
             DBContextHelper.StampPostgreSqlConcurrency(this);
-            DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId);
+            DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId, Clock.GetUtcNow());
 
             var result = await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

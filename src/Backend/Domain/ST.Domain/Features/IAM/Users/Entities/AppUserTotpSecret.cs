@@ -21,6 +21,7 @@ public class AppUserTotpSecret : BaseEntity, ISoftDeletable
     private AppUserTotpSecret() { }
 
     public static AppUserTotpSecret Create(
+        DateTimeOffset now,
         string appUserId,
         string encryptedSecret,
         string createdBy,
@@ -37,32 +38,32 @@ public class AppUserTotpSecret : BaseEntity, ISoftDeletable
             EncryptedSecret = encryptedSecret,
             IsActive = true,
             ExpiresAt = expiresAt,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
             CreatedBy = createdBy
         };
     }
 
-    public void MarkAsUsed()
+    public void MarkAsUsed(DateTimeOffset now)
     {
-        LastUsedAt = DateTimeOffset.UtcNow;
-        SetUpdatedInfo(AppUserId);
+        LastUsedAt = now;
+        SetUpdatedInfo(AppUserId, now);
     }
 
-    public void Deactivate()
+    public void Deactivate(DateTimeOffset now)
     {
         IsActive = false;
-        SetUpdatedInfo(AppUserId);
+        SetUpdatedInfo(AppUserId, now);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy;
         IsActive = false;
-        SetUpdatedInfo(deletedBy);
+        SetUpdatedInfo(deletedBy, now);
     }
 
     public virtual AppUser AppUser { get; set; } = null!;

@@ -12,10 +12,11 @@ public class IamPostgreSqlDBContext : IamDBContext
 {
     public IamPostgreSqlDBContext(
         DbContextOptions<IamPostgreSqlDBContext> options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider? tenantProvider = null,
         ICurrentActorProvider? actorProvider = null,
         ILogger<IamDBContext>? logger = null)
-        : base(options, tenantProvider, actorProvider, logger)
+        : base(options, timeProvider, tenantProvider, actorProvider, logger)
     {
     }
 

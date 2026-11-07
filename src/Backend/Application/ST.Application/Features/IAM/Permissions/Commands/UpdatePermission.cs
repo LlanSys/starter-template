@@ -7,12 +7,14 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Permissions.Dtos;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 
 namespace ST.Application.Features.IAM.Permissions.Commands;
 
 
 
-internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<UpdatePermissionCommandHandler> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
+internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<UpdatePermissionCommandHandler> logger, IEffectiveModulePolicy policy, TimeProvider timeProvider)
     : IRequestHandler<UpdatePermissionCommand, AppResponse<PermissionResponse>>
 {
     public async Task<AppResponse<PermissionResponse>> Handle(UpdatePermissionCommand command, CancellationToken cancellationToken)
@@ -22,7 +24,7 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
             if (!access.Modules.Contains(command.Request.ModuleKey)) return AppResponses.Failure<PermissionResponse>("Select an enabled module for this permission.");
             var requestedKey = command.Request.Resource.Trim().ToLowerInvariant().Replace(' ', '_') + "." + command.Request.Action.Trim().ToLowerInvariant().Replace(' ', '_');
-            if (requestedKey.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || access.Catalogue.Any(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && x.Key == requestedKey)) return AppResponses.Failure<PermissionResponse>("Standard permissions are managed in the platform module catalogue.");
+            if (requestedKey.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || access.Catalogue.Any(x => x.Kind == ModuleCatalogueKind.Permission && x.Key == requestedKey)) return AppResponses.Failure<PermissionResponse>("Standard permissions are managed in the platform module catalogue.");
             var catalogError = await ValidateCatalogAsync(unitOfWork, command.Request.Context, command.Request.Resource, command.Request.Action, cancellationToken, access)
                 .ConfigureAwait(false);
             if (catalogError is not null)
@@ -55,6 +57,7 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
 
             permission.SetModule(command.Request.ModuleKey);
             permission.Update(
+                timeProvider.GetUtcNow(),
 
                 command.Request.Context,
                 command.Request.Resource,
@@ -82,9 +85,9 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
         string context,
         string resource,
         string action,
-        CancellationToken cancellationToken, ST.Application.Features.ControlPlane.Modules.EffectiveModuleAccess? access = null)
+        CancellationToken cancellationToken, EffectiveModuleAccess? access = null)
     {
-        var standards = access?.Catalogue.Where(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(ST.Application.Features.ControlPlane.Modules.ModuleCatalogueMapping.ToPermissionResponse).ToArray() ?? [];
+        var standards = access?.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(ModuleCatalogueMapping.ToPermissionResponse).ToArray() ?? [];
         var normalizedResource = resource.Trim().ToLowerInvariant().Replace(' ', '_');
         var normalizedAction = action.Trim().ToLowerInvariant().Replace(' ', '_');
         var normalizedContext = context.Trim();

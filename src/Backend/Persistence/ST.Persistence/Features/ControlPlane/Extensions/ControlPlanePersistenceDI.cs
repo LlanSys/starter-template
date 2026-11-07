@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.Reflection;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace ST.Persistence.Features.ControlPlane.Extensions;
 
@@ -36,7 +37,7 @@ public static class ControlPlanePersistenceDI
                     pgOptions.CommandTimeout(30);
                     pgOptions.MigrationsAssembly(Assembly.GetExecutingAssembly().FullName);
                     pgOptions.MigrationsHistoryTable("__EFMigrationsHistory_ControlPlane");
-                }).ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
+                }).ReplaceService<IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
             }
             else
             {
@@ -46,7 +47,7 @@ public static class ControlPlanePersistenceDI
                     sqlOptions.CommandTimeout(30);
                     sqlOptions.MigrationsAssembly(Assembly.GetExecutingAssembly().FullName);
                     sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_ControlPlane");
-                }).ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
+                }).ReplaceService<IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
             }
 
             if (environment?.IsDevelopment() == true || environment?.IsStaging() == true)

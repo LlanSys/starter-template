@@ -8,7 +8,5 @@ public sealed record PaymentCancelledEvent(
     string CustomerReference,
     string Provider,
     Money Amount,
-    string Reason) : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+    string Reason,
+    DateTimeOffset OccurredAt) : IDomainEvent;

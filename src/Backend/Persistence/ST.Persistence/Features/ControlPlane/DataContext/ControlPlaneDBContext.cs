@@ -9,6 +9,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
+using ST.Domain.Features.ControlPlane.Support.Entities;
 
 namespace ST.Persistence.Features.ControlPlane.DataContext;
 
@@ -16,32 +18,37 @@ public class ControlPlaneDBContext : DbContext
 {
     private readonly ICurrentActorProvider? _actorProvider;
     private readonly ILogger<ControlPlaneDBContext>? _logger;
+    internal TimeProvider Clock { get; }
 
     public ControlPlaneDBContext(
         DbContextOptions<ControlPlaneDBContext> options,
+        TimeProvider timeProvider,
         ICurrentActorProvider actorProvider,
         ILogger<ControlPlaneDBContext>? logger = null
     ) : base(options)
     {
         _actorProvider = actorProvider;
         _logger = logger;
+        Clock = timeProvider;
     }
 
     protected ControlPlaneDBContext(
         DbContextOptions options,
+        TimeProvider timeProvider,
         ICurrentActorProvider actorProvider,
         ILogger<ControlPlaneDBContext>? logger = null
     ) : base(options)
     {
         _actorProvider = actorProvider;
         _logger = logger;
+        Clock = timeProvider;
     }
 
-    public DbSet<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleDefinition> ModuleDefinitions { get; set; }
-    public DbSet<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry> ModuleCatalogue { get; set; }
-    public DbSet<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag> ModuleFeatureFlags { get; set; }
-    public DbSet<ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant> SupportGrants { get; set; }
-    public DbSet<ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit> SupportAudit { get; set; }
+    public DbSet<ModuleDefinition> ModuleDefinitions { get; set; }
+    public DbSet<ModuleCatalogueEntry> ModuleCatalogue { get; set; }
+    public DbSet<ModuleFeatureFlag> ModuleFeatureFlags { get; set; }
+    public DbSet<SupportGrant> SupportGrants { get; set; }
+    public DbSet<SupportAudit> SupportAudit { get; set; }
     public DbSet<Tenant> Tenants { get; set; }
     public DbSet<TenantAdministratorInvitation> AdministratorInvitations { get; set; }
     public DbSet<TenantModule> TenantModules { get; set; }
@@ -67,7 +74,7 @@ public class ControlPlaneDBContext : DbContext
         {
             // Note: Control Plane is not tenant-filtered. TenantId is Guid.Empty.
             DBContextHelper.StampPostgreSqlConcurrency(this);
-            DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, Guid.Empty);
+            DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, Guid.Empty, Clock.GetUtcNow());
             return await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (DbUpdateConcurrencyException ex)

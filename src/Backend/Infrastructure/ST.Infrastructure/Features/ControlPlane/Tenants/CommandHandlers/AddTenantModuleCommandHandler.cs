@@ -18,6 +18,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Tenants.CommandHandlers;
 
 public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleCommand, AppResponse<TenantResponse>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<AddTenantModuleCommandHandler> _logger;
     private readonly ICurrentActorProvider _actorProvider;
@@ -25,10 +26,11 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
     public AddTenantModuleCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<AddTenantModuleCommandHandler> logger,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _timeProvider = timeProvider;
         _actorProvider = actorProvider;
     }
 
@@ -57,7 +59,7 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
             {
                 existingModule.IsActive = true;
                 existingModule.ExpiresAt = request.Request.ExpiresAt;
-                existingModule.UpdatedAt = DateTimeOffset.UtcNow;
+                existingModule.UpdatedAt = _timeProvider.GetUtcNow();
                 existingModule.UpdatedBy = _actorProvider.ActorId;
             }
             else

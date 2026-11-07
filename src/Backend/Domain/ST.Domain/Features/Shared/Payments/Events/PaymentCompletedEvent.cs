@@ -8,7 +8,5 @@ public sealed record PaymentCompletedEvent(
     Guid PaymentRecordId,
     string CustomerReference,
     string Provider,
-    Money Amount) : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+    Money Amount,
+    DateTimeOffset OccurredAt) : IDomainEvent;

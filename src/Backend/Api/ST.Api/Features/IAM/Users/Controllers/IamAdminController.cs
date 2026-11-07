@@ -17,6 +17,9 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.SharedKernel.Features.ControlPlane.Modules.Dtos;
+using ST.SharedKernel.Features.ControlPlane;
 
 namespace ST.Api.Features.IAM.Users.Controllers;
 
@@ -166,7 +169,7 @@ public sealed class IamAdminController(ISender sender) : BaseController
     [HttpPost("roles/apply-template")]
     [RequirePermission("roles.manage_permissions")]
     [RequirePermission("roles.create")]
-    public async Task<IActionResult> ApplyRoleTemplate(ST.SharedKernel.Features.ControlPlane.Modules.Dtos.ApplyRoleTemplateRequest request, CancellationToken cancellationToken) => HandleResponse(await sender.Send(new ST.Application.Features.ControlPlane.Modules.ApplyRoleTemplateCommand(request), cancellationToken).ConfigureAwait(false));
+    public async Task<IActionResult> ApplyRoleTemplate(ApplyRoleTemplateRequest request, CancellationToken cancellationToken) => HandleResponse(await sender.Send(new ApplyRoleTemplateCommand(request), cancellationToken).ConfigureAwait(false));
     [RequireModule("iam", "/admin/menus")]
     [HttpDelete("navigation/overrides/{pageKey}")]
     [RequirePermission("menus.edit")]
@@ -269,10 +272,10 @@ public sealed class IamAdminController(ISender sender) : BaseController
             .Select(static claim => claim.Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (!ST.SharedKernel.Features.ControlPlane.PlatformAccess.IsStaff(User)) permissionKeys.RemoveAll(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase));
+        if (!PlatformAccess.IsStaff(User)) permissionKeys.RemoveAll(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase));
         var hasFullAccess = User.IsInRole("System Administrator");
 
-        return HandleResponse(await sender.Send(new GetNavigationMenusQuery(placement, permissionKeys, userId, hasFullAccess, User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value).ToArray())).ConfigureAwait(false));
+        return HandleResponse(await sender.Send(new GetNavigationMenusQuery(placement, permissionKeys, userId, hasFullAccess, User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray())).ConfigureAwait(false));
     }
 
     [RequireModule("iam", "/admin/menus")]

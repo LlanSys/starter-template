@@ -7,5 +7,5 @@ public sealed class SupportAudit
  public string ActorId { get; set; } = "";
  public string Action { get; set; } = "";
  public int? StatusCode { get; set; }
- public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+ public DateTimeOffset CreatedAt { get; set; }
 }

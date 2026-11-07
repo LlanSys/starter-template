@@ -18,7 +18,8 @@ public sealed class CacheInvalidationBehaviorTests
         var behavior = new CacheInvalidationBehavior<TestInvalidationRequest, string>(
             cache,
             new FixedTenantProvider(TenantId),
-            NullLogger<CacheInvalidationBehavior<TestInvalidationRequest, string>>.Instance);
+            NullLogger<CacheInvalidationBehavior<TestInvalidationRequest, string>>.Instance,
+            TimeProvider.System);
 
         var request = new TestInvalidationRequest([CacheKeys.GroupVersion("lookups")]);
 

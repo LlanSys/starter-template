@@ -7,7 +7,4 @@ using System.Text;
 
 namespace ST.Domain.Features.IAM.Users.Events;
 
-public sealed record TotpEnabledEvent(string UserId) : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+public sealed record TotpEnabledEvent(string UserId, DateTimeOffset OccurredAt) : IDomainEvent;

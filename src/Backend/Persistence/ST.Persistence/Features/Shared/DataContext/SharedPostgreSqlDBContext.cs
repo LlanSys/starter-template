@@ -12,10 +12,11 @@ public class SharedPostgreSqlDBContext : SharedDBContext
 {
     public SharedPostgreSqlDBContext(
         DbContextOptions<SharedPostgreSqlDBContext> options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider tenantProvider,
         ICurrentActorProvider actorProvider,
         ILogger<SharedDBContext>? logger = null)
-        : base(options, tenantProvider, actorProvider, logger)
+        : base(options, timeProvider, tenantProvider, actorProvider, logger)
     {
     }
 

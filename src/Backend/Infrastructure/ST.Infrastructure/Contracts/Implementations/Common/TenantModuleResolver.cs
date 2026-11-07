@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using ST.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
+using ST.Application.Features.ControlPlane.Modules;
 
 namespace ST.Infrastructure.Contracts.Implementations.Common;
 
@@ -21,7 +23,7 @@ internal sealed class TenantModuleResolver : ITenantModuleResolver
         ICurrentTenantProvider tenantProvider,
         IMemoryCache cache,
         IServiceProvider serviceProvider,
-        Microsoft.Extensions.Options.IOptions<ST.Infrastructure.Configuration.ShowcaseSettings> showcaseSettings)
+        IOptions<ShowcaseSettings> showcaseSettings)
     {
         _tenantProvider = tenantProvider;
         _serviceProvider = serviceProvider;
@@ -31,7 +33,7 @@ internal sealed class TenantModuleResolver : ITenantModuleResolver
     {
         using var scope = _serviceProvider.CreateScope();
         // The current tenant is request scoped; do not resolve the effective policy in the child scope.
-        var policy = _serviceProvider.GetRequiredService<ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy>();
+        var policy = _serviceProvider.GetRequiredService<IEffectiveModulePolicy>();
         var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
         return access.Modules.ToArray();
     }

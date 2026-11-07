@@ -7,7 +7,7 @@ using ST.Domain.Features.ControlPlane.Support.Entities;
 namespace ST.Api.Middleware;
 internal sealed class SupportSessionMiddleware(RequestDelegate next)
 {
- public async Task InvokeAsync(HttpContext context,ISupportSessionGuard guard,IControlPlaneUnitOfWork plane) {
+ public async Task InvokeAsync(HttpContext context,ISupportSessionGuard guard,IControlPlaneUnitOfWork plane, TimeProvider timeProvider) {
   if(!context.User.HasClaim(x=>x.Type=="support_grant_id")) { await next(context).ConfigureAwait(false);return; }
   var grant=await guard.ValidateAsync(context.User,context.RequestAborted).ConfigureAwait(false);
   if(grant is null) { await Deny(context,"This support session expired or was revoked.").ConfigureAwait(false);return; }
@@ -23,7 +23,7 @@ internal sealed class SupportSessionMiddleware(RequestDelegate next)
   context.User=new ClaimsPrincipal(new ClaimsIdentity(claims,context.User.Identity!.AuthenticationType,ClaimTypes.Name,ClaimTypes.Role));
   context.Items["TrustedWorkspaceProxy"]=true;
   // Persist intent before dispatch. If audit storage fails, no customer action runs.
-  var audit=new SupportAudit { GrantId=grant.Id,WorkspaceId=grant.WorkspaceId,ActorId=grant.VendorId,Action=$"{context.Request.Method} {context.GetEndpoint()?.DisplayName ?? "request"}" };
+  var audit=new SupportAudit { CreatedAt = timeProvider.GetUtcNow(), GrantId=grant.Id,WorkspaceId=grant.WorkspaceId,ActorId=grant.VendorId,Action=$"{context.Request.Method} {context.GetEndpoint()?.DisplayName ?? "request"}" };
   if(audit.Action.Length>400) audit.Action=audit.Action[..400];
   await plane.SupportAudit.CreateAsync(audit,context.RequestAborted).ConfigureAwait(false);await plane.CompleteAsync(context.RequestAborted).ConfigureAwait(false);
   await next(context).ConfigureAwait(false);

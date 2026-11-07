@@ -2,6 +2,7 @@ using ST.Domain.Shared.Contracts.Common;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NetArchTest.Rules;
+using System.Reflection;
 
 namespace ST.Tests.Architecture;
 
@@ -147,9 +148,9 @@ public sealed class PersistenceLayerTests
             .That()
             .Inherit(typeof(DbContext))
             .GetTypes()
-            .SelectMany(t => t.GetProperties(System.Reflection.BindingFlags.Instance |
-                                             System.Reflection.BindingFlags.Public |
-                                             System.Reflection.BindingFlags.DeclaredOnly))
+            .SelectMany(t => t.GetProperties(BindingFlags.Instance |
+                                             BindingFlags.Public |
+                                             BindingFlags.DeclaredOnly))
             .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
             .Select(p => p.PropertyType.GetGenericArguments()[0])
             .Distinct()

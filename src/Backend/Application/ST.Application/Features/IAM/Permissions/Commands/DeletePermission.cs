@@ -4,12 +4,14 @@ using ST.Domain.Features.IAM.Contracts;
 using ST.SharedKernel.Dtos.Common;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 
 namespace ST.Application.Features.IAM.Permissions.Commands;
 
 
 
-internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeletePermissionCommandHandler> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
+internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeletePermissionCommandHandler> logger, IEffectiveModulePolicy policy, TimeProvider timeProvider)
     : IRequestHandler<DeletePermissionCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(DeletePermissionCommand command, CancellationToken cancellationToken)
@@ -23,8 +25,8 @@ internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             }
 
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
-            if (access.Catalogue.Any(x => x.Key == permission.Key && x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission)) return AppResponses.Failure<bool>("Standard permissions are managed in the platform module catalogue.");
-            permission.MarkAsDeleted(command.UserId);
+            if (access.Catalogue.Any(x => x.Key == permission.Key && x.Kind == ModuleCatalogueKind.Permission)) return AppResponses.Failure<bool>("Standard permissions are managed in the platform module catalogue.");
+            permission.MarkAsDeleted(command.UserId, timeProvider.GetUtcNow());
             await unitOfWork.PermissionRepository.UpdateAsync(permission, cancellationToken).ConfigureAwait(false);
             var saved = await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false) > 0;
 

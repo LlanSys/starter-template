@@ -7,14 +7,14 @@ internal static class AccountAccessCleanup
 {
     // Stage all writes on the same IAM context; the caller owns the transaction and commit.
     public static async Task StageAsync(IIamUnitOfWork unitOfWork, string userId, string actorId,
-        string reason, CancellationToken cancellationToken)
+        string reason, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var sessions = await unitOfWork.SessionRepository
             .FindByCondition(session => session.AppUserId == userId && session.IsActive)
             .AsTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
         foreach (var session in sessions)
         {
-            session.Revoke(reason);
+            session.Revoke(now, reason);
             session.UpdatedBy = actorId;
         }
         var tokens = await unitOfWork.TokenRepository
@@ -22,7 +22,7 @@ internal static class AccountAccessCleanup
             .AsTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
         foreach (var token in tokens)
         {
-            token.Revoke(reason);
+            token.Revoke(now, reason);
             token.UpdatedBy = actorId;
         }
     }

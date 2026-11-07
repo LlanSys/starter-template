@@ -100,7 +100,7 @@ public sealed class ExternalSignInTests(StarterTemplateWebApplicationFactory fac
         {
             scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = tenant;
             var manager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-            var user = AppUser.CreateAccount(tenant, $"sso-{tenant:N}", "External", "Account", $"sso-{tenant:N}@example.test", null, "test-vendor");
+            var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, tenant, $"sso-{tenant:N}", "External", "Account", $"sso-{tenant:N}@example.test", null, "test-vendor");
             user.IsActive = true;
             user.EmailConfirmed = true;
             user.TwoFactorEnabled = true;

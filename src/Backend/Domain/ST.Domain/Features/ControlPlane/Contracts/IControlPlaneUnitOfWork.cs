@@ -5,17 +5,19 @@ using ST.Domain.Features.ControlPlane.Tenants.Entities;
 using ST.Domain.Shared.Contracts.Repositories;
 using System.Threading;
 using System.Threading.Tasks;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
+using ST.Domain.Features.ControlPlane.Support.Entities;
 
 namespace ST.Domain.Features.ControlPlane.Contracts;
 
 public interface IControlPlaneUnitOfWork : IDisposable, IAsyncDisposable
 {
-    ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant> SupportGrants { get; }
-    ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit> SupportAudit { get; }
-    ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry> Catalogue { get; }
-    ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleFeatureFlag> FeatureFlags { get; }
-    ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Modules.Entities.ModuleDefinition> Modules { get; }
-    ST.Domain.Shared.Contracts.Repositories.IRepository<ST.Domain.Features.ControlPlane.Tenants.Entities.TenantModule> TenantModules { get; }
+    IRepository<SupportGrant> SupportGrants { get; }
+    IRepository<SupportAudit> SupportAudit { get; }
+    IRepository<ModuleCatalogueEntry> Catalogue { get; }
+    IRepository<ModuleFeatureFlag> FeatureFlags { get; }
+    IRepository<ModuleDefinition> Modules { get; }
+    IRepository<TenantModule> TenantModules { get; }
     IRepository<TenantAdministratorInvitation> AdministratorInvitations { get; }
     ITenantRepository Tenants { get; }
     IDeploymentStampRepository DeploymentStamps { get; }

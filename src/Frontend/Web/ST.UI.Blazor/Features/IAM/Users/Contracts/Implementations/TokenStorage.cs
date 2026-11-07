@@ -21,7 +21,7 @@ internal sealed class TokenStorage(
     private const string RefreshKey = "auth.refresh_token";
     private const string SessionKey = "auth.session_id";
 
-    private static string Key(string name, ST.UI.Blazor.Features.IAM.Users.Models.WorkspaceSelectionInfo? selected) => selected is null ? name : $"{name}.{selected.TenantId:N}";
+    private static string Key(string name, WorkspaceSelectionInfo? selected) => selected is null ? name : $"{name}.{selected.TenantId:N}";
     public async Task<bool> ClearAsync()
     {
         var browserCleared = false;

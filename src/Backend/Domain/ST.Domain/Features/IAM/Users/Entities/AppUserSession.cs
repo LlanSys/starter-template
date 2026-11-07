@@ -31,6 +31,7 @@ public class AppUserSession : BaseEntity, ISoftDeletable
     private AppUserSession() { }
 
     public static AppUserSession Create(
+        DateTimeOffset now,
         Guid id,
         string appUserId,
         string ipAddress,
@@ -42,7 +43,6 @@ public class AppUserSession : BaseEntity, ISoftDeletable
         ArgumentException.ThrowIfNullOrWhiteSpace(appUserId);
         ArgumentException.ThrowIfNullOrWhiteSpace(createdBy);
 
-        var now = DateTimeOffset.UtcNow;
         return new AppUserSession
         {
             Id = id,
@@ -58,56 +58,56 @@ public class AppUserSession : BaseEntity, ISoftDeletable
         };
     }
 
-    public void RefreshAccess(DateTimeOffset expiresAt, string ipAddress, string userAgent)
+    public void RefreshAccess(DateTimeOffset now, DateTimeOffset expiresAt, string ipAddress, string userAgent)
     {
-        LastAccessedAt = DateTimeOffset.UtcNow;
+        LastAccessedAt = now;
         ExpiresAt = expiresAt;
         IpAddress = ipAddress;
         UserAgent = userAgent;
-        SetUpdatedInfo(AppUserId);
+        SetUpdatedInfo(AppUserId, now);
     }
 
-    public void Touch(DateTimeOffset? expiresAt = null)
+    public void Touch(DateTimeOffset now, DateTimeOffset? expiresAt = null)
     {
-        LastAccessedAt = DateTimeOffset.UtcNow;
+        LastAccessedAt = now;
         if (expiresAt.HasValue)
         {
             ExpiresAt = expiresAt.Value;
         }
 
-        SetUpdatedInfo(AppUserId);
+        SetUpdatedInfo(AppUserId, now);
     }
 
-    public void Revoke(string reason)
+    public void Revoke(DateTimeOffset now, string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
         IsActive = false;
         IsRevoked = true;
-        EndedAt = DateTimeOffset.UtcNow;
+        EndedAt = now;
         EndReason = reason;
-        SetUpdatedInfo(AppUserId);
+        SetUpdatedInfo(AppUserId, now);
     }
 
-    public void Expire()
+    public void Expire(DateTimeOffset now)
     {
         IsActive = false;
-        EndedAt = DateTimeOffset.UtcNow;
+        EndedAt = now;
         EndReason = "Session expired";
-        SetUpdatedInfo(AppUserId);
+        SetUpdatedInfo(AppUserId, now);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy;
         IsActive = false;
-        EndedAt ??= DateTimeOffset.UtcNow;
+        EndedAt ??= now;
         EndReason ??= "Soft deleted";
-        SetUpdatedInfo(deletedBy);
+        SetUpdatedInfo(deletedBy, now);
     }
 
     // Navigation

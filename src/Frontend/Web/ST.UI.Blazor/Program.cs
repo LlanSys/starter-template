@@ -23,8 +23,14 @@ using Microsoft.Extensions.Options;
 using MudBlazor;
 using MudBlazor.Services;
 using System.Globalization;
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using ST.SharedKernel.Features.ControlPlane.Modules;
+using ST.UI.Blazor.Features.IAM.Users.State;
+using ST.UI.Blazor.Features.Shared.OrgSettings.Contracts;
+using ST.UI.Blazor.Features.Shared.OrgSettings.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton(TimeProvider.System);
 ConfigurePlatformAssignedPort(builder.WebHost);
 
 UserMessageSanitizer.IsDevelopment = builder.Environment.IsDevelopment();
@@ -43,13 +49,13 @@ builder.Services.AddMudServices();
 
 builder.Services.AddAuthorizationCore(options =>
 {
-    foreach (var path in ST.SharedKernel.Features.ControlPlane.Modules.DeployedModuleManifest.Pages.Keys) options.AddPolicy("Page:" + path, policy => policy.RequireAuthenticatedUser().RequireClaim("page", path));
+    foreach (var path in DeployedModuleManifest.Pages.Keys) options.AddPolicy("Page:" + path, policy => policy.RequireAuthenticatedUser().RequireClaim("page", path));
     foreach (var module in new[] { "core", "iam", "payments", "showcase" }) options.AddPolicy("Module." + module, policy => policy.RequireAuthenticatedUser().RequireClaim("module", module));
     options.AddPolicy("ControlPlane.Manage", policy =>
         policy.RequireClaim("permission", "control_plane.manage").RequireClaim("platform_staff", "true"));
 });
 builder.Services.AddCascadingAuthenticationState();
-builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage>();
+builder.Services.AddScoped<ProtectedSessionStorage>();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
 builder.Services
     .AddOptions<BackendApiSettings>()
@@ -78,11 +84,11 @@ builder.Services.AddScoped<IServerTokenStore, ServerTokenStore>();
 
 builder.Services.AddScoped<IAuthSession, AuthSession>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<ST.UI.Blazor.Features.IAM.Users.State.PasswordRecoveryState>();
+builder.Services.AddScoped<PasswordRecoveryState>();
 builder.Services.AddScoped<IIamAdminService, IamAdminService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IPaymentCheckoutService, PaymentCheckoutService>();
-builder.Services.AddScoped<ST.UI.Blazor.Features.Shared.OrgSettings.Contracts.IOrgSettingsService, ST.UI.Blazor.Features.Shared.OrgSettings.Implementations.OrgSettingsService>();
+builder.Services.AddScoped<IOrgSettingsService, OrgSettingsService>();
 builder.Services.AddSingleton<IAuthenticatorQrCodeService, AuthenticatorQrCodeService>();
 builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IAuditService, AuditService>();

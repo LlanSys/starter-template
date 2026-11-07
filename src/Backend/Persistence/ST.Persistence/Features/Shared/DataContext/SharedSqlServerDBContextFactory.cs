@@ -1,6 +1,8 @@
 using ST.Persistence.Common.DesignTime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Migrations;
+using ST.Persistence.Features.Shared.Migrations.Generators;
 
 namespace ST.Persistence.Features.Shared.DataContext;
 
@@ -14,7 +16,7 @@ public class SharedSqlServerDBContextFactory : IDesignTimeDbContextFactory<Share
 
         optionsBuilder.UseSqlServer(
             connectionString,
-            sqlOptions => DesignTimeConfigurationFactory.ConfigureSqlServer(sqlOptions, "__EFMigrationsHistory_Shared")).ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, ST.Persistence.Features.Shared.Migrations.Generators.IdempotentSqlServerMigrationsSqlGenerator>();
-        return new SharedSqlServerDBContext(optionsBuilder.Options, null!, null!);
+            sqlOptions => DesignTimeConfigurationFactory.ConfigureSqlServer(sqlOptions, "__EFMigrationsHistory_Shared")).ReplaceService<IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
+        return new SharedSqlServerDBContext(optionsBuilder.Options, TimeProvider.System, null!, null!);
     }
 }

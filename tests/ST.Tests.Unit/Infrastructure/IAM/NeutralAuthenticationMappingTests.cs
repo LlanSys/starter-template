@@ -123,13 +123,13 @@ public sealed class NeutralAuthenticationMappingTests
 
     private static AppUser Account()
     {
-        var user = AppUser.CreateAccount(Guid.CreateVersion7(), "username", "first", "last", "mail@example.test", "+254700000000", "actor");
+        var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, Guid.CreateVersion7(), "username", "first", "last", "mail@example.test", "+254700000000", "actor");
 
 
         user.TwoFactorEnabled = true;
         user.RequirePasswordChange = true;
         user.LastLoginAt = DateTimeOffset.UtcNow;
-        user.SetProfilePicture(new Uri("https://private-storage.example.test/private-image"), "actor");
+        user.SetProfilePicture(DateTimeOffset.UnixEpoch, new Uri("https://private-storage.example.test/private-image"), "actor");
         return user;
     }
 

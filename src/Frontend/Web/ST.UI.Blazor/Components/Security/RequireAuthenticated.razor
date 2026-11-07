@@ -1,4 +1,5 @@
 @rendermode InteractiveServer
+@inject TimeProvider Clock
 @inject IAuthSession AuthSession
 @inject NavigationManager Navigation
 @inject ILogger<RequireAuthenticated> Logger
@@ -49,7 +50,7 @@ else if (AuthSession.IsAuthenticated)
 
         try
         {
-            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(12));
+            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(12), Clock);
 
             if (!AuthSession.IsAuthenticated)
             {

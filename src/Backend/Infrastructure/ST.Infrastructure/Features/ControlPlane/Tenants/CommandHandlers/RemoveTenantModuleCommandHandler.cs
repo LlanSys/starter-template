@@ -13,11 +13,13 @@ using ST.Domain.Shared.Contracts.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ST.Domain.Features.ControlPlane.Tenants.Events;
 
 namespace ST.Infrastructure.Features.ControlPlane.Tenants.CommandHandlers;
 
 public class RemoveTenantModuleCommandHandler : IRequestHandler<RemoveTenantModuleCommand, AppResponse<TenantResponse>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<RemoveTenantModuleCommandHandler> _logger;
     private readonly ICurrentActorProvider _actorProvider;
@@ -25,10 +27,11 @@ public class RemoveTenantModuleCommandHandler : IRequestHandler<RemoveTenantModu
     public RemoveTenantModuleCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<RemoveTenantModuleCommandHandler> logger,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _timeProvider = timeProvider;
         _actorProvider = actorProvider;
     }
 
@@ -50,11 +53,12 @@ public class RemoveTenantModuleCommandHandler : IRequestHandler<RemoveTenantModu
 
         if (existingModule != null && existingModule.IsActive)
         {
+            var now = _timeProvider.GetUtcNow();
             existingModule.IsActive = false;
-            existingModule.UpdatedAt = DateTimeOffset.UtcNow;
+            existingModule.UpdatedAt = now;
             existingModule.UpdatedBy = _actorProvider.ActorId;
 
-            tenant.RaiseDomainEvent(new ST.Domain.Features.ControlPlane.Tenants.Events.TenantModuleRevokedDomainEvent(tenant.Id, moduleKey));
+            tenant.RaiseDomainEvent(new TenantModuleRevokedDomainEvent(tenant.Id, moduleKey, now));
 
             await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
             ControlPlaneLogDefinitions.LogTenantModuleRemoved(_logger, moduleKey, tenant.Id);

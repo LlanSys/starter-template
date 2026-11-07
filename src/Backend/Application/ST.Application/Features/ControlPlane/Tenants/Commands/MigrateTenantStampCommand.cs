@@ -20,6 +20,7 @@ public record MigrateTenantStampCommand(
 
 internal sealed partial class MigrateTenantStampCommandHandler : IRequestHandler<MigrateTenantStampCommand, AppResponse<bool>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly IEncryptionService _encryptionService;
     private readonly ILogger<MigrateTenantStampCommandHandler> _logger;
@@ -27,11 +28,12 @@ internal sealed partial class MigrateTenantStampCommandHandler : IRequestHandler
     public MigrateTenantStampCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         IEncryptionService encryptionService,
-        ILogger<MigrateTenantStampCommandHandler> logger)
+        ILogger<MigrateTenantStampCommandHandler> logger, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _encryptionService = encryptionService;
         _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Migrating Tenant {TenantId} to Stamp {StampId}.")]
@@ -53,7 +55,7 @@ internal sealed partial class MigrateTenantStampCommandHandler : IRequestHandler
         tenant.DatabaseConnectionString = _encryptionService.Encrypt(request.NewDatabaseConnectionString);
 
         // Raise domain event so that sessions/caches for this tenant can be invalidated
-        tenant.RaiseDomainEvent(new TenantStampChangedDomainEvent(tenant.Id, oldStampId, request.NewDeploymentStampId));
+        tenant.RaiseDomainEvent(new TenantStampChangedDomainEvent(tenant.Id, oldStampId, request.NewDeploymentStampId, _timeProvider.GetUtcNow()));
 
         await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 

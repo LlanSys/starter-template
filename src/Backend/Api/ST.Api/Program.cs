@@ -27,6 +27,8 @@ using Serilog.Events;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ST.Api.Middleware;
+using ST.Infrastructure.Logging;
 
 // ── Bootstrap logger ─────────────────────────────────────────────────────────
 // Captures startup errors (before the host and appsettings are loaded).
@@ -73,7 +75,7 @@ try
         configuration
             .ReadFrom.Configuration(context.Configuration)
             .ReadFrom.Services(services)
-            .Destructure.With<ST.Infrastructure.Logging.PiiDestructuringPolicy>()
+            .Destructure.With<PiiDestructuringPolicy>()
             .Enrich.FromLogContext()
             .Enrich.WithMachineName()
             .Enrich.WithEnvironmentUserName()
@@ -331,10 +333,10 @@ try
     //app.UsePreAuthMiddleware();
 
     app.UseAuthentication();
-    app.UseMiddleware<ST.Api.Middleware.DemoWorkspaceMiddleware>();
-    app.UseMiddleware<ST.Api.Middleware.SupportSessionMiddleware>();
+    app.UseMiddleware<DemoWorkspaceMiddleware>();
+    app.UseMiddleware<SupportSessionMiddleware>();
 
-    app.UseMiddleware<ST.Api.Middleware.ModuleAvailabilityMiddleware>();
+    app.UseMiddleware<ModuleAvailabilityMiddleware>();
     app.UsePostAuthMiddleware();
 
     app.UseAuthorization();

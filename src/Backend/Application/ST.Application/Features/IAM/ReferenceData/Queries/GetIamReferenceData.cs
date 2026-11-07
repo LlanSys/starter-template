@@ -5,12 +5,14 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.ReferenceData.Dtos;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 
 namespace ST.Application.Features.IAM.ReferenceData.Queries;
 
 
 
-internal sealed class GetIamReferenceDataQueryHandler(IIamUnitOfWork unitOfWork, ILogger<GetIamReferenceDataQueryHandler> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
+internal sealed class GetIamReferenceDataQueryHandler(IIamUnitOfWork unitOfWork, ILogger<GetIamReferenceDataQueryHandler> logger, IEffectiveModulePolicy policy)
     : IRequestHandler<GetIamReferenceDataQuery, AppResponse<IamReferenceDataResponse>>
 {
     public async Task<AppResponse<IamReferenceDataResponse>> Handle(GetIamReferenceDataQuery query, CancellationToken cancellationToken)
@@ -74,7 +76,7 @@ internal sealed class GetIamReferenceDataQueryHandler(IIamUnitOfWork unitOfWork,
                 .ConfigureAwait(false);
 
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
-            var standardPermissions = access.Catalogue.Where(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(ST.Application.Features.ControlPlane.Modules.ModuleCatalogueMapping.ToPermissionResponse).ToArray();
+            var standardPermissions = access.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(ModuleCatalogueMapping.ToPermissionResponse).ToArray();
             contexts = standardPermissions.Select(x => new CatalogOptionResponse(x.Context, x.Context switch { "iam" => "Identity and access", "shared" => "Shared", "platform" => "Platform", _ => x.Context })).Concat(contexts).DistinctBy(x => x.Key).ToList();
             resources = standardPermissions.Select(x => new CatalogOptionResponse(x.Resource, x.Resource, "", x.Context)).Concat(resources).DistinctBy(x => (x.Key, x.ParentKey)).ToList();
             actions = standardPermissions.Select(x => new CatalogOptionResponse(x.Action, x.Action)).Concat(actions).DistinctBy(x => x.Key).ToList();

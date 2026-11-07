@@ -10,5 +10,5 @@ public interface ISoftDeletable
     public DateTimeOffset? DeletedAt { get; set; }
     public string? DeletedBy { get; set; }
 
-    void MarkAsDeleted(string deletedBy);
+    void MarkAsDeleted(string deletedBy, DateTimeOffset now);
 }

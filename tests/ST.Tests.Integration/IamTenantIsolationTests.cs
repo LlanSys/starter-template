@@ -53,7 +53,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
         var actorProvider = new TestActorProvider();
 
         // Seed data acting as tenant 1
-        using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new IamDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             await context.Database.EnsureCreatedAsync();
 
@@ -64,7 +64,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
 
         // Seed data acting as tenant 2
         tenantProvider.TenantId = tenant2;
-        using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new IamDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             var menu2 = MenuItem.Create(null, $"menu-2-{tenant2}", "Menu 2", "Desc 2", "/m2", "icon2", "top", null, null, 2, "test");
             context.MenuItems.Add(menu2);
@@ -73,7 +73,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
 
         // Act - Query as tenant 1
         tenantProvider.TenantId = tenant1;
-        using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new IamDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             var items = await context.MenuItems.ToListAsync();
 
@@ -84,7 +84,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
 
         // Act - Query as tenant 2
         tenantProvider.TenantId = tenant2;
-        using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new IamDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             var items = await context.MenuItems.ToListAsync();
 
@@ -105,7 +105,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
         var actorProvider = new TestActorProvider();
 
         // Seed data acting as tenant 1
-        using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new IamDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             await context.Database.EnsureCreatedAsync();
 
@@ -116,7 +116,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
 
         // Seed data acting as tenant 2
         tenantProvider.TenantId = tenant2;
-        using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new IamDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             var menu2 = MenuItem.Create(null, $"menu-4-{tenant2}", "Menu 4", "Desc 2", "/m4", "icon2", "top", null, null, 2, "test");
             context.MenuItems.Add(menu2);
@@ -125,7 +125,7 @@ public abstract class IamTenantIsolationTests<TFixture> : IClassFixture<TFixture
 
         // Act - Ignore query filters
         tenantProvider.TenantId = tenant1; // Doesn't matter for this query
-        using (var context = new IamDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new IamDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             var items = await context.MenuItems.IgnoreQueryFilters().ToListAsync();
 

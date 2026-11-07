@@ -6,10 +6,11 @@ using ST.SharedKernel.Features.IAM.Users.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers;
 
-internal sealed class GetAdminRoles(RoleManager<AppRole> roleManager, IamDBContext context, ST.Application.Features.IAM.Users.Contracts.Interfaces.IRoleAvailability availability)
+internal sealed class GetAdminRoles(RoleManager<AppRole> roleManager, IamDBContext context, IRoleAvailability availability)
     : IRequestHandler<GetAdminRolesQuery, AppResponse<IReadOnlyList<AdminRoleListResponse>>>
 {
     public async Task<AppResponse<IReadOnlyList<AdminRoleListResponse>>> Handle(GetAdminRolesQuery request, CancellationToken cancellationToken)

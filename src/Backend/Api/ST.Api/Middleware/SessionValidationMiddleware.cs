@@ -9,7 +9,7 @@ using System.Text.Json;
 
 namespace ST.Api.Middleware;
 
-internal sealed class SessionValidationMiddleware(RequestDelegate next, ILogger<SessionValidationMiddleware> logger)
+internal sealed class SessionValidationMiddleware(RequestDelegate next, ILogger<SessionValidationMiddleware> logger, TimeProvider timeProvider)
 {
     public async Task InvokeAsync(HttpContext context, ISessionService sessionService)
     {
@@ -159,7 +159,7 @@ internal sealed class SessionValidationMiddleware(RequestDelegate next, ILogger<
                 message = "Your session has expired or you have been signed in from another location.",
                 code = "SESSION_INVALID",
                 reason = reason,
-                timestamp = DateTimeOffset.UtcNow,
+                timestamp = timeProvider.GetUtcNow(),
                 redirectUrl = "/Auth/SignIn?sessionExpired=true&reason=session_conflict"
             };
 

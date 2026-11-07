@@ -1,9 +1,11 @@
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @rendermode InteractiveServer
+@inject TimeProvider Clock
 @inject IAuthSession AuthSession
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject ILogger<UserProfileMenu> Logger
-@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage WorkspaceStorage
+@inject ProtectedSessionStorage WorkspaceStorage
 
 <div class="account-menu">
     @if (AuthSession.IsAuthenticated)
@@ -79,7 +81,7 @@
 
         try
         {
-            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(8));
+            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(8), Clock);
         }
         catch (TimeoutException ex)
         {

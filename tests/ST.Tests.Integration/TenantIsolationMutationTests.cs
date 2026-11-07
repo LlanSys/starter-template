@@ -36,7 +36,7 @@ public abstract class TenantIsolationMutationTests<TFixture> : IClassFixture<TFi
     public async Task IgnoringQueryFilters_LeaksDataAcrossTenants()
     {
         // Arrange
-        using (var initContext = new IamDBContext(_options))
+        using (var initContext = new IamDBContext(_options, TimeProvider.System))
         {
             await initContext.Database.EnsureCreatedAsync();
         }
@@ -45,7 +45,7 @@ public abstract class TenantIsolationMutationTests<TFixture> : IClassFixture<TFi
         var tenantId2 = Guid.NewGuid();
 
         // Seed data for Tenant 1
-        using (var seedContext1 = new IamDBContext(_options, new TestTenantProvider { TenantId = tenantId1 }))
+        using (var seedContext1 = new IamDBContext(_options, TimeProvider.System, new TestTenantProvider { TenantId = tenantId1 }))
         {
             var menu = MenuItem.Create(null, "menu1", "Tenant 1 Menu", "Desc", "/t1", "icon", "left", null, null, 1, "test");
             menu.TenantId = tenantId1;
@@ -54,7 +54,7 @@ public abstract class TenantIsolationMutationTests<TFixture> : IClassFixture<TFi
         }
 
         // Seed data for Tenant 2
-        using (var seedContext2 = new IamDBContext(_options, new TestTenantProvider { TenantId = tenantId2 }))
+        using (var seedContext2 = new IamDBContext(_options, TimeProvider.System, new TestTenantProvider { TenantId = tenantId2 }))
         {
             var menu = MenuItem.Create(null, "menu2", "Tenant 2 Menu", "Desc", "/t2", "icon", "left", null, null, 1, "test");
             menu.TenantId = tenantId2;
@@ -64,7 +64,7 @@ public abstract class TenantIsolationMutationTests<TFixture> : IClassFixture<TFi
 
         // Act & Assert
         // Tenant 1 should normally only see Tenant 1's data
-        using (var testContext = new IamDBContext(_options, new TestTenantProvider { TenantId = tenantId1 }))
+        using (var testContext = new IamDBContext(_options, TimeProvider.System, new TestTenantProvider { TenantId = tenantId1 }))
         {
             var normallyVisible = await testContext.MenuItems.CountAsync();
             Assert.Equal(1, normallyVisible);

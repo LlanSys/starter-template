@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = "Page:/admin/support")]
 @using ST.SharedKernel.Features.ControlPlane.Support
 @using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using ST.UI.Blazor.Features.ControlPlane.Support.Components
 @inject IBackendApiClient Api
 @inject IDialogService Dialogs
 <PageTitle>Support access | StarterTemplate</PageTitle>
@@ -11,7 +12,7 @@
 <MudPaper Outlined="true" Elevation="0" Class="pa-4 mb-4">
 <MudText Typo="Typo.h6">Approve support access</MudText>
 <MudText Class="my-2">@_selected.Reason</MudText>
-<ST.UI.Blazor.Features.IAM.Menus.Components.MenuAccessPicker Label="Approved permissions" Options="_selected.PermissionKeys" @bind-Values="_permissions" />
+<MenuAccessPicker Label="Approved permissions" Options="_selected.PermissionKeys" @bind-Values="_permissions" />
 <MudNumericField T="int" @bind-Value="_minutes" Label="Minutes" Min="5" Max="_selected.DurationMinutes" Variant="Variant.Outlined" Margin="Margin.Dense" />
 <MudSwitch T="bool" @bind-Value="_readOnly" Disabled="_selected.ReadOnly" Label="Read-only" Color="Color.Primary" />
 <MudButton OnClick="ApproveAsync" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Disabled="_busy">Approve</MudButton><MudButton OnClick="@(()=>_selected=null)" Size="Size.Small">Cancel</MudButton>
@@ -25,7 +26,7 @@
 @if(context.Status is "Pending" or "Approved") { <MudTooltip Text="Revoke access"><MudIconButton OnClick="@(()=>RevokeAsync(context))" Icon="@Icons.Material.Filled.Block" Size="Size.Small" aria-label="Revoke support access" /></MudTooltip> }
 </MudTd></RowTemplate><NoRecordsContent>No support requests.</NoRecordsContent><PagerContent><MudTablePager /></PagerContent>
 </MudTable>
-@if(_auditFor is { } auditId) { <ST.UI.Blazor.Features.ControlPlane.Support.Components.SupportAuditListing GrantId="auditId" Platform="false" /> }
+@if(_auditFor is { } auditId) { <SupportAuditListing GrantId="auditId" Platform="false" /> }
 @code {
  private Guid? _auditFor;
  private IReadOnlyList<SupportGrantResponse> _grants=[];private SupportGrantResponse? _selected;private IReadOnlyList<string> _permissions=[];private int _minutes;private bool _readOnly=true,_busy;private string? _message;

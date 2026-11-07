@@ -41,7 +41,7 @@ internal sealed class TenantInfrastructureChangedEventHandlers :
         await RevokeAllTenantSessionsAsync(notification.TenantId, cancellationToken);
     }
 
-    private async Task RevokeAllTenantSessionsAsync(System.Guid tenantId, CancellationToken cancellationToken)
+    private async Task RevokeAllTenantSessionsAsync(Guid tenantId, CancellationToken cancellationToken)
     {
         var users = await _iamUnitOfWork.UserRepository.FindAll()
             .Where(u => u.TenantId == tenantId && u.IsActive)

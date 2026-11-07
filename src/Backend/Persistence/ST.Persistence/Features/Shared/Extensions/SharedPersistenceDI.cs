@@ -21,6 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Reflection;
 using ST.Persistence.Common.Interceptors;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace ST.Persistence.Features.Shared.Extensions;
 
@@ -47,7 +48,7 @@ public static class SharedPersistenceDI
                     pgOptions.CommandTimeout(30);
                     pgOptions.MigrationsAssembly(Assembly.GetExecutingAssembly().FullName);
                     pgOptions.MigrationsHistoryTable("__EFMigrationsHistory_Shared");
-                }).ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
+                }).ReplaceService<IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
             }
             else
             {
@@ -57,7 +58,7 @@ public static class SharedPersistenceDI
                     sqlOptions.CommandTimeout(30);
                     sqlOptions.MigrationsAssembly(Assembly.GetExecutingAssembly().FullName);
                     sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Shared");
-                }).ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
+                }).ReplaceService<IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
             }
 
             // Enable sensitive data logging only in non-production environments for diagnostics

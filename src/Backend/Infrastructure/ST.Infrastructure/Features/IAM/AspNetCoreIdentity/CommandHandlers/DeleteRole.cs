@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
-internal sealed class DeleteRole(RoleManager<AppRole> roleManager, IamDBContext context, ILogger<DeleteRole> logger)
+internal sealed class DeleteRole(RoleManager<AppRole> roleManager, IamDBContext context, ILogger<DeleteRole> logger, TimeProvider timeProvider)
     : IRequestHandler<DeleteRoleCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(DeleteRoleCommand command, CancellationToken cancellationToken)
@@ -43,7 +43,7 @@ internal sealed class DeleteRole(RoleManager<AppRole> roleManager, IamDBContext 
                 return AppResponses.Failure<bool>($"Role cannot be deleted because it has {permissionCount} permission claim(s). Remove permissions first.");
             }
 
-            role.MarkAsDeleted(command.DeletedBy);
+            role.MarkAsDeleted(command.DeletedBy, timeProvider.GetUtcNow());
             var result = await roleManager.UpdateAsync(role).ConfigureAwait(false);
 
             return result.Succeeded

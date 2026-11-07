@@ -26,6 +26,9 @@ using System.Collections.ObjectModel;
 using System.IdentityModel.Tokens.Jwt;
 
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.AspNetCore.WebUtilities;
+using StoredRefreshToken = ST.Domain.Features.IAM.Users.Entities.RefreshToken;
+using System.Security.Claims;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
@@ -58,7 +61,7 @@ internal sealed class LoginWithPasskey(
                 || !command.AssertionResponse.TryGetProperty("id", out var id)
                 || id.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(id.GetString()) || id.GetString()!.Length > 2048)
                 return AppResponses.Failure<LoginResponse>("Invalid assertion response.");
-            credentialIdBytes = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(id.GetString()!);
+            credentialIdBytes = WebEncoders.Base64UrlDecode(id.GetString()!);
             if (credentialIdBytes.Length == 0) return AppResponses.Failure<LoginResponse>("Invalid assertion response.");
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException or FormatException or InvalidOperationException)
@@ -68,7 +71,7 @@ internal sealed class LoginWithPasskey(
         }
 
         AppUser? user = null;
-        ST.Domain.Features.IAM.Users.Entities.Fido2Credential? credential = null;
+        Fido2Credential? credential = null;
 
         if (!string.IsNullOrWhiteSpace(command.Username))
         {
@@ -141,18 +144,20 @@ internal sealed class LoginWithPasskey(
 
         var activeSessionId = sessionCreationResult.Data;
         var userClaims = await claimsService.GetUserClaimsAsync(user, activeSessionId).ConfigureAwait(false);
-        userClaims.Add(new System.Security.Claims.Claim("amr", "mfa"));
+        userClaims.Add(new Claim("amr", "mfa"));
             var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
         var refreshToken = jwtService.CreateRefreshToken();
 
-        var refreshTokenEntity = ST.Domain.Features.IAM.Users.Entities.RefreshToken.Create(
+        var now = timeProvider.GetUtcNow();
+        var refreshTokenEntity = StoredRefreshToken.Create(
+            now,
             user.Id,
             refreshToken,
-            timeProvider.GetUtcNow().AddHours(_jwtSettings.RefreshTokenExpiryHours),
+            now.AddHours(_jwtSettings.RefreshTokenExpiryHours),
             user.Id,
             httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString());
 
-        user.RecordSuccessfulLogin();
+        user.RecordSuccessfulLogin(now);
         await userManager.UpdateAsync(user).ConfigureAwait(false);
 
         await iamUnitOfWork.ExecuteInTransactionWithRetryAsync(async () =>

@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.Tests.Integration.TestFixtures;
+using Microsoft.AspNetCore.WebUtilities;
+using OtpNet;
 
 namespace ST.Tests.Integration.ApiTests;
 
@@ -41,7 +43,7 @@ public sealed class IndependentAccountEmailLifecycleTests(StarterTemplateWebAppl
         string body = await ReadEmailAsync(mail, "Your account invitation", email);
         Assert.DoesNotContain("InitialPassword42!", body, StringComparison.Ordinal);
         var link = new Uri(WebUtility.HtmlDecode(Regex.Match(body, "href=\"([^\"]+)\"").Groups[1].Value));
-        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(link.Query);
+        var query = QueryHelpers.ParseQuery(link.Query);
         var setup = new AcceptAccountInvitationRequest(id, query["token"].ToString(), password, password);
         using var accepted = await anonymous.PostAsJsonAsync("/api/v1/iam/auth/invitation/accept", setup);
         accepted.EnsureSuccessStatusCode();
@@ -88,7 +90,7 @@ public sealed class IndependentAccountEmailLifecycleTests(StarterTemplateWebAppl
         enrollment.EnsureSuccessStatusCode();
         var enrollmentResult = await enrollment.Content.ReadFromJsonAsync<AppResponse<TwoFactorSetupInfo>>();
         Assert.True(enrollmentResult!.IsSuccess, enrollmentResult.Message);
-        var authenticator = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(enrollmentResult.Data!.ManualEntryKey));
+        var authenticator = new Totp(Base32Encoding.ToBytes(enrollmentResult.Data!.ManualEntryKey));
         using var enrolled = await signedIn.PostAsJsonAsync("/api/v1/iam/users/totp/verify",
             new VerifyOtpRequest { UserId = id, Code = authenticator.ComputeTotp(), DeviceFingerprint = "certification" });
         enrolled.EnsureSuccessStatusCode();

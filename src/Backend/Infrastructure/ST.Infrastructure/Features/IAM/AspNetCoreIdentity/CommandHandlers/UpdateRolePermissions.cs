@@ -9,13 +9,15 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ST.Infrastructure.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class UpdateRolePermissions(
     RoleManager<AppRole> roleManager,
     IamDBContext context,
-    ILogger<UpdateRolePermissions> logger, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
+    ILogger<UpdateRolePermissions> logger, IEffectiveModulePolicy policy)
     : IRequestHandler<UpdateRolePermissionsCommand, AppResponse<RolePermissionsResponse>>
 {
     public async Task<AppResponse<RolePermissionsResponse>> Handle(UpdateRolePermissionsCommand command, CancellationToken cancellationToken)
@@ -45,7 +47,7 @@ internal sealed class UpdateRolePermissions(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
+            validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
             var invalidKeys = requestedKeys
                 .Except(validKeys, StringComparer.OrdinalIgnoreCase)
                 .ToList();

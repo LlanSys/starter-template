@@ -295,7 +295,7 @@ internal sealed class AdministratorInvitationService(
 
     private static AppUser NewAccount(TenantAdministratorInvitation invitation, DateTimeOffset now)
     {
-        var account = AppUser.CreateAccount(invitation.TenantId, invitation.Email, invitation.FirstName,
+        var account = AppUser.CreateAccount(now, invitation.TenantId, invitation.Email, invitation.FirstName,
             invitation.LastName, invitation.Email, null, invitation.CreatedBy);
         account.Id = invitation.ClaimedUserId ?? account.Id;
         account.IsActive = true;

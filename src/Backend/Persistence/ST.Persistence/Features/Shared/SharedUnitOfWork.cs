@@ -22,7 +22,7 @@ public sealed class SharedUnitOfWork(
     IOrgSettingRepository OrgSettingRepository,
     IPublisher publisher,
     ILogger<SharedUnitOfWork> logger
-) : BaseUnitOfWork<SharedDBContext>(context, publisher, logger), ISharedUnitOfWork
+) : BaseUnitOfWork<SharedDBContext>(context, publisher, logger, context.Clock), ISharedUnitOfWork
 {
     private readonly SharedDBContext _sharedContext = context;
     private readonly IPublisher _publisher = publisher;

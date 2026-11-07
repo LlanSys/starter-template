@@ -17,7 +17,7 @@ public sealed class PasskeyServiceTests
         ServerDomain = "localhost",
         ServerName = "Test",
         Origins = new HashSet<string> { "https://localhost" }
-    }), Substitute.For<IIamUnitOfWork>(), Substitute.For<ICurrentTenantProvider>());
+    }), Substitute.For<IIamUnitOfWork>(), Substitute.For<ICurrentTenantProvider>(), TimeProvider.System);
 
     [Fact]
     public async Task RegistrationOptions_PreserveUserAndExcludeExistingCredential()

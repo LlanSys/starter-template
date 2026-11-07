@@ -34,7 +34,7 @@ public sealed class MenuRoute : ReferenceCatalogEntity
         };
     }
 
-    public void Update(string label, string url, string placementKey, string description, bool isActive, string updatedBy)
+    public void Update(DateTimeOffset now, string label, string url, string placementKey, string description, bool isActive, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
@@ -47,6 +47,6 @@ public sealed class MenuRoute : ReferenceCatalogEntity
         PlacementKey = placementKey.Trim();
         Description = description.Trim();
         IsActive = isActive;
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 }

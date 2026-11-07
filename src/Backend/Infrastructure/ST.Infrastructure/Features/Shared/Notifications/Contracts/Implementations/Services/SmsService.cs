@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Twilio.Rest.Api.V2010.Account;
+using Twilio.Types;
 
 namespace ST.Infrastructure.Features.Shared.Notifications.Contracts.Implementations.Services;
 
@@ -41,8 +42,8 @@ internal sealed class SmsService(
             // Twilio's MessageResource.CreateAsync returns a MessageResource object
             var result = await MessageResource.CreateAsync(
                 body: message,
-                from: new Twilio.Types.PhoneNumber(twilioConfig.FromNumber),
-                to: new Twilio.Types.PhoneNumber(formattedNumber)
+                from: new PhoneNumber(twilioConfig.FromNumber),
+                to: new PhoneNumber(formattedNumber)
 
             ).ConfigureAwait(false);
 

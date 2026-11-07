@@ -9,7 +9,7 @@ public sealed class ModuleFeatureFlag : IAuditable
     public required string Key { get; set; }
     public required string Name { get; set; }
     public bool IsEnabled { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }

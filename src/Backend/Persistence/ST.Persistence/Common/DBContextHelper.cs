@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
 using System.Linq.Expressions;
+using System.Reflection;
+using System.Security.Cryptography;
 
 namespace ST.Persistence.Common;
 
@@ -82,15 +84,13 @@ internal static class DBContextHelper
         {
             var property = entry.Metadata.FindProperty(nameof(BaseEntity.RowVersion));
             if (property is not null)
-                entry.Property(property.Name).CurrentValue = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+                entry.Property(property.Name).CurrentValue = RandomNumberGenerator.GetBytes(16);
         }
     }
 
-    public static void UpdateAuditAndSoftDelete(ChangeTracker changeTracker, string userId, Guid tenantId)
+    public static void UpdateAuditAndSoftDelete(ChangeTracker changeTracker, string userId, Guid tenantId, DateTimeOffset now)
     {
         StampTenantIds(changeTracker, tenantId);
-
-        var now = DateTimeOffset.UtcNow;
 
         foreach (var entry in changeTracker.Entries<IAuditable>())
         {
@@ -170,7 +170,7 @@ internal static class DBContextHelper
         if (HasTenantId(entityType))
         {
             var tenantFilter = (LambdaExpression)typeof(DBContextHelper)
-                .GetMethod(nameof(CreateTenantFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                .GetMethod(nameof(CreateTenantFilter), BindingFlags.NonPublic | BindingFlags.Static)!
                 .MakeGenericMethod(entityClrType, typeof(TContext))
                 .Invoke(null, [context])!;
 

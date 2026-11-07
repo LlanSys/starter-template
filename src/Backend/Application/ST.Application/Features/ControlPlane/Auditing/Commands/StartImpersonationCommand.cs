@@ -32,7 +32,8 @@ internal sealed class StartImpersonationCommandHandler(
             return AppResponses.Failure<ImpersonationRecordResponse>("Tenant not found");
         }
 
-        var expiryTime = timeProvider.GetUtcNow().AddHours(request.DurationHours);
+        var now = timeProvider.GetUtcNow();
+        var expiryTime = now.AddHours(request.DurationHours);
         var actorName = actorProvider.ActorId;
 
         var record = new ImpersonationRecord
@@ -42,6 +43,7 @@ internal sealed class StartImpersonationCommandHandler(
             TargetTenantId = tenant.Id,
             TargetTenantName = tenant.DisplayName,
             Reason = request.Reason,
+            StartTime = now,
             ExpiryTime = expiryTime,
             Status = ImpersonationRecordStatus.Active,
             CreatedBy = actorProvider.ActorId

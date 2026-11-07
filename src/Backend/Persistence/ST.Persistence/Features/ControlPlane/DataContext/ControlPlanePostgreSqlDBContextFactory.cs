@@ -1,6 +1,8 @@
 using ST.Persistence.Common.DesignTime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Migrations;
+using ST.Persistence.Features.Shared.Migrations.Generators;
 
 namespace ST.Persistence.Features.ControlPlane.DataContext;
 
@@ -14,7 +16,7 @@ public class ControlPlanePostgreSqlDBContextFactory : IDesignTimeDbContextFactor
 
         optionsBuilder.UseNpgsql(
             connectionString,
-            pgOptions => DesignTimeConfigurationFactory.ConfigurePostgreSql(pgOptions, "__EFMigrationsHistory_ControlPlane")).ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, ST.Persistence.Features.Shared.Migrations.Generators.IdempotentNpgsqlMigrationsSqlGenerator>();
-        return new ControlPlanePostgreSqlDBContext(optionsBuilder.Options);
+            pgOptions => DesignTimeConfigurationFactory.ConfigurePostgreSql(pgOptions, "__EFMigrationsHistory_ControlPlane")).ReplaceService<IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
+        return new ControlPlanePostgreSqlDBContext(optionsBuilder.Options, TimeProvider.System);
     }
 }

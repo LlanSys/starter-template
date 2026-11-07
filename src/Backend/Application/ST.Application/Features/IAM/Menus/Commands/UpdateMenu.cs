@@ -7,12 +7,13 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Menus.Dtos;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.SharedKernel.Features.IAM.Menus;
 
 namespace ST.Application.Features.IAM.Menus.Commands;
 
 
 
-internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<UpdateMenuCommandHandler> logger, IEffectiveNavigation navigation)
+internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<UpdateMenuCommandHandler> logger, IEffectiveNavigation navigation, TimeProvider timeProvider)
     : IRequestHandler<UpdateMenuCommand, AppResponse<MenuResponse>>
 {
     public async Task<AppResponse<MenuResponse>> Handle(UpdateMenuCommand command, CancellationToken cancellationToken)
@@ -59,6 +60,7 @@ internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
 
 
             menu.Update(
+                timeProvider.GetUtcNow(),
                 request.ParentId,
 
                 menu.Key, // Prevent key change on update
@@ -104,7 +106,7 @@ internal sealed class UpdateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
             return $"Menu placement '{placement}' is not registered.";
         }
 
-        var iconExists = ST.SharedKernel.Features.IAM.Menus.MaterialIconKeys.Contains(icon)
+        var iconExists = MaterialIconKeys.Contains(icon)
             || await unitOfWork.MenuIconRepository
             .AnyAsync(item => item.IsActive && item.Key == icon.Trim(), cancellationToken)
             .ConfigureAwait(false);

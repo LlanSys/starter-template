@@ -10,9 +10,5 @@ namespace ST.Domain.Features.IAM.Users.Events;
 public sealed record PasswordResetSuccessEvent(
     string UserId,
     string Email,
-    string FullName
-
-) : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+    string FullName,
+    DateTimeOffset OccurredAt) : IDomainEvent;

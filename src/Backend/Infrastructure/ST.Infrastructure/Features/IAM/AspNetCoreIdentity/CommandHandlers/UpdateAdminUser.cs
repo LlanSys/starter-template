@@ -17,7 +17,7 @@ internal sealed class UpdateAdminUser(
     RoleManager<AppRole> roleManager,
     IIamUnitOfWork iamUnitOfWork,
     ICurrentTenantProvider tenantProvider,
-    ILogger<UpdateAdminUser> logger) : IRequestHandler<UpdateAdminUserCommand, AppResponse<AdminUserListResponse>>
+    ILogger<UpdateAdminUser> logger, TimeProvider timeProvider) : IRequestHandler<UpdateAdminUserCommand, AppResponse<AdminUserListResponse>>
 {
     public async Task<AppResponse<AdminUserListResponse>> Handle(UpdateAdminUserCommand command, CancellationToken cancellationToken)
     {
@@ -41,7 +41,8 @@ internal sealed class UpdateAdminUser(
             return await iamUnitOfWork.ExecuteInTransactionAsync(async () =>
             {
                 var request = command.Request;
-                user.UpdateAdminProfile(request.UserName, request.Email, request.FirstName, request.LastName,
+                var now = timeProvider.GetUtcNow();
+                user.UpdateAdminProfile(now, request.UserName, request.Email, request.FirstName, request.LastName,
                     request.PhoneNumber, command.UpdatedBy);
                 EnsureSucceeded(await userManager.UpdateAsync(user).ConfigureAwait(false), "The user profile could not be updated. Check the account details.");
 
@@ -58,7 +59,7 @@ internal sealed class UpdateAdminUser(
                     EnsureSucceeded(await userManager.AddToRolesAsync(user, rolesToAdd).ConfigureAwait(false), "The requested role changes could not be saved.");
                 }
 
-                var profile = AppUserProfile.Create(user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UpdatedBy);
+                var profile = AppUserProfile.Create(now, user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UpdatedBy);
                 await iamUnitOfWork.AppUserProfileRepository.CreateOrUpdateAsync(user.Id, profile, cancellationToken).ConfigureAwait(false);
                 await iamUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);

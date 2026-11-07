@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using ST.Domain.Features.IAM.Menus.Entities;
 using ST.Persistence.Features.IAM.DataContext;
+using Microsoft.EntityFrameworkCore.Metadata;
+using ST.Domain.Shared.Contracts.Common;
 
 namespace ST.Tests.Unit;
 
@@ -66,8 +68,8 @@ public sealed class MenuVisibilityTests
     public void BothProvidersGenerateAdditiveVisibilityMigration(bool postgres)
     {
         using DbContext context = postgres
-            ? new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql("Host=localhost;Database=test;Username=test;Password=test").Options)
-            : new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer("Server=localhost;Database=test;Integrated Security=true;TrustServerCertificate=true").Options);
+            ? new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql("Host=localhost;Database=test;Username=test;Password=test").Options, TimeProvider.System)
+            : new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer("Server=localhost;Database=test;Integrated Security=true;TrustServerCertificate=true").Options, TimeProvider.System);
         var migrations = context.GetService<IMigrationsAssembly>().Migrations;
         var target = migrations.Keys.Single(key => key.EndsWith("MenuVisibility", StringComparison.Ordinal));
         var previous = migrations.Keys.Order(StringComparer.Ordinal).Last(key => string.CompareOrdinal(key, target) < 0);
@@ -76,7 +78,7 @@ public sealed class MenuVisibilityTests
         Assert.Contains("RequiredRoleNames", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("DROP TABLE", sql, StringComparison.OrdinalIgnoreCase);
     }
-    private sealed class SqliteIamDBContext(DbContextOptions<SqliteIamDBContext> options) : IamDBContext(options, new TestTenant())
+    private sealed class SqliteIamDBContext(DbContextOptions<SqliteIamDBContext> options) : IamDBContext(options, TimeProvider.System, new TestTenant())
     {
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -84,11 +86,11 @@ public sealed class MenuVisibilityTests
             foreach (var entity in builder.Model.GetEntityTypes())
             {
                 var token = entity.FindProperty("RowVersion");
-                if (token is not null) token.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
+                if (token is not null) token.ValueGenerated = ValueGenerated.Never;
             }
         }
     }
-    private sealed class TestTenant : ST.Domain.Shared.Contracts.Common.ICurrentTenantProvider
+    private sealed class TestTenant : ICurrentTenantProvider
     {
         public Guid TenantId { get; } = Guid.Parse("018fd81d-2c94-7ad0-a4a3-f1edb9c10001");
     }

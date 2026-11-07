@@ -1,12 +1,15 @@
 @using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
-@inject ST.UI.Blazor.Features.IAM.Users.Implementations.WorkspaceSelection WorkspaceSelection
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@using ST.UI.Blazor.Features.Shared.BackendApi
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject WorkspaceSelection WorkspaceSelection
 @inject NavigationManager Navigation
 @page "/iam/accept-invitation"
 @layout AuthLayout
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
-@inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient ApiClient
-@inject Microsoft.Extensions.Options.IOptions<ST.UI.Blazor.Configuration.BackendApiSettings> ApiSettings
+@inject IBackendApiClient ApiClient
+@inject IOptions<BackendApiSettings> ApiSettings
 
 <PageTitle>Account setup | StarterTemplate</PageTitle>
 <HeadContent><meta name="referrer" content="no-referrer" /></HeadContent>
@@ -85,7 +88,7 @@
         try
         {
             var response = await ApiClient.SendAsync<bool>(HttpMethod.Post,
-                ST.UI.Blazor.Features.Shared.BackendApi.EndpointFormatter.Format(ApiSettings.Value.Endpoints.Iam.Auth.AcceptInvitation, ApiSettings.Value.Version),
+                EndpointFormatter.Format(ApiSettings.Value.Endpoints.Iam.Auth.AcceptInvitation, ApiSettings.Value.Version),
                 new AcceptAccountInvitationRequest(UserId, Token, _password, _confirmPassword), requiresAuthentication: false,
                 unavailableMessage: "Account setup is unavailable. Please try again.");
             _completed = response.IsSuccess;

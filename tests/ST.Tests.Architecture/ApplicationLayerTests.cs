@@ -4,6 +4,7 @@ using NetArchTest.Rules;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using FluentValidation;
 
 namespace ST.Tests.Architecture;
 
@@ -107,7 +108,7 @@ public sealed class ApplicationLayerTests
     {
         var result = Types.InAssembly(AssemblyReferences.Application)
             .That()
-            .Inherit(typeof(FluentValidation.AbstractValidator<>))
+            .Inherit(typeof(AbstractValidator<>))
             .Should()
             .HaveNameEndingWith("Validator")
             .GetResult();

@@ -1,6 +1,8 @@
 using ST.Persistence.Common.DesignTime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Migrations;
+using ST.Persistence.Features.Shared.Migrations.Generators;
 
 namespace ST.Persistence.Features.IAM.DataContext;
 
@@ -14,7 +16,7 @@ public class IamPostgreSqlDBContextFactory : IDesignTimeDbContextFactory<IamPost
 
         optionsBuilder.UseNpgsql(
             connectionString,
-            pgOptions => DesignTimeConfigurationFactory.ConfigurePostgreSql(pgOptions, "__EFMigrationsHistory_IAM")).ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, ST.Persistence.Features.Shared.Migrations.Generators.IdempotentNpgsqlMigrationsSqlGenerator>();
-        return new IamPostgreSqlDBContext(optionsBuilder.Options);
+            pgOptions => DesignTimeConfigurationFactory.ConfigurePostgreSql(pgOptions, "__EFMigrationsHistory_IAM")).ReplaceService<IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
+        return new IamPostgreSqlDBContext(optionsBuilder.Options, TimeProvider.System);
     }
 }

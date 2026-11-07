@@ -11,7 +11,7 @@ using System.Text;
 
 namespace ST.Infrastructure.Contracts.Implementations.Caching;
 
-internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheService> logger) : ICacheService
+internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheService> logger, TimeProvider timeProvider) : ICacheService
 {
     private static readonly ActivitySource CacheActivity = new("ST.Cache");
 
@@ -30,7 +30,7 @@ internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheS
             activity?.SetTag("cache.expiration.seconds", expiration.Value.TotalSeconds);
         }
 
-        var start = Stopwatch.GetTimestamp();
+        var start = timeProvider.GetTimestamp();
 
         try
         {
@@ -48,7 +48,7 @@ internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheS
                 options,
                 cancellationToken: ct).ConfigureAwait(false);
 
-            var elapsedMs = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            var elapsedMs = timeProvider.GetElapsedTime(start).TotalMilliseconds;
             activity?.SetTag("cache.latency.ms", elapsedMs);
 
             return result;

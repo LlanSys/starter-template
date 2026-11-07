@@ -11,7 +11,8 @@ namespace ST.Persistence.Common;
 public abstract class BaseUnitOfWork<TContext>(
     TContext context,
     IPublisher publisher,
-    ILogger logger
+    ILogger logger,
+    TimeProvider timeProvider
 ) where TContext : DbContext
 {
     protected TContext Context { get; } = context;
@@ -72,7 +73,7 @@ public abstract class BaseUnitOfWork<TContext>(
                     PersistenceLogDefinitions.LogTransactionConcurrencyRetry(_logger, attempt, maxRetries, ex);
                     await transaction.RollbackAsync().ConfigureAwait(false);
                     Context.ChangeTracker.Clear();
-                    await Task.Delay(TimeSpan.FromMilliseconds(baseDelayMs * attempt)).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromMilliseconds(baseDelayMs * attempt), timeProvider).ConfigureAwait(false);
                     continue;
                 }
                 catch (Exception ex)

@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Globalization;
 
 namespace ST.Api.Health;
 
@@ -26,7 +27,7 @@ internal sealed class SqlServerHealthCheck(IConfiguration configuration) : IHeal
             command.CommandTimeout = 5;
 
             var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-            return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture) == 1
+            return Convert.ToInt32(result, CultureInfo.InvariantCulture) == 1
                 ? HealthCheckResult.Healthy("SQL Server is reachable.")
                 : HealthCheckResult.Unhealthy("SQL Server probe returned an unexpected result.");
         }

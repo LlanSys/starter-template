@@ -22,7 +22,8 @@ internal sealed class RegisterPasskey(
     IUserContextService userContext,
     UserManager<AppUser> userManager,
     IIamUnitOfWork unitOfWork,
-    ILogger<RegisterPasskey> logger) : IRequestHandler<RegisterPasskeyCommand, AppResponse<bool>>
+    ILogger<RegisterPasskey> logger,
+    TimeProvider timeProvider) : IRequestHandler<RegisterPasskeyCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(RegisterPasskeyCommand request, CancellationToken cancellationToken)
     {
@@ -41,7 +42,7 @@ internal sealed class RegisterPasskey(
         }
 
         var originalOptionsStr = await unitOfWork.PasskeyChallengeRepository.ConsumeAsync(
-            PasskeyChallengeKeys.Registration(user.Id), DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
+            PasskeyChallengeKeys.Registration(user.Id), timeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrEmpty(originalOptionsStr))
             return AppResponses.Failure<bool>("Registration options have expired or do not exist.");
 
@@ -55,7 +56,7 @@ internal sealed class RegisterPasskey(
 
             return AppResponses.Success("Passkey registered successfully.", true);
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             ServiceLogDefinitions.LogPasskeyAssertionException(logger, user.UserName ?? string.Empty, ex);
             return AppResponses.Failure<bool>("Passkey registration failed. Request new options and try again.");

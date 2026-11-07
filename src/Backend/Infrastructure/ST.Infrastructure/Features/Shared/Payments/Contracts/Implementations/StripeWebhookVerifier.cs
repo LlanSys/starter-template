@@ -14,7 +14,8 @@ namespace ST.Infrastructure.Features.Shared.Payments.Contracts.Implementations;
 
 internal sealed class StripeWebhookVerifier(
     IOptions<PaymentSettings> options,
-    ILogger<StripeWebhookVerifier> logger) : IPaymentWebhookVerifier
+    ILogger<StripeWebhookVerifier> logger,
+    TimeProvider timeProvider) : IPaymentWebhookVerifier
 {
     private static readonly TimeSpan SignatureTolerance = TimeSpan.FromMinutes(5);
     private readonly StripePaymentSettings _settings = options.Value.Stripe;
@@ -64,7 +65,7 @@ internal sealed class StripeWebhookVerifier(
     private static bool IsStripe(string provider) =>
         provider.Equals("Stripe", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsSignatureValid(
+    private bool IsSignatureValid(
         string payload,
         string signatureHeader,
         string signingSecret,
@@ -87,7 +88,7 @@ internal sealed class StripeWebhookVerifier(
         }
 
         var signedAt = DateTimeOffset.FromUnixTimeSeconds(unixTimestamp);
-        var difference = DateTimeOffset.UtcNow - signedAt;
+        var difference = timeProvider.GetUtcNow() - signedAt;
         if (difference > SignatureTolerance || difference < -SignatureTolerance)
         {
             reason = "Stripe signature timestamp is outside tolerance.";

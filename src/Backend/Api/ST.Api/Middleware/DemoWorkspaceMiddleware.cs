@@ -4,9 +4,12 @@ using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.SharedKernel.Features.ControlPlane;
 using ST.SharedKernel.Features.ControlPlane.Demo;
+using Microsoft.Extensions.Options;
+using ST.Domain.Features.ControlPlane.Tenants.Enums;
+using ST.Infrastructure.Configuration;
 namespace ST.Api.Middleware;
 
-internal sealed class DemoWorkspaceMiddleware(RequestDelegate next, Microsoft.Extensions.Options.IOptions<ST.Infrastructure.Configuration.OrgSettings> settings)
+internal sealed class DemoWorkspaceMiddleware(RequestDelegate next, IOptions<OrgSettings> settings)
 {
     public async Task InvokeAsync(HttpContext context, IamDBContext iam, IControlPlaneUnitOfWork controlPlane)
     {
@@ -16,7 +19,7 @@ internal sealed class DemoWorkspaceMiddleware(RequestDelegate next, Microsoft.Ex
         var actorId = context.User.FindFirstValue("demo_actor_id");
         var isDemo = context.User.HasClaim("demo_workspace", "true");
         var actor = actorId is null ? null : await iam.Users.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(user => user.Id == actorId && user.IsActive && !user.IsDeleted, context.RequestAborted).ConfigureAwait(false);
-        var active = await controlPlane.Tenants.AnyAsync(tenant => tenant.Id == DemoWorkspace.TenantId && tenant.IsDemo && tenant.Status == ST.Domain.Features.ControlPlane.Tenants.Enums.TenantStatus.Active, context.RequestAborted).ConfigureAwait(false);
+        var active = await controlPlane.Tenants.AnyAsync(tenant => tenant.Id == DemoWorkspace.TenantId && tenant.IsDemo && tenant.Status == TenantStatus.Active, context.RequestAborted).ConfigureAwait(false);
         var staff = actor is not null && await iam.UserClaims.AnyAsync(claim => claim.UserId == actor.Id && claim.ClaimType == PlatformAccess.StaffClaim && claim.ClaimValue == "true", context.RequestAborted).ConfigureAwait(false);
         staff = staff && actor!.TwoFactorEnabled && await iam.UserClaims.AnyAsync(claim => claim.UserId == actor.Id && claim.ClaimType == "permission" && claim.ClaimValue == PlatformAccess.Permission, context.RequestAborted).ConfigureAwait(false);
         if (!isDemo || !active || !staff)

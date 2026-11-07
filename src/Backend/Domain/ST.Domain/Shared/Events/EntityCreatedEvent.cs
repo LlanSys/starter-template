@@ -7,8 +7,4 @@ using System.Text;
 
 namespace ST.Domain.Shared.Events;
 
-public sealed record EntityCreatedEvent() : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-
-}
+public sealed record EntityCreatedEvent(DateTimeOffset OccurredAt) : IDomainEvent;

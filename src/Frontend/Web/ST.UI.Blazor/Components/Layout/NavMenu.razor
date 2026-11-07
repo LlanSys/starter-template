@@ -1,4 +1,5 @@
 @implements IAsyncDisposable
+@inject TimeProvider Clock
 @inject ILogger<NavMenu> Logger
 @inject IAuthSession AuthSession
 @inject IIamAdminService IamAdminService
@@ -96,13 +97,13 @@
     }
     private async Task PollPolicyAsync()
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15), Clock);
         try
         {
             while(await timer.WaitForNextTickAsync(_lifetime.Token))
             {
                 try { await InvokeAsync(async () => { await AuthSession.RefreshAsync(); if (AuthSession.IsAuthenticated) await ReloadNavigationAsync(); else { _menus.Clear(); StateHasChanged(); } }); }
-                catch (Exception ex) when (!_lifetime.IsCancellationRequested) { ST.UI.Blazor.Logging.NavigationPolicyLogDefinitions.RefreshFailed(Logger, ex); }
+                catch (Exception ex) when (!_lifetime.IsCancellationRequested) { NavigationPolicyLogDefinitions.RefreshFailed(Logger, ex); }
             }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }

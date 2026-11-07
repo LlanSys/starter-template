@@ -1,8 +1,9 @@
 using MediatR;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.ControlPlane.Modules.Dtos;
+using ST.Application.Contracts.Interfaces.Common;
 namespace ST.Application.Features.ControlPlane.Modules;
-public sealed record GetModuleCatalogueQuery(string ModuleKey) : IRequest<AppResponse<IReadOnlyList<CatalogueEntryResponse>>>, ST.Application.Contracts.Interfaces.Common.ICachableRequest
+public sealed record GetModuleCatalogueQuery(string ModuleKey) : IRequest<AppResponse<IReadOnlyList<CatalogueEntryResponse>>>, ICachableRequest
 {
     public string CacheGroup => "module-catalogue";
     public string Discriminator => "GetModuleCatalogueQuery";

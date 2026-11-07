@@ -1,6 +1,6 @@
 @attribute [Authorize(Policy = "Page:/dashboard") ]
 @page "/dashboard"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@attribute [Authorize]
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 

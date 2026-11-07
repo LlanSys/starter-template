@@ -17,6 +17,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Stamps.CommandHandlers;
 
 public class UpdateDeploymentStampCommandHandler : IRequestHandler<UpdateDeploymentStampCommand, AppResponse<DeploymentStampResponse>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<UpdateDeploymentStampCommandHandler> _logger;
     private readonly IEncryptionService _encryptionService;
@@ -24,10 +25,11 @@ public class UpdateDeploymentStampCommandHandler : IRequestHandler<UpdateDeploym
     public UpdateDeploymentStampCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<UpdateDeploymentStampCommandHandler> logger,
-        IEncryptionService encryptionService)
+        IEncryptionService encryptionService, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _timeProvider = timeProvider;
         _encryptionService = encryptionService;
     }
 
@@ -75,7 +77,7 @@ public class UpdateDeploymentStampCommandHandler : IRequestHandler<UpdateDeploym
                 : null;
         }
 
-        stamp.UpdatedAt = DateTimeOffset.UtcNow;
+        stamp.UpdatedAt = _timeProvider.GetUtcNow();
         stamp.UpdatedBy = "System";
 
         await _unitOfWork.DeploymentStamps.UpdateAsync(stamp, cancellationToken).ConfigureAwait(false)  ;

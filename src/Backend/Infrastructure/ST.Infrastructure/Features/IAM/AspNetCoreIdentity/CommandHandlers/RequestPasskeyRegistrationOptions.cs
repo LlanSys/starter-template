@@ -19,7 +19,8 @@ internal sealed class RequestPasskeyRegistrationOptions(
     IPasskeyService passkeyService,
     IUserContextService userContext,
     UserManager<AppUser> userManager,
-    IIamUnitOfWork unitOfWork) : IRequestHandler<RequestPasskeyRegistrationOptionsCommand, AppResponse<JsonElement>>
+    IIamUnitOfWork unitOfWork,
+    TimeProvider timeProvider) : IRequestHandler<RequestPasskeyRegistrationOptionsCommand, AppResponse<JsonElement>>
 {
     public async Task<AppResponse<JsonElement>> Handle(RequestPasskeyRegistrationOptionsCommand request, CancellationToken cancellationToken)
     {
@@ -44,7 +45,7 @@ internal sealed class RequestPasskeyRegistrationOptions(
             Key = PasskeyChallengeKeys.Registration(user.Id),
             TenantId = user.TenantId,
             OptionsJson = JsonSerializer.Serialize(options),
-            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
+            ExpiresAtUtc = timeProvider.GetUtcNow().UtcDateTime.AddMinutes(5),
             CreatedBy = user.Id
         }, cancellationToken).ConfigureAwait(false);
         await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);

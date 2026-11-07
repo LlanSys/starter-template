@@ -18,7 +18,7 @@ public class DeploymentStamp : IAuditable
     public string? DatabaseProvider { get; set; }
     public string? DatabaseConnectionString { get; set; }
 
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }

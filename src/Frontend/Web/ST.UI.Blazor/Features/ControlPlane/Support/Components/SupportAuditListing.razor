@@ -1,5 +1,6 @@
 @using ST.SharedKernel.Features.ControlPlane.Support
-@inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient Api
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
 <MudText Typo="Typo.h6" Class="mt-4 mb-2">Support activity</MudText>
 @if(_message is not null) { <MudAlert Dense="true" Severity="Severity.Error">@_message</MudAlert> }
 <MudTable Items="_items" Dense="true" Elevation="0" Breakpoint="Breakpoint.None"><HeaderContent><MudTh>Time</MudTh><MudTh>Actor</MudTh><MudTh>Action</MudTh><MudTh>Result</MudTh></HeaderContent><RowTemplate><MudTd>@context.At.ToLocalTime().ToString("g")</MudTd><MudTd>@context.ActorId</MudTd><MudTd>@context.Action</MudTd><MudTd>@context.StatusCode</MudTd></RowTemplate><PagerContent><MudTablePager /></PagerContent></MudTable>

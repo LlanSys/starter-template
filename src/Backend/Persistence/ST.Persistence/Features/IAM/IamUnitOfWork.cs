@@ -12,6 +12,8 @@ using ST.Persistence.Common.Repositories;
 using ST.Persistence.Features.IAM.DataContext;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.Domain.Features.IAM.Menus.Entities;
+using ST.Domain.Features.IAM.Users.Entities;
 
 namespace ST.Persistence.Features.IAM;
 
@@ -27,10 +29,10 @@ public sealed class IamUnitOfWork(
     IMenuRepository menuRepository,
     IPublisher publisher,
     ILogger<IamUnitOfWork> logger
-) : BaseUnitOfWork<IamDBContext>(context, publisher, logger), IIamUnitOfWork
+) : BaseUnitOfWork<IamDBContext>(context, publisher, logger, context.Clock), IIamUnitOfWork
 {
-    public IRepository<ST.Domain.Features.IAM.Users.Entities.AppRole> RoleRepository { get; } = new Repository<ST.Domain.Features.IAM.Users.Entities.AppRole>(context);
-    public IRepository<ST.Domain.Features.IAM.Menus.Entities.NavigationOverride> NavigationOverrides { get; } = new Repository<ST.Domain.Features.IAM.Menus.Entities.NavigationOverride>(context);
+    public IRepository<AppRole> RoleRepository { get; } = new Repository<AppRole>(context);
+    public IRepository<NavigationOverride> NavigationOverrides { get; } = new Repository<NavigationOverride>(context);
     public IUserRepository UserRepository { get; } = userRepository;
     public ISessionRepository SessionRepository { get; } = sessionRepository;
     public ITokenRepository TokenRepository { get; } = tokenRepository;

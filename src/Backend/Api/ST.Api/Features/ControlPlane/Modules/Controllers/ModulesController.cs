@@ -6,11 +6,12 @@ using ST.Api.Common.Authorization;
 using ST.Api.Common.Controllers;
 using ST.Application.Features.ControlPlane.Modules;
 using ST.SharedKernel.Features.ControlPlane.Modules.Dtos;
+using ST.Domain.Shared.Contracts.Common;
 namespace ST.Api.Features.ControlPlane.Modules.Controllers;
 
 [ApiController, ApiVersion("1.0"), Authorize, RequirePermission("control_plane.manage")]
 [Route("api/v{version:apiVersion}/control-plane/modules")]
-public sealed class ModulesController(ISender sender, ST.Domain.Shared.Contracts.Common.ICurrentActorProvider actor) : BaseController
+public sealed class ModulesController(ISender sender, ICurrentActorProvider actor) : BaseController
 {
     [HttpPost("{id:guid}/lifecycle")]
     public async Task<IActionResult> ChangeLifecycle(Guid id, ModuleLifecycleRequest request, CancellationToken cancellationToken) => HandleResponse(await sender.Send(new ChangeModuleLifecycleCommand(id, request, actor.ActorId), cancellationToken).ConfigureAwait(false));

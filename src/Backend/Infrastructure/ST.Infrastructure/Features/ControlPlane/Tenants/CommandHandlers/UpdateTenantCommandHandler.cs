@@ -18,6 +18,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Tenants.CommandHandlers;
 
 public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, AppResponse<TenantResponse>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<UpdateTenantCommandHandler> _logger;
     private readonly IEncryptionService _encryptionService;
@@ -27,10 +28,11 @@ public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, A
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<UpdateTenantCommandHandler> logger,
         IEncryptionService encryptionService,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _timeProvider = timeProvider;
         _encryptionService = encryptionService;
         _actorProvider = actorProvider;
     }
@@ -80,7 +82,7 @@ public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, A
                 : null;
         }
 
-        tenant.UpdatedAt = DateTimeOffset.UtcNow;
+        tenant.UpdatedAt = _timeProvider.GetUtcNow();
         tenant.UpdatedBy = _actorProvider.ActorId;
 
         await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);

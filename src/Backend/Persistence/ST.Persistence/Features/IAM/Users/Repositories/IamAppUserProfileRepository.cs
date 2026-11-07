@@ -19,7 +19,7 @@ internal sealed class IamAppUserProfileRepository(IamDBContext context) : Reposi
         }
         else
         {
-            existing.UpdateContact(profile.TelephoneNo, profile.MobileNo, profile.Email, profile.UpdatedBy ?? profile.CreatedBy);
+            existing.UpdateContact(context.Clock.GetUtcNow(), profile.TelephoneNo, profile.MobileNo, profile.Email, profile.UpdatedBy ?? profile.CreatedBy);
             profile = existing;
             await UpdateAsync(existing).ConfigureAwait(false);
         }

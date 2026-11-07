@@ -6,13 +6,14 @@ using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using ST.Infrastructure.Logging;
+using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class UpdateUserRoles(
     UserManager<AppUser> userManager,
     RoleManager<AppRole> roleManager,
-    ILogger<UpdateUserRoles> logger, ST.Application.Features.IAM.Users.Contracts.Interfaces.IRoleAvailability availability)
+    ILogger<UpdateUserRoles> logger, IRoleAvailability availability)
     : IRequestHandler<UpdateUserRolesCommand, AppResponse<UserRolesResponse>>
 {
     public async Task<AppResponse<UserRolesResponse>> Handle(UpdateUserRolesCommand command, CancellationToken cancellationToken)

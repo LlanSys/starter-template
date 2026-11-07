@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading.Tasks;
 using Xunit;
+using System.Data.Common;
 
 namespace ST.Tests.Integration;
 
@@ -56,7 +57,7 @@ public abstract class TenantConnectionInterceptorIntegrationTests<TFixture> : IC
         var builder = new DbContextOptionsBuilder<SharedDBContext>(_options);
         builder.AddInterceptors(new TenantConnectionInterceptor(serviceProvider));
 
-        using var context = new SharedDBContext(builder.Options, new TestTenantProvider(), new TestActorProvider());
+        using var context = new SharedDBContext(builder.Options, TimeProvider.System, new TestTenantProvider(), new TestActorProvider());
 
         // Ensure the connection is actually opened so the interceptor fires
         var connection = context.Database.GetDbConnection();
@@ -73,7 +74,7 @@ public abstract class TenantConnectionInterceptorIntegrationTests<TFixture> : IC
 
     private string GetDatabaseName(string connectionString)
     {
-        var builder = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = connectionString };
+        var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
         if (builder.TryGetValue("Database", out var db)) return db.ToString()!;
         if (builder.TryGetValue("Initial Catalog", out var catalog)) return catalog.ToString()!;
         return "";

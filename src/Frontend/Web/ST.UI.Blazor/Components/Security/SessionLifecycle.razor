@@ -1,6 +1,7 @@
 @rendermode InteractiveServer
 @implements IAsyncDisposable
 @inject IAuthSession AuthSession
+@inject TimeProvider Clock
 @inject IJSRuntime JsRuntime
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -50,8 +51,8 @@
 @code {
     private SessionLifecycleSettings Settings => SessionLifecycleOptions.Value;
 
-    private DateTimeOffset _lastActivityUtc = DateTimeOffset.UtcNow;
-    private DateTimeOffset _lastKeepAliveUtc = DateTimeOffset.UtcNow;
+    private DateTimeOffset _lastActivityUtc;
+    private DateTimeOffset _lastKeepAliveUtc;
     private DotNetObjectReference<SessionLifecycle>? _selfReference;
     private IJSObjectReference? _module;
     private CancellationTokenSource? _timerCancellation;
@@ -68,6 +69,7 @@
             return;
         }
 
+        _lastActivityUtc = _lastKeepAliveUtc = Clock.GetUtcNow();
         _selfReference = DotNetObjectReference.Create(this);
 
         try
@@ -100,7 +102,7 @@
     {
         if (!_warningVisible && !_expired)
         {
-            _lastActivityUtc = DateTimeOffset.UtcNow;
+            _lastActivityUtc = Clock.GetUtcNow();
         }
 
         return Task.CompletedTask;
@@ -108,7 +110,7 @@
 
     private async Task RunLifecycleTimerAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Settings.PollIntervalSeconds));
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Settings.PollIntervalSeconds), Clock);
 
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -150,7 +152,7 @@
             return;
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = Clock.GetUtcNow();
         var idleFor = now - _lastActivityUtc;
         var idleTimeout = TimeSpan.FromMinutes(Settings.IdleTimeoutMinutes);
         var warningAt = idleTimeout - TimeSpan.FromMinutes(Settings.WarningBeforeTimeoutMinutes);
@@ -176,7 +178,7 @@
 
     private async Task ContinueSessionAsync()
     {
-        _lastActivityUtc = DateTimeOffset.UtcNow;
+        _lastActivityUtc = Clock.GetUtcNow();
         _warningVisible = false;
 
         await KeepSessionAliveAsync();
@@ -202,7 +204,7 @@
 
     private async Task KeepSessionAliveAsync()
     {
-        _lastKeepAliveUtc = DateTimeOffset.UtcNow;
+        _lastKeepAliveUtc = Clock.GetUtcNow();
         try
         {
             await AuthSession.RefreshAsync();

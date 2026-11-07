@@ -22,7 +22,7 @@ public class TempTotpSecret : BaseEntity, ISoftDeletable
 
     private TempTotpSecret() { }
 
-    public static TempTotpSecret Create(string userId, string encryptedSecret, DateTimeOffset expiresAt, string createdBy)
+    public static TempTotpSecret Create(DateTimeOffset now, string userId, string encryptedSecret, DateTimeOffset expiresAt, string createdBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentException.ThrowIfNullOrWhiteSpace(encryptedSecret);
@@ -34,16 +34,16 @@ public class TempTotpSecret : BaseEntity, ISoftDeletable
             UserId = userId,
             EncryptedSecret = encryptedSecret,
             ExpiresAt = expiresAt,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
             CreatedBy = createdBy
         };
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(deletedBy);
         IsDeleted = true;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy;
     }
 }

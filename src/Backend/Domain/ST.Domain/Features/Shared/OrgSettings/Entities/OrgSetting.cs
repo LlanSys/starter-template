@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ST.Domain.Shared.Entities;
 
 namespace ST.Domain.Features.Shared.OrgSettings.Entities;
@@ -11,7 +12,7 @@ public class OrgSetting : BaseEntity
     // For EF Core
     protected OrgSetting() { }
 
-    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    [SetsRequiredMembers]
     public OrgSetting(string key, string value, string createdBy, string? description = null)
     {
         Key = key;

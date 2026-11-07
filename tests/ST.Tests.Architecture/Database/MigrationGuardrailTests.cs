@@ -51,7 +51,8 @@ public class MigrationGuardrailTests
 
     private static void AssertNoPendingModelChanges<TContext>(Action<DbContextOptionsBuilder> configureOptions) where TContext : DbContext
     {
-        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var services = new ServiceCollection();
+        services.AddSingleton(TimeProvider.System);
         services.AddDbContext<TContext>(configureOptions);
 
         // Register mock providers to satisfy constructor dependencies for various DbContexts

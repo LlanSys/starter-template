@@ -9,15 +9,18 @@ using ST.UI.Blazor.Logging;
 using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 using ST.UI.Blazor.Configuration;
 using Microsoft.Extensions.Options;
+using ST.UI.Blazor.Features.IAM.Users.Implementations;
+using System.Net;
 
 namespace ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Implementations;
 
 internal sealed class BackendApiClient(
     HttpClient httpClient,
     ITokenStorage storage,
-    ST.UI.Blazor.Features.IAM.Users.Implementations.WorkspaceSelection selection,
+    WorkspaceSelection selection,
     IOptions<BackendApiSettings> apiSettings,
-    ILogger<BackendApiClient> logger) : IBackendApiClient
+    ILogger<BackendApiClient> logger,
+    TimeProvider timeProvider) : IBackendApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly BackendApiSettings _apiSettings = apiSettings.Value;
@@ -71,7 +74,7 @@ internal sealed class BackendApiClient(
             catch (HttpRequestException ex) when (ShouldRetryTransportFailure(attempt, maxAttempts, cancellationToken))
             {
                 BackendApiLogDefinitions.LogRequestRetrying(logger, method.Method, endpoint, attempt, maxAttempts, (int)delay.TotalMilliseconds, ex);
-                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(delay, timeProvider, cancellationToken).ConfigureAwait(false);
             }
             catch (HttpRequestException ex)
             {
@@ -174,7 +177,7 @@ internal sealed class BackendApiClient(
                     await ReadErrorMessageAsync(response, cancellationToken).ConfigureAwait(false),
                     "The profile picture could not be loaded.");
 
-                return response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                return response.StatusCode == HttpStatusCode.Unauthorized
                     ? AppResponses.Failure<FileContentResponse>(new AppError(
                         ErrorType.Unauthorized,
                         "UNAUTHORIZED",

@@ -18,7 +18,7 @@ public sealed class ModuleCatalogueEntry : IAuditable
     public string? FeatureFlag { get; set; }
     public bool IsActive { get; set; } = true;
     public int Version { get; set; } = 1;
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }

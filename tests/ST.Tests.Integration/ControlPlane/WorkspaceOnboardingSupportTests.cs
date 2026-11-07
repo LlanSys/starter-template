@@ -18,6 +18,11 @@ using ST.SharedKernel.Features.ControlPlane.Support;
 using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.Tests.Integration.TestFixtures;
+using Microsoft.AspNetCore.WebUtilities;
+using OtpNet;
+using ST.Domain.Features.IAM.Menus.Entities;
+using ST.SharedKernel.Features.ControlPlane.Demo;
+using ST.SharedKernel.Features.IAM.Menus.Dtos;
 namespace ST.Tests.Integration.ControlPlane;
 
 [Collection("Starter API")]
@@ -101,7 +106,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
         using var tenant = Bearer(login.Token);
         using (var blocked = await tenant.GetAsync("/api/v1/iam/admin/roles")) Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
         var enrollment = await Post<TwoFactorSetupInfo>(tenant, "/api/v1/iam/users/totp/setup", null);
-        var otp = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(enrollment.ManualEntryKey));
+        var otp = new Totp(Base32Encoding.ToBytes(enrollment.ManualEntryKey));
         var verify = new VerifyOtpRequest { UserId = login.UserId, Code = otp.ComputeTotp(), DeviceFingerprint = "onboard-test" };
         var enrolled = await Post<VerifyOtpResponse>(tenant, "/api/v1/iam/users/totp/verify", verify);
         tenant.DefaultRequestHeaders.Authorization = new("Bearer", enrolled.Token);
@@ -157,11 +162,11 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
         var writable = (await Post<SupportResult>(vendor, "/api/v1/control-plane/support", writeRequest)).Grant;
         await Post<SupportResult>(tenant, $"/api/v1/iam/support/{writable.Id}/approve", writeRequest);
         var writerSession = (await Post<SupportResult>(vendor, $"/api/v1/control-plane/support/{writable.Id}/enter", null)).Session!; using var writer = Bearer(writerSession.Token);
-        var navigation = await writer.GetFromJsonAsync<AppResponse<PagedResponse<ST.SharedKernel.Features.IAM.Menus.Dtos.MenuResponse, Guid>>>("/api/v1/iam/admin/menus?pageSize=100"); var home = navigation!.Data!.Items.Single(x => x.Key == "dashboard");
-        using (var updated = await writer.PutAsJsonAsync($"/api/v1/iam/admin/menus/{home.Id}", new ST.SharedKernel.Features.IAM.Menus.Dtos.UpdateMenuRequest { Id = home.Id, Title = "Supported workspace", Url = home.Url, Icon = home.Icon, Placement = home.Placement, IsActive = true, ExpectedVersion = home.OverrideVersion })) Assert.True(updated.IsSuccessStatusCode);
+        var navigation = await writer.GetFromJsonAsync<AppResponse<PagedResponse<MenuResponse, Guid>>>("/api/v1/iam/admin/menus?pageSize=100"); var home = navigation!.Data!.Items.Single(x => x.Key == "dashboard");
+        using (var updated = await writer.PutAsJsonAsync($"/api/v1/iam/admin/menus/{home.Id}", new UpdateMenuRequest { Id = home.Id, Title = "Supported workspace", Url = home.Url, Icon = home.Icon, Placement = home.Placement, IsActive = true, ExpectedVersion = home.OverrideVersion })) Assert.True(updated.IsSuccessStatusCode);
         using (var scope = factory.Services.CreateScope()) { scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = a; var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); Assert.Equal(vendorIdentity.UserId, (await db.NavigationOverrides.SingleAsync(x => x.Title == "Supported workspace")).CreatedBy); }
-        var saved = await writer.GetFromJsonAsync<AppResponse<ST.SharedKernel.Features.IAM.Menus.Dtos.MenuResponse>>($"/api/v1/iam/admin/menus/{home.Id}");
-        using (var changed = await writer.PutAsJsonAsync($"/api/v1/iam/admin/menus/{home.Id}", new ST.SharedKernel.Features.IAM.Menus.Dtos.UpdateMenuRequest { Id = home.Id, Title = "Supported again", Url = home.Url, Icon = home.Icon, Placement = home.Placement, IsActive = true, ExpectedVersion = saved!.Data!.OverrideVersion })) Assert.True(changed.IsSuccessStatusCode);
+        var saved = await writer.GetFromJsonAsync<AppResponse<MenuResponse>>($"/api/v1/iam/admin/menus/{home.Id}");
+        using (var changed = await writer.PutAsJsonAsync($"/api/v1/iam/admin/menus/{home.Id}", new UpdateMenuRequest { Id = home.Id, Title = "Supported again", Url = home.Url, Icon = home.Icon, Placement = home.Placement, IsActive = true, ExpectedVersion = saved!.Data!.OverrideVersion })) Assert.True(changed.IsSuccessStatusCode);
         using (var scope = factory.Services.CreateScope()) { scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = a; var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); Assert.Equal(vendorIdentity.UserId,(await db.NavigationOverrides.SingleAsync(x=>x.Title=="Supported again")).UpdatedBy); }
         await Post<SupportResult>(writer, $"/api/v1.0/iam/support/{writable.Id}/exit", null);
         using (var ended = await writer.GetAsync("/api/v1/iam/admin/menus")) Assert.Equal(HttpStatusCode.Forbidden, ended.StatusCode);
@@ -186,7 +191,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
                 using var content = await mail.GetFromJsonAsync<JsonDocument>("/api/v1/message/" + message.GetProperty("ID").GetString());
                 var html = content!.RootElement.GetProperty("HTML").GetString()!;
                 var link = new Uri(WebUtility.HtmlDecode(Regex.Match(html, "href=\"([^\"]+)\"").Groups[1].Value));
-                var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(link.Query);
+                var query = QueryHelpers.ParseQuery(link.Query);
                 var token = query["token"].ToString();
                 if (query["workspace"].ToString() == $"onboard-{tenantId:N}" && token != previousToken)
                 {
@@ -207,23 +212,23 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
         using (var scope = factory.Services.CreateScope())
         {
             scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = customer;
-            var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); db.NavigationOverrides.Add(new ST.Domain.Features.IAM.Menus.Entities.NavigationOverride { PageKey = "dashboard", Title = "Customer dashboard", CreatedBy = "customer-admin" }); await db.SaveChangesAsync();
+            var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); db.NavigationOverrides.Add(new NavigationOverride { PageKey = "dashboard", Title = "Customer dashboard", CreatedBy = "customer-admin" }); await db.SaveChangesAsync();
         }
         using (var scope = factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>(); var reserved = ST.SharedKernel.Features.ControlPlane.Demo.DemoWorkspace.TenantId;
+            var db = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>(); var reserved = DemoWorkspace.TenantId;
             if (!await db.Tenants.AnyAsync(x => x.Id == reserved))
             {
-                var reservedTenant = new Tenant { Id = reserved, Identifier = ST.SharedKernel.Features.ControlPlane.Demo.DemoWorkspace.Identifier, DisplayName = "Vendor demo", HostName = "vendor-demo.invalid", DeploymentStampId = Platform, IsDemo = true, CreatedBy = "test-vendor", MaxUsers = 100 }; reservedTenant.Approve("test-vendor", DateTimeOffset.UnixEpoch, "review-1"); reservedTenant.MarkAsActive();
+                var reservedTenant = new Tenant { Id = reserved, Identifier = DemoWorkspace.Identifier, DisplayName = "Vendor demo", HostName = "vendor-demo.invalid", DeploymentStampId = Platform, IsDemo = true, CreatedBy = "test-vendor", MaxUsers = 100 }; reservedTenant.Approve("test-vendor", DateTimeOffset.UnixEpoch, "review-1"); reservedTenant.MarkAsActive();
                 foreach (var key in new[] { "Core", "IAM" }) reservedTenant.Modules.Add(new TenantModule { TenantId = reserved, ModuleKey = key, CreatedBy = "test-vendor" }); db.Add(reservedTenant); await db.SaveChangesAsync();
             }
             else { db.RemoveRange(await db.TenantModules.Where(x => x.TenantId == reserved && x.ModuleKey == "Payments").ToListAsync()); await db.SaveChangesAsync(); }
         }
         var identity = await IdentityAsync(Platform, true); using var vendor = Bearer(identity.Token);
         var entry = await Post<LoginResponse>(vendor, "/api/v1/control-plane/demo/enter", null); using var demo = Bearer(entry.Token);
-        var nav = await demo.GetFromJsonAsync<AppResponse<PagedResponse<ST.SharedKernel.Features.IAM.Menus.Dtos.MenuResponse, Guid>>>("/api/v1/iam/admin/menus?pageSize=100");
+        var nav = await demo.GetFromJsonAsync<AppResponse<PagedResponse<MenuResponse, Guid>>>("/api/v1/iam/admin/menus?pageSize=100");
         var home = nav!.Data!.Items.Single(x => x.Key == "dashboard");
-        using (var edit = await demo.PutAsJsonAsync($"/api/v1/iam/admin/menus/{home.Id}", new ST.SharedKernel.Features.IAM.Menus.Dtos.UpdateMenuRequest { Id = home.Id, Title = "Customized demo", Url = home.Url, Icon = home.Icon, Placement = home.Placement, IsActive = true, ExpectedVersion = home.OverrideVersion })) Assert.True(edit.IsSuccessStatusCode);
+        using (var edit = await demo.PutAsJsonAsync($"/api/v1/iam/admin/menus/{home.Id}", new UpdateMenuRequest { Id = home.Id, Title = "Customized demo", Url = home.Url, Icon = home.Icon, Placement = home.Placement, IsActive = true, ExpectedVersion = home.OverrideVersion })) Assert.True(edit.IsSuccessStatusCode);
         await Post<bool>(vendor, "/api/v1/control-plane/demo/reset", null);
         using (var old = await demo.GetAsync("/api/v1/iam/auth/me")) Assert.False(old.IsSuccessStatusCode);
         using (var scope = factory.Services.CreateScope())
@@ -232,7 +237,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
             var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); Assert.True(await db.NavigationOverrides.AnyAsync(x => x.Title == "Customer dashboard"));
         }
         var fresh = await Post<LoginResponse>(vendor, "/api/v1/control-plane/demo/enter", null); using var freshDemo = Bearer(fresh.Token);
-        var restored = await freshDemo.GetFromJsonAsync<AppResponse<PagedResponse<ST.SharedKernel.Features.IAM.Menus.Dtos.MenuResponse, Guid>>>("/api/v1/iam/admin/menus?pageSize=100"); Assert.Equal("Dashboard", restored!.Data!.Items.Single(x => x.Key == "dashboard").Title);
+        var restored = await freshDemo.GetFromJsonAsync<AppResponse<PagedResponse<MenuResponse, Guid>>>("/api/v1/iam/admin/menus?pageSize=100"); Assert.Equal("Dashboard", restored!.Data!.Items.Single(x => x.Key == "dashboard").Title);
     }
     [Fact]
     public async Task TenantCreationApprovalAndModuleEditsAreVisibleImmediately()
@@ -253,7 +258,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
     private async Task<(string Token, string UserId)> IdentityAsync(Guid tenant, bool staff)
     {
         await using var scope = factory.Services.CreateAsyncScope(); scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = tenant;
-        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(); var name = $"support-{Guid.CreateVersion7():N}"; var user = AppUser.CreateSystemUser(tenant, name, name + "@example.test", "test"); user.IsActive = true; user.EmailConfirmed = true; user.TwoFactorEnabled = true; Assert.True((await users.CreateAsync(user)).Succeeded);
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(); var name = $"support-{Guid.CreateVersion7():N}"; var user = AppUser.CreateSystemUser(DateTimeOffset.UnixEpoch, tenant, name, name + "@example.test", "test"); user.IsActive = true; user.EmailConfirmed = true; user.TwoFactorEnabled = true; Assert.True((await users.CreateAsync(user)).Succeeded);
         Assert.True((await users.AddClaimsAsync(user, staff ? [new("platform_staff", "true"), new("permission", "control_plane.manage"), new("permission", "control_plane.approve_kyc")] : [new("permission", "support.approve")])).Succeeded);
         var sessions = scope.ServiceProvider.GetRequiredService<ISessionService>(); var session = await sessions.CreateSessionAsync(user.Id, Guid.CreateVersion7(), "127.0.0.1", "test"); Assert.True(session.IsSuccess);
         var claims = await scope.ServiceProvider.GetRequiredService<IClaimsService>().GetUserClaimsAsync(user, session.Data); claims.Add(new Claim("amr", "mfa")); return (await scope.ServiceProvider.GetRequiredService<IJwtService>().CreateTokenAsync(claims), user.Id);

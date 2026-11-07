@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class AcceptAccountInvitation(UserManager<AppUser> users, IIamUnitOfWork unitOfWork,
-    ICurrentTenantProvider tenantProvider, ILogger<AcceptAccountInvitation> logger, IControlPlaneUnitOfWork controlPlane)
+    ICurrentTenantProvider tenantProvider, ILogger<AcceptAccountInvitation> logger, IControlPlaneUnitOfWork controlPlane, TimeProvider timeProvider)
     : IRequestHandler<AcceptAccountInvitationCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(AcceptAccountInvitationCommand command, CancellationToken cancellationToken)
@@ -37,11 +37,12 @@ internal sealed class AcceptAccountInvitation(UserManager<AppUser> users, IIamUn
             {
                 // Only possession of the protected invitation confirms this email. Never issue a login session here.
                 user.EmailConfirmed = true;
-                user.CompletePasswordReset(user.Id);
+                var now = timeProvider.GetUtcNow();
+                user.CompletePasswordReset(now, user.Id);
                 var resetToken = await users.GeneratePasswordResetTokenAsync(user).ConfigureAwait(false);
                 var result = await users.ResetPasswordAsync(user, resetToken, request.Password).ConfigureAwait(false);
                 if (!result.Succeeded) throw new InvitationRejectedException();
-                await AccountAccessCleanup.StageAsync(unitOfWork, user.Id, user.Id, "Account invitation accepted", cancellationToken).ConfigureAwait(false);
+                await AccountAccessCleanup.StageAsync(unitOfWork, user.Id, user.Id, "Account invitation accepted", now, cancellationToken).ConfigureAwait(false);
                 await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 return AppResponses.Success("Account setup complete. Sign in with your new password.", true);
             }, cancellationToken).ConfigureAwait(false);

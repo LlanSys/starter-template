@@ -4,10 +4,11 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using ST.Application.Features.ControlPlane.Modules;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers;
 
-internal sealed class GetUserPermissions(UserManager<AppUser> userManager, ST.Application.Features.ControlPlane.Modules.IEffectiveModulePolicy policy)
+internal sealed class GetUserPermissions(UserManager<AppUser> userManager, IEffectiveModulePolicy policy)
     : IRequestHandler<GetUserPermissionsQuery, AppResponse<UserPermissionsResponse>>
 {
     public async Task<AppResponse<UserPermissionsResponse>> Handle(GetUserPermissionsQuery request, CancellationToken cancellationToken)

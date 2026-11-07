@@ -11,7 +11,7 @@
                 <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Username" Label="Username" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
                 <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Email" Label="Email" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
                 <MudItem xs="12" sm="12">
-                    <ST.UI.Blazor.Features.Shared.Phone.Components.PhoneNumberInput @bind-CountryCode="_model.CountryCode"
+                    <PhoneNumberInput @bind-CountryCode="_model.CountryCode"
                                                                                     @bind-NationalNumber="_model.PhoneNationalNumber"
                                                                                     @bind-E164="_model.PhoneNumber"
                                                                                     Required="false"
@@ -89,7 +89,7 @@
         {
             try
             {
-                var phone = ST.SharedKernel.Features.Shared.Phone.PhoneNumberFormatter.Normalize(_model.CountryCode, _model.PhoneNationalNumber, _model.PhoneNumber ?? string.Empty);
+                var phone = PhoneNumberFormatter.Normalize(_model.CountryCode, _model.PhoneNationalNumber, _model.PhoneNumber ?? string.Empty);
                 _model.CountryCode = phone.CountryCode;
                 _model.PhoneNationalNumber = phone.NationalNumber;
                 _model.PhoneNumber = phone.E164;

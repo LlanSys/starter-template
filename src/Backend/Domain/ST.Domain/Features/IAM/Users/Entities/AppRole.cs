@@ -17,12 +17,12 @@ public sealed class AppRole : IdentityRole, ISoftDeletable
 
     public string? DeletedBy { get; set; }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy;
     }
 }

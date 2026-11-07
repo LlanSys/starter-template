@@ -92,6 +92,7 @@ internal sealed class VerifyTotpCode(
                     await iamUnitOfWork.AppUserTotpSecretRepository.DeactivateUserSecretsAsync(user.Id).ConfigureAwait(false);
 
                     var newSecret = AppUserTotpSecret.Create(
+                        timeProvider.GetUtcNow(),
                         user.Id,
                         tempSecret.EncryptedSecret,
                         user.Id);
@@ -246,7 +247,7 @@ internal sealed class VerifyTotpCode(
         }
 
         await cache.RemoveAsync(attemptKey, ct).ConfigureAwait(false);
-        secretEntity.MarkAsUsed();
+        secretEntity.MarkAsUsed(timeProvider.GetUtcNow());
 
         await iamUnitOfWork.AppUserTotpSecretRepository.UpdateAsync(secretEntity, ct).ConfigureAwait(false);
         await iamUnitOfWork.CompleteAsync(ct).ConfigureAwait(false);

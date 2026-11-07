@@ -17,7 +17,7 @@ internal sealed class UpdateProfilePicture(
     UserManager<AppUser> userManager,
     IProfilePictureStorage storage,
     IOptions<ProfileImageStorageSettings> storageOptions,
-    ILogger<UpdateProfilePicture> logger)
+    ILogger<UpdateProfilePicture> logger, TimeProvider timeProvider)
     : IRequestHandler<UpdateProfilePictureCommand, AppResponse<ProfilePictureResponse>>
 {
     private readonly ProfileImageStorageSettings _settings = storageOptions.Value;
@@ -44,7 +44,7 @@ internal sealed class UpdateProfilePicture(
                 .SaveAsync(command.UserId, command.Content, command.FileName, command.ContentType, cancellationToken)
                 .ConfigureAwait(false);
 
-            user.SetProfilePicture(profilePictureUrl, command.UpdatedBy);
+            user.SetProfilePicture(timeProvider.GetUtcNow(), profilePictureUrl, command.UpdatedBy);
 
             var result = await userManager.UpdateAsync(user).ConfigureAwait(false);
             if (!result.Succeeded)

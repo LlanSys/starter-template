@@ -16,6 +16,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using ST.Domain.Features.ControlPlane.Auditing.Contracts.Repositories;
 
 namespace ST.Tests.Integration;
 
@@ -51,6 +52,7 @@ public class TenantConnectionResolverIntegrationTests
         var services = new ServiceCollection();
 
         var dbName = "ControlPlaneDB_" + Guid.NewGuid();
+        services.AddSingleton(TimeProvider.System);
         services.AddDbContext<ControlPlaneDBContext>(options =>
             options.UseInMemoryDatabase(dbName));
 
@@ -59,7 +61,7 @@ public class TenantConnectionResolverIntegrationTests
         services.AddScoped<ITenantRepository, TenantRepository>();
         services.AddScoped<IDeploymentStampRepository, DeploymentStampRepository>();
         // Add fake impersonation repo just to satisfy UnitOfWork
-        var impersonationMock = NSubstitute.Substitute.For<ST.Domain.Features.ControlPlane.Auditing.Contracts.Repositories.IImpersonationRecordRepository>();
+        var impersonationMock = NSubstitute.Substitute.For<IImpersonationRecordRepository>();
         services.AddScoped(_ => impersonationMock);
 
         services.AddScoped<IControlPlaneUnitOfWork, ControlPlaneUnitOfWork>();
@@ -119,7 +121,7 @@ public class TenantConnectionResolverIntegrationTests
         builder.UseSqlServer("Server=OldServer;Database=SharedDB;");
         builder.AddInterceptors(new TenantConnectionInterceptor(serviceProvider));
 
-        using var context = new SharedDBContext(builder.Options, tenantProviderMock, new TestActorProvider());
+        using var context = new SharedDBContext(builder.Options, TimeProvider.System, tenantProviderMock, new TestActorProvider());
 
         // This will trigger the interceptor, which calls the resolver, which hits the cache + swap
         var connection = context.Database.GetDbConnection();

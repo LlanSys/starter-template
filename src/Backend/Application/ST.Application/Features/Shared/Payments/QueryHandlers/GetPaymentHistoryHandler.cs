@@ -5,6 +5,8 @@ using ST.SharedKernel.Features.Shared.Payments.Dtos;
 using System.Linq.Expressions;
 using ST.SharedKernel.Extensions;
 using MediatR;
+using ST.Domain.Features.Shared.Payments.Entities;
+using System.Collections.ObjectModel;
 
 namespace ST.Application.Features.Shared.Payments.QueryHandlers;
 
@@ -18,7 +20,7 @@ internal sealed class GetPaymentHistoryHandler(ISharedUnitOfWork sharedUnitOfWor
         var pageSize = Math.Clamp(request.PageSize, 1, 50);
         var repository = sharedUnitOfWork.PaymentRecordRepository;
 
-        Expression<Func<ST.Domain.Features.Shared.Payments.Entities.PaymentRecord, bool>> filterExpression = record =>
+        Expression<Func<PaymentRecord, bool>> filterExpression = record =>
             (string.IsNullOrWhiteSpace(request.SearchTerm) || record.CustomerReference.Contains(request.SearchTerm) || (record.ProviderReference != null && record.ProviderReference.Contains(request.SearchTerm))) &&
             (string.IsNullOrWhiteSpace(request.Provider) || record.Provider == request.Provider) &&
             (!request.ExactAmount.HasValue || record.Amount.Amount == request.ExactAmount.Value) &&
@@ -43,7 +45,7 @@ internal sealed class GetPaymentHistoryHandler(ISharedUnitOfWork sharedUnitOfWor
 
                 if (cursorRecord != null)
                 {
-                    q = (System.Linq.IOrderedQueryable<ST.Domain.Features.Shared.Payments.Entities.PaymentRecord>)q.Where(record =>
+                    q = (IOrderedQueryable<PaymentRecord>)q.Where(record =>
                         record.CreatedAt < cursorRecord.CreatedAt ||
                         (record.CreatedAt == cursorRecord.CreatedAt && record.Id.CompareTo(cursorRecord.Id) < 0));
                 }
@@ -76,7 +78,7 @@ internal sealed class GetPaymentHistoryHandler(ISharedUnitOfWork sharedUnitOfWor
         var nextCursor = hasNextPage ? records[^1].Id : (Guid?)null;
 
         var response = new PagedResponse<PaymentHistoryItemResponse, Guid>(
-            new System.Collections.ObjectModel.Collection<PaymentHistoryItemResponse>(items),
+            new Collection<PaymentHistoryItemResponse>(items),
             totalCount,
             1,
             pageSize,

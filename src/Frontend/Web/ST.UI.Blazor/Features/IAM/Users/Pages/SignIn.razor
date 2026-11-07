@@ -1,8 +1,13 @@
 @using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
 @using ST.SharedKernel.Features.IAM.Users.Dtos
 @using Microsoft.AspNetCore.WebUtilities
-@inject ST.UI.Blazor.Features.IAM.Users.Implementations.WorkspaceSelection WorkspaceSelection
-@inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient Api
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using ST.UI.Blazor.Features.ControlPlane.Demo
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using System.Text.Json
+@inject WorkspaceSelection WorkspaceSelection
+@inject IBackendApiClient Api
 @page "/"
 @page "/iam/sign-in"
 @layout AuthLayout
@@ -12,9 +17,9 @@
 @inject ILogger<SignIn> Logger
 @inject ISnackbar Snackbar
 @inject IOptions<BackendApiSettings> BackendApiSettings
-@inject ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces.IAuthService AuthService
+@inject IAuthService AuthService
 @inject IJSRuntime JSRuntime
-@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
+@inject ProtectedSessionStorage SessionStorage
 @inject ITokenStorage Tokens
 @implements IAsyncDisposable
 
@@ -81,7 +86,7 @@
     [SupplyParameterFromQuery(Name = "workspace")] public string? WorkspaceIdentifier { get; set; }
     [SupplyParameterFromQuery(Name = "tenantId")] public Guid? TenantId { get; set; }
     private string _workspaceIdentifier = "";
-    private ST.UI.Blazor.Features.IAM.Users.Models.WorkspaceSelectionInfo? _selectedWorkspace;
+    private WorkspaceSelectionInfo? _selectedWorkspace;
     private async Task<bool> ResolveWorkspaceAsync(string? identifier = null, Guid? tenantId = null)
     {
         var query = tenantId.HasValue ? $"tenantId={tenantId}" : "identifier=" + Uri.EscapeDataString(identifier ?? "");
@@ -95,7 +100,7 @@
     }
     private bool _canReturnToPlatform;
     private async Task RecoverPlatformAsync() {
-      var backup=await SessionStorage.GetAsync<ST.UI.Blazor.Features.ControlPlane.Demo.PlatformSessionBackup>("workspace.platform");if(!backup.Success || backup.Value is null)return;
+      var backup=await SessionStorage.GetAsync<PlatformSessionBackup>("workspace.platform");if(!backup.Success || backup.Value is null)return;
       await Tokens.ClearAsync();var current=await Tokens.GetAsync();
       if(string.IsNullOrWhiteSpace(current.AccessToken)) await Tokens.SaveAsync(backup.Value.AccessToken,backup.Value.RefreshToken,backup.Value.SessionId);
       await SessionStorage.DeleteAsync("workspace.platform");Navigation.NavigateTo("/control-panel",forceLoad:true);
@@ -138,7 +143,7 @@
             return;
         }
 
-        _canReturnToPlatform=(await SessionStorage.GetAsync<ST.UI.Blazor.Features.ControlPlane.Demo.PlatformSessionBackup>("workspace.platform")).Success;
+        _canReturnToPlatform=(await SessionStorage.GetAsync<PlatformSessionBackup>("workspace.platform")).Success;
         _selectedWorkspace = await WorkspaceSelection.GetAsync();
         if ((TenantId.HasValue && _selectedWorkspace?.TenantId != TenantId) || (!string.IsNullOrWhiteSpace(WorkspaceIdentifier) && !string.Equals(_selectedWorkspace?.Identifier, WorkspaceIdentifier, StringComparison.OrdinalIgnoreCase)))
         {
@@ -209,11 +214,11 @@
     }
 
     [JSInvokable]
-    public async Task OnConditionalAssertionCompleted(System.Text.Json.JsonElement assertionResponse)
+    public async Task OnConditionalAssertionCompleted(JsonElement assertionResponse)
     {
         try
         {
-            var request = new ST.SharedKernel.Features.IAM.Users.Dtos.LoginWithPasskeyRequest(
+            var request = new LoginWithPasskeyRequest(
                 null,
                 _conditionalCorrelationId,
                 assertionResponse);
@@ -335,9 +340,9 @@
                 "webauthn.startExplicitAssertion",
                 optionsResponse.Data.Options.GetRawText());
 
-            var assertion = System.Text.Json.JsonDocument.Parse(assertionJson).RootElement;
+            var assertion = JsonDocument.Parse(assertionJson).RootElement;
 
-            var request = new ST.SharedKernel.Features.IAM.Users.Dtos.LoginWithPasskeyRequest(
+            var request = new LoginWithPasskeyRequest(
                 string.IsNullOrWhiteSpace(form.UserName) ? null : form.UserName,
                 correlationId,
                 assertion);
@@ -391,7 +396,7 @@
         {
             await JSRuntime.InvokeVoidAsync("webauthn.cancelConditionalAssertion");
         }
-        catch (Microsoft.JSInterop.JSDisconnectedException) { /* circuit torn down */ }
+        catch (JSDisconnectedException) { /* circuit torn down */ }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error cancelling conditional passkey on dispose.");

@@ -5,4 +5,4 @@ using MediatR;
 
 namespace ST.Application.Features.IAM.Users.Commands;
 
-public sealed record LoginWithPasskeyCommand(string? Username, System.Guid CorrelationId, JsonElement AssertionResponse) : IRequest<AppResponse<LoginResponse>>;
+public sealed record LoginWithPasskeyCommand(string? Username, Guid CorrelationId, JsonElement AssertionResponse) : IRequest<AppResponse<LoginResponse>>;

@@ -13,6 +13,7 @@ using ST.SharedKernel.Features.IAM.Menus.Dtos;
 using ST.SharedKernel.Features.IAM.Permissions.Dtos;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.Tests.Integration.TestFixtures;
+using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos;
 namespace ST.Tests.Integration.ControlPlane;
 [Collection("Starter API")]
 public sealed class ModulePolicyMatrixTests(StarterTemplateWebApplicationFactory factory)
@@ -38,7 +39,7 @@ public sealed class ModulePolicyMatrixTests(StarterTemplateWebApplicationFactory
         {
             scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = Tenant.PlatformTenantId;
             var manager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-            var account = AppUser.CreateAccount(Tenant.PlatformTenantId, $"matrix-{tenantA:N}", "Matrix", "Operator",
+            var account = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, Tenant.PlatformTenantId, $"matrix-{tenantA:N}", "Matrix", "Operator",
                 $"matrix-{tenantA:N}@example.test", null, "integration-vendor");
             account.IsActive = true;
             account.EmailConfirmed = true;
@@ -68,10 +69,10 @@ public sealed class ModulePolicyMatrixTests(StarterTemplateWebApplicationFactory
             await Flag(vendor, Guid.Empty, true);
             var appliedB = await Post<AdminRoleListResponse>(b, "/api/v1/iam/admin/roles/apply-template", new ApplyRoleTemplateRequest(viewer.Key, roleName, viewer.Version));
             Assert.NotEqual(appliedA.Id, appliedB.Id);
-            using var removed = await vendor.DeleteAsync($"/api/v1/control-plane/tenants/{tenantA}/modules/Payments"); Assert.True((await removed.Content.ReadFromJsonAsync<AppResponse<ST.SharedKernel.Features.ControlPlane.Tenants.Dtos.TenantResponse>>())!.IsSuccess);
+            using var removed = await vendor.DeleteAsync($"/api/v1/control-plane/tenants/{tenantA}/modules/Payments"); Assert.True((await removed.Content.ReadFromJsonAsync<AppResponse<TenantResponse>>())!.IsSuccess);
             var hiddenRoles = await a.GetFromJsonAsync<AppResponse<IReadOnlyList<AdminRoleListResponse>>>("/api/v1/iam/admin/roles"); Assert.DoesNotContain(hiddenRoles!.Data!, role => role.Id == appliedA.Id);
             var visibleRoles = await b.GetFromJsonAsync<AppResponse<IReadOnlyList<AdminRoleListResponse>>>("/api/v1/iam/admin/roles"); Assert.Contains(visibleRoles!.Data!, role => role.Id == appliedB.Id);
-            await Post<ST.SharedKernel.Features.ControlPlane.Tenants.Dtos.TenantResponse>(vendor, $"/api/v1/control-plane/tenants/{tenantA}/modules", new { ModuleKey = "Payments" });
+            await Post<TenantResponse>(vendor, $"/api/v1/control-plane/tenants/{tenantA}/modules", new { ModuleKey = "Payments" });
             var restoredRoles = await a.GetFromJsonAsync<AppResponse<IReadOnlyList<AdminRoleListResponse>>>("/api/v1/iam/admin/roles"); Assert.Contains(restoredRoles!.Data!, role => role.Id == appliedA.Id);
             var navA = await a.GetFromJsonAsync<AppResponse<PagedResponse<MenuResponse, Guid>>>("/api/v1/iam/admin/menus?pageSize=100"); Assert.True(navA!.IsSuccess);
             var home = navA.Data!.Items.Single(x => x.Key == "dashboard");

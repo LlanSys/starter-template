@@ -4,8 +4,9 @@ using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Menus.Entities;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Menus.Dtos;
+using ST.Domain.Shared.Contracts.Common;
 namespace ST.Application.Features.IAM.Menus;
-public sealed class EffectiveNavigation(IIamUnitOfWork unit, IEffectiveModulePolicy policy, ST.Domain.Shared.Contracts.Common.ICurrentActorProvider actor) : IEffectiveNavigation
+public sealed class EffectiveNavigation(IIamUnitOfWork unit, IEffectiveModulePolicy policy, ICurrentActorProvider actor, TimeProvider timeProvider) : IEffectiveNavigation
 {
     public async Task<IReadOnlyList<ResolvedNavigationItem>> GetAsync(CancellationToken cancellationToken = default)
     {
@@ -28,7 +29,7 @@ public sealed class EffectiveNavigation(IIamUnitOfWork unit, IEffectiveModulePol
                 change?.Icon ?? old?.Icon ?? page.Icon, change?.Placement ?? old?.Placement ?? page.Placement,
                 null, page.ModuleKey, change?.DisplayOrder ?? old?.DisplayOrder ?? page.DisplayOrder, "System");
             menu.Id = ids[page.Key];
-            menu.Update(menu.ParentId, menu.Key, menu.Title, menu.Description, menu.Url, menu.Icon, menu.Placement, null, page.ModuleKey, menu.DisplayOrder, change?.IsActive ?? old?.IsActive ?? (page.IsActive && page.ShowInNavigation), change?.UpdatedBy ?? "System");
+            menu.Update(timeProvider.GetUtcNow(), menu.ParentId, menu.Key, menu.Title, menu.Description, menu.Url, menu.Icon, menu.Placement, null, page.ModuleKey, menu.DisplayOrder, change?.IsActive ?? old?.IsActive ?? (page.IsActive && page.ShowInNavigation), change?.UpdatedBy ?? "System");
             menu.SetVisibility(change?.RoleNames ?? old?.RequiredRoleNames ?? page.RoleNames,
                 page.PermissionKeys.Concat(change?.PermissionKeys ?? old?.RequiredPermissionKeys ?? []).Append(old?.RequiredPermissionKey ?? "").Where(x => !string.IsNullOrWhiteSpace(x)).ToArray());
             rows.Add(new(menu, page, access.EntryAvailable(page), change is not null, overrideVersion));
@@ -66,7 +67,7 @@ public sealed class EffectiveNavigation(IIamUnitOfWork unit, IEffectiveModulePol
         else row.Version++;
         row.UsePlatformDefaults = false;
         row.Title = request.Title.Trim(); row.ParentId = request.ParentId; row.Icon = request.Icon; row.Placement = request.Placement; row.DisplayOrder = request.DisplayOrder; row.IsActive = request.IsActive;
-        row.RoleNames = (request.RequiredRoleNames ?? []).ToArray(); row.PermissionKeys = (request.RequiredPermissionKeys ?? []).ToArray(); row.UpdatedBy = actor; row.UpdatedAt = DateTimeOffset.UtcNow;
+        row.RoleNames = (request.RequiredRoleNames ?? []).ToArray(); row.PermissionKeys = (request.RequiredPermissionKeys ?? []).ToArray(); row.UpdatedBy = actor; row.UpdatedAt = timeProvider.GetUtcNow();
         await unit.NavigationOverrides.UpdateAsync(row, cancellationToken).ConfigureAwait(false);
         await unit.CompleteAsync(cancellationToken).ConfigureAwait(false);
         var updated = (await GetAsync(cancellationToken).ConfigureAwait(false)).Single(x => x.Definition?.Key == pageKey);
@@ -78,7 +79,7 @@ public sealed class EffectiveNavigation(IIamUnitOfWork unit, IEffectiveModulePol
         if (selected?.Definition is not { } page) return AppResponses.Failure<bool>("Navigation default not found for this tenant.");
         var row = await unit.NavigationOverrides.FirstOrDefaultAsync(x => x.PageKey == pageKey, cancellationToken).ConfigureAwait(false);
         if (row is null) { row = new NavigationOverride { PageKey = pageKey, Title = page.Title, CreatedBy = actor.ActorId }; await unit.NavigationOverrides.CreateAsync(row, cancellationToken).ConfigureAwait(false); }
-        row.UsePlatformDefaults = true; row.Version++; row.UpdatedAt = DateTimeOffset.UtcNow; row.UpdatedBy = actor.ActorId;
+        row.UsePlatformDefaults = true; row.Version++; row.UpdatedAt = timeProvider.GetUtcNow(); row.UpdatedBy = actor.ActorId;
         await unit.NavigationOverrides.UpdateAsync(row, cancellationToken).ConfigureAwait(false);
         await unit.CompleteAsync(cancellationToken).ConfigureAwait(false);
         return AppResponses.Success(true);

@@ -22,7 +22,8 @@ internal sealed class SendEmailOtp(
     UserManager<AppUser> userManager,
     IDistributedCache cache,
     IPublisher publisher,
-    ILogger<SendEmailOtp> logger) : IRequestHandler<SendEmailOtpCommand, AppResponse<SendEmailOtpResponse>>
+    ILogger<SendEmailOtp> logger,
+    TimeProvider timeProvider) : IRequestHandler<SendEmailOtpCommand, AppResponse<SendEmailOtpResponse>>
 {
     private static readonly TimeSpan OtpLifetime = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan Cooldown = TimeSpan.FromSeconds(60);
@@ -53,7 +54,7 @@ internal sealed class SendEmailOtp(
         await cache.SetStringAsync(otpKey, hashed, new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = OtpLifetime }, ct).ConfigureAwait(false);
         await cache.SetStringAsync(cooldownKey, "1", new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = Cooldown }, ct).ConfigureAwait(false);
 
-        var expiresAt = DateTimeOffset.UtcNow.Add(OtpLifetime);
+        var expiresAt = timeProvider.GetUtcNow().Add(OtpLifetime);
 
         await publisher.Publish(new EmailOtpRequestedEvent(
             user.Id,
@@ -68,7 +69,7 @@ internal sealed class SendEmailOtp(
             "Code sent",
             new SendEmailOtpResponse(
                 user.Id,
-                DateTimeOffset.UtcNow.Add(OtpLifetime),
+                expiresAt,
                 (int)Cooldown.TotalSeconds));
     }
 

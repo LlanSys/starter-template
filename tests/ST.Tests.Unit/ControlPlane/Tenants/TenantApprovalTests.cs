@@ -83,7 +83,7 @@ public sealed class TenantApprovalTests
         var uow = Substitute.For<IControlPlaneUnitOfWork>();
         uow.Tenants.FindByIdAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(tenant);
         var actor = Substitute.For<ICurrentActorProvider>();
-        var handler = new SuspendTenantCommandHandler(uow, NullLogger<SuspendTenantCommandHandler>.Instance, actor);
+        var handler = new SuspendTenantCommandHandler(uow, NullLogger<SuspendTenantCommandHandler>.Instance, actor, TimeProvider.System);
         var result = await handler.Handle(new SuspendTenantCommand(tenant.Id), CancellationToken.None);
         Assert.False(result.IsSuccess);
         Assert.Equal(status, tenant.Status);

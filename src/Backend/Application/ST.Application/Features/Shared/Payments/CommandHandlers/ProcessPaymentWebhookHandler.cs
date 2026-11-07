@@ -12,7 +12,7 @@ namespace ST.Application.Features.Shared.Payments.CommandHandlers;
 
 internal sealed class ProcessPaymentWebhookHandler(
     IPaymentWebhookVerifier paymentWebhookVerifier,
-    ISharedUnitOfWork sharedUnitOfWork)
+    ISharedUnitOfWork sharedUnitOfWork, TimeProvider timeProvider)
     : IRequestHandler<ProcessPaymentWebhookCommand, AppResponse<PaymentWebhookVerificationResponse>> //ProcessMpesaStkCallbackCommand
 {
     public async Task<AppResponse<PaymentWebhookVerificationResponse>> Handle(
@@ -52,12 +52,12 @@ internal sealed class ProcessPaymentWebhookHandler(
 
         if (string.Equals(data.EventType, "checkout.session.completed", StringComparison.OrdinalIgnoreCase))
         {
-            paymentRecord.UpdateStatus(PaymentStatus.Success, data.PaymentReference);
+            paymentRecord.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Success, data.PaymentReference);
             await sharedUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
         }
         else if (string.Equals(data.EventType, "checkout.session.async_payment_failed", StringComparison.OrdinalIgnoreCase))
         {
-            paymentRecord.UpdateStatus(PaymentStatus.Failed, data.PaymentReference);
+            paymentRecord.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Failed, data.PaymentReference);
             await sharedUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
         }
 

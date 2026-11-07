@@ -16,9 +16,5 @@ public sealed record RequestPasswordResetEvent(
     string Email,
     string ResetToken,
     string ResetUrl,
-    MfaChannel PreferredChannel
-
-) : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+    MfaChannel PreferredChannel,
+    DateTimeOffset OccurredAt) : IDomainEvent;

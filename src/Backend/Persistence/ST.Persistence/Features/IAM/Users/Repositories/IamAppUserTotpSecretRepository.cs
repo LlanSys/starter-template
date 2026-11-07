@@ -21,10 +21,11 @@ internal sealed class IamAppUserTotpSecretRepository(IamDBContext context, ILogg
 
     public async Task<AppUserTotpSecret?> GetActiveSecretByUserIdAsync(string userId)
     {
+        var now = context.Clock.GetUtcNow();
         return await FindByCondition(x =>
                 x.AppUserId == userId &&
                 x.IsActive &&
-                (x.ExpiresAt == null || x.ExpiresAt > DateTimeOffset.UtcNow))
+                (x.ExpiresAt == null || x.ExpiresAt > now))
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync().ConfigureAwait(false);
@@ -37,9 +38,10 @@ internal sealed class IamAppUserTotpSecretRepository(IamDBContext context, ILogg
             var secrets = await FindByCondition(x => x.AppUserId == userId && x.IsActive)
                 .ToListAsync().ConfigureAwait(false);
 
+            var now = context.Clock.GetUtcNow();
             foreach (var secret in secrets)
             {
-                secret.Deactivate();
+                secret.Deactivate(now);
             }
 
             await UpdateRangeAsync(new Collection<AppUserTotpSecret>(secrets)).ConfigureAwait(false);

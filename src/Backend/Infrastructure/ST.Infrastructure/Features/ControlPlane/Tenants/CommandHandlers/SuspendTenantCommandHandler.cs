@@ -17,6 +17,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Tenants.CommandHandlers;
 
 public class SuspendTenantCommandHandler : IRequestHandler<SuspendTenantCommand, AppResponse<TenantResponse>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<SuspendTenantCommandHandler> _logger;
     private readonly ICurrentActorProvider _actorProvider;
@@ -24,10 +25,11 @@ public class SuspendTenantCommandHandler : IRequestHandler<SuspendTenantCommand,
     public SuspendTenantCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<SuspendTenantCommandHandler> logger,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _timeProvider = timeProvider;
         _actorProvider = actorProvider;
     }
 
@@ -49,7 +51,7 @@ public class SuspendTenantCommandHandler : IRequestHandler<SuspendTenantCommand,
         }
 
         tenant.Suspend();
-        tenant.UpdatedAt = DateTimeOffset.UtcNow;
+        tenant.UpdatedAt = _timeProvider.GetUtcNow();
         tenant.UpdatedBy = _actorProvider.ActorId;
 
         await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);

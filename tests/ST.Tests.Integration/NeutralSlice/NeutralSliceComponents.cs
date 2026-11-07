@@ -38,7 +38,8 @@ internal sealed class NeutralSliceDBContext(DbContextOptions<NeutralSliceDBConte
 }
 
 internal sealed class NeutralSliceUnitOfWork(NeutralSliceDBContext context, IPublisher publisher,
-    ILogger<NeutralSliceUnitOfWork> logger) : BaseUnitOfWork<NeutralSliceDBContext>(context, publisher, logger)
+    ILogger<NeutralSliceUnitOfWork> logger, TimeProvider timeProvider)
+    : BaseUnitOfWork<NeutralSliceDBContext>(context, publisher, logger, timeProvider)
 {
     internal Repository<NeutralNote> Notes { get; } = new(context);
 }

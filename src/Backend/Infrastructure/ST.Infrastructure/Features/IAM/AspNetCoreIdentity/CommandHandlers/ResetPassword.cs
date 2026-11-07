@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class ResetPassword(UserManager<AppUser> users, IIamUnitOfWork unitOfWork,
-    ICacheService cache, IPublisher publisher, ICurrentTenantProvider tenantProvider, ILogger<ResetPassword> logger)
+    ICacheService cache, IPublisher publisher, ICurrentTenantProvider tenantProvider, ILogger<ResetPassword> logger, TimeProvider timeProvider)
     : IRequestHandler<ResetPasswordCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(ResetPasswordCommand command, CancellationToken cancellationToken)
@@ -33,13 +33,14 @@ internal sealed class ResetPassword(UserManager<AppUser> users, IIamUnitOfWork u
 
             return await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                user.CompletePasswordReset(user.Id);
+                var now = timeProvider.GetUtcNow();
+                user.CompletePasswordReset(now, user.Id);
                 var result = await users.ResetPasswordAsync(user, request.Token, password).ConfigureAwait(false);
                 if (!result.Succeeded) throw new ResetRejectedException();
-                await AccountAccessCleanup.StageAsync(unitOfWork, user.Id, user.Id, "Password reset", cancellationToken).ConfigureAwait(false);
+                await AccountAccessCleanup.StageAsync(unitOfWork, user.Id, user.Id, "Password reset", now, cancellationToken).ConfigureAwait(false);
                 await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 await publisher.Publish(new PasswordResetSuccessEvent(user.Id, user.Email!,
-                    $"{user.FirstName} {user.LastName}"), cancellationToken).ConfigureAwait(false);
+                    $"{user.FirstName} {user.LastName}", now), cancellationToken).ConfigureAwait(false);
                 await cache.RemoveAsync(CacheKeys.PasswordResetOtp(user.Id), cancellationToken).ConfigureAwait(false);
                 await cache.RemoveAsync(CacheKeys.PasswordResetRateLimit(user.Id), cancellationToken).ConfigureAwait(false);
                 return AppResponses.Success("Password reset successfully.", true);

@@ -33,7 +33,8 @@ namespace ST.Application.Behaviours;
 public sealed class CacheInvalidationBehavior<TRequest, TResponse>(
     ICacheService cache,
     ICurrentTenantProvider tenantProvider,
-    ILogger<CacheInvalidationBehavior<TRequest, TResponse>> logger)
+    ILogger<CacheInvalidationBehavior<TRequest, TResponse>> logger,
+    TimeProvider timeProvider)
 
     : IPipelineBehavior<TRequest, TResponse> where TRequest
     : IRequest<TResponse>, ICacheInvalidatorRequest
@@ -105,7 +106,7 @@ public sealed class CacheInvalidationBehavior<TRequest, TResponse>(
         return $"{sentinelKey[..^":global".Length]}:tenant:{tenantId:D}";
     }
 
-    private static string GenerateVersion()
-        => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+    private string GenerateVersion()
+        => timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
 
 }

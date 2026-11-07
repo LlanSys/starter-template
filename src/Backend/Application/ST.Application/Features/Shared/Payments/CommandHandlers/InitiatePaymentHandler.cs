@@ -14,7 +14,8 @@ namespace ST.Application.Features.Shared.Payments.CommandHandlers;
 
 internal sealed class InitiatePaymentHandler(
     IPaymentGateway paymentGateway,
-    ISharedUnitOfWork sharedUnitOfWork)
+    ISharedUnitOfWork sharedUnitOfWork,
+    TimeProvider timeProvider)
     : IRequestHandler<InitiatePaymentCommand, AppResponse<PaymentInitiationResponse>>
 {
     public async Task<AppResponse<PaymentInitiationResponse>> Handle(
@@ -58,7 +59,7 @@ internal sealed class InitiatePaymentHandler(
 
         // Extract a human-readable, collision-resistant reference using the current date and the Guid's entropy
         // Format example: ST-STR-USD-260709-A1B2C3
-        var timestamp = DateTimeOffset.UtcNow.ToString("yyMMdd", CultureInfo.InvariantCulture);
+        var timestamp = timeProvider.GetUtcNow().ToString("yyMMdd", CultureInfo.InvariantCulture);
         var uniqueSuffix = paymentId.ToString("N")[^6..].ToUpperInvariant();
         var customerReference = $"ST-{providerPrefix}-{req.Currency}-{timestamp}-{uniqueSuffix}";
 
@@ -94,7 +95,7 @@ internal sealed class InitiatePaymentHandler(
         else
         {
             // If initiation fails, update the record status to Failed.
-            paymentRecord.UpdateStatus(PaymentStatus.Failed, statusMessage: initiatePaymentResult.Message);
+            paymentRecord.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Failed, statusMessage: initiatePaymentResult.Message);
             await sharedUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
         }
 

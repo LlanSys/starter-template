@@ -12,9 +12,5 @@ internal sealed record AppUserCreatedIntegrationEvent(
     Guid TenantId,
     string UserName,
     string FullName,
-    string Email
-
-) : IIntegrationEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+    string Email,
+    DateTimeOffset OccurredAt) : IIntegrationEvent;

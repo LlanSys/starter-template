@@ -7,6 +7,7 @@ using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Shared.Exceptions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using ST.Domain.Features.ControlPlane.Tenants.Enums;
 
 namespace ST.Infrastructure.Contracts.Implementations.Common;
 
@@ -59,7 +60,7 @@ internal sealed class TenantConnectionResolver : ITenantConnectionResolver
         using var scope = _serviceProvider.CreateScope();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IControlPlaneUnitOfWork>();
         var tenant = await unitOfWork.Tenants.FindByIdAsync(tenantId, cancellationToken).ConfigureAwait(false);
-        if (tenant is null || tenant.Status != ST.Domain.Features.ControlPlane.Tenants.Enums.TenantStatus.Active)
+        if (tenant is null || tenant.Status != TenantStatus.Active)
         {
             throw new TenantNotResolvedException("The requested tenant is unavailable.");
         }

@@ -17,9 +17,11 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
     private readonly ICurrentTenantProvider? _tenantProvider;
     private readonly ICurrentActorProvider? _actorProvider;
     private readonly ILogger<SharedDBContext>? _logger;
+    internal TimeProvider Clock { get; }
 
     public SharedDBContext(
         DbContextOptions<SharedDBContext> options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider tenantProvider,
         ICurrentActorProvider actorProvider,
         ILogger<SharedDBContext>? logger = null
@@ -28,10 +30,12 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         _tenantProvider = tenantProvider;
         _actorProvider = actorProvider;
         _logger = logger;
+        Clock = timeProvider;
     }
 
     protected SharedDBContext(
         DbContextOptions options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider tenantProvider,
         ICurrentActorProvider actorProvider,
         ILogger<SharedDBContext>? logger = null
@@ -40,6 +44,7 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         _tenantProvider = tenantProvider;
         _actorProvider = actorProvider;
         _logger = logger;
+        Clock = timeProvider;
     }
     public DbSet<EmailTemplate> EmailTemplates { get; set; }
     public DbSet<FailedMessage> FailedMessages { get; set; }
@@ -78,7 +83,7 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
             var domainEvents = DBContextHelper.CollectDomainEvents(ChangeTracker);
             DBContextHelper.ClearDomainEventsFromAggregates(ChangeTracker);
             DBContextHelper.StampPostgreSqlConcurrency(this);
-            DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId);
+            DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId, Clock.GetUtcNow());
             var result = await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             _collectedDomainEvents ??= [];
             _collectedDomainEvents.AddRange(domainEvents);

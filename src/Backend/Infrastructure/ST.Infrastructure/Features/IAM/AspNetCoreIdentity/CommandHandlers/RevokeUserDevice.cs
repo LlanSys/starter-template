@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
-internal sealed class RevokeUserDevice(IamDBContext context, ILogger<RevokeUserDevice> logger)
+internal sealed class RevokeUserDevice(IamDBContext context, ILogger<RevokeUserDevice> logger, TimeProvider timeProvider)
     : IRequestHandler<RevokeUserDeviceCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(RevokeUserDeviceCommand command, CancellationToken cancellationToken)
@@ -24,7 +24,7 @@ internal sealed class RevokeUserDevice(IamDBContext context, ILogger<RevokeUserD
                 return AppResponses.Failure<bool>("User device not found.");
             }
 
-            device.RevokeTrust(command.RevokedBy);
+            device.RevokeTrust(timeProvider.GetUtcNow(), command.RevokedBy);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             return AppResponses.Success("Device trust revoked.", true);

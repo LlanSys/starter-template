@@ -10,8 +10,10 @@ The create-tenant form can record an optional initial administrator. Control Pla
 
 Set the API `ExternalSignIn:PublicApiOrigin` to the central API origin visible to the browser and configure each approved Blazor origin in `ExternalSignIn:ClientOrigins`. Configure the Blazor `BackendApi:PublicBaseUrl` to the same public API origin. Keep `BackendApi:BaseUrl` as the server-to-server address. Configure only the providers you intend to expose.
 
-- Microsoft uses `EntraId:Enabled`, `TenantId`, `ClientId`, and `ClientSecret`. Register the exact public API callback at `/signin-oidc` by default.
-- Google uses `GoogleSso:Enabled`, `ClientId`, and `ClientSecret`. Register the exact public API callback at `/signin-google` by default. Use a Web application client and allow your account as a test user if Google consent is in testing.
+- Microsoft uses `EntraId:Enabled`, `TenantId`, `ClientId`, and `ClientSecret`. Register a single-tenant Entra application with a Web redirect URI at `/signin-oidc` on the public API. Use the Directory (tenant) ID, Application (client) ID, and client secret value.
+- Google uses `GoogleSso:Enabled`, `ClientId`, and `ClientSecret`. Create a Web application OAuth client with a redirect URI at `/signin-google` on the public API. Leave Authorized JavaScript origins empty for the server-side flow. StarterTemplate requests only `openid`, `profile`, and `email`, which Google exempts from the Testing audience's test-user list requirement. [Google audience settings](https://support.google.com/cloud/answer/15549945)
+
+With the Visual Studio HTTPS profiles, the API origin is `https://localhost:7229` and the Blazor origin is `https://localhost:7149`. Register `https://localhost:7229/signin-google` for Google and `https://localhost:7229/signin-oidc` for Microsoft.
 - Keep provider credentials in user-secrets for local runs and in your environment's secret store for deployments. The callback registrations, enabled provider credentials, and approved origins must match the actual environment.
 
 The app binds validated issuer and subject together and binds the sign-in to the selected workspace. It never links by email. Local accounts can connect a provider from Account security using current-password confirmation and a short-lived one-use ticket. Older Microsoft mappings may contain only the subject. Reconnect those accounts or perform an issuer-verified migration. External sign-in challenges the app authenticator for enrolled accounts. A Google invitation additionally requires a verified email matching the invited address.

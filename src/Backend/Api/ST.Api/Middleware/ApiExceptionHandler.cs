@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 using DataAnnotationsValidationException = System.ComponentModel.DataAnnotations.ValidationException;
+using FluentValidationValidationException = FluentValidation.ValidationException;
 
 namespace ST.Api.Middleware;
 
@@ -83,7 +84,7 @@ internal sealed class ApiExceptionHandler : IExceptionHandler
                 problemDetails.Extensions["errors"] = errors;
                 break;
 
-            case FluentValidation.ValidationException fluentEx:
+            case FluentValidationValidationException fluentEx:
                 status = (int)HttpStatusCode.BadRequest;
                 title = "Validation Error";
                 detail = "One or more validation errors occurred.";

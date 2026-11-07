@@ -1,6 +1,8 @@
 using ST.Persistence.Common.DesignTime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Migrations;
+using ST.Persistence.Features.Shared.Migrations.Generators;
 
 namespace ST.Persistence.Features.ControlPlane.DataContext;
 
@@ -14,7 +16,7 @@ public class ControlPlaneSqlServerDBContextFactory : IDesignTimeDbContextFactory
 
         optionsBuilder.UseSqlServer(
             connectionString,
-            sqlOptions => DesignTimeConfigurationFactory.ConfigureSqlServer(sqlOptions, "__EFMigrationsHistory_ControlPlane")).ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, ST.Persistence.Features.Shared.Migrations.Generators.IdempotentSqlServerMigrationsSqlGenerator>();
-        return new ControlPlaneSqlServerDBContext(optionsBuilder.Options);
+            sqlOptions => DesignTimeConfigurationFactory.ConfigureSqlServer(sqlOptions, "__EFMigrationsHistory_ControlPlane")).ReplaceService<IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
+        return new ControlPlaneSqlServerDBContext(optionsBuilder.Options, TimeProvider.System);
     }
 }

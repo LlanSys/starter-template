@@ -3,7 +3,7 @@ using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Domain.Features.ControlPlane.Modules.Entities;
 using ST.SharedKernel.Dtos.Common;
 namespace ST.Application.Features.ControlPlane.Modules;
-internal sealed class SaveModuleFlagHandler(IControlPlaneUnitOfWork unit) : IRequestHandler<SaveModuleFlagCommand, AppResponse<bool>>
+internal sealed class SaveModuleFlagHandler(IControlPlaneUnitOfWork unit, TimeProvider timeProvider) : IRequestHandler<SaveModuleFlagCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(SaveModuleFlagCommand command, CancellationToken cancellationToken)
     {
@@ -26,7 +26,7 @@ internal sealed class SaveModuleFlagHandler(IControlPlaneUnitOfWork unit) : IReq
         else
         {
             if (row is null) { row = new ModuleFeatureFlag { ModuleKey = key, Key = flagKey, ScopeTenantId = request.TenantId, Name = request.Name.Trim(), CreatedBy = command.ActorId }; await unit.FeatureFlags.CreateAsync(row, cancellationToken).ConfigureAwait(false); }
-            row.Name = request.Name.Trim(); row.IsEnabled = request.IsEnabled; row.UpdatedAt = DateTimeOffset.UtcNow; row.UpdatedBy = command.ActorId;
+            row.Name = request.Name.Trim(); row.IsEnabled = request.IsEnabled; row.UpdatedAt = timeProvider.GetUtcNow(); row.UpdatedBy = command.ActorId;
         }
         if (!request.UseDefault && row is not null) await unit.FeatureFlags.UpdateAsync(row, cancellationToken).ConfigureAwait(false);
         await unit.CompleteAsync(cancellationToken).ConfigureAwait(false);

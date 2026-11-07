@@ -18,7 +18,8 @@ internal sealed class InitiateTotpSetupCommandHandler(
     IEncryptionService encryptionService,
     UserManager<AppUser> userManager,
     IIamUnitOfWork iamUnitOfWork,
-    ILogger<InitiateTotpSetupCommandHandler> logger) : IRequestHandler<InitiateTotpSetupCommand, AppResponse<TwoFactorSetupInfo>>
+    ILogger<InitiateTotpSetupCommandHandler> logger,
+    TimeProvider timeProvider) : IRequestHandler<InitiateTotpSetupCommand, AppResponse<TwoFactorSetupInfo>>
 {
     private const string TotpIssuer = "StarterTemplate.API";
 
@@ -39,10 +40,12 @@ internal sealed class InitiateTotpSetupCommandHandler(
             var plainSecret = GenerateSecret();
             var encryptedSecret = encryptionService.Encrypt(plainSecret);
 
+            var now = timeProvider.GetUtcNow();
             var tempSecret = TempTotpSecret.Create(
+                now,
                 userId,
                 encryptedSecret,
-                DateTimeOffset.UtcNow.AddMinutes(30),
+                now.AddMinutes(30),
                 userId);
 
             await iamUnitOfWork.TempTotpSecretRepository.CreateAsync(tempSecret, cancellationToken).ConfigureAwait(false);

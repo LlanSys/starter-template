@@ -69,6 +69,7 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
     }
 
     public void Update(
+        DateTimeOffset now,
         Guid? parentId,
 
         string key,
@@ -103,7 +104,7 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
         RequiredModule = NormalizeOptional(requiredModule);
         DisplayOrder = displayOrder;
         IsActive = isActive;
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 
     public void SetVisibility(IEnumerable<string>? roles, IEnumerable<string>? permissions)
@@ -127,15 +128,15 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
         => values?.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
         IsActive = false;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy.Trim();
-        SetUpdatedInfo(deletedBy);
+        SetUpdatedInfo(deletedBy, now);
     }
 
     private static string NormalizeKey(string value)

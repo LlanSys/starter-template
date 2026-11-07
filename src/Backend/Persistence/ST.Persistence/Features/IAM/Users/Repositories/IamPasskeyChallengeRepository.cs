@@ -12,7 +12,8 @@ internal sealed class IamPasskeyChallengeRepository(IamDBContext context)
     public async Task ReplaceAsync(PasskeyChallenge challenge, CancellationToken cancellationToken)
     {
         // Expiration/replacement are deliberate atomic persistence operations; no tracked account writes are committed here.
-        await context.PasskeyChallenges.Where(item => item.Key == challenge.Key || item.ExpiresAtUtc <= DateTime.UtcNow)
+        var utcNow = context.Clock.GetUtcNow().UtcDateTime;
+        await context.PasskeyChallenges.Where(item => item.Key == challenge.Key || item.ExpiresAtUtc <= utcNow)
             .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         await CreateAsync(challenge, cancellationToken).ConfigureAwait(false);
     }

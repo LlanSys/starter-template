@@ -8,6 +8,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace ST.Infrastructure.Contracts.Implementations.Settings;
 
@@ -134,7 +135,7 @@ public class CachedOrgSettingsProvider : IOrgSettingsProvider
 
             if (typeof(T).IsPrimitive || typeof(T) == typeof(decimal))
             {
-                return (T)Convert.ChangeType(stringValue, typeof(T), System.Globalization.CultureInfo.InvariantCulture);
+                return (T)Convert.ChangeType(stringValue, typeof(T), CultureInfo.InvariantCulture);
             }
 
             // Otherwise assume JSON

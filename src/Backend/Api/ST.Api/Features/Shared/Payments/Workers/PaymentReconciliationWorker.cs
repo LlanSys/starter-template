@@ -29,13 +29,13 @@ public sealed class PaymentReconciliationWorker(
             {
                 await ReconcilePendingPaymentsAsync(stoppingToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 PaymentLogDefinitions.LogPaymentReconciliationWorkerError(logger, ex);
             }
 
             // Wait 5 minutes before sweeping again
-            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+            await Task.Delay(TimeSpan.FromMinutes(5), timeProvider, stoppingToken);
         }
 
         PaymentLogDefinitions.LogPaymentReconciliationWorkerStopping(logger);
@@ -99,21 +99,21 @@ public sealed class PaymentReconciliationWorker(
                     if (parsedStatus == PaymentStatus.Success)
                     {
                         PaymentLogDefinitions.LogReconcilingPaymentStatus(logger, record.Id, "Success");
-                        record.UpdateStatus(PaymentStatus.Success, statusMessage: "Reconciled from background gateway check");
+                        record.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Success, statusMessage: "Reconciled from background gateway check");
                     }
                     else if (parsedStatus == PaymentStatus.Failed)
                     {
                         PaymentLogDefinitions.LogReconcilingPaymentStatus(logger, record.Id, "Failed");
-                        record.UpdateStatus(PaymentStatus.Failed, statusMessage: "Reconciled from background gateway check");
+                        record.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Failed, statusMessage: "Reconciled from background gateway check");
                     }
                     else if (parsedStatus == PaymentStatus.Cancelled)
                     {
                         PaymentLogDefinitions.LogReconcilingPaymentStatus(logger, record.Id, "Cancelled");
-                        record.UpdateStatus(PaymentStatus.Cancelled, statusMessage: "Reconciled from background gateway check");
+                        record.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Cancelled, statusMessage: "Reconciled from background gateway check");
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 PaymentLogDefinitions.LogPaymentReconciliationFailed(logger, record.Id, record.Provider, ex);
             }
