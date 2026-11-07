@@ -9,7 +9,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: ${APP_SQL_CONNECTION_STRING:?Set APP_SQL_CONNECTION_STRING in ops/local/.env}
       JwtSettings__SecretKey: ${APP_JWT_SECRET:?Set APP_JWT_SECRET in ops/local/.env}
-      BackgroundJobs__Enabled: "true"
+      BackgroundJobs__Enabled: ${APP_BACKGROUND_JOBS_ENABLED:-true}
       Messaging__Enabled: "true"
       Messaging__Transport: RabbitMq
       Messaging__RabbitMq__Host: rabbitmq
