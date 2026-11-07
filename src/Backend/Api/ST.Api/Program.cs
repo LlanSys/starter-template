@@ -121,6 +121,7 @@ try
     builder.Services.AddSharedPersistence(builder.Configuration, builder.Environment);
     builder.Services.AddControlPlanePersistence(builder.Configuration, builder.Environment);
     builder.Services.ConfigureOutBoxMessagingWithGlobalRetry(builder.Configuration);
+    builder.Services.AddApiGraphQL();
 
     builder.Services.AddControllers()
             .AddJsonOptions(options =>
@@ -300,7 +301,7 @@ try
 
     app.UseForwardedHeaders();
 
-    app.UseInfrastructureLoggingMiddleware();
+    app.UseInfrastructureLoggingMiddleware(GraphQLExtensions.EndpointPath);
 
     // OpenAPI/Scalar mappings are configured below within the Development-only block.
     // The earlier unconditional mapping caused duplicate endpoints when the detailed
@@ -399,6 +400,7 @@ try
     });
 
     app.MapControllers();
+    app.MapApiGraphQL();
     app.MapHub<NotificationHub>("/hubs/notifications");
 
     Log.Information("ST API started successfully");

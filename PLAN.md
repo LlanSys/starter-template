@@ -19,6 +19,10 @@
 
 The supported frontend is the Interactive Server Blazor Web App. UI contracts moved into Blazor feature folders; MAUI, the separate RCL, and mobile CI were removed. Backend API DTOs remain in SharedKernel. Quartz jobs use the version 4 ValueTask/cancellation contract and asynchronous scope disposal. The Shared `Quartz46SchemaCompatibility` migrations upgrade SQL Server and PostgreSQL for Quartz 4.6.2 while preserving queued jobs and triggers.
 
+## GraphQL transport example
+
+Deployment Stamps exposes a parallel GraphQL API through the existing MediatR handlers and platform permission policy. The [GraphQL quickstart](docs/development/deployment-stamp-graphql.md) shows the four operations and their REST equivalents.
+
 ## 1. Purpose
 
 StarterTemplate is a reusable enterprise .NET solution template for building production-grade systems quickly, designed with a **Production-First Mindset** from the get-go.

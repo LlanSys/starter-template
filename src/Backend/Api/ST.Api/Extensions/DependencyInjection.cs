@@ -575,10 +575,11 @@ internal static partial class DependencyInjection
                 context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
                 context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
 
-                var isScalarPage = environment.IsDevelopment()
-                    && context.Request.Path.StartsWithSegments("/scalar", StringComparison.OrdinalIgnoreCase);
+                var isApiTool = environment.IsDevelopment()
+                    && (context.Request.Path.StartsWithSegments("/scalar", StringComparison.OrdinalIgnoreCase)
+                        || context.Request.Path.StartsWithSegments(GraphQLExtensions.ExplorerPath, StringComparison.OrdinalIgnoreCase));
 
-                var contentSecurityPolicy = isScalarPage
+                var contentSecurityPolicy = isApiTool
                     ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
                     : "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';";
 

@@ -10,5 +10,7 @@ namespace ST.Application.Features.ControlPlane.Stamps.Commands;
 
 public record UpdateDeploymentStampCommand(Guid Id, UpdateDeploymentStampRequest Request) : IRequest<AppResponse<DeploymentStampResponse>>, ICacheInvalidatorRequest
 {
+    public IReadOnlyList<string> DirectInvalidationKeys => [CacheKeys.Entity("stamps", Id.ToString("D"))];
+
     public IReadOnlyList<string> GroupVersionKeysToInvalidate => [CacheKeys.GroupVersion("stamps")];
 }

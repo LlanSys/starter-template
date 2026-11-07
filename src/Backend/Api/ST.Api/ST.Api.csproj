@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <HotChocolateImplicitUsings>disable</HotChocolateImplicitUsings>
     <UserSecretsId>01a11019-0c5a-7f50-95f0-b8296dc2c445</UserSecretsId>
     <Platforms>AnyCPU;x64</Platforms>
     <NoWarn>$(NoWarn);CA1515</NoWarn>
@@ -19,6 +20,8 @@
     <PackageReference Include="Azure.Storage.Blobs" Version="12.30.1" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageReference Include="HotChocolate.AspNetCore" Version="16.7.3" />
+    <PackageReference Include="HotChocolate.AspNetCore.Authorization" Version="16.7.3" />
     <PackageReference Include="MassTransit" Version="[$(MassTransitVersion)]" />
     <PackageReference Include="MassTransit.Azure.ServiceBus.Core" Version="[$(MassTransitVersion)]" />
     <PackageReference Include="MassTransit.EntityFrameworkCore" Version="[$(MassTransitVersion)]" />

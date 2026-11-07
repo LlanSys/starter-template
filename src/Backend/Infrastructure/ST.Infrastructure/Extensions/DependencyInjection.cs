@@ -1089,7 +1089,8 @@ public static class DependencyInjection
 
     }
 
-    public static IApplicationBuilder UseInfrastructureLoggingMiddleware(this IApplicationBuilder app)
+    public static IApplicationBuilder UseInfrastructureLoggingMiddleware(
+        this IApplicationBuilder app, PathString excludedRequestBodyPath = default)
     {
         // Serilog request logging must be first â€” it wraps the entire pipeline
         // so it can measure the full request duration including auth, routing etc.
@@ -1120,7 +1121,7 @@ public static class DependencyInjection
 
         // Custom middleware â€” adds X-Correlation-ID response header,
         // optionally logs request bodies at Debug level
-        app.UseMiddleware<LoggingMiddleware>();
+        app.UseMiddleware<LoggingMiddleware>(excludedRequestBodyPath);
 
         return app;
     }

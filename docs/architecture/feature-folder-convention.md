@@ -4,7 +4,7 @@ StarterTemplate retains IAM, Shared and ControlPlane. A downstream application i
 
 ## Ownership across layers
 
-Use Features/{Context}/{Feature} consistently in Domain, Application, Infrastructure, Persistence, API and UI wherever the feature has code. Domain defines entities, invariants, events and persistence contracts. Application defines requests, validators, mappings, handlers and integration contracts. Infrastructure supplies platform/provider adapters and handlers that need external services. Persistence supplies context-specific repositories, EF configurations, seeds and migrations. API supplies permission-protected controllers. UI calls the API through typed clients and shared DTOs.
+Use Features/{Context}/{Feature} consistently in Domain, Application, Infrastructure, Persistence, API and UI wherever the feature has code. Domain defines entities, invariants, events and persistence contracts. Application defines requests, validators, mappings, handlers and integration contracts. Infrastructure supplies platform/provider adapters and handlers that need external services. Persistence supplies context-specific repositories, EF configurations, seeds and migrations. API supplies permission-protected controllers and feature-owned GraphQL resolvers where a slice exposes both transports. UI calls the API through typed clients and shared DTOs.
 
 Keep logging, middleware, generic caching, repositories, base entities, JSON utilities and other cross-cutting abstractions outside feature folders.
 
