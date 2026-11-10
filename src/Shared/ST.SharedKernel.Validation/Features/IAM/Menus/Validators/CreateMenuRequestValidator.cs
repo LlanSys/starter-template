@@ -43,8 +43,13 @@ public sealed class CreateMenuRequestValidator : Validator<CreateMenuRequest>
     }
 
     private static bool BeRelativeRoute(string route)
-        => route.Length > 0
+    {
+        // Rooted application routes are classified as absolute file URIs on Unix.
+        return route.Length > 0
             && route[0] == '/'
             && !route.StartsWith("//", StringComparison.Ordinal)
-            && !Uri.TryCreate(route, UriKind.Absolute, out _);
+            && !route.Contains('\\')
+            && !route.Any(char.IsControl)
+            && Uri.TryCreate(route, UriKind.Relative, out _);
+    }
 }
