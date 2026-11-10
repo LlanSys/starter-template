@@ -6,6 +6,9 @@
 @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
 @inject IBackendApiClient Api
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@using ST.SharedKernel.Features.ControlPlane.Demo
+@inject WorkspaceSelection WorkspaceSelection
 @inject ITokenStorage Tokens
 @inject ProtectedSessionStorage SessionStorage
 @inject NavigationManager Navigation
@@ -36,11 +39,21 @@
         _busy = true;
         try {
             var previous = await Tokens.GetAsync();
+            var previousWorkspace = await WorkspaceSelection.GetAsync();
             var response = await Api.SendAsync<LoginResponse>(HttpMethod.Post, $"api/v1/control-plane/demo/enter?readOnly={_readOnly}");
             if (!response.IsSuccess || response.Data is null) { _message = UserMessageSanitizer.Normalize(response.Message, "Could not enter demo."); return; }
-            await SessionStorage.SetAsync("workspace.platform", new PlatformSessionBackup(previous.AccessToken, previous.RefreshToken, previous.SessionId));
+            await SessionStorage.SetAsync("workspace.platform", new PlatformSessionBackup(previous.AccessToken, previous.RefreshToken, previous.SessionId, previousWorkspace));
+            await WorkspaceSelection.SetAsync(new WorkspaceSelectionInfo(DemoWorkspace.TenantId, DemoWorkspace.Identifier, "Demo workspace"));
             await SessionStorage.SetAsync("auth.workspace_tokens", new WorkspaceTokens(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId));
-            if (!await Tokens.SaveAsync(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId)) { _message = "Could not save the demo session."; return; }
+            if (!await Tokens.SaveAsync(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId))
+            {
+                await SessionStorage.DeleteAsync("auth.workspace_tokens");
+                await WorkspaceSelection.RestoreAsync(previousWorkspace);
+                await Tokens.SaveAsync(previous.AccessToken, previous.RefreshToken, previous.SessionId);
+                await SessionStorage.DeleteAsync("workspace.platform");
+                _message = "Could not save the demo session.";
+                return;
+            }
             Navigation.NavigateTo("/dashboard", forceLoad: true);
         } finally { _busy = false; }
     }

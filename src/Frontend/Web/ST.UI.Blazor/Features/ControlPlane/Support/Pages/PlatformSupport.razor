@@ -10,6 +10,8 @@
 @using ST.UI.Blazor.Features.ControlPlane.Demo
 @using ST.UI.Blazor.Features.ControlPlane.Support.Components
 @inject IBackendApiClient Api
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@inject WorkspaceSelection WorkspaceSelection
 @inject ITokenStorage Tokens
 @inject ProtectedSessionStorage SessionStorage
 @inject NavigationManager Navigation
@@ -53,12 +55,46 @@
  }
  private async Task RequestAsync() { _busy=true;try {var result=await Api.SendAsync<SupportResult>(HttpMethod.Post,"api/v1/control-plane/support",new SupportRequest(_tenant,_reason,_selected.ToArray(),_readOnly,_minutes));_message=UserMessageSanitizer.Normalize(result.Message,result.IsSuccess ? "Request sent for customer approval." : "Could not request support.");await LoadAsync();}finally{_busy=false;} }
  private async Task RevokeAsync(SupportGrantResponse grant) { var result=await Api.SendAsync<SupportResult>(HttpMethod.Post,$"api/v1/control-plane/support/{grant.Id}/revoke");_message=UserMessageSanitizer.Normalize(result.Message,"Support request revoked.");await LoadAsync(); }
- private async Task EnterAsync(SupportGrantResponse grant) {
- _busy=true;try {var previous=await Tokens.GetAsync();var result=await Api.SendAsync<SupportResult>(HttpMethod.Post,$"api/v1/control-plane/support/{grant.Id}/enter");var session=result.Data?.Session;
- if(!result.IsSuccess || session is null) {_message=UserMessageSanitizer.Normalize(result.Message,"Could not enter support.");return;}
- await SessionStorage.SetAsync("workspace.platform",new PlatformSessionBackup(previous.AccessToken,previous.RefreshToken,previous.SessionId));
- await SessionStorage.SetAsync("auth.workspace_tokens",new WorkspaceTokens(session.Token,session.RefreshToken,session.SessionId));
- await Tokens.SaveAsync(session.Token,session.RefreshToken,session.SessionId);Navigation.NavigateTo("/dashboard",forceLoad:true);
- }finally{_busy=false;}
- }
+    private async Task EnterAsync(SupportGrantResponse grant)
+    {
+        var tenant = _tenants.SingleOrDefault(item => item.Id == grant.TenantId);
+        if (_busy || tenant is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var previous = await Tokens.GetAsync();
+            var previousWorkspace = await WorkspaceSelection.GetAsync();
+            var result = await Api.SendAsync<SupportResult>(HttpMethod.Post, $"api/v1/control-plane/support/{grant.Id}/enter");
+            var session = result.Data?.Session;
+            if (!result.IsSuccess || session is null)
+            {
+                _message = UserMessageSanitizer.Normalize(result.Message, "Could not enter support.");
+                return;
+            }
+
+            await SessionStorage.SetAsync("workspace.platform", new PlatformSessionBackup(
+                previous.AccessToken, previous.RefreshToken, previous.SessionId, previousWorkspace));
+            await WorkspaceSelection.SetAsync(new WorkspaceSelectionInfo(tenant.Id, tenant.Identifier, tenant.DisplayName));
+            await SessionStorage.SetAsync("auth.workspace_tokens", new WorkspaceTokens(session.Token, session.RefreshToken, session.SessionId));
+            if (!await Tokens.SaveAsync(session.Token, session.RefreshToken, session.SessionId))
+            {
+                await SessionStorage.DeleteAsync("auth.workspace_tokens");
+                await WorkspaceSelection.RestoreAsync(previousWorkspace);
+                await Tokens.SaveAsync(previous.AccessToken, previous.RefreshToken, previous.SessionId);
+                await SessionStorage.DeleteAsync("workspace.platform");
+                _message = "Could not save the support session.";
+                return;
+            }
+
+            Navigation.NavigateTo("/dashboard", forceLoad: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 }

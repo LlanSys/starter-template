@@ -1,5 +1,7 @@
 # Environment Configuration Checklist
 
+For each new application, environment and stamp, complete the [downstream configuration and release checklist](downstream-configuration-checklist.md). Use this guide for provider detail; record actual application-specific values in your private configuration inventory.
+
 This checklist explains how StarterTemplate should be configured locally, when developing locally against Azure services, when deployed to Azure, and when deployed to supported non-Azure container hosts.
 
 Configuration is stamp-scoped. Before adding or renaming cloud settings, confirm the selected SaaS model in `docs/architecture/saas-multitenancy-strategy.md`: local development, pooled production stamp, or isolated tenant stamp.
@@ -59,8 +61,8 @@ When a Key Vault belongs to an isolated stamp, keep secret names simple and alig
 | SignalR | Authenticated notification hub | `/hubs/notifications` | Implemented baseline |
 | Reporting | QuestPDF via reporting abstraction | `Reporting:QuestPdf:License` | Implemented baseline |
 | Payments | Payment gateway abstraction with NoOp, Stripe, and M-Pesa adapters | `Payments:Provider`, `Payments:Stripe:*`, `Payments:Mpesa:*` | Code-wired; provider credentials/callback smoke tests are environment-specific certification |
-| Entra ID SSO | Corporate OIDC auth scheme | `EntraId:Enabled`, `EntraId:TenantId`, `EntraId:ClientId`, `EntraId:ClientSecret` | OIDC scheme configurable; local AppUser linking and token issuance flow remains the dedicated IAM slice |
-| Passkeys/WebAuthn | Browser passkey authentication | TBD | Pending dedicated IAM slice |
+| Entra ID SSO | Corporate OIDC sign-in | `EntraId:Enabled`, `EntraId:TenantId`, `EntraId:ClientId`, `EntraId:ClientSecret` | Issuer/subject binding, protected state and one-use exchanges implemented; live provider acceptance is environment-specific |
+| Passkeys/WebAuthn | Browser passkey authentication | `Passkeys:Enabled`, `ServerDomain`, `ServerName`, `Origins` | Persisted, one-use challenges and ownership checks implemented; real authenticator acceptance remains separate |
 | Password recovery | Email OTP or email reset link | `PasswordRecovery:Mode`, `PasswordRecovery:ResetPath`, `EmailSettings:ClientBaseUrl` | Implemented; exactly one mode is active per deployment |
 
 ## Recommended Local Setup
@@ -69,8 +71,7 @@ Use user-secrets for local development:
 
 ```powershell
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<local-sql-connection>" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "JwtSettings:Secret" "<strong-local-jwt-secret>" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "IamProvisioning:TemporaryPassword" "<temporary-password>" --project src\Backend\Api\ST.Api\ST.Api.csproj
+dotnet user-secrets set "JwtSettings:SecretKey" "<strong-local-jwt-secret>" --project src\Backend\Api\ST.Api\ST.Api.csproj
 ```
 
 Password recovery is selected once per deployment. Use `EmailOtp` to send and verify a six-digit code before accepting a new password, or `EmailLink` to send an ASP.NET Identity reset-token link. Do not expose both flows simultaneously.
@@ -88,7 +89,7 @@ Local email should normally be captured by Mailpit through the setup script:
 ```powershell
 dotnet user-secrets set "EmailSettings:Provider" "LocalMailpit" --project src\Backend\Api\ST.Api\ST.Api.csproj
 dotnet user-secrets set "EmailSettings:LocalMailpit:Host" "localhost" --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "EmailSettings:LocalMailpit:Port" "1025" --project src\Backend\Api\ST.Api\ST.Api.csproj
+dotnet user-secrets set "EmailSettings:LocalMailpit:Port" "1030" --project src\Backend\Api\ST.Api\ST.Api.csproj
 ```
 
 Do not use personal mailbox SMTP credentials as the production email path. Production email should use an approved provider API, currently represented by `EmailSettings:Provider=SendGrid`.
@@ -168,7 +169,7 @@ Provider-specific values to collect when enabling each integration:
 | Entra ID SSO | Testing corporate OIDC login | `EntraId:Enabled=true`, `EntraId:TenantId`, `EntraId:ClientId`, `EntraId:ClientSecret` |
 | Azure Service Bus | Testing Azure messaging transport | `Messaging:Transport=AzureServiceBus`, `Messaging:AzureServiceBus:ConnectionString` |
 
-If Azure subscription access is unavailable, leave Entra ID and Azure Service Bus disabled. The JSON sections, settings POCOs, DI registration, and fail-fast validation remain ready for the future subscription upgrade.
+Enable Entra ID after its app registration, intended directory audience and redirect configuration are ready. Enable Azure Service Bus when the selected service and its credentials or identity permissions are available. Keep unconfigured integrations disabled; cloud deployment remains controlled separately by the repository deployment switch.
 
 For local-only development, leave these values empty so the app uses filesystem/local storage:
 

@@ -11,7 +11,9 @@ else
             <NotAuthorized>
                 @if (AuthSession.IsAuthenticated)
                 {
-                    <LayoutView Layout="typeof(Layout.MainLayout)"><h1 class="platform-page-title">Page unavailable</h1><p>This page is not available in your workspace.</p><MudButton Href="/dashboard" Color="Color.Primary">Dashboard</MudButton></LayoutView>
+                    <h1 class="platform-page-title">Page unavailable</h1>
+                    <p>This page is not available in your workspace.</p>
+                    <MudButton Href="/dashboard" Color="Color.Primary">Dashboard</MudButton>
                 }
                 else
                 {
