@@ -12,6 +12,7 @@ namespace ST.Application.Features.IAM.Permissions.Queries;
 
 public sealed record GetPermissionByIdQuery(Guid Id, string UserId) : IRequest<AppResponse<PermissionResponse>>, ICachableRequest
 {
+    public bool BypassCache => true;
     public string CacheGroup => "permissions";
 
     public string Discriminator => CacheKeys.Entity("permissions", Id.ToString());

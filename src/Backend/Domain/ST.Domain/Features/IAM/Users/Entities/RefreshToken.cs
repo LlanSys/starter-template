@@ -30,14 +30,12 @@ public class RefreshToken : BaseEntity, ISoftDeletable
 
     // Methods
 
-    [NotMapped]
-    public bool IsActive => !IsRevoked && !IsExpired;
+    public bool IsActiveAt(DateTimeOffset now) => !IsRevoked && !IsExpiredAt(now);
 
     [NotMapped]
     public bool IsUsed => UsedAt.HasValue;
 
-    [NotMapped]
-    public bool IsExpired => DateTimeOffset.UtcNow >= ExpiresAt;
+    public bool IsExpiredAt(DateTimeOffset now) => now >= ExpiresAt;
 
     [NotMapped]
     public bool IsRevoked => RevokedAt.HasValue;
@@ -45,6 +43,7 @@ public class RefreshToken : BaseEntity, ISoftDeletable
     private RefreshToken() { }
 
     public static RefreshToken Create(
+        DateTimeOffset now,
         string appUserId,
         string token,
         DateTimeOffset expiresAt,
@@ -62,7 +61,7 @@ public class RefreshToken : BaseEntity, ISoftDeletable
             AppUserId = appUserId,
             Token = token,
             ExpiresAt = expiresAt,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
             CreatedBy = createdBy,
             CreatedByIp = createdByIp,
             TokenFamily = string.IsNullOrWhiteSpace(tokenFamily)
@@ -71,29 +70,29 @@ public class RefreshToken : BaseEntity, ISoftDeletable
         };
     }
 
-    public void MarkAsUsed()
+    public void MarkAsUsed(DateTimeOffset now)
     {
-        UsedAt = DateTimeOffset.UtcNow;
-        SetUpdatedInfo(AppUserId);
+        UsedAt = now;
+        SetUpdatedInfo(AppUserId, now);
     }
 
-    public void Revoke(string reason, string? revokedByIp = null, string? replacedByToken = null)
+    public void Revoke(DateTimeOffset now, string reason, string? revokedByIp = null, string? replacedByToken = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
-        RevokedAt = DateTimeOffset.UtcNow;
+        RevokedAt = now;
         RevokedReason = reason;
         RevokedByIp = revokedByIp;
         ReplacedByToken = replacedByToken;
-        SetUpdatedInfo(AppUserId);
+        SetUpdatedInfo(AppUserId, now);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy;
 
         if (!IsRevoked)
@@ -102,7 +101,7 @@ public class RefreshToken : BaseEntity, ISoftDeletable
             RevokedReason = "Soft deleted";
         }
 
-        SetUpdatedInfo(deletedBy);
+        SetUpdatedInfo(deletedBy, now);
     }
 
     // Navigation

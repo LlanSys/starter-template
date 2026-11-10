@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using Serilog.Core;
 using Serilog.Events;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace ST.Infrastructure.Logging;
 
@@ -11,7 +13,7 @@ namespace ST.Infrastructure.Logging;
 /// </summary>
 public class PiiDestructuringPolicy : IDestructuringPolicy
 {
-    private static readonly HashSet<string> SensitivePropertyNames = new(System.StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> SensitivePropertyNames = new(StringComparer.OrdinalIgnoreCase)
     {
         // Security & Auth
         "Password",
@@ -44,10 +46,10 @@ public class PiiDestructuringPolicy : IDestructuringPolicy
 
     private const string MaskedValue = "***REDACTED***";
 
-    public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out LogEventPropertyValue? result)
+    public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [NotNullWhen(true)] out LogEventPropertyValue? result)
     {
-        if (value == null) throw new System.ArgumentNullException(nameof(value));
-        if (propertyValueFactory == null) throw new System.ArgumentNullException(nameof(propertyValueFactory));
+        if (value == null) throw new ArgumentNullException(nameof(value));
+        if (propertyValueFactory == null) throw new ArgumentNullException(nameof(propertyValueFactory));
         var type = value.GetType();
 
         // Let Serilog handle primitive types and strings natively
@@ -58,7 +60,7 @@ public class PiiDestructuringPolicy : IDestructuringPolicy
         }
 
         // Only destructure complex objects that have properties
-        var properties = type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanRead && p.GetIndexParameters().Length == 0);
 
         var logProperties = new List<LogEventProperty>();

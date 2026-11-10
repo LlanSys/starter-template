@@ -35,7 +35,8 @@ internal class TenantModuleConfiguration : IEntityTypeConfiguration<TenantModule
             CreateSeedModule(Guid.Parse("0194f700-0000-7000-8000-000000000002"), defaultTenantId, "Core", createdAt),
             CreateSeedModule(Guid.Parse("0194f700-0000-7000-8000-000000000003"), defaultTenantId, "IAM", createdAt),
             CreateSeedModule(Guid.Parse("0194f700-0000-7000-8000-000000000004"), defaultTenantId, "Shared", createdAt),
-            CreateSeedModule(Guid.Parse("0194f700-0000-7000-8000-000000000005"), defaultTenantId, "Showcase", createdAt)
+            CreateSeedModule(Guid.Parse("0194f700-0000-7000-8000-000000000005"), defaultTenantId, "Showcase", createdAt),
+            CreateSeedModule(Guid.Parse("0194f700-0000-7000-8000-000000000006"), defaultTenantId, "Payments", createdAt)
         );
     }
 

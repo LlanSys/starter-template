@@ -3,12 +3,11 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 
 namespace ST.Application.Behaviours;
 
-public class LoggingBehaviour<TRequest, TResponse>(ILogger<LoggingBehaviour<TRequest, TResponse>> logger)
+public class LoggingBehaviour<TRequest, TResponse>(ILogger<LoggingBehaviour<TRequest, TResponse>> logger, TimeProvider timeProvider)
     : IPipelineBehavior<TRequest, TResponse> where TRequest : notnull
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
@@ -19,17 +18,17 @@ public class LoggingBehaviour<TRequest, TResponse>(ILogger<LoggingBehaviour<TReq
 
         RequestLogDefinitions.LogRequestStarted(logger, requestName);
 
-        var sw = Stopwatch.StartNew();
+        var startedAt = timeProvider.GetTimestamp();
         var response = await next(cancellationToken).ConfigureAwait(false);
-        sw.Stop();
+        var elapsedMs = (long)timeProvider.GetElapsedTime(startedAt).TotalMilliseconds;
 
-        if (sw.ElapsedMilliseconds > 500)
+        if (elapsedMs > 500)
         {
-            RequestLogDefinitions.LogSlowRequest(logger, requestName, sw.ElapsedMilliseconds);
+            RequestLogDefinitions.LogSlowRequest(logger, requestName, elapsedMs);
         }
         else
         {
-            RequestLogDefinitions.LogRequestCompleted(logger, requestName, sw.ElapsedMilliseconds);
+            RequestLogDefinitions.LogRequestCompleted(logger, requestName, elapsedMs);
         }
 
         return response;

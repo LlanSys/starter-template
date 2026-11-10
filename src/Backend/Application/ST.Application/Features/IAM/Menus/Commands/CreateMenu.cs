@@ -7,12 +7,15 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Menus.Dtos;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
+using ST.SharedKernel.Features.IAM.Menus;
 
 namespace ST.Application.Features.IAM.Menus.Commands;
 
 
 
-internal sealed class CreateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<CreateMenuCommandHandler> logger)
+internal sealed class CreateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<CreateMenuCommandHandler> logger, IEffectiveModulePolicy policy, IEffectiveNavigation navigation)
     : IRequestHandler<CreateMenuCommand, AppResponse<MenuResponse>>
 {
     public async Task<AppResponse<MenuResponse>> Handle(CreateMenuCommand command, CancellationToken cancellationToken)
@@ -20,8 +23,16 @@ internal sealed class CreateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
         try
         {
             var request = command.Request;
+            if (!string.IsNullOrWhiteSpace(request.Url))
+            {
+                var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
+                var page = access.Catalogue.FirstOrDefault(x => x.Kind == ModuleCatalogueKind.Page && x.Path == request.Url && x.Placement == request.Placement);
+                if (page is null || !access.EntryAvailable(page)) return AppResponses.Failure<MenuResponse>("Select an available page from the module catalogue.");
+                return await navigation.SaveOverrideAsync(page.Key, new UpdateMenuRequest { Id = page.Id, ParentId = request.ParentId, Title = request.Title, Url = request.Url, Icon = request.Icon, Placement = request.Placement, DisplayOrder = request.DisplayOrder, RequiredRoleNames = request.RequiredRoleNames, RequiredPermissionKeys = request.RequiredPermissionKeys }, command.UserId, cancellationToken).ConfigureAwait(false);
+            }
             var catalogError = await ValidateCatalogAsync(unitOfWork, request.Placement, request.Icon, request.Url, request.RequiredPermissionKey, cancellationToken)
                 .ConfigureAwait(false);
+            catalogError ??= await MenuVisibilityValidation.ValidateAsync(unitOfWork, request.RequiredRoleNames, request.RequiredPermissionKeys, cancellationToken).ConfigureAwait(false);
             if (catalogError is not null)
             {
                 return AppResponses.Failure<MenuResponse>(catalogError);
@@ -44,6 +55,7 @@ internal sealed class CreateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
 
             var key = Slugify(request.Title);
             var menu = MenuItem.Create(request.ParentId, key, request.Title, request.Description, request.Url, request.Icon, request.Placement, request.RequiredPermissionKey, request.RequiredModule, request.DisplayOrder, command.UserId);
+            menu.SetVisibility(request.RequiredRoleNames, request.RequiredPermissionKeys);
             var duplicate = await unitOfWork.MenuRepository
                 .AnyAsync(existing => existing.Key == menu.Key, cancellationToken)
                 .ConfigureAwait(false);
@@ -87,7 +99,8 @@ internal sealed class CreateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogge
             return $"Menu placement '{placement}' is not registered.";
         }
 
-        var iconExists = await unitOfWork.MenuIconRepository
+        var iconExists = MaterialIconKeys.Contains(icon)
+            || await unitOfWork.MenuIconRepository
             .AnyAsync(item => item.IsActive && item.Key == icon.Trim(), cancellationToken)
             .ConfigureAwait(false);
 

@@ -11,6 +11,7 @@ namespace ST.Application.Features.IAM.ReferenceData.Queries;
 
 public sealed record GetIamReferenceDataQuery : IRequest<AppResponse<IamReferenceDataResponse>>, ICachableRequest
 {
+    public bool BypassCache => true;
     public string CacheGroup => "iam-reference-data";
     public string Discriminator => CacheKeys.Discriminator("all");
     public string? CacheUserId => null;

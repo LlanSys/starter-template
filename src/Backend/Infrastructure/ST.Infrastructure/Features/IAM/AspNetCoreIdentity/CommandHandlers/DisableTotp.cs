@@ -17,7 +17,7 @@ internal sealed class DisableTotp(
     SignInManager<AppUser> signInManager,
     IIamUnitOfWork iamUnitOfWork,
     IOptions<MfaSettings> mfaSettings,
-    ILogger<DisableTotp> logger) : IRequestHandler<DisableTotpCommand, AppResponse<bool>>
+    ILogger<DisableTotp> logger, TimeProvider timeProvider) : IRequestHandler<DisableTotpCommand, AppResponse<bool>>
 {
     private readonly MfaSettings _mfaSettings = mfaSettings.Value;
 
@@ -68,7 +68,7 @@ internal sealed class DisableTotp(
 
                 foreach (var session in activeSessions)
                 {
-                    session.Revoke("MFA disabled for MFA-required account.");
+                    session.Revoke(timeProvider.GetUtcNow(), "MFA disabled for MFA-required account.");
                 }
 
                 await iamUnitOfWork.SessionRepository
@@ -102,6 +102,6 @@ internal sealed class DisableTotp(
     {
         return _mfaSettings.Enabled
             && _mfaSettings.EnforceEnrollment
-            && roles.Any(role => _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+            && roles.Any(role => (string.Equals(role, "Tenant Administrator", StringComparison.OrdinalIgnoreCase) || _mfaSettings.RequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase)));
     }
 }

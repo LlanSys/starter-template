@@ -11,5 +11,7 @@ public sealed record CreateMenuRequest
     public string Placement { get; init; } = "AdminCenter";
     public string? RequiredPermissionKey { get; init; }
     public string? RequiredModule { get; init; }
+    public IReadOnlyList<string>? RequiredRoleNames { get; init; }
+    public IReadOnlyList<string>? RequiredPermissionKeys { get; init; }
     public int DisplayOrder { get; init; }
 }

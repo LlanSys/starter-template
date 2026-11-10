@@ -24,23 +24,23 @@ public class AppUserDevice : BaseEntity, ISoftDeletable
     public DateTimeOffset? DeletedAt { get; set; }
     public string? DeletedBy { get; set; }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy;
-        SetUpdatedInfo(deletedBy);
+        SetUpdatedInfo(deletedBy, now);
     }
 
-    public void RevokeTrust(string revokedBy)
+    public void RevokeTrust(DateTimeOffset now, string revokedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(revokedBy);
 
         IsTrusted = false;
         TrustedUntil = null;
-        SetUpdatedInfo(revokedBy);
+        SetUpdatedInfo(revokedBy, now);
     }
 
     [JsonIgnore]

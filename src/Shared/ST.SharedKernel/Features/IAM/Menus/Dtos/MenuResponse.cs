@@ -14,4 +14,12 @@ public sealed record MenuResponse(
     string? RequiredModule,
     int DisplayOrder,
     bool IsActive,
-    IReadOnlyList<MenuResponse> Children);
+    IReadOnlyList<MenuResponse> Children)
+{
+    public string? CatalogueKey { get; init; }
+    public bool IsOverride { get; init; }
+    public int DefinitionVersion { get; init; }
+    public int OverrideVersion { get; init; }
+    public IReadOnlyList<string> RequiredRoleNames { get; init; } = [];
+    public IReadOnlyList<string> RequiredPermissionKeys { get; init; } = [];
+}

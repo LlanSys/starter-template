@@ -63,6 +63,7 @@
   </PropertyGroup>
 
   <PropertyGroup Label="NuGet and Packaging">
+    <MassTransitVersion>8.5.12</MassTransitVersion>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <IsPackable>false</IsPackable>
     <NuGetAudit>true</NuGetAudit>

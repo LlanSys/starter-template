@@ -1,4 +1,7 @@
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Enums;
 using ST.Infrastructure.Configuration;
 using ST.Infrastructure.Logging;
@@ -8,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 
 namespace ST.Infrastructure.Features.IAM.Users.Seeding;
 
@@ -15,7 +19,8 @@ internal sealed class DevelopmentIdentitySeeder(
     RoleManager<AppRole> roleManager,
     UserManager<AppUser> userManager,
     IOptions<DevelopmentSeedSettings> options,
-    ILogger<DevelopmentIdentitySeeder> logger)
+    ILogger<DevelopmentIdentitySeeder> logger,
+    TimeProvider timeProvider, IEffectiveModulePolicy modulePolicy, IWorkspaceTenantOverride workspace)
 {
     private const string BootstrapSeedActorId = "00000000-0000-0000-0000-000000000001";
     private readonly DevelopmentSeedSettings _settings = options.Value;
@@ -36,6 +41,7 @@ internal sealed class DevelopmentIdentitySeeder(
                 throw new InvalidOperationException("DevelopmentSeed:TenantId must identify the bootstrap tenant.");
             }
 
+            workspace.TenantId = _settings.TenantId;
             var userName = _settings.AdminUserName.Trim();
             var email = _settings.AdminEmail.Trim();
             var normalizedName = userManager.NormalizeName(userName);
@@ -64,11 +70,12 @@ internal sealed class DevelopmentIdentitySeeder(
 
             if (user is null)
             {
-                user = AppUser.CreateSystemUser(_settings.TenantId, userName, email, BootstrapSeedActorId);
+                var now = timeProvider.GetUtcNow();
+                user = AppUser.CreateSystemUser(now, _settings.TenantId, userName, email, BootstrapSeedActorId);
                 user.FirstName = "Administrator";
                 user.IsActive = true;
                 user.EmailConfirmed = true;
-                user.ActivatedAt = DateTimeOffset.UtcNow;
+                user.ActivatedAt = now;
                 user.ActivatedBy = BootstrapSeedActorId;
                 EnsureSucceeded(await userManager.CreateAsync(user, _settings.AdminPassword).ConfigureAwait(false), "create the bootstrap administrator");
             }
@@ -81,6 +88,26 @@ internal sealed class DevelopmentIdentitySeeder(
             if (!await userManager.IsInRoleAsync(user, adminRole).ConfigureAwait(false))
             {
                 EnsureSucceeded(await userManager.AddToRoleAsync(user, adminRole).ConfigureAwait(false), "assign the bootstrap administrator role");
+            }
+
+            var access = await modulePolicy.GetAsync(cancellationToken).ConfigureAwait(false);
+            var tenantKeys = access.Catalogue.Where(entry => entry.Kind == ModuleCatalogueKind.Permission)
+                .Select(entry => entry.Key).Concat(EffectiveModuleAccess.TenantSettingsPermissions)
+                .Where(access.PermissionAvailable).Distinct(StringComparer.OrdinalIgnoreCase);
+            var requiredClaims = tenantKeys.Select(key => new Claim("permission", key)).ToList();
+            if (_settings.GrantPlatformAccess)
+            {
+                requiredClaims.Add(new Claim("platform_staff", "true"));
+                requiredClaims.Add(new Claim("permission", "control_plane.manage"));
+                requiredClaims.Add(new Claim("permission", "control_plane.approve_kyc"));
+            }
+
+            var existingClaims = await userManager.GetClaimsAsync(user).ConfigureAwait(false);
+            var missingClaims = requiredClaims.Where(claim => !existingClaims.Any(existing =>
+                existing.Type == claim.Type && existing.Value == claim.Value)).ToArray();
+            if (missingClaims.Length > 0)
+            {
+                EnsureSucceeded(await userManager.AddClaimsAsync(user, missingClaims).ConfigureAwait(false), "grant configured bootstrap access");
             }
 
             ServiceLogDefinitions.LogDevelopmentAdminSeeded(logger, email);

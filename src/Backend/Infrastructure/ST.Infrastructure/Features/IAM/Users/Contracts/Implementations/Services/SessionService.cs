@@ -1,6 +1,8 @@
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.Domain.Features.IAM.Contracts;
+using ST.Domain.Features.ControlPlane.Contracts;
+using ST.Domain.Features.ControlPlane.Tenants.Enums;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -20,11 +22,28 @@ namespace ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Service
 internal sealed class SessionService(
     IIamUnitOfWork iamUnitOfWork,
     ILogger<SessionService> logger,
-    IOptions<SessionSettings> sessionSettings) : ISessionService
+    IOptions<SessionSettings> sessionSettings,
+    TimeProvider timeProvider,
+    IControlPlaneUnitOfWork controlPlane,
+    ICurrentTenantProvider tenantProvider) : ISessionService
 {
     private readonly IIamUnitOfWork _unitOfWork = iamUnitOfWork;
     private readonly ILogger<SessionService> _logger = logger;
     private readonly SessionSettings _sessionSettings = sessionSettings.Value;
+
+    private Task<SessionWorkspaceAccess?> GetWorkspaceAccessAsync(CancellationToken cancellationToken)
+    {
+        var tenantId = tenantProvider.TenantId;
+        return controlPlane.Tenants.FirstOrDefaultAsync(query => query
+            .Where(tenant => tenant.Id == tenantId && tenant.Status == TenantStatus.Active)
+            .Select(tenant => new SessionWorkspaceAccess(tenant.SessionsInvalidBefore)), cancellationToken);
+    }
+
+    private async Task<bool> WorkspaceSessionIsCurrentAsync(AppUserSession session, CancellationToken cancellationToken)
+    {
+        var access = await GetWorkspaceAccessAsync(cancellationToken).ConfigureAwait(false);
+        return access is not null && (access.InvalidBefore is null || session.CreatedAt > access.InvalidBefore);
+    }
 
     public async Task<AppResponse<bool>> CheckConcurrentSessionsAsync(string userId, CancellationToken cancellationToken = default)
     {
@@ -49,6 +68,11 @@ internal sealed class SessionService(
     {
         try
         {
+            if (await GetWorkspaceAccessAsync(cancellationToken).ConfigureAwait(false) is null)
+            {
+                return AppResponses.Failure<Guid>("This workspace is unavailable.");
+            }
+
             // Check concurrent session limit
             var concurrentCheck = await CheckConcurrentSessionsAsync(userId, cancellationToken).ConfigureAwait(false);
             if (!concurrentCheck.IsSuccess)
@@ -64,8 +88,9 @@ internal sealed class SessionService(
 
             }
 
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             var session = AppUserSession.Create(
+                now,
                 sessionId,
                 userId,
                 ipAddress,
@@ -90,34 +115,43 @@ internal sealed class SessionService(
         const int maxRetries = 3;
         try
         {
+            var access = await GetWorkspaceAccessAsync(cancellationToken).ConfigureAwait(false);
+            if (access is null)
+            {
+                return AppResponses.Failure<Guid>("This workspace is unavailable.");
+            }
+
             return await _unitOfWork.ExecuteInTransactionWithRetryAsync(async () =>
             {
                 // Query INSIDE transaction for consistency
                 var activeSessions = await _unitOfWork.SessionRepository.GetActiveSessionsByUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
 
                 // Check if session for THIS device exists
-                var existingSessionForDevice = activeSessions.FirstOrDefault(s => s.DeviceFingerprint == deviceFingerprint);
+                var existingSessionForDevice = activeSessions.FirstOrDefault(session =>
+                    session.DeviceFingerprint == deviceFingerprint
+                    && (access.InvalidBefore is null || session.CreatedAt > access.InvalidBefore));
 
                 // Get sessions to end (exclude current device session)
                 var sessionsToEnd = activeSessions.Where(s => s.DeviceFingerprint != deviceFingerprint).ToList();
+
+                var now = timeProvider.GetUtcNow();
 
                 // End other device sessions
                 if (sessionsToEnd.Any())
                 {
                     foreach (var session in sessionsToEnd)
                     {
-                        session.Revoke("New login from another device.");
+                        session.Revoke(now, "New login from another device.");
                     }
 
                     await _unitOfWork.SessionRepository.UpdateRangeAsync(new Collection<AppUserSession>(sessionsToEnd), cancellationToken).ConfigureAwait(false);
                 }
 
-                var now = DateTimeOffset.UtcNow;
-
                 // Update existing session OR create new one (not both)
                 if (existingSessionForDevice is not null)
                 {
                     existingSessionForDevice.RefreshAccess(
+                        now,
                         now.AddMinutes(_sessionSettings.SessionTimeoutMinutes),
                         ipAddress,
                         userAgent);
@@ -128,6 +162,7 @@ internal sealed class SessionService(
                 else
                 {
                     var newSession = AppUserSession.Create(
+                        now,
                         sessionId,
                         userId,
                         ipAddress,
@@ -169,7 +204,7 @@ internal sealed class SessionService(
                 return AppResponses.Success("Session not found", true);
             }
 
-            session.Revoke("Session revoked by request");
+            session.Revoke(timeProvider.GetUtcNow(), "Session revoked by request");
 
             await _unitOfWork.SessionRepository.UpdateAsync(session, cancellationToken).ConfigureAwait(false);
             await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
@@ -202,9 +237,10 @@ internal sealed class SessionService(
 
             if (sessionsToEnd.Any())
             {
+                var now = timeProvider.GetUtcNow();
                 foreach (var session in sessionsToEnd)
                 {
-                    session.Revoke("Concurrent session limit exceeded");
+                    session.Revoke(now, "Concurrent session limit exceeded");
                 }
 
                 await _unitOfWork.SessionRepository.UpdateRangeAsync(new Collection<AppUserSession>(sessionsToEnd), cancellationToken).ConfigureAwait(false);
@@ -244,7 +280,7 @@ internal sealed class SessionService(
     {
         try
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             var retentionLimit = now.AddDays(-30);
             var expiredSessions = await _unitOfWork.SessionRepository
                 .GetExpiredSessionsAsync(now, cancellationToken)
@@ -254,7 +290,7 @@ internal sealed class SessionService(
             {
                 foreach (var session in expiredSessions)
                 {
-                    session.Revoke("Session expired");
+                    session.Revoke(now, "Session expired");
                 }
 
                 await _unitOfWork.SessionRepository.UpdateRangeAsync(new Collection<AppUserSession>(expiredSessions), cancellationToken).ConfigureAwait(false);
@@ -294,16 +330,16 @@ internal sealed class SessionService(
                 return AppResponses.Failure<bool>("Session not found");
             }
 
-            if (!session.IsActive)
+            if (!session.IsActive || !await WorkspaceSessionIsCurrentAsync(session, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Failure<bool>("Session is not active");
             }
 
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             if (session.ExpiresAt <= now)
             {
                 // Mark as expired
-                session.Expire();
+                session.Expire(now);
                 await _unitOfWork.SessionRepository.UpdateAsync(session, cancellationToken).ConfigureAwait(false);
                 await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
@@ -313,7 +349,7 @@ internal sealed class SessionService(
             // Optimize database writes: only write back if sliding expiration/access time is at least 1 minute old
             if (now - session.LastAccessedAt > TimeSpan.FromMinutes(1))
             {
-                session.Touch(_sessionSettings.SlidingExpiration
+                session.Touch(now, _sessionSettings.SlidingExpiration
                     ? now.AddMinutes(_sessionSettings.SessionTimeoutMinutes)
                     : null);
 
@@ -334,7 +370,8 @@ internal sealed class SessionService(
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            return freshSession != null && freshSession.IsActive && freshSession.ExpiresAt > DateTimeOffset.UtcNow
+            return freshSession != null && freshSession.IsActive && freshSession.ExpiresAt > timeProvider.GetUtcNow()
+                && await WorkspaceSessionIsCurrentAsync(freshSession, cancellationToken).ConfigureAwait(false)
                 ? AppResponses.Success("Session is valid (concurrency resolved)", true)
                 : AppResponses.Failure<bool>("Session has expired or is invalid");
         }
@@ -363,16 +400,16 @@ internal sealed class SessionService(
                 return AppResponses.Failure<bool>("Session not found");
             }
 
-            if (!session.IsActive)
+            if (!session.IsActive || !await WorkspaceSessionIsCurrentAsync(session, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Failure<bool>("Session is not active");
             }
 
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             if (session.ExpiresAt <= now)
             {
                 // Mark as expired
-                session.Expire();
+                session.Expire(now);
                 await _unitOfWork.SessionRepository.UpdateAsync(session, cancellationToken).ConfigureAwait(false);
                 await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
@@ -382,7 +419,7 @@ internal sealed class SessionService(
             // Optimize database writes: only write back if sliding expiration/access time is at least 1 minute old
             if (now - session.LastAccessedAt > TimeSpan.FromMinutes(1))
             {
-                session.Touch(_sessionSettings.SlidingExpiration
+                session.Touch(now, _sessionSettings.SlidingExpiration
                     ? now.AddMinutes(_sessionSettings.SessionTimeoutMinutes)
                     : null);
 
@@ -403,7 +440,8 @@ internal sealed class SessionService(
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            if (freshSession != null && freshSession.IsActive && freshSession.ExpiresAt > DateTimeOffset.UtcNow)
+            if (freshSession != null && freshSession.IsActive && freshSession.ExpiresAt > timeProvider.GetUtcNow()
+                && await WorkspaceSessionIsCurrentAsync(freshSession, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Success("Session is valid (concurrency resolved)", true);
             }
@@ -416,4 +454,6 @@ internal sealed class SessionService(
             throw;
         }
     }
+
+    private sealed record SessionWorkspaceAccess(DateTimeOffset? InvalidBefore);
 }

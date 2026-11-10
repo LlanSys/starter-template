@@ -6,17 +6,21 @@ using ST.SharedKernel.Features.Shared.Common.Enums;
 using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces;
 using ST.UI.Blazor.Features.Shared.Messaging;
 using ST.UI.Blazor.Logging;
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
+using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 using ST.UI.Blazor.Configuration;
 using Microsoft.Extensions.Options;
+using ST.UI.Blazor.Features.IAM.Users.Implementations;
+using System.Net;
 
 namespace ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Implementations;
 
 internal sealed class BackendApiClient(
     HttpClient httpClient,
     ITokenStorage storage,
+    WorkspaceSelection selection,
     IOptions<BackendApiSettings> apiSettings,
-    ILogger<BackendApiClient> logger) : IBackendApiClient
+    ILogger<BackendApiClient> logger,
+    TimeProvider timeProvider) : IBackendApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly BackendApiSettings _apiSettings = apiSettings.Value;
@@ -28,7 +32,8 @@ internal sealed class BackendApiClient(
         bool requiresAuthentication = true,
         string? unavailableMessage = null,
         string? timeoutMessage = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool includeWorkspaceSelector = true)
     {
         ArgumentNullException.ThrowIfNull(method);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
@@ -50,6 +55,14 @@ internal sealed class BackendApiClient(
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             using var message = CreateRequest(method, endpoint, request);
+            if (includeWorkspaceSelector)
+            {
+                var selected = await selection.GetAsync().ConfigureAwait(false);
+                if (selected is not null)
+                {
+                    message.Headers.TryAddWithoutValidation(_apiSettings.TenantHeaderName, selected.TenantId.ToString());
+                }
+            }
 
             if (requiresAuthentication)
             {
@@ -68,7 +81,7 @@ internal sealed class BackendApiClient(
             catch (HttpRequestException ex) when (ShouldRetryTransportFailure(attempt, maxAttempts, cancellationToken))
             {
                 BackendApiLogDefinitions.LogRequestRetrying(logger, method.Method, endpoint, attempt, maxAttempts, (int)delay.TotalMilliseconds, ex);
-                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(delay, timeProvider, cancellationToken).ConfigureAwait(false);
             }
             catch (HttpRequestException ex)
             {
@@ -171,7 +184,7 @@ internal sealed class BackendApiClient(
                     await ReadErrorMessageAsync(response, cancellationToken).ConfigureAwait(false),
                     "The profile picture could not be loaded.");
 
-                return response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                return response.StatusCode == HttpStatusCode.Unauthorized
                     ? AppResponses.Failure<FileContentResponse>(new AppError(
                         ErrorType.Unauthorized,
                         "UNAUTHORIZED",

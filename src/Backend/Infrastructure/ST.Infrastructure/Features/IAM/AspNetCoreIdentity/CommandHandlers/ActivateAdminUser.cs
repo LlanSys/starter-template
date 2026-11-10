@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class ActivateAdminUser(UserManager<AppUser> userManager, IIamUnitOfWork unitOfWork,
-    ICurrentTenantProvider tenantProvider, ILogger<ActivateAdminUser> logger)
+    ICurrentTenantProvider tenantProvider, ILogger<ActivateAdminUser> logger, TimeProvider timeProvider)
     : IRequestHandler<ActivateAdminUserCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(ActivateAdminUserCommand command, CancellationToken cancellationToken)
@@ -26,7 +26,8 @@ internal sealed class ActivateAdminUser(UserManager<AppUser> userManager, IIamUn
 
             return await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                user.GrantAccess(command.ActivatedBy);
+                var now = timeProvider.GetUtcNow();
+                user.GrantAccess(now, command.ActivatedBy);
                 // Identity saves clear aggregate events, so stage the event for the UoW's pre-commit dispatch.
                 var events = user.DomainEvents.ToArray();
                 user.ClearDomainEvents();
@@ -34,7 +35,7 @@ internal sealed class ActivateAdminUser(UserManager<AppUser> userManager, IIamUn
                 if (!result.Succeeded)
                     throw new ActivationRejectedException();
                 await AccountAccessCleanup.StageAsync(unitOfWork, user.Id, command.ActivatedBy,
-                    "Account access reactivated", cancellationToken).ConfigureAwait(false);
+                    "Account access reactivated", now, cancellationToken).ConfigureAwait(false);
                 await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 foreach (var domainEvent in events) user.RaiseDomainEvent(domainEvent);
                 return AppResponses.Success("User activated. Existing password and email verification are preserved.", true);

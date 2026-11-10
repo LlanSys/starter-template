@@ -6,6 +6,8 @@ using ST.Infrastructure.Configuration;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Amazon.S3.Model;
+using System.Net;
 
 namespace ST.Api.Health;
 
@@ -113,7 +115,7 @@ internal sealed class ProfileImageStorageHealthCheck(
 
             using var client = new AmazonS3Client(settings.AccessKey, settings.SecretKey, config);
 
-            var request = new Amazon.S3.Model.ListObjectsV2Request
+            var request = new ListObjectsV2Request
             {
                 BucketName = settings.BucketName,
                 MaxKeys = 1
@@ -123,7 +125,7 @@ internal sealed class ProfileImageStorageHealthCheck(
 
             return HealthCheckResult.Healthy($"{description} bucket is reachable.");
         }
-        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             return HealthCheckResult.Unhealthy($"{description} bucket does not exist.");
         }

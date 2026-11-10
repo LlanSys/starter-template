@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
+using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 using Microsoft.AspNetCore.Components.Authorization;
 
 namespace ST.UI.Blazor.Components.Security;
@@ -10,21 +10,24 @@ namespace ST.UI.Blazor.Components.Security;
 /// <c>[Authorize]</c>, and <c>&lt;AuthorizeView&gt;</c> work against the existing
 /// session-backed identity without duplicating token handling.
 /// </summary>
-internal sealed class CustomAuthenticationStateProvider(IAuthSession authSession) : AuthenticationStateProvider
+internal sealed class CustomAuthenticationStateProvider : AuthenticationStateProvider, IDisposable
 {
     private static readonly AuthenticationState AnonymousState =
         new(new ClaimsPrincipal(new ClaimsIdentity()));
 
-    public override async Task<AuthenticationState> GetAuthenticationStateAsync()
+    private readonly IAuthSession authSession;
+    public CustomAuthenticationStateProvider(IAuthSession authSession)
     {
-        if (!authSession.IsInitialized)
-        {
-            await authSession.InitializeAsync().ConfigureAwait(false);
-        }
+        this.authSession = authSession;
+        authSession.AuthenticationChanged += NotifyAuthenticationStateChanged;
+    }
+    public void Dispose() => authSession.AuthenticationChanged -= NotifyAuthenticationStateChanged;
+    public override Task<AuthenticationState> GetAuthenticationStateAsync()
+    {
 
         if (!authSession.IsAuthenticated || authSession.CurrentUser is null)
         {
-            return AnonymousState;
+            return Task.FromResult(AnonymousState);
         }
 
         var user = authSession.CurrentUser;
@@ -55,8 +58,12 @@ internal sealed class CustomAuthenticationStateProvider(IAuthSession authSession
             }
         }
 
+        claims.AddRange(user.EnabledModules.Select(module => new Claim("module", module.ToLowerInvariant())));
+        claims.AddRange(user.AvailablePages.Select(path => new Claim("page", path.ToLowerInvariant())));
+        if (user.IsPlatformStaff) claims.Add(new Claim("platform_staff", "true"));
+
         var identity = new ClaimsIdentity(claims, authenticationType: "StarterTemplate.Session");
-        return new AuthenticationState(new ClaimsPrincipal(identity));
+        return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(identity)));
     }
 
     /// <summary>

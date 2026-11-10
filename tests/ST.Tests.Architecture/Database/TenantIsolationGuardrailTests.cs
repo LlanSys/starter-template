@@ -3,6 +3,7 @@ using FluentAssertions;
 using System;
 using System.Linq;
 using Xunit;
+using ST.Persistence.Features.Shared.DataContext;
 
 namespace ST.Tests.Architecture.Database;
 
@@ -11,7 +12,7 @@ public class TenantIsolationGuardrailTests
     [Fact]
     public void TenantFilteredDBContexts_MustHaveCorrespondingIntegrationTest()
     {
-        var persistenceAssembly = typeof(ST.Persistence.Features.Shared.DataContext.SharedDBContext).Assembly;
+        var persistenceAssembly = typeof(SharedDBContext).Assembly;
         var tenantFilteredInterface = persistenceAssembly.GetTypes().FirstOrDefault(t => t.Name == "ITenantFilteredDBContext");
 
         tenantFilteredInterface.Should().NotBeNull("ITenantFilteredDBContext must exist in ST.Persistence.Common");

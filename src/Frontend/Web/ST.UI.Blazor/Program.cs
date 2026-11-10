@@ -16,16 +16,21 @@ using ST.UI.Blazor.Features.ControlPlane.Auditing.Implementations;
 using ST.UI.Blazor.Features.ControlPlane.Stamps.Contracts;
 using ST.UI.Blazor.Features.ControlPlane.Stamps.Implementations;
 using ST.UI.Blazor.Features.Shared.Payments.Contracts.Implementations;
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
-using ST.UI.Rcl.Features.Shared.Lookups.Contracts.Interfaces;
-using ST.UI.Rcl.Features.Shared.Payments.Contracts.Interfaces;
+using ST.UI.Blazor.Features.Shared.Lookups.Contracts.Interfaces;
+using ST.UI.Blazor.Features.Shared.Payments.Contracts.Interfaces;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using MudBlazor;
 using MudBlazor.Services;
 using System.Globalization;
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using ST.SharedKernel.Features.ControlPlane.Modules;
+using ST.UI.Blazor.Features.IAM.Users.State;
+using ST.UI.Blazor.Features.Shared.OrgSettings.Contracts;
+using ST.UI.Blazor.Features.Shared.OrgSettings.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton(TimeProvider.System);
 ConfigurePlatformAssignedPort(builder.WebHost);
 
 UserMessageSanitizer.IsDevelopment = builder.Environment.IsDevelopment();
@@ -44,10 +49,13 @@ builder.Services.AddMudServices();
 
 builder.Services.AddAuthorizationCore(options =>
 {
+    foreach (var path in DeployedModuleManifest.Pages.Keys) options.AddPolicy("Page:" + path, policy => policy.RequireAuthenticatedUser().RequireClaim("page", path));
+    foreach (var module in new[] { "core", "iam", "payments", "showcase" }) options.AddPolicy("Module." + module, policy => policy.RequireAuthenticatedUser().RequireClaim("module", module));
     options.AddPolicy("ControlPlane.Manage", policy =>
-        policy.RequireClaim("permission", "control_plane.manage"));
+        policy.RequireClaim("permission", "control_plane.manage").RequireClaim("platform_staff", "true"));
 });
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<ProtectedSessionStorage>();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
 builder.Services
     .AddOptions<BackendApiSettings>()
@@ -70,16 +78,17 @@ builder.Services
 
 // Protected browser storage is the durable browser source. The scoped server
 // store only bridges periods where JS interop is unavailable within a circuit.
+builder.Services.AddScoped<WorkspaceSelection>();
 builder.Services.AddScoped<ITokenStorage, TokenStorage>();
 builder.Services.AddScoped<IServerTokenStore, ServerTokenStore>();
 
 builder.Services.AddScoped<IAuthSession, AuthSession>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<ST.UI.Blazor.Features.IAM.Users.State.PasswordRecoveryState>();
+builder.Services.AddScoped<PasswordRecoveryState>();
 builder.Services.AddScoped<IIamAdminService, IamAdminService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IPaymentCheckoutService, PaymentCheckoutService>();
-builder.Services.AddScoped<ST.UI.Blazor.Features.Shared.OrgSettings.Contracts.IOrgSettingsService, ST.UI.Blazor.Features.Shared.OrgSettings.Implementations.OrgSettingsService>();
+builder.Services.AddScoped<IOrgSettingsService, OrgSettingsService>();
 builder.Services.AddSingleton<IAuthenticatorQrCodeService, AuthenticatorQrCodeService>();
 builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
@@ -115,8 +124,10 @@ app.UseStaticFiles();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+// The HTTP endpoint serves the interactive shell. Native AuthorizeRouteView evaluates
+// the restored API identity inside the circuit; all data stays behind authorized APIs.
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode().AllowAnonymous();
 
 app.Run();
 

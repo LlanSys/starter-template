@@ -10,6 +10,11 @@ internal sealed class BackendApiSettings
     [Url]
     public string BaseUrl { get; init; } = string.Empty;
 
+    public string? PublicBaseUrl { get; init; }
+
+    [Required]
+    public string TenantHeaderName { get; init; } = "X-Tenant-Id";
+
     [Required]
     public string Version { get; init; } = "1";
 

@@ -7,19 +7,26 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Permissions.Dtos;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 
 namespace ST.Application.Features.IAM.Permissions.Commands;
 
 
 
-internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<UpdatePermissionCommandHandler> logger)
+internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<UpdatePermissionCommandHandler> logger, IEffectiveModulePolicy policy, TimeProvider timeProvider)
     : IRequestHandler<UpdatePermissionCommand, AppResponse<PermissionResponse>>
 {
     public async Task<AppResponse<PermissionResponse>> Handle(UpdatePermissionCommand command, CancellationToken cancellationToken)
     {
         try
         {
-            var catalogError = await ValidateCatalogAsync(unitOfWork, command.Request.Context, command.Request.Resource, command.Request.Action, cancellationToken)
+            var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
+            if (!access.Modules.Contains(command.Request.ModuleKey)) return AppResponses.Failure<PermissionResponse>("Select an enabled module for this permission.");
+            var requestedKey = command.Request.Resource.Trim().ToLowerInvariant().Replace(' ', '_') + "." + command.Request.Action.Trim().ToLowerInvariant().Replace(' ', '_');
+            if (requestedKey.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || (EffectiveModuleAccess.TenantSettingsPermissions.Contains(requestedKey, StringComparer.OrdinalIgnoreCase)
+                || access.Catalogue.Any(entry => entry.Kind == ModuleCatalogueKind.Permission && string.Equals(entry.Key, requestedKey, StringComparison.OrdinalIgnoreCase)))) return AppResponses.Failure<PermissionResponse>("Standard permissions are managed in the platform module catalogue.");
+            var catalogError = await ValidateCatalogAsync(unitOfWork, command.Request.Context, command.Request.Resource, command.Request.Action, cancellationToken, access)
                 .ConfigureAwait(false);
             if (catalogError is not null)
             {
@@ -40,16 +47,14 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
                 command.Request.Description,
                 command.UserId);
 
-            var duplicate = await unitOfWork.PermissionRepository
-                .AnyAsync(existing => existing.Id != command.Id && existing.Key == draft.Key, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (duplicate)
+            if (!string.Equals(permission.Key, draft.Key, StringComparison.OrdinalIgnoreCase))
             {
-                return AppResponses.Failure<PermissionResponse>($"Permission {draft.Key} already exists.");
+                return AppResponses.Failure<PermissionResponse>("Permission keys are permanent. Create a new permission for a different key.");
             }
 
+            permission.SetModule(command.Request.ModuleKey);
             permission.Update(
+                timeProvider.GetUtcNow(),
 
                 command.Request.Context,
                 command.Request.Resource,
@@ -77,8 +82,9 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
         string context,
         string resource,
         string action,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, EffectiveModuleAccess? access = null)
     {
+        var standards = access?.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(ModuleCatalogueMapping.ToPermissionResponse).ToArray() ?? [];
         var normalizedResource = resource.Trim().ToLowerInvariant().Replace(' ', '_');
         var normalizedAction = action.Trim().ToLowerInvariant().Replace(' ', '_');
         var normalizedContext = context.Trim();
@@ -87,6 +93,7 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             .AnyAsync(item => item.IsActive && item.Key == normalizedContext, cancellationToken)
             .ConfigureAwait(false);
 
+        contextExists |= standards.Any(x => x.Context.Equals(context, StringComparison.OrdinalIgnoreCase));
         if (!contextExists)
         {
             return $"Permission context '{context}' is not registered.";
@@ -96,6 +103,7 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             .AnyAsync(item => item.IsActive && item.ContextKey == normalizedContext && item.Key == normalizedResource, cancellationToken)
             .ConfigureAwait(false);
 
+        resourceExists |= standards.Any(x => x.Context.Equals(context, StringComparison.OrdinalIgnoreCase) && x.Resource.Equals(resource, StringComparison.OrdinalIgnoreCase));
         if (!resourceExists)
         {
             return $"Permission resource '{resource}' is not registered for context '{context}'.";
@@ -105,6 +113,7 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             .AnyAsync(item => item.IsActive && item.Key == normalizedAction, cancellationToken)
             .ConfigureAwait(false);
 
+        actionExists |= standards.Any(x => x.Action.Equals(action, StringComparison.OrdinalIgnoreCase));
         return actionExists ? null : $"Permission action '{action}' is not registered.";
     }
 }

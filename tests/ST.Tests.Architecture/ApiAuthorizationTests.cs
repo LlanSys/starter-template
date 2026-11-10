@@ -18,6 +18,18 @@ public sealed class ApiAuthorizationTests
     private static readonly string[] ActionsAllowedWithoutPermissionRequirement =
     [
         "IamAdminController.GetNavigationMenus",
+        "TenantSupportController.Exit", // Live support grant must match the current proxy; self-exit grants no customer authority.
+        "StampProvisioningController.Complete", // Dedicated GitHub OIDC policy; ordinary IAM bearer permissions cannot authenticate this endpoint.
+        "AdministratorInvitationController.Inspect",
+        "AdministratorInvitationController.Accept",
+        "AdministratorInvitationController.Complete",
+        "ExternalSignInController.Providers",
+        "ExternalSignInController.SsoLogin",
+        "ExternalSignInController.AcceptWithProvider",
+        "ExternalSignInController.PrepareConnection",
+        "ExternalSignInController.StartConnection",
+        "ExternalSignInController.SsoCallback",
+        "PublicWorkspaceController.Resolve", // Public routing metadata only; no customer data or privileges.
         "PaymentsController.StripeWebhook",
         "PaymentsController.MpesaStkCallback",
         "PaymentsController.MpesaC2BValidation",
@@ -79,6 +91,16 @@ public sealed class ApiAuthorizationTests
         actionsWithoutPermissions.Should().BeEmpty(
             because: "feature/admin API actions must use [RequirePermission] so authorization stays permission-driven. Found: {0}",
             string.Join(", ", actionsWithoutPermissions));
+    }
+
+    [Fact]
+    public void ProvisioningCallbackRequiresItsDedicatedMachineIdentityPolicy()
+    {
+        var controller = AssemblyReferences.Api.GetTypes().Single(type => type.Name == "StampProvisioningController");
+        var action = controller.GetMethod("Complete")!;
+        controller.GetCustomAttribute<AllowAnonymousAttribute>().Should().BeNull();
+        action.GetCustomAttribute<AllowAnonymousAttribute>().Should().BeNull();
+        controller.GetCustomAttribute<AuthorizeAttribute>()!.Policy.Should().Be("StampProvisioning.Complete");
     }
 
     [Fact]

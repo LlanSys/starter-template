@@ -28,7 +28,7 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     CreatedBy = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     UpdatedBy = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: new byte[0])
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: Array.Empty<byte>())
                 },
                 constraints: table =>
                 {
@@ -52,7 +52,7 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     CreatedBy = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     UpdatedBy = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: new byte[0])
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: Array.Empty<byte>())
                 },
                 constraints: table =>
                 {
@@ -78,7 +78,7 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     CreatedBy = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     UpdatedBy = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: new byte[0])
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: Array.Empty<byte>())
                 },
                 constraints: table =>
                 {
@@ -104,7 +104,7 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     CreatedBy = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     UpdatedBy = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: new byte[0])
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: Array.Empty<byte>())
                 },
                 constraints: table =>
                 {
@@ -120,22 +120,22 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
             migrationBuilder.InsertData(
                 table: "DeploymentStamps",
                 columns: new[] { "Id", "CreatedAt", "CreatedBy", "DatabaseConnectionString", "DatabaseProvider", "IsolationTier", "KeyVaultUri", "Name", "RowVersion", "TargetResourceGroup", "UpdatedAt", "UpdatedBy" },
-                values: new object[] { new Guid("0194f700-0000-7000-8000-000000000001"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, null, 0, null, "default-pooled-stamp", new byte[0], "rg-startertemplate-dev", null, null });
+                values: new object[] { new Guid("0194f700-0000-7000-8000-000000000001"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, null, 0, null, "default-pooled-stamp", Array.Empty<byte>(), "rg-startertemplate-dev", null, null });
 
             migrationBuilder.InsertData(
                 table: "Tenants",
                 columns: new[] { "Id", "ContactEmail", "CreatedAt", "CreatedBy", "DatabaseConnectionString", "DatabaseProvider", "DeploymentStampId", "DisplayName", "HostName", "Identifier", "MaxUsers", "RowVersion", "Status", "SubscriptionTier", "UpdatedAt", "UpdatedBy" },
-                values: new object[] { new Guid("0194f700-0000-7000-8000-000000000001"), "admin@startertemplate.local", new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, null, new Guid("0194f700-0000-7000-8000-000000000001"), "Default Tenant", "localhost", "default", 100, new byte[0], 3, 0, null, null });
+                values: new object[] { new Guid("0194f700-0000-7000-8000-000000000001"), "admin@startertemplate.local", new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, null, new Guid("0194f700-0000-7000-8000-000000000001"), "Default Tenant", "localhost", "default", 100, Array.Empty<byte>(), 3, 0, null, null });
 
             migrationBuilder.InsertData(
                 table: "TenantModules",
                 columns: new[] { "Id", "CreatedAt", "CreatedBy", "ExpiresAt", "IsActive", "ModuleKey", "RowVersion", "TenantId", "UpdatedAt", "UpdatedBy" },
                 values: new object[,]
                 {
-                    { new Guid("0194f700-0000-7000-8000-000000000002"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, true, "Core", new byte[0], new Guid("0194f700-0000-7000-8000-000000000001"), null, null },
-                    { new Guid("0194f700-0000-7000-8000-000000000003"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, true, "IAM", new byte[0], new Guid("0194f700-0000-7000-8000-000000000001"), null, null },
-                    { new Guid("0194f700-0000-7000-8000-000000000004"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, true, "Shared", new byte[0], new Guid("0194f700-0000-7000-8000-000000000001"), null, null },
-                    { new Guid("0194f700-0000-7000-8000-000000000005"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, true, "Showcase", new byte[0], new Guid("0194f700-0000-7000-8000-000000000001"), null, null }
+                    { new Guid("0194f700-0000-7000-8000-000000000002"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, true, "Core", Array.Empty<byte>(), new Guid("0194f700-0000-7000-8000-000000000001"), null, null },
+                    { new Guid("0194f700-0000-7000-8000-000000000003"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, true, "IAM", Array.Empty<byte>(), new Guid("0194f700-0000-7000-8000-000000000001"), null, null },
+                    { new Guid("0194f700-0000-7000-8000-000000000004"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, true, "Shared", Array.Empty<byte>(), new Guid("0194f700-0000-7000-8000-000000000001"), null, null },
+                    { new Guid("0194f700-0000-7000-8000-000000000005"), new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), "System", null, true, "Showcase", Array.Empty<byte>(), new Guid("0194f700-0000-7000-8000-000000000001"), null, null }
                 });
 
             migrationBuilder.CreateIndex(

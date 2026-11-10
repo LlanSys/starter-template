@@ -18,6 +18,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Tenants.CommandHandlers;
 
 public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleCommand, AppResponse<TenantResponse>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<AddTenantModuleCommandHandler> _logger;
     private readonly ICurrentActorProvider _actorProvider;
@@ -25,16 +26,17 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
     public AddTenantModuleCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<AddTenantModuleCommandHandler> logger,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _timeProvider = timeProvider;
         _actorProvider = actorProvider;
     }
 
     public async Task<AppResponse<TenantResponse>> Handle(AddTenantModuleCommand request, CancellationToken cancellationToken)
     {
-        var tenant = await _unitOfWork.Tenants.FindAll()
+        var tenant = await _unitOfWork.Tenants.FindAll().AsTracking()
             .Include(t => t.Modules)
             .FirstOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken)
             .ConfigureAwait(false);
@@ -45,6 +47,10 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
         }
 
         var moduleKey = request.Request.ModuleKey.Trim();
+        var definition = await _unitOfWork.Modules.FirstOrDefaultAsync(module => module.Key == moduleKey && module.IsActive && !module.IsRetired, cancellationToken).ConfigureAwait(false);
+        if (definition is null || !(moduleKey.Equals("Core", StringComparison.OrdinalIgnoreCase) || moduleKey.Equals("IAM", StringComparison.OrdinalIgnoreCase) || moduleKey.Equals("Showcase", StringComparison.OrdinalIgnoreCase) || moduleKey.Equals("Payments", StringComparison.OrdinalIgnoreCase)))
+            return AppResponses.Failure<TenantResponse>("Select an active, implemented module from the catalogue.");
+        moduleKey = definition.Key;
         var existingModule = tenant.Modules.FirstOrDefault(m => string.Equals(m.ModuleKey, moduleKey, StringComparison.OrdinalIgnoreCase));
 
         if (existingModule != null)
@@ -53,7 +59,7 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
             {
                 existingModule.IsActive = true;
                 existingModule.ExpiresAt = request.Request.ExpiresAt;
-                existingModule.UpdatedAt = DateTimeOffset.UtcNow;
+                existingModule.UpdatedAt = _timeProvider.GetUtcNow();
                 existingModule.UpdatedBy = _actorProvider.ActorId;
             }
             else
@@ -63,14 +69,14 @@ public class AddTenantModuleCommandHandler : IRequestHandler<AddTenantModuleComm
         }
         else
         {
-            tenant.Modules.Add(new TenantModule
+            await _unitOfWork.TenantModules.CreateAsync(new TenantModule
             {
                 TenantId = tenant.Id,
                 ModuleKey = moduleKey,
                 IsActive = true,
                 ExpiresAt = request.Request.ExpiresAt,
                 CreatedBy = _actorProvider.ActorId
-            });
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);

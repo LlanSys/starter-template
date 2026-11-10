@@ -852,3 +852,36 @@ h1:focus {
 .auth-recovery-link:focus {
     text-decoration: underline;
 }
+
+/* Shared authentication composition and compact application hierarchy. */
+.auth-page { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1rem; background: radial-gradient(ellipse at top left, #e4edf9, transparent 65%), #f6f8fb; }
+.auth-brand { display: inline-flex; align-items: center; gap: .65rem; color: #1e293b; text-decoration: none; font-size: 1rem; font-weight: 650; margin-bottom: 1.75rem; }
+.auth-brand-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .4rem; background: #1e40af; color: white; font-size: .75rem; }
+.auth-shell, .auth-shell.compact { display: block; width: 100%; max-width: 29rem; min-height: 0; padding: 0; animation: none; }
+.auth-card { border-radius: .65rem; padding: 2rem; box-shadow: 0 2px 8px #0f172a06; }
+.auth-heading { margin-bottom: 1.5rem; }
+.auth-heading h1 { font-size: 1.5rem; line-height: 1.3; letter-spacing: -.025em; margin: 0 0 .5rem; }
+.auth-heading p { color: #64748b; font-size: .875rem; margin: 0; }
+.auth-card label { color: #334155; font-weight: 500; font-size: .875rem; }
+.auth-card .form-control { font-size: .9375rem; min-height: 2.75rem; border-radius: .35rem; }
+.auth-card .btn { font-size: .9375rem; min-height: 2.75rem; border-radius: .35rem; }
+.auth-separator { display: flex; align-items: center; gap: .75rem; color: #64748b; font-size: .75rem; margin: .25rem 0; }
+.auth-separator::before, .auth-separator::after { content: ''; height: 1px; background: #e2e8f0; flex: 1; }
+.auth-providers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.auth-provider { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4rem; padding: .65rem .2rem; min-width: 0; border: 1px solid #dbe2eb; border-radius: .35rem; background: #fff; color: #334155; font-size: .75rem; text-decoration: none; }
+.auth-provider:hover:not(:disabled) { background: #f1f5f9; border-color: #94a3b8; }
+.auth-provider:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.auth-provider:disabled { opacity: .5; cursor: not-allowed; }
+.dashboard-page h1 { font-size: 1.65rem; line-height: 1.3; letter-spacing: -.025em; }
+.dashboard-page h2 { font-size: 1.1rem; }
+.dashboard-page .poc-panel { border-radius: .5rem; box-shadow: none; }
+@media (max-width: 480px) { .auth-card { padding: 1.5rem 1.25rem; } .auth-page { padding: 1.5rem .75rem; } }
+
+.platform-page-title { font-size: 1.65rem; line-height: 1.3; }
+.workspace-context { display: flex; align-items: center; gap: 1rem; margin-right: auto; font-size: .875rem; }
+.workspace-context a { color: #475569; text-decoration: none; }
+.workspace-demo-label { color: #92400e; background: #fef3c7; padding: .25rem .6rem; border-radius: .35rem; }
+
+/* Flat platform tables within the Control Panel tabs. */
+.platform-list { background: transparent; border-radius: 0; box-shadow: none; }
+.platform-list .panel-heading { margin-bottom: 1rem; }

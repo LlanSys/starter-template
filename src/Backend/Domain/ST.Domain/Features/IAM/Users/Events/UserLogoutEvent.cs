@@ -7,7 +7,4 @@ using System.Text;
 
 namespace ST.Domain.Features.IAM.Users.Events;
 
-public sealed record UserLogoutEvent(string AppUserId, string? SessionId) : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+public sealed record UserLogoutEvent(string AppUserId, string? SessionId, DateTimeOffset OccurredAt) : IDomainEvent;

@@ -11,8 +11,9 @@ public sealed class NeutralVerticalSliceTests(StarterTemplateWebApplicationFacto
     [Fact]
     public async Task TestOnlySliceCrossesApiHandlerAndRepositoryWithoutEditingIam()
     {
-        using var owner = Client(Guid.CreateVersion7(), "notes.create,notes.view");
-        using var foreign = Client(Guid.CreateVersion7(), "notes.view");
+        var tenantA=Guid.CreateVersion7();var tenantB=Guid.CreateVersion7();await factory.RegisterTenantAsync(tenantA);await factory.RegisterTenantAsync(tenantB);
+        using var owner = Client(tenantA, "notes.create,notes.view");
+        using var foreign = Client(tenantB, "notes.view");
         using var missingPermission = Client(Guid.CreateVersion7(), "");
         var response = await owner.PostAsJsonAsync("/api/v1/certification/notes", "Neutral extension");
         response.EnsureSuccessStatusCode();

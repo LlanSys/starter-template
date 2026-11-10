@@ -9,9 +9,10 @@ public class ControlPlaneSqlServerDBContext : ControlPlaneDBContext
 {
     public ControlPlaneSqlServerDBContext(
         DbContextOptions<ControlPlaneSqlServerDBContext> options,
+        TimeProvider timeProvider,
         ICurrentActorProvider? actorProvider = null,
         ILogger<ControlPlaneSqlServerDBContext>? logger = null)
-        : base(options, actorProvider ?? new SystemActorProvider(), logger)
+        : base(options, timeProvider, actorProvider ?? new SystemActorProvider(), logger)
     {
     }
 

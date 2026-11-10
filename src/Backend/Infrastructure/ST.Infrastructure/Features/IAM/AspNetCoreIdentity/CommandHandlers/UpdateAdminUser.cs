@@ -2,6 +2,7 @@ using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Infrastructure.Features.IAM.Authorization;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
@@ -17,7 +18,7 @@ internal sealed class UpdateAdminUser(
     RoleManager<AppRole> roleManager,
     IIamUnitOfWork iamUnitOfWork,
     ICurrentTenantProvider tenantProvider,
-    ILogger<UpdateAdminUser> logger) : IRequestHandler<UpdateAdminUserCommand, AppResponse<AdminUserListResponse>>
+    ILogger<UpdateAdminUser> logger, TimeProvider timeProvider, IamDelegation delegation) : IRequestHandler<UpdateAdminUserCommand, AppResponse<AdminUserListResponse>>
 {
     public async Task<AppResponse<AdminUserListResponse>> Handle(UpdateAdminUserCommand command, CancellationToken cancellationToken)
     {
@@ -38,14 +39,20 @@ internal sealed class UpdateAdminUser(
                 return AppResponses.Failure<AdminUserListResponse>("One or more requested roles do not exist.");
             }
 
+            var currentRoles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
+            if (!await delegation.CanChangeRolesAsync(currentRoles, requestedRoles, cancellationToken).ConfigureAwait(false))
+            {
+                return AppResponses.Failure<AdminUserListResponse>("You cannot change one or more of these role assignments.");
+            }
+
             return await iamUnitOfWork.ExecuteInTransactionAsync(async () =>
             {
                 var request = command.Request;
-                user.UpdateAdminProfile(request.UserName, request.Email, request.FirstName, request.LastName,
+                var now = timeProvider.GetUtcNow();
+                user.UpdateAdminProfile(now, request.UserName, request.Email, request.FirstName, request.LastName,
                     request.PhoneNumber, command.UpdatedBy);
                 EnsureSucceeded(await userManager.UpdateAsync(user).ConfigureAwait(false), "The user profile could not be updated. Check the account details.");
 
-                var currentRoles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
                 var desiredRoles = requestedRoles;
                 var rolesToRemove = currentRoles.Except(desiredRoles, StringComparer.OrdinalIgnoreCase).ToArray();
                 var rolesToAdd = desiredRoles.Except(currentRoles, StringComparer.OrdinalIgnoreCase).ToArray();
@@ -58,7 +65,7 @@ internal sealed class UpdateAdminUser(
                     EnsureSucceeded(await userManager.AddToRolesAsync(user, rolesToAdd).ConfigureAwait(false), "The requested role changes could not be saved.");
                 }
 
-                var profile = AppUserProfile.Create(user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UpdatedBy);
+                var profile = AppUserProfile.Create(now, user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UpdatedBy);
                 await iamUnitOfWork.AppUserProfileRepository.CreateOrUpdateAsync(user.Id, profile, cancellationToken).ConfigureAwait(false);
                 await iamUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);

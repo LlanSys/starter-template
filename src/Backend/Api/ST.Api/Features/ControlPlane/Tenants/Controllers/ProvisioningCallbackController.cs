@@ -36,7 +36,11 @@ public class ProvisioningCallbackController : ControllerBase
         var command = new CompleteTenantProvisioningCommand(
             tenantId,
             request.DatabaseConnectionString,
-            request.ApplicationInsightsKey);
+            request.ApplicationInsightsKey,
+            request.OperationId,
+            request.Succeeded,
+            request.DatabaseProvider,
+            request.ClientOrigin);
 
         var result = await _mediator.Send(command);
 

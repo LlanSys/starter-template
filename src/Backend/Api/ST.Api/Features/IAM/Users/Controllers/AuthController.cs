@@ -186,68 +186,15 @@ public sealed class AuthController(ISender sender) : BaseController
         return HandleResponse(response);
     }
 
-    [HttpGet("sso/login")]
-    [AllowAnonymous]
-    public IActionResult SsoLogin([FromQuery] string returnUrl = "/")
-    {
-        var redirectUrl = Url.Action(nameof(SsoCallback), "Auth", new { returnUrl });
-        var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
-        return Challenge(properties, "EntraId");
-    }
-
-    [HttpGet("sso/callback")]
-    [AllowAnonymous]
-    public async Task<IActionResult> SsoCallback([FromQuery] string returnUrl = "/")
-    {
-        var result = await HttpContext.AuthenticateAsync(Microsoft.AspNetCore.Identity.IdentityConstants.ExternalScheme).ConfigureAwait(false);
-        if (!result.Succeeded)
-        {
-            return BadRequest("External authentication failed.");
-        }
-
-        var claims = result.Principal.Claims;
-        var email = claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-            ?? claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
-        var name = claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value ?? "Unknown";
-        var nameParts = name.Split(' ', 2);
-        var firstName = nameParts.Length > 0 ? nameParts[0] : "Unknown";
-        var lastName = nameParts.Length > 1 ? nameParts[1] : "Unknown";
-
-        var provider = result.Properties?.Items["LoginProvider"] ?? "EntraId";
-        var providerKey = claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-
-        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(providerKey))
-        {
-            return BadRequest("Missing required claims from external provider.");
-        }
-
-        var command = new ProcessSsoLoginCommand(email, firstName, lastName, provider, providerKey);
-        var response = await sender.Send(command).ConfigureAwait(false);
-
-        if (!response.IsSuccess)
-        {
-            return BadRequest(response.Message);
-        }
-
-        await HttpContext.SignOutAsync(Microsoft.AspNetCore.Identity.IdentityConstants.ExternalScheme).ConfigureAwait(false);
-
-        var uriBuilder = new UriBuilder(returnUrl);
-        var query = System.Web.HttpUtility.ParseQueryString(uriBuilder.Query);
-        query["code"] = response.Data;
-        uriBuilder.Query = query.ToString();
-
-        return Redirect(uriBuilder.ToString());
-    }
-
     [HttpPost("sso/exchange")]
     [AllowAnonymous]
     [EnableRateLimiting("LoginPolicy")]
-    public async Task<IActionResult> ExchangeSsoCode([FromBody] ExchangeSsoCodeRequest request)
+    public async Task<IActionResult> ExchangeSsoCode([FromBody] ExchangeSsoCodeRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         var response = await sender
-            .Send(new ExchangeSsoCodeCommand(request.Code))
+            .Send(new ExchangeSsoCodeCommand(request.Code), cancellationToken)
             .ConfigureAwait(false);
 
         return HandleResponse(response);

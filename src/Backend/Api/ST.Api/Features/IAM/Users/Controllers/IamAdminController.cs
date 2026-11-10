@@ -17,9 +17,13 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.SharedKernel.Features.ControlPlane.Modules.Dtos;
+using ST.SharedKernel.Features.ControlPlane;
 
 namespace ST.Api.Features.IAM.Users.Controllers;
 
+[RequireModule("iam", "/admin/iam")]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/iam/admin")]
 [ApiController]
@@ -162,16 +166,27 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new SearchPermissionsQuery(request, userId)).ConfigureAwait(false));
     }
 
+    [HttpPost("roles/apply-template")]
+    [RequirePermission("roles.manage_permissions")]
+    [RequirePermission("roles.create")]
+    public async Task<IActionResult> ApplyRoleTemplate(ApplyRoleTemplateRequest request, CancellationToken cancellationToken) => HandleResponse(await sender.Send(new ApplyRoleTemplateCommand(request), cancellationToken).ConfigureAwait(false));
+    [RequireModule("iam", "/admin/menus")]
+    [HttpDelete("navigation/overrides/{pageKey}")]
+    [RequirePermission("menus.edit")]
+    public async Task<IActionResult> ResetNavigationOverride(string pageKey, CancellationToken cancellationToken) => HandleResponse(await sender.Send(new ResetNavigationOverrideCommand(pageKey), cancellationToken).ConfigureAwait(false));
+    [RequireModule("iam", "/admin/access-catalog")]
     [HttpGet("reference-data")]
     [RequirePermission("menus.view")]
     public async Task<IActionResult> GetReferenceData()
         => HandleResponse(await sender.Send(new GetIamReferenceDataQuery()).ConfigureAwait(false));
 
+    [RequireModule("iam", "/admin/access-catalog")]
     [HttpGet("reference-catalogs/{catalogType}")]
     [RequirePermission("menus.view")]
     public async Task<IActionResult> GetReferenceCatalog(string catalogType)
         => HandleResponse(await sender.Send(new GetReferenceCatalogQuery(catalogType)).ConfigureAwait(false));
 
+    [RequireModule("iam", "/admin/access-catalog")]
     [HttpPost("reference-catalogs/{catalogType}")]
     [RequirePermission("menus.create")]
     public async Task<IActionResult> CreateReferenceCatalogItem(string catalogType, ReferenceCatalogItemRequest request)
@@ -182,6 +197,7 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new CreateReferenceCatalogItemCommand(catalogType, request, userId)).ConfigureAwait(false));
     }
 
+    [RequireModule("iam", "/admin/access-catalog")]
     [HttpPut("reference-catalogs/{catalogType}/{id:guid}")]
     [RequirePermission("menus.edit")]
     public async Task<IActionResult> UpdateReferenceCatalogItem(string catalogType, Guid id, ReferenceCatalogItemRequest request)
@@ -192,6 +208,7 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new UpdateReferenceCatalogItemCommand(catalogType, id, request, userId)).ConfigureAwait(false));
     }
 
+    [RequireModule("iam", "/admin/access-catalog")]
     [HttpDelete("reference-catalogs/{catalogType}/{id:guid}")]
     [RequirePermission("menus.delete")]
     public async Task<IActionResult> DeleteReferenceCatalogItem(string catalogType, Guid id)
@@ -236,6 +253,7 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new DeletePermissionCommand(permissionId, userId)).ConfigureAwait(false));
     }
 
+    [RequireModule("iam", "/admin/menus")]
     [HttpGet("menus")]
     [RequirePermission("menus.view")]
     public async Task<IActionResult> SearchMenus([FromQuery] MenuSearchRequest request)
@@ -244,6 +262,7 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new SearchMenusQuery(request, userId)).ConfigureAwait(false));
     }
 
+    [RequireModule("core")]
     [HttpGet("menus/navigation/{placement}")]
     public async Task<IActionResult> GetNavigationMenus(string placement)
     {
@@ -253,11 +272,12 @@ public sealed class IamAdminController(ISender sender) : BaseController
             .Select(static claim => claim.Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var hasFullAccess = User.IsInRole("System Administrator");
-
-        return HandleResponse(await sender.Send(new GetNavigationMenusQuery(placement, permissionKeys, userId, hasFullAccess)).ConfigureAwait(false));
+        if (!PlatformAccess.IsStaff(User)) permissionKeys.RemoveAll(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase));
+        return HandleResponse(await sender.Send(new GetNavigationMenusQuery(placement, permissionKeys, userId,
+            RoleNames: User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray()), HttpContext.RequestAborted).ConfigureAwait(false));
     }
 
+    [RequireModule("iam", "/admin/menus")]
     [HttpGet("menus/{menuId:guid}")]
     [RequirePermission("menus.view")]
     public async Task<IActionResult> GetMenuById(Guid menuId)
@@ -266,6 +286,7 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new GetMenuByIdQuery(menuId, userId)).ConfigureAwait(false));
     }
 
+    [RequireModule("iam", "/admin/menus")]
     [HttpPost("menus")]
     [RequirePermission("menus.create")]
     public async Task<IActionResult> CreateMenu(CreateMenuRequest request)
@@ -276,6 +297,7 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new CreateMenuCommand(request, userId)).ConfigureAwait(false));
     }
 
+    [RequireModule("iam", "/admin/menus")]
     [HttpPut("menus/{menuId:guid}")]
     [RequirePermission("menus.edit")]
     public async Task<IActionResult> UpdateMenu(Guid menuId, UpdateMenuRequest request)
@@ -286,6 +308,7 @@ public sealed class IamAdminController(ISender sender) : BaseController
         return HandleResponse(await sender.Send(new UpdateMenuCommand(menuId, request with { Id = menuId }, userId)).ConfigureAwait(false));
     }
 
+    [RequireModule("iam", "/admin/menus")]
     [HttpDelete("menus/{menuId:guid}")]
     [RequirePermission("menus.delete")]
     public async Task<IActionResult> DeleteMenu(Guid menuId)

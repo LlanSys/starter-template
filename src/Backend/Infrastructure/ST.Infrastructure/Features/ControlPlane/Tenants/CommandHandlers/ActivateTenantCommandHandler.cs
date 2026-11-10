@@ -20,15 +20,18 @@ public class ActivateTenantCommandHandler : IRequestHandler<ActivateTenantComman
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<ActivateTenantCommandHandler> _logger;
     private readonly ICurrentActorProvider _actorProvider;
+    private readonly TimeProvider _timeProvider;
 
     public ActivateTenantCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<ActivateTenantCommandHandler> logger,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider,
+        TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _actorProvider = actorProvider;
+        _timeProvider = timeProvider;
     }
 
     public async Task<AppResponse<TenantResponse>> Handle(ActivateTenantCommand request, CancellationToken cancellationToken)
@@ -42,13 +45,14 @@ public class ActivateTenantCommandHandler : IRequestHandler<ActivateTenantComman
             return AppResponses.Failure<TenantResponse>("Tenant not found.");
         }
 
-        if (tenant.Status != TenantStatus.Suspended)
+        if (tenant.Status != TenantStatus.Suspended || !tenant.CanProvision)
         {
             return AppResponses.Failure<TenantResponse>("Only a suspended tenant can be reactivated. New tenants require approval and provisioning.");
         }
 
-        tenant.MarkAsActive();
-        tenant.UpdatedAt = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
+        tenant.Reactivate(now);
+        tenant.UpdatedAt = now;
         tenant.UpdatedBy = _actorProvider.ActorId;
 
         await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);

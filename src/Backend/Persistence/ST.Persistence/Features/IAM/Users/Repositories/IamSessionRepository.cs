@@ -18,8 +18,9 @@ internal sealed class IamSessionRepository : Repository<AppUserSession>, ISessio
 
     public async Task<List<AppUserSession>> GetActiveSessionsByUserIdAsync(string userId, CancellationToken cancellationToken = default)
     {
+        var now = _iamContext.Clock.GetUtcNow();
         return await _iamContext.AppUserSessions
-            .Where(s => s.AppUserId == userId && s.IsActive && s.ExpiresAt > DateTimeOffset.UtcNow)
+            .Where(s => s.AppUserId == userId && s.IsActive && s.ExpiresAt > now)
             .OrderByDescending(s => s.LastAccessedAt)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
     }

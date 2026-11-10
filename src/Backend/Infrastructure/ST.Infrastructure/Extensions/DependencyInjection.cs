@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using ST.Persistence.Common.Configuration;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using ST.Application.Contracts.Interfaces.Common;
@@ -40,6 +41,9 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using ST.Infrastructure.Features.ControlPlane.Tenants.Services;
+using ST.Application.Features.ControlPlane.Tenants.Contracts;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -50,7 +54,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Quartz;
-using Quartz.Simpl;
+using Quartz.Impl;
 using QuestPDF.Infrastructure;
 using Serilog;
 using Serilog.Core;
@@ -66,6 +70,19 @@ using ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 using Microsoft.Azure.StackExchangeRedis;
 using StackExchange.Redis;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
+using Azure.Communication.Email;
+using Azure.Identity;
+using Microsoft.Extensions.Options;
+using QuestPDF;
+using ST.Application.Features.ControlPlane.Demo;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Application.Features.ControlPlane.Support;
+using ST.Application.Features.IAM.Menus;
+using ST.Infrastructure.Features.ControlPlane.Demo;
+using ST.Infrastructure.Features.ControlPlane.Modules;
+using ST.Infrastructure.Features.ControlPlane.Provisioning;
+using ST.Infrastructure.Features.ControlPlane.Support;
+using ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers;
 
 namespace ST.Infrastructure.Extensions;
 
@@ -75,6 +92,26 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(configuration, nameof(configuration));
 
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<AdministratorInvitationSettings>()
+            .Bind(configuration.GetSection(AdministratorInvitationSettings.SectionName))
+            .Validate(settings => settings.ValidityHours is >= 1 and <= 72, "Invitation validity must be between 1 and 72 hours.")
+            .ValidateOnStart();
+        services.AddScoped<SignInChallengeFactory>();
+        services.AddScoped<SsoCodeStore>();
+        services.AddScoped<IExternalIdentityConnection, ExternalIdentityConnection>();
+        services.AddScoped<IAdministratorInvitationService, AdministratorInvitationService>();
+        services.AddScoped<AdministratorInvitationDelivery>();
+        services.AddHostedService<AdministratorInvitationWorker>();
+        if (configuration.GetValue<bool>("ControlPlane:Provisioning:Enabled"))
+        {
+            services.AddHostedService<ProvisioningTimeoutWorker>();
+        }
+        services.AddScoped<WorkspaceTenantOverride>();
+        services.AddScoped<IWorkspaceTenantOverride>(provider => provider.GetRequiredService<WorkspaceTenantOverride>());
+        services.AddScoped<IDemoFixture, NavigationDemoFixture>();
+        services.AddScoped<ISupportSessionGuard, SupportSessionGuard>();
+        services.AddScoped<ITenantWorkspaceProvisioner, TenantWorkspaceProvisioner>();
         services.AddSingleton(JsonSerializerOptionsFactory.Create());
         services.Configure<ObservabilitySettings>(configuration.GetSection(ObservabilitySettings.SectionName));
         services.Configure<AuthProviderSettings>(configuration.GetSection(AuthProviderSettings.SectionName));
@@ -132,6 +169,7 @@ public static class DependencyInjection
         var authProviderSettings = configuration.GetSection(AuthProviderSettings.SectionName).Get<AuthProviderSettings>() ?? new AuthProviderSettings();
         var messagingSettings = configuration.GetSection(MessagingSettings.SectionName).Get<MessagingSettings>() ?? new MessagingSettings();
         var backgroundJobSettings = configuration.GetSection(BackgroundJobSettings.SectionName).Get<BackgroundJobSettings>() ?? new BackgroundJobSettings();
+        services.AddSingleton(backgroundJobSettings);
         ConfigureObservability(services, configuration, environment, observabilitySettings);
         if (backgroundJobSettings.Enabled)
         {
@@ -159,10 +197,15 @@ public static class DependencyInjection
         }
 
         services.AddHttpClient<IApiService, ApiService>();
-        services.AddHttpClient<ST.Application.Features.ControlPlane.Tenants.Contracts.IStampProvisioner, ST.Infrastructure.Features.ControlPlane.Provisioning.GitHubActionsStampProvisioner>();
+        services.AddHttpClient<IStampProvisioner, GitHubActionsStampProvisioner>();
+        services.AddScoped<ITenantDatabaseReadiness, TenantDatabaseReadiness>();
+
         services.AddScoped<ICurrentTenantProvider, CurrentTenantProvider>();
         services.AddScoped<ITenantConnectionResolver, TenantConnectionResolver>();
+        services.AddScoped<IEffectiveNavigation, EffectiveNavigation>();
+        services.AddScoped<IRoleAvailability, RoleAvailability>();
         services.AddScoped<ITenantModuleResolver, TenantModuleResolver>();
+        services.AddScoped<IEffectiveModulePolicy, EffectiveModulePolicy>();
         services.AddScoped<ICurrentActorProvider, CurrentActorProvider>();
         services.AddScoped<IFeatureFlagService, ConfigurationFeatureFlagService>();
         services.AddScoped<IPdfReportService, QuestPdfReportService>();
@@ -180,7 +223,7 @@ public static class DependencyInjection
         services.AddScoped<S3ProfilePictureStorage>();
         services.AddScoped<IProfilePictureStorage>(sp =>
         {
-            var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ProfileImageStorageSettings>>().Value;
+            var settings = sp.GetRequiredService<IOptions<ProfileImageStorageSettings>>().Value;
             return GetProfileImageStorageProvider(settings) switch
             {
                 ProfileImageStorageProvider.Local => sp.GetRequiredService<LocalProfilePictureStorage>(),
@@ -211,7 +254,8 @@ public static class DependencyInjection
             backgroundJobSettings.Enabled
                 ? new BackgroundJobService(
                     _.GetRequiredService<ISchedulerFactory>(),
-                    _.GetRequiredService<ILogger<BackgroundJobService>>())
+                    _.GetRequiredService<ILogger<BackgroundJobService>>(),
+                    _.GetRequiredService<ICurrentTenantProvider>())
                 : new NoOpBackgroundJobService());
         services.AddScoped<IEncryptionService, EncryptionService>();
         services.AddScoped<IOrgSettingsProvider, CachedOrgSettingsProvider>();
@@ -276,17 +320,36 @@ public static class DependencyInjection
             options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
         })
-        .AddJwtBearer(options =>
+        .AddJwtBearer();
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<TimeProvider>((options, timeProvider) => ConfigureJwtBearer(options, jwtSettings, timeProvider));
+
+        var google = configuration.GetSection(GoogleSsoSettings.SectionName).Get<GoogleSsoSettings>() ?? new();
+        var external = configuration.GetSection(ExternalSignInSettings.SectionName).Get<ExternalSignInSettings>() ?? new();
+        services.AddOptions<ExternalSignInSettings>().Bind(configuration.GetSection(ExternalSignInSettings.SectionName));
+        services.AddOptions<GoogleSsoSettings>().Bind(configuration.GetSection(GoogleSsoSettings.SectionName))
+            .Validate(settings => !settings.Enabled || (!string.IsNullOrWhiteSpace(settings.ClientId)
+                && !string.IsNullOrWhiteSpace(settings.ClientSecret)), "Google sign-in requires its client ID and secret.")
+            .ValidateOnStart();
+
+        if ((entraIdSettings.Enabled || google.Enabled) && (!IsExternalOrigin(external.PublicApiOrigin)
+            || external.ClientOrigins.Length == 0 || external.ClientOrigins.Any(origin => !IsExternalOrigin(origin))))
         {
-            ConfigureJwtBearer(options, jwtSettings);
-        });
+            throw new InvalidOperationException("Enabled external sign-in requires an approved public API origin and frontend origins.");
+        }
 
         if (entraIdSettings.Enabled)
         {
             authenticationBuilder.AddOpenIdConnect("EntraId", options =>
-            {
-                ConfigureEntraId(options, entraIdSettings);
-            });
+                ConfigureExternalProvider(options, entraIdSettings.Authority, entraIdSettings.ClientId,
+                    entraIdSettings.ClientSecret, entraIdSettings.CallbackPath, external.PublicApiOrigin));
+        }
+
+        if (google.Enabled)
+        {
+            authenticationBuilder.AddOpenIdConnect("Google", options =>
+                ConfigureExternalProvider(options, "https://accounts.google.com", google.ClientId, google.ClientSecret,
+                    google.CallbackPath, external.PublicApiOrigin));
         }
 
         var passkeySettings = configuration.GetSection(PasskeySettings.SectionName).Get<PasskeySettings>()
@@ -298,7 +361,7 @@ public static class DependencyInjection
             {
                 options.ServerDomain = passkeySettings.ServerDomain;
                 options.ServerName = passkeySettings.ServerName;
-                options.Origins = new System.Collections.Generic.HashSet<string>(passkeySettings.Origins);
+                options.Origins = new HashSet<string>(passkeySettings.Origins);
                 options.TimestampDriftTolerance = 300000;
             });
         }
@@ -344,7 +407,7 @@ public static class DependencyInjection
         options.Tokens.ChangeEmailTokenProvider = TokenOptions.DefaultEmailProvider;
     }
 
-    internal static void ConfigureJwtBearer(JwtBearerOptions options, JwtSettings jwtSettings)
+    internal static void ConfigureJwtBearer(JwtBearerOptions options, JwtSettings jwtSettings, TimeProvider timeProvider)
     {
         options.SaveToken = true;
         options.RequireHttpsMetadata = false;
@@ -365,7 +428,7 @@ public static class DependencyInjection
             // CUSTOM LIFETIME VALIDATOR to handle NotBefore issues
             LifetimeValidator = (notBefore, expires, token, parameters) =>
             {
-                var now = DateTime.UtcNow;
+                var now = timeProvider.GetUtcNow().UtcDateTime;
 
                 // Check expiration (required)
                 if (expires.HasValue && expires.Value < now)
@@ -385,6 +448,19 @@ public static class DependencyInjection
 
         options.Events = new JwtBearerEvents
         {
+            OnTokenValidated = context =>
+            {
+                var principal = context.Principal;
+                if (principal is null || principal.HasClaim("temp_auth", "true")
+                    || string.IsNullOrWhiteSpace(principal.FindFirstValue(ClaimTypes.NameIdentifier))
+                    || !Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) || tenantId == Guid.Empty
+                    || !Guid.TryParse(principal.FindFirstValue("session_id"), out var sessionId) || sessionId == Guid.Empty)
+                {
+                    context.Fail("A tenant-bound account session is required.");
+                }
+
+                return Task.CompletedTask;
+            },
             OnAuthenticationFailed = context =>
             {
                 if (context.Exception is SecurityTokenExpiredException)
@@ -401,7 +477,7 @@ public static class DependencyInjection
                         context.Response.StatusCode,
                         Message = "Token has expired.",
                         ExpirationTime = expirationTime,
-                        CurrentTime = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+                        CurrentTime = timeProvider.GetUtcNow().UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
                         Error = context.Exception.Message
                     };
 
@@ -481,36 +557,60 @@ public static class DependencyInjection
         });
     }
 
-    private static void ConfigureEntraId(OpenIdConnectOptions options, EntraIdSettings settings)
+    private static bool IsExternalOrigin(string origin) =>
+        Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
+        && uri.AbsolutePath == "/" && string.IsNullOrEmpty(uri.UserInfo)
+        && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment);
+
+    private static void ConfigureExternalProvider(OpenIdConnectOptions options, string authority, string clientId,
+        string clientSecret, string callbackPath, string publicApiOrigin)
     {
-        ArgumentNullException.ThrowIfNull(settings);
-
-        if (!settings.Enabled)
-        {
-            return;
-        }
-
-        options.Authority = settings.Authority;
-        options.ClientId = settings.ClientId;
-        options.ClientSecret = settings.ClientSecret;
-        options.CallbackPath = settings.CallbackPath;
+        options.Authority = authority;
+        options.ClientId = clientId;
+        options.ClientSecret = clientSecret;
+        options.CallbackPath = callbackPath;
         options.SignInScheme = IdentityConstants.ExternalScheme;
         options.ResponseType = "code";
+        options.UsePkce = true;
+        options.MapInboundClaims = false;
         options.SaveTokens = false;
-        options.GetClaimsFromUserInfoEndpoint = true;
         options.Scope.Clear();
         options.Scope.Add("openid");
         options.Scope.Add("profile");
         options.Scope.Add("email");
+        options.Events.OnRedirectToIdentityProvider = context =>
+        {
+            context.ProtocolMessage.RedirectUri = new Uri(new Uri(publicApiOrigin), callbackPath).AbsoluteUri;
+            return Task.CompletedTask;
+        };
+        options.Events.OnTokenValidated = context =>
+        {
+            if (context.Principal?.Identity is not ClaimsIdentity identity
+                || string.IsNullOrWhiteSpace(context.SecurityToken.Issuer)
+                || string.IsNullOrWhiteSpace(identity.FindFirst("sub")?.Value))
+            {
+                context.Fail("Required provider identity claims are missing.");
+                return Task.CompletedTask;
+            }
+
+            foreach (var existing in identity.FindAll("st_validated_issuer").ToArray())
+            {
+                identity.RemoveClaim(existing);
+            }
+
+            identity.AddClaim(new Claim("st_validated_issuer", context.SecurityToken.Issuer));
+            return Task.CompletedTask;
+        };
     }
 
     private static void RegisterRedisCache(IServiceCollection services, string connectionString)
     {
-        services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
         {
-            var configOptions = StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
+            var configOptions = ConfigurationOptions.Parse(connectionString);
             configOptions.AbortOnConnectFail = false;
-            return StackExchange.Redis.ConnectionMultiplexer.Connect(configOptions);
+            return ConnectionMultiplexer.Connect(configOptions);
         });
 
         RegisterStackExchangeRedisCache(services);
@@ -520,24 +620,24 @@ public static class DependencyInjection
         IServiceCollection services,
         AzureCacheSettings settings)
     {
-        services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
         {
-            var configOptions = StackExchange.Redis.ConfigurationOptions.Parse(settings.ConnectionString!);
-            configOptions.Protocol = StackExchange.Redis.RedisProtocol.Resp3;
+            var configOptions = ConfigurationOptions.Parse(settings.ConnectionString!);
+            configOptions.Protocol = RedisProtocol.Resp3;
             configOptions.Ssl = true;
             configOptions.AbortOnConnectFail = false;
             configOptions.Password = null;
 
-            var credentialOptions = new Azure.Identity.DefaultAzureCredentialOptions();
+            var credentialOptions = new DefaultAzureCredentialOptions();
             if (!string.IsNullOrWhiteSpace(settings.PrincipalId))
             {
                 credentialOptions.ManagedIdentityClientId = settings.PrincipalId;
             }
 
             configOptions.ConfigureForAzureWithTokenCredentialAsync(
-                new Azure.Identity.DefaultAzureCredential(credentialOptions)).GetAwaiter().GetResult();
+                new DefaultAzureCredential(credentialOptions)).GetAwaiter().GetResult();
 
-            return StackExchange.Redis.ConnectionMultiplexer.Connect(configOptions);
+            return ConnectionMultiplexer.Connect(configOptions);
         });
 
         RegisterStackExchangeRedisCache(services);
@@ -547,7 +647,7 @@ public static class DependencyInjection
     {
         services.AddStackExchangeRedisCache(options => { });
         services.AddOptions<RedisCacheOptions>()
-            .Configure<StackExchange.Redis.IConnectionMultiplexer>((options, multiplexer) =>
+            .Configure<IConnectionMultiplexer>((options, multiplexer) =>
             {
                 options.ConnectionMultiplexerFactory = () => Task.FromResult(multiplexer);
             });
@@ -673,8 +773,8 @@ public static class DependencyInjection
     /// <para>
     /// <b>Architecture decision:</b> We use the Azure Monitor OpenTelemetry Distro
     /// (<c>Azure.Monitor.OpenTelemetry.AspNetCore</c>). The Distro is
-    /// Microsoft's strategic direction — it follows the OTel standard, meaning
-    /// you can swap the exporter (Azure Monitor → Jaeger/Grafana/etc.) by changing
+    /// Microsoft's strategic direction â€” it follows the OTel standard, meaning
+    /// you can swap the exporter (Azure Monitor â†’ Jaeger/Grafana/etc.) by changing
     /// one line.
     /// </para>
     /// <para>
@@ -691,7 +791,7 @@ public static class DependencyInjection
     /// <b>Serilog relationship:</b> Serilog continues to handle log routing
     /// (Console, Seq, File). The OTel pipeline handles traces and metrics.
     /// Logs flow to Azure Monitor via Serilog's ILogger integration with
-    /// <c>ReadFrom.Services()</c> — not via a Serilog sink.
+    /// <c>ReadFrom.Services()</c> â€” not via a Serilog sink.
     /// </para>
     /// </remarks>
     public static IServiceCollection ConfigureObservability(
@@ -848,7 +948,7 @@ public static class DependencyInjection
         {
             try
             {
-                services.AddSingleton(new Azure.Communication.Email.EmailClient(settings.AzureCommunication.ConnectionString));
+                services.AddSingleton(new EmailClient(settings.AzureCommunication.ConnectionString));
             }
             catch
             {
@@ -956,7 +1056,7 @@ public static class DependencyInjection
             return;
         }
 
-        QuestPDF.Settings.License = GetQuestPdfLicense(settings.QuestPdf) switch
+        Settings.License = GetQuestPdfLicense(settings.QuestPdf) switch
         {
             QuestPdfLicense.Community => LicenseType.Community,
             QuestPdfLicense.Professional => LicenseType.Professional,
@@ -976,13 +1076,13 @@ public static class DependencyInjection
         services.AddQuartz(q =>
         {
             // Use a unique ID for this scheduler instance
-            q.SchedulerId = "BT_Q_Scheduler";
+            q.ConfigureScheduler(options => options.InstanceId = "BT_Q_Scheduler");
 
             q.UseJobFactory<MicrosoftDependencyInjectionJobFactory>();
 
             q.UsePersistentStore(s =>
             {
-                s.UseProperties = true;
+                s.ConfigureStore(options => options.StoreJobDataAsStrings = true);
 
                 s.UseNewtonsoftJsonSerializer();
 
@@ -1010,16 +1110,17 @@ public static class DependencyInjection
 
     }
 
-    public static IApplicationBuilder UseInfrastructureLoggingMiddleware(this IApplicationBuilder app)
+    public static IApplicationBuilder UseInfrastructureLoggingMiddleware(
+        this IApplicationBuilder app, PathString excludedRequestBodyPath = default)
     {
-        // Serilog request logging must be first — it wraps the entire pipeline
+        // Serilog request logging must be first â€” it wraps the entire pipeline
         // so it can measure the full request duration including auth, routing etc.
         app.UseSerilogRequestLogging(options =>
         {
             options.MessageTemplate =
                 "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
 
-            // Log level based on outcome — errors and 5xx are Error, 4xx are Warning
+            // Log level based on outcome â€” errors and 5xx are Error, 4xx are Warning
             options.GetLevel = (httpContext, elapsed, ex) => ex != null
                 ? LogEventLevel.Error
                 : httpContext.Response.StatusCode >= 500
@@ -1039,9 +1140,9 @@ public static class DependencyInjection
             };
         });
 
-        // Custom middleware — adds X-Correlation-ID response header,
+        // Custom middleware â€” adds X-Correlation-ID response header,
         // optionally logs request bodies at Debug level
-        app.UseMiddleware<LoggingMiddleware>();
+        app.UseMiddleware<LoggingMiddleware>(excludedRequestBodyPath);
 
         return app;
     }

@@ -2,6 +2,7 @@ using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Azure.Identity;
 
 using ST.Api.Configuration;
+using ST.Api.Common.Authorization;
 using ST.Api.Extensions;
 using ST.Api.Features.Shared.Realtime;
 using ST.Api.Health;
@@ -27,6 +28,8 @@ using Serilog.Events;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ST.Api.Middleware;
+using ST.Infrastructure.Logging;
 
 // ── Bootstrap logger ─────────────────────────────────────────────────────────
 // Captures startup errors (before the host and appsettings are loaded).
@@ -73,7 +76,7 @@ try
         configuration
             .ReadFrom.Configuration(context.Configuration)
             .ReadFrom.Services(services)
-            .Destructure.With<ST.Infrastructure.Logging.PiiDestructuringPolicy>()
+            .Destructure.With<PiiDestructuringPolicy>()
             .Enrich.FromLogContext()
             .Enrich.WithMachineName()
             .Enrich.WithEnvironmentUserName()
@@ -116,9 +119,11 @@ try
     builder.Services.AddApplicationServices(builder.Configuration);
     builder.Services.AddSharedInfrastructure(builder.Configuration, builder.Environment);
     builder.Services.AddIamModule(builder.Configuration, builder.Environment);
+    builder.Services.AddStampProvisioningAuthentication(builder.Configuration);
     builder.Services.AddSharedPersistence(builder.Configuration, builder.Environment);
     builder.Services.AddControlPlanePersistence(builder.Configuration, builder.Environment);
     builder.Services.ConfigureOutBoxMessagingWithGlobalRetry(builder.Configuration);
+    builder.Services.AddApiGraphQL();
 
     builder.Services.AddControllers()
             .AddJsonOptions(options =>
@@ -275,12 +280,8 @@ try
         healthChecks.AddCheck<KeyVaultHealthCheck>("key-vault", tags: ["ready", "dependency"]);
     }
 
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
-        options.KnownIPNetworks.Clear();
-        options.KnownProxies.Clear();
-    });
+    var trustedProxies = builder.Configuration.GetSection(TrustedProxySettings.SectionName).Get<TrustedProxySettings>() ?? new();
+    builder.Services.Configure<ForwardedHeadersOptions>(trustedProxies.Apply);
 
     var app = builder.Build();
 
@@ -298,7 +299,7 @@ try
 
     app.UseForwardedHeaders();
 
-    app.UseInfrastructureLoggingMiddleware();
+    app.UseInfrastructureLoggingMiddleware(GraphQLExtensions.EndpointPath);
 
     // OpenAPI/Scalar mappings are configured below within the Development-only block.
     // The earlier unconditional mapping caused duplicate endpoints when the detailed
@@ -331,7 +332,12 @@ try
     //app.UsePreAuthMiddleware();
 
     app.UseAuthentication();
+    app.UseMiddleware<TenantClaimBoundaryMiddleware>();
+    app.UseMiddleware<LiveAuthorityMiddleware>();
+    app.UseMiddleware<DemoWorkspaceMiddleware>();
+    app.UseMiddleware<SupportSessionMiddleware>();
 
+    app.UseMiddleware<ModuleAvailabilityMiddleware>();
     app.UsePostAuthMiddleware();
 
     app.UseAuthorization();
@@ -394,7 +400,8 @@ try
     });
 
     app.MapControllers();
-    app.MapHub<NotificationHub>("/hubs/notifications");
+    app.MapApiGraphQL();
+    app.MapHub<NotificationHub>("/hubs/notifications", options => options.CloseOnAuthenticationExpiration = true);
 
     Log.Information("ST API started successfully");
 

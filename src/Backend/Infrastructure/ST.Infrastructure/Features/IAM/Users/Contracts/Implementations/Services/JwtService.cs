@@ -17,14 +17,15 @@ namespace ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Service
 
 internal sealed class JwtService(
     IOptions<JwtSettings> jwtSettings,
-    ILogger<JwtService> logger) : IJwtService
+    ILogger<JwtService> logger,
+    TimeProvider timeProvider) : IJwtService
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
     private readonly ILogger<JwtService> _logger = logger;
 
     public async Task<string> CreateTokenAsync(List<Claim> userClaims)
     {
-        var now = DateTime.UtcNow;
+        var now = timeProvider.GetUtcNow().UtcDateTime;
         var authSigningKey = _jwtSettings.GetSymmetricSecurityKey();
         var credentials = new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256);
 
@@ -42,7 +43,7 @@ internal sealed class JwtService(
 
     public async Task<string> CreateTempTokenAsync(List<Claim> userClaims, TimeSpan expiry)
     {
-        var now = DateTime.UtcNow;
+        var now = timeProvider.GetUtcNow().UtcDateTime;
         var authSigningKey = _jwtSettings.GetSymmetricSecurityKey();
         var credentials = new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256);
 
@@ -108,6 +109,11 @@ internal sealed class JwtService(
                 ClockSkew = TimeSpan.FromMinutes(Convert.ToDouble(_jwtSettings.ClockSkew))
             };
 
+            if (validateLifetime)
+            {
+                validationParameters.LifetimeValidator = ValidateLifetime;
+            }
+
             var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
 
             if (validatedToken is not JwtSecurityToken jwtToken ||
@@ -148,6 +154,13 @@ internal sealed class JwtService(
         }
     }
 
+    private bool ValidateLifetime(DateTime? notBefore, DateTime? expires, SecurityToken token, TokenValidationParameters parameters)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        return expires.HasValue && expires.Value > now - parameters.ClockSkew
+            && (!notBefore.HasValue || (notBefore.Value <= now + parameters.ClockSkew && notBefore.Value <= expires.Value));
+    }
+
     public bool IsTokenValid(string token)
     {
         try
@@ -167,6 +180,7 @@ internal sealed class JwtService(
                 ValidateAudience = true,
                 ValidAudience = _jwtSettings.Audience,
                 ValidateLifetime = true,
+                LifetimeValidator = ValidateLifetime,
                 ClockSkew = TimeSpan.FromMinutes(clockSkew)
 
             };

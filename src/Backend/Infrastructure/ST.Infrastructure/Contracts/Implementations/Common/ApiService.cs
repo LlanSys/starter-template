@@ -18,15 +18,17 @@ namespace ST.Infrastructure.Contracts.Implementations.Common;
 
 internal sealed class ApiService : IApiService
 {
+    private readonly TimeProvider _timeProvider;
     private readonly HttpClient _httpClient;
     private readonly ApiSettings _apiSettings;
     private readonly ILogger<ApiService> _logger;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public ApiService(HttpClient httpClient, IOptions<ApiSettings> appSettings, ILogger<ApiService> logger, IHttpContextAccessor httpContextAccessor, JsonSerializerOptions jsonOptions)
+    public ApiService(HttpClient httpClient, IOptions<ApiSettings> appSettings, ILogger<ApiService> logger, IHttpContextAccessor httpContextAccessor, JsonSerializerOptions jsonOptions, TimeProvider timeProvider)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _timeProvider = timeProvider;
         _apiSettings = appSettings.Value ?? throw new ArgumentNullException(nameof(appSettings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
@@ -419,7 +421,7 @@ internal sealed class ApiService : IApiService
             var (isValid, expiry) = IsTokenValid(token);
             if (!isValid)
             {
-                HttpClientLogDefinitions.LogTokenExpired(_logger, expiry ?? DateTime.UtcNow);
+                HttpClientLogDefinitions.LogTokenExpired(_logger, expiry ?? _timeProvider.GetUtcNow().UtcDateTime);
                 _httpClient.DefaultRequestHeaders.Authorization = null;
             }
             else
@@ -455,7 +457,7 @@ internal sealed class ApiService : IApiService
 
             var jwtToken = tokenHandler.ReadJwtToken(token);
             var expiry = jwtToken.ValidTo;
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
 
             if (expiry <= now)
             {

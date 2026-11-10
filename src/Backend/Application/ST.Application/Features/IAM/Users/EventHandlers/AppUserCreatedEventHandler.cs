@@ -24,7 +24,8 @@ internal sealed class AppUserCreatedEventHandler(IIntegrationEventPublisher inte
                 evt.TenantId,
                 evt.UserName,
                 evt.FullName,
-                evt.Email);
+                evt.Email,
+                evt.OccurredAt);
 
             await integrationEventPublisher.PublishAsync(integrationEvent, cancellationToken).ConfigureAwait(false);
 

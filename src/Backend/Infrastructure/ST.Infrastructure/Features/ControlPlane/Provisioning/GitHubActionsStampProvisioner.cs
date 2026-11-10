@@ -12,8 +12,9 @@ namespace ST.Infrastructure.Features.ControlPlane.Provisioning;
 
 public class GitHubActionsStampProvisioner(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubActionsStampProvisioner> logger) : IStampProvisioner
 {
-    public async Task ProvisionIsolatedStampAsync(string tenantId, string stampId, string resourceGroup, string databaseProvider, CancellationToken cancellationToken = default)
+    public async Task ProvisionIsolatedStampAsync(string tenantId, string stampId, string resourceGroup, string databaseProvider, Guid operationId, CancellationToken cancellationToken = default)
     {
+        if (!bool.TryParse(configuration["ControlPlane:Provisioning:Enabled"],out var enabled) || !enabled) throw new InvalidOperationException("Isolated provisioning is disabled for this host.");
         var githubToken = configuration["ControlPlane:GitHub:Pat"];
         var repoOwner = configuration["ControlPlane:GitHub:RepoOwner"];
         var repoName = configuration["ControlPlane:GitHub:RepoName"];
@@ -21,7 +22,7 @@ public class GitHubActionsStampProvisioner(HttpClient httpClient, IConfiguration
         if (string.IsNullOrEmpty(githubToken) || string.IsNullOrEmpty(repoOwner) || string.IsNullOrEmpty(repoName))
         {
             ControlPlaneLogDefinitions.LogGitHubActionCredentialsNotConfigured(logger);
-            return;
+            throw new InvalidOperationException("Isolated stamp provisioning is not configured.");
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, $"https://api.github.com/repos/{repoOwner}/{repoName}/actions/workflows/provision-isolated-stamp.yml/dispatches");
@@ -34,6 +35,8 @@ public class GitHubActionsStampProvisioner(HttpClient httpClient, IConfiguration
             @ref = "main",
             inputs = new
             {
+                tenant_id = tenantId,
+                operation_id = operationId.ToString(),
                 stamp_id = stampId,
                 resource_group = resourceGroup,
                 database_provider = databaseProvider
@@ -42,7 +45,7 @@ public class GitHubActionsStampProvisioner(HttpClient httpClient, IConfiguration
 
         request.Content = JsonContent.Create(payload);
 
-        var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {

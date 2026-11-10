@@ -9,7 +9,7 @@ namespace ST.Application.Features.IAM.ReferenceData.Commands;
 
 
 
-internal sealed class DeleteReferenceCatalogItemCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeleteReferenceCatalogItemCommandHandler> logger)
+internal sealed class DeleteReferenceCatalogItemCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeleteReferenceCatalogItemCommandHandler> logger, TimeProvider timeProvider)
     : IRequestHandler<DeleteReferenceCatalogItemCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(DeleteReferenceCatalogItemCommand command, CancellationToken cancellationToken)
@@ -47,42 +47,42 @@ internal sealed class DeleteReferenceCatalogItemCommandHandler(IIamUnitOfWork un
             case ReferenceCatalogTypes.PermissionContexts:
                 var context = await unitOfWork.PermissionContextRepository.FindByIdAsync(command.Id, cancellationToken).ConfigureAwait(false);
                 if (context is null) return false;
-                context.Update(context.Label, context.Description, false, command.UserId);
+                context.Update(timeProvider.GetUtcNow(), context.Label, context.Description, false, command.UserId);
                 await unitOfWork.PermissionContextRepository.UpdateAsync(context, cancellationToken).ConfigureAwait(false);
                 return true;
 
             case ReferenceCatalogTypes.PermissionResources:
                 var resource = await unitOfWork.PermissionResourceRepository.FindByIdAsync(command.Id, cancellationToken).ConfigureAwait(false);
                 if (resource is null) return false;
-                resource.Update(resource.Label, resource.ContextKey, resource.Description, false, command.UserId);
+                resource.Update(timeProvider.GetUtcNow(), resource.Label, resource.ContextKey, resource.Description, false, command.UserId);
                 await unitOfWork.PermissionResourceRepository.UpdateAsync(resource, cancellationToken).ConfigureAwait(false);
                 return true;
 
             case ReferenceCatalogTypes.PermissionActions:
                 var action = await unitOfWork.PermissionActionRepository.FindByIdAsync(command.Id, cancellationToken).ConfigureAwait(false);
                 if (action is null) return false;
-                action.Update(action.Label, action.Description, false, command.UserId);
+                action.Update(timeProvider.GetUtcNow(), action.Label, action.Description, false, command.UserId);
                 await unitOfWork.PermissionActionRepository.UpdateAsync(action, cancellationToken).ConfigureAwait(false);
                 return true;
 
             case ReferenceCatalogTypes.MenuPlacements:
                 var placement = await unitOfWork.MenuPlacementRepository.FindByIdAsync(command.Id, cancellationToken).ConfigureAwait(false);
                 if (placement is null) return false;
-                placement.Update(placement.Label, placement.Description, false, command.UserId);
+                placement.Update(timeProvider.GetUtcNow(), placement.Label, placement.Description, false, command.UserId);
                 await unitOfWork.MenuPlacementRepository.UpdateAsync(placement, cancellationToken).ConfigureAwait(false);
                 return true;
 
             case ReferenceCatalogTypes.MenuIcons:
                 var icon = await unitOfWork.MenuIconRepository.FindByIdAsync(command.Id, cancellationToken).ConfigureAwait(false);
                 if (icon is null) return false;
-                icon.Update(icon.Label, icon.Description, false, command.UserId);
+                icon.Update(timeProvider.GetUtcNow(), icon.Label, icon.Description, false, command.UserId);
                 await unitOfWork.MenuIconRepository.UpdateAsync(icon, cancellationToken).ConfigureAwait(false);
                 return true;
 
             case ReferenceCatalogTypes.MenuRoutes:
                 var route = await unitOfWork.MenuRouteRepository.FindByIdAsync(command.Id, cancellationToken).ConfigureAwait(false);
                 if (route is null) return false;
-                route.Update(route.Label, route.Url, route.PlacementKey, route.Description, false, command.UserId);
+                route.Update(timeProvider.GetUtcNow(), route.Label, route.Url, route.PlacementKey, route.Description, false, command.UserId);
                 await unitOfWork.MenuRouteRepository.UpdateAsync(route, cancellationToken).ConfigureAwait(false);
                 return true;
 

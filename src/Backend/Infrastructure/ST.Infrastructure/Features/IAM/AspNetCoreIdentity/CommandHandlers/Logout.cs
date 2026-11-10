@@ -19,7 +19,7 @@ internal sealed class Logout(
     ISessionService sessionService,
     IIamUnitOfWork iamUnitOfWork,
     IPublisher publisher,
-    ILogger<Logout> logger) : IRequestHandler<LogoutCommand, AppResponse<bool>>
+    ILogger<Logout> logger, TimeProvider timeProvider) : IRequestHandler<LogoutCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(LogoutCommand request, CancellationToken cancellationToken)
     {
@@ -49,7 +49,7 @@ internal sealed class Logout(
                     return true;
                 }).ConfigureAwait(false);
 
-                await publisher.Publish(new UserLogoutEvent(userId, sessionId), cancellationToken).ConfigureAwait(false);
+                await publisher.Publish(new UserLogoutEvent(userId, sessionId, timeProvider.GetUtcNow()), cancellationToken).ConfigureAwait(false);
             }
 
             return AppResponses.Success("Signed out successfully", true);

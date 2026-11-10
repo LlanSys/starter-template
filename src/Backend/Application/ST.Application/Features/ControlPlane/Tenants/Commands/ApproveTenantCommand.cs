@@ -5,4 +5,4 @@ using System;
 
 namespace ST.Application.Features.ControlPlane.Tenants.Commands;
 
-public record ApproveTenantCommand(Guid TenantId) : IRequest<AppResponse<TenantResponse>>;
+public record ApproveTenantCommand(Guid TenantId, string? EvidenceReference, bool Retry = false) : IRequest<AppResponse<TenantResponse>>;

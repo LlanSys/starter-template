@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Domain.Features.IAM.Contracts;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
@@ -8,14 +9,17 @@ using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ST.Infrastructure.Features.IAM.Authorization;
 using ST.Infrastructure.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class UpdateUserPermissions(
     UserManager<AppUser> userManager,
     IamDBContext context,
-    ILogger<UpdateUserPermissions> logger)
+    ILogger<UpdateUserPermissions> logger, IEffectiveModulePolicy policy, IamDelegation delegation, IIamUnitOfWork unit)
     : IRequestHandler<UpdateUserPermissionsCommand, AppResponse<UserPermissionsResponse>>
 {
     public async Task<AppResponse<UserPermissionsResponse>> Handle(UpdateUserPermissionsCommand command, CancellationToken cancellationToken)
@@ -35,6 +39,8 @@ internal sealed class UpdateUserPermissions(
                 .Order(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
+            if (requestedKeys.Any(key => !access.PermissionAvailable(key))) return AppResponses.Failure<UserPermissionsResponse>("Select permissions from enabled modules; platform permissions cannot be assigned here.");
             var validKeys = await context.Permissions
                 .AsNoTracking()
                 .Where(permission => requestedKeys.Contains(permission.Key) && permission.IsActive)
@@ -42,6 +48,8 @@ internal sealed class UpdateUserPermissions(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
+            validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
+            validKeys.AddRange(EffectiveModuleAccess.TenantSettingsPermissions.Where(access.PermissionAvailable));
             var invalidKeys = requestedKeys.Except(validKeys, StringComparer.OrdinalIgnoreCase).ToList();
             if (invalidKeys.Count > 0)
             {
@@ -52,26 +60,36 @@ internal sealed class UpdateUserPermissions(
                 .Where(static claim => claim.Type == "permission")
                 .ToList();
 
-            foreach (var claim in existingClaims.Where(claim => !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)))
+            var existingKeys = existingClaims.Select(claim => claim.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var removals = existingClaims.Where(claim => access.PermissionAvailable(claim.Value)
+                && !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)).ToArray();
+            var additions = requestedKeys.Where(key => !existingKeys.Contains(key)).ToArray();
+            if (!delegation.CanDelegate(additions.Concat(removals.Select(claim => claim.Value))))
             {
-                var removeResult = await userManager.RemoveClaimAsync(user, claim).ConfigureAwait(false);
-                if (!removeResult.Succeeded)
-                {
-                    return AppResponses.Failure<UserPermissionsResponse>(string.Join(", ", removeResult.Errors.Select(static error => error.Description)));
-                }
+                return AppResponses.Failure<UserPermissionsResponse>("You can only change permissions you hold in this workspace.");
             }
 
-            var existingKeys = existingClaims.Select(static claim => claim.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var key in requestedKeys.Where(key => !existingKeys.Contains(key)))
+            return await unit.ExecuteInTransactionAsync(async () =>
             {
-                var addResult = await userManager.AddClaimAsync(user, new Claim("permission", key)).ConfigureAwait(false);
-                if (!addResult.Succeeded)
+                if (removals.Length > 0)
                 {
-                    return AppResponses.Failure<UserPermissionsResponse>(string.Join(", ", addResult.Errors.Select(static error => error.Description)));
+                    IamGrantUpdateRejectedException.Ensure(await userManager.RemoveClaimsAsync(user, removals).ConfigureAwait(false));
                 }
-            }
 
-            return AppResponses.Success("User permissions updated.", new UserPermissionsResponse(user.Id, user.UserName ?? user.Email ?? user.Id, requestedKeys));
+                if (additions.Length > 0)
+                {
+                    var claims = additions.Select(key => new Claim("permission", key));
+                    IamGrantUpdateRejectedException.Ensure(await userManager.AddClaimsAsync(user, claims).ConfigureAwait(false));
+                }
+
+                await unit.CompleteAsync(cancellationToken).ConfigureAwait(false);
+                return AppResponses.Success("User permissions updated.",
+                    new UserPermissionsResponse(user.Id, user.UserName ?? user.Email ?? user.Id, requestedKeys));
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (IamGrantUpdateRejectedException)
+        {
+            return AppResponses.Failure<UserPermissionsResponse>("The requested IAM changes could not be saved.");
         }
         catch (Exception ex)
         {

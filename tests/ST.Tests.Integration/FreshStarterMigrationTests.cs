@@ -1,3 +1,4 @@
+using MassTransit.EntityFrameworkCoreIntegration;
 using ST.Persistence.Features.ControlPlane.DataContext;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.Shared.DataContext;
@@ -6,26 +7,40 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Data.SqlClient;
+using Npgsql;
+using Quartz;
+using ST.Domain.Features.ControlPlane.Tenants.Entities;
+using ST.Domain.Shared.Contracts.Common;
+using System.Text.RegularExpressions;
 
 namespace ST.Tests.Integration;
 
 public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : IClassFixture<TFixture>
     where TFixture : DbFixture
 {
-    [Fact]
-    public async Task AllRetainedContextsMigrateAnEmptyDatabaseAndRerunIdempotently()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AllRetainedContextsMigrateAndRerunIdempotently(bool upgrade)
     {
         bool postgres = fixture is PostgreSqlDbFixture;
         string connection = fixture.GetConnectionString();
-        if (!postgres)
+        var database = upgrade ? "StarterUpgrade" : "StarterCertification";
+        if (postgres)
         {
-            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connection) { InitialCatalog = "StarterCertification" };
+            connection = new NpgsqlConnectionStringBuilder(connection) { Database = database }.ConnectionString;
+        }
+        else
+        {
+            var builder = new SqlConnectionStringBuilder(connection) { InitialCatalog = database };
             connection = builder.ConnectionString;
         }
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<ST.Domain.Shared.Contracts.Common.ICurrentTenantProvider, MigrationTenantProvider>();
-        services.AddSingleton<ST.Domain.Shared.Contracts.Common.ICurrentActorProvider, MigrationActorProvider>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<ICurrentTenantProvider, MigrationTenantProvider>();
+        services.AddSingleton<ICurrentActorProvider, MigrationActorProvider>();
         void Configure(DbContextOptionsBuilder options, string context)
         {
             if (postgres) options.UseNpgsql(connection, provider => provider.MigrationsHistoryTable("__EFMigrationsHistory_" + context));
@@ -48,31 +63,133 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
         Type[] contexts = postgres
             ? [typeof(ControlPlanePostgreSqlDBContext), typeof(IamPostgreSqlDBContext), typeof(SharedPostgreSqlDBContext)]
             : [typeof(ControlPlaneSqlServerDBContext), typeof(IamSqlServerDBContext), typeof(SharedSqlServerDBContext)];
+        var outboxId = Guid.CreateVersion7();
+        var schedulerName = $"StarterMigration-{Guid.CreateVersion7():N}";
+        var legacyFireTime = TimeProvider.System.GetUtcNow().AddDays(1);
         foreach (var type in contexts)
         {
             var context = (DbContext)scope.ServiceProvider.GetRequiredService(type);
             Assert.False(context.Database.HasPendingModelChanges());
+            var previous = context.Database.GetMigrations().LastOrDefault(id => id.EndsWith("_WorkspaceOnboardingAndSupport", StringComparison.Ordinal)
+                || (context is SharedDBContext && id.EndsWith("_InitialStarter", StringComparison.Ordinal)));
+            if (upgrade && previous is not null)
+            {
+                await context.GetService<IMigrator>().MigrateAsync(previous);
+                if (context is ControlPlaneDBContext)
+                {
+                    await context.Database.ExecuteSqlRawAsync("UPDATE \"Tenants\" SET \"DisplayName\" = 'Existing customer record' WHERE \"Identifier\" = 'default'");
+                }
+                if (context is SharedDBContext)
+                {
+                    await SeedQuartzTriggerAsync(context, schedulerName, legacyFireTime);
+                    await context.Database.ExecuteSqlInterpolatedAsync(
+                        $"INSERT INTO \"OutboxState\" (\"OutboxId\", \"LockId\", \"Created\", \"BusName\") VALUES ({outboxId}, {outboxId}, {DateTime.UtcNow}, {"legacy"})");
+                }
+            }
+
             await context.Database.MigrateAsync();
-            Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+            if (upgrade && context is ControlPlaneDBContext control)
+            {
+                var retained = await control.Tenants.SingleAsync(tenant => tenant.Identifier == "default");
+                Assert.Equal("Existing customer record", retained.DisplayName);
+                Assert.Null(retained.KycApprovedAt);
+            }
+
+            if (upgrade && context is SharedDBContext)
+            {
+                Assert.True(await context.Set<OutboxState>().AnyAsync(state => state.OutboxId == outboxId));
+                var busNames = await context.Database.SqlQuery<string>(
+                    $"SELECT \"BusName\" AS \"Value\" FROM \"OutboxState\" WHERE \"OutboxId\" = {outboxId}").ToListAsync();
+                Assert.Equal("legacy", Assert.Single(busNames));
+            }
+
+            Assert.Equal(context.Database.GetMigrations(), await context.Database.GetAppliedMigrationsAsync());
             Assert.Empty(await context.Database.GetPendingMigrationsAsync());
             await context.Database.MigrateAsync();
             string script = context.GetService<IMigrator>().GenerateScript(options: MigrationsSqlGenerationOptions.Idempotent);
             Assert.Contains("InitialStarter", script, StringComparison.Ordinal);
-            var batches = postgres ? new[] { script } : System.Text.RegularExpressions.Regex.Split(script, @"^GO\s*$", System.Text.RegularExpressions.RegexOptions.Multiline);
+            var batches = postgres ? new[] { script } : Regex.Split(script, @"^GO\s*$", RegexOptions.Multiline);
             foreach (var batch in batches.Where(batch => !string.IsNullOrWhiteSpace(batch)))
                 await context.Database.ExecuteSqlRawAsync(batch);
-            Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+            Assert.Equal(context.Database.GetMigrations(), await context.Database.GetAppliedMigrationsAsync());
         }
+        await VerifyQuartzAsync(connection, postgres, schedulerName, upgrade, legacyFireTime);
         await VerifyConcurrencyAsync(provider, contexts[0]);
     }
+    private static async Task SeedQuartzTriggerAsync(DbContext context, string schedulerName, DateTimeOffset fireTime)
+    {
+        var jobType = typeof(QuartzMigrationProbeJob).AssemblyQualifiedName;
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO QRTZ_JOB_DETAILS
+                (SCHED_NAME, JOB_NAME, JOB_GROUP, JOB_CLASS_NAME, IS_DURABLE, IS_NONCONCURRENT, IS_UPDATE_DATA, REQUESTS_RECOVERY)
+            VALUES ({schedulerName}, 'legacy-job', 'DEFAULT', {jobType}, {true}, {false}, {false}, {false});
+            INSERT INTO QRTZ_TRIGGERS
+                (SCHED_NAME, TRIGGER_NAME, TRIGGER_GROUP, JOB_NAME, JOB_GROUP, NEXT_FIRE_TIME, PRIORITY, TRIGGER_STATE, TRIGGER_TYPE, START_TIME, MISFIRE_INSTR)
+            VALUES ({schedulerName}, 'legacy-trigger', 'DEFAULT', 'legacy-job', 'DEFAULT', {fireTime.UtcTicks}, 5, 'WAITING', 'SIMPLE', {fireTime.UtcTicks}, 0);
+            INSERT INTO QRTZ_SIMPLE_TRIGGERS
+                (SCHED_NAME, TRIGGER_NAME, TRIGGER_GROUP, REPEAT_COUNT, REPEAT_INTERVAL, TIMES_TRIGGERED)
+            VALUES ({schedulerName}, 'legacy-trigger', 'DEFAULT', 0, 0, 0);
+            """);
+    }
+
+    private static async Task VerifyQuartzAsync(
+        string connection, bool postgres, string schedulerName, bool upgrade, DateTimeOffset legacyFireTime)
+    {
+        var completed = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(completed);
+        services.AddQuartz(options =>
+        {
+            options.ConfigureScheduler(settings => settings.InstanceName = schedulerName);
+            options.UsePersistentStore(store =>
+            {
+                store.ConfigureStore(settings => settings.StoreJobDataAsStrings = true);
+                store.UseNewtonsoftJsonSerializer();
+                if (postgres)
+                {
+                    store.UsePostgres(connection);
+                }
+                else
+                {
+                    store.UseSqlServer(connection);
+                }
+            });
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        var scheduler = await provider.GetRequiredService<ISchedulerFactory>().GetScheduler();
+        try
+        {
+            if (upgrade)
+            {
+                var retained = await scheduler.GetTrigger(new TriggerKey("legacy-trigger"));
+                Assert.NotNull(retained);
+                Assert.Equal(legacyFireTime, retained.NextFireTimeUtc);
+            }
+
+            var job = JobBuilder.Create<QuartzMigrationProbeJob>().UsingJobData("marker", "verified").Build();
+            var trigger = TriggerBuilder.Create().StartNow().Build();
+            await scheduler.ScheduleJob(job, trigger);
+            await scheduler.Start();
+
+            Assert.Equal("verified", await completed.Task.WaitAsync(TimeSpan.FromSeconds(20)));
+        }
+        finally
+        {
+            await scheduler.Shutdown(waitForJobsToComplete: true);
+        }
+    }
+
     private static async Task VerifyConcurrencyAsync(ServiceProvider provider, Type contextType)
     {
         using var firstScope = provider.CreateScope();
         using var secondScope = provider.CreateScope();
         var first = (DbContext)firstScope.ServiceProvider.GetRequiredService(contextType);
         var second = (DbContext)secondScope.ServiceProvider.GetRequiredService(contextType);
-        var original = await first.Set<ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant>().FirstAsync();
-        var stale = await second.Set<ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant>().SingleAsync(tenant => tenant.Id == original.Id);
+        var original = await first.Set<Tenant>().FirstAsync();
+        var stale = await second.Set<Tenant>().SingleAsync(tenant => tenant.Id == original.Id);
         byte[] initialVersion = original.RowVersion.ToArray();
         original.DisplayName = "Concurrency winner";
         await first.SaveChangesAsync();
@@ -81,11 +198,11 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
     }
 
-    private sealed class MigrationTenantProvider : ST.Domain.Shared.Contracts.Common.ICurrentTenantProvider
+    private sealed class MigrationTenantProvider : ICurrentTenantProvider
     {
         public Guid TenantId => Guid.Empty;
     }
-    private sealed class MigrationActorProvider : ST.Domain.Shared.Contracts.Common.ICurrentActorProvider
+    private sealed class MigrationActorProvider : ICurrentActorProvider
     {
         public string ActorId => "MigrationCertification";
     }

@@ -31,7 +31,7 @@ public sealed class PermissionResource : ReferenceCatalogEntity
         };
     }
 
-    public void Update(string label, string contextKey, string description, bool isActive, string updatedBy)
+    public void Update(DateTimeOffset now, string label, string contextKey, string description, bool isActive, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentException.ThrowIfNullOrWhiteSpace(contextKey);
@@ -42,7 +42,7 @@ public sealed class PermissionResource : ReferenceCatalogEntity
         ContextKey = contextKey.Trim();
         Description = description.Trim();
         IsActive = isActive;
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 
     private static string NormalizeSegment(string value) => value.Trim().ToLowerInvariant().Replace(' ', '_');

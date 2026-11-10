@@ -37,6 +37,16 @@
                             }
                         </MudSelect>
                     </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_model.AdministratorEmail" Label="Initial administrator email" InputType="InputType.Email"
+                                      Margin="Margin.Dense" Variant="Variant.Outlined"
+                                      HelperText="Optional. A welcome link is sent after KYC approval and provisioning." />
+                    </MudItem>
+                    @if (!string.IsNullOrWhiteSpace(_model.AdministratorEmail))
+                    {
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.AdministratorFirstName" Label="First name" Margin="Margin.Dense" /></MudItem>
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.AdministratorLastName" Label="Last name" Margin="Margin.Dense" /></MudItem>
+                    }
                 }
             </MudGrid>
         </EditForm>
@@ -118,6 +128,9 @@
         public string SubscriptionTier { get; set; } = "Basic";
         public string Identifier { get; set; } = string.Empty;
         public Guid? DeploymentStampId { get; set; }
+        public string? AdministratorEmail { get; set; }
+        public string AdministratorFirstName { get; set; } = string.Empty;
+        public string AdministratorLastName { get; set; } = string.Empty;
 
 
         public static TenantFormModel From(TenantResponse tenant)
@@ -137,7 +150,9 @@
                 HostName = HostName,
                 SubscriptionTier = SubscriptionTier,
                 Identifier = Identifier,
-                DeploymentStampId = DeploymentStampId.GetValueOrDefault()
+                DeploymentStampId = DeploymentStampId.GetValueOrDefault(),
+                InitialAdministrator = string.IsNullOrWhiteSpace(AdministratorEmail) ? null
+                    : new InitializeWorkspaceRequest(AdministratorEmail, AdministratorFirstName, AdministratorLastName)
             };
 
         public UpdateTenantRequest ToUpdateRequest()

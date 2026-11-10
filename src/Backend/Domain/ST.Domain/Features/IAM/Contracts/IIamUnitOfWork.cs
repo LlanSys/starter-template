@@ -4,11 +4,15 @@ using ST.Domain.Features.IAM.Permissions.Contracts.Repositories;
 using ST.Domain.Features.IAM.ReferenceData.Entities;
 using ST.Domain.Features.IAM.Users.Contracts.Repositories;
 using ST.Domain.Shared.Contracts.Repositories;
+using ST.Domain.Features.IAM.Menus.Entities;
+using ST.Domain.Features.IAM.Users.Entities;
 
 namespace ST.Domain.Features.IAM.Contracts;
 
 public interface IIamUnitOfWork : ITransactionalUnitOfWork
 {
+    IRepository<AppRole> RoleRepository { get; }
+    IRepository<NavigationOverride> NavigationOverrides { get; }
     IUserRepository UserRepository { get; }
     ISessionRepository SessionRepository { get; }
     ITokenRepository TokenRepository { get; }

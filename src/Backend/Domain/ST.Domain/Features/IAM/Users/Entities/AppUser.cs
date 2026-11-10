@@ -19,6 +19,21 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
 {
     public Guid TenantId { get; set; }
 
+    public Guid? AdministratorInvitationId { get; private set; }
+    public DateTimeOffset? AdministratorSetupCompletedAt { get; private set; }
+    public bool RequiresAdministratorSetup => AdministratorInvitationId.HasValue && !AdministratorSetupCompletedAt.HasValue;
+
+    public void BeginAdministratorSetup(Guid invitationId)
+    {
+        AdministratorInvitationId = invitationId;
+        AdministratorSetupCompletedAt = null;
+    }
+
+    public void CompleteAdministratorSetup(DateTimeOffset now)
+    {
+        AdministratorSetupCompletedAt = now;
+    }
+
 
 
 
@@ -43,7 +58,7 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
     public bool IsActive { get; set; }
 
 
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
     public string? CreatedBy { get; set; }
     public DateTimeOffset? ActivatedAt { get; set; }
     public string? ActivatedBy { get; set; }
@@ -78,6 +93,7 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
 
 
     public static AppUser CreateAccount(
+        DateTimeOffset now,
         Guid tenantId, string userName, string firstName, string lastName,
         string email, string? phoneNumber, string createdBy)
     {
@@ -89,7 +105,7 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         ArgumentException.ThrowIfNullOrWhiteSpace(lastName);
         ArgumentException.ThrowIfNullOrWhiteSpace(userName);
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
-        var user = CreateSystemUser(tenantId, userName.Trim(), email.Trim(), createdBy);
+        var user = CreateSystemUser(now, tenantId, userName.Trim(), email.Trim(), createdBy);
         user.FirstName = firstName.Trim();
         user.LastName = lastName.Trim();
         user.PhoneNumber = phoneNumber?.Trim();
@@ -101,6 +117,7 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
 
     // Factory for system/admin users (no business relationship)
     public static AppUser CreateSystemUser(
+        DateTimeOffset now,
         Guid tenantId,
         string userName,
         string email,
@@ -121,12 +138,13 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
             ConcurrencyStamp = Guid.CreateVersion7().ToString(),
             SecurityStamp = Guid.CreateVersion7().ToString(),
             CreatedBy = createdBy,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
         };
     }
 
     // Factory for external SSO users provisioned just-in-time
     public static AppUser CreateExternalUser(
+        DateTimeOffset now,
         Guid tenantId,
         string userName,
         string email,
@@ -153,9 +171,9 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
             ConcurrencyStamp = Guid.CreateVersion7().ToString(),
             SecurityStamp = Guid.CreateVersion7().ToString(),
             CreatedBy = createdBy,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
             IsActive = true,
-            ActivatedAt = DateTimeOffset.UtcNow,
+            ActivatedAt = now,
             ActivatedBy = createdBy,
             RequirePasswordChange = false
         };
@@ -165,14 +183,14 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
 
 
 
-    public void RaiseAppUserCreatedEvent()
+    public void RaiseAppUserCreatedEvent(DateTimeOffset now)
     {
         RaiseDomainEvent(new AppUserCreatedEvent(
             Id,
             TenantId,
             UserName!,
             $"{FirstName} {LastName}",
-            Email ?? string.Empty));
+            Email ?? string.Empty, now));
     }
 
     public void ResetFailedLoginAttempts()
@@ -183,38 +201,39 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
 
 
 
-    public void RecordSuccessfulLogin()
+    public void RecordSuccessfulLogin(DateTimeOffset now)
     {
-        LastLoginAt = DateTimeOffset.UtcNow;
+        LastLoginAt = now;
         ResetFailedLoginAttempts();
     }
 
-    public void CompletePasswordReset(string updatedBy)
+    public void CompletePasswordReset(DateTimeOffset now, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
 
         ResetFailedLoginAttempts();
-        PasswordLastChanged = DateTimeOffset.UtcNow;
+        PasswordLastChanged = now;
         RequirePasswordChange = false;
-        MarkUpdated(updatedBy);
+        MarkUpdated(now, updatedBy);
     }
 
-    public void MarkUpdated(string? updatedBy = null)
+    public void MarkUpdated(DateTimeOffset now, string? updatedBy = null)
     {
-        UpdatedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = now;
         UpdatedBy = updatedBy;
     }
 
-    public void SetProfilePicture(Uri profilePictureUrl, string updatedBy)
+    public void SetProfilePicture(DateTimeOffset now, Uri profilePictureUrl, string updatedBy)
     {
         ArgumentNullException.ThrowIfNull(profilePictureUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
 
         ProfilePictureUrl = profilePictureUrl;
-        MarkUpdated(updatedBy);
+        MarkUpdated(now, updatedBy);
     }
 
     public void UpdateAdminProfile(
+        DateTimeOffset now,
         string userName,
         string email,
         string firstName,
@@ -233,15 +252,15 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         FirstName = firstName.Trim();
         LastName = lastName.Trim();
         PhoneNumber = phoneNumber?.Trim();
-        MarkUpdated(updatedBy);
+        MarkUpdated(now, updatedBy);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(deletedBy);
         IsDeleted = true;
         DeletedBy = deletedBy;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
 
     }
 
@@ -257,14 +276,13 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         _domainEvents.Clear();
     }
 
-    public void GrantAccess(string grantedBy)
+    public void GrantAccess(DateTimeOffset now, string grantedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(grantedBy);
 
         if (IsActive)
             throw new DomainException("User account is already active.");
 
-        var now = DateTimeOffset.UtcNow;
 
         IsActive = true;
         ActivatedAt = now;
@@ -276,10 +294,10 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         DeactivationReason = null;
         RequirePasswordChange = true; // Force password set on first login
 
-        RaiseDomainEvent(new AppUserAccessGrantedEvent(Id, TenantId, grantedBy));
+        RaiseDomainEvent(new AppUserAccessGrantedEvent(Id, TenantId, grantedBy, now));
     }
 
-    public void RevokeAccess(string revokedBy, string reason)
+    public void RevokeAccess(DateTimeOffset now, string revokedBy, string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(revokedBy);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
@@ -287,7 +305,6 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         if (!IsActive)
             throw new DomainException("User account is already inactive.");
 
-        var now = DateTimeOffset.UtcNow;
 
         IsActive = false;
         DeactivatedAt = now;
@@ -296,6 +313,6 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         UpdatedAt = now;
         UpdatedBy = revokedBy;
 
-        RaiseDomainEvent(new AppUserAccessRevokedEvent(Id, TenantId, revokedBy, reason));
+        RaiseDomainEvent(new AppUserAccessRevokedEvent(Id, TenantId, revokedBy, reason, now));
     }
 }

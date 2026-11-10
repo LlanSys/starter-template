@@ -1,16 +1,21 @@
+@using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@using ST.UI.Blazor.Features.Shared.BackendApi
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject WorkspaceSelection WorkspaceSelection
+@inject NavigationManager Navigation
 @page "/iam/accept-invitation"
 @layout AuthLayout
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
-@inject NavigationManager Navigation
-@inject ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces.IBackendApiClient ApiClient
-@inject Microsoft.Extensions.Options.IOptions<ST.UI.Blazor.Configuration.BackendApiSettings> ApiSettings
+@inject IBackendApiClient ApiClient
+@inject IOptions<BackendApiSettings> ApiSettings
 
 <PageTitle>Account setup | StarterTemplate</PageTitle>
 <HeadContent><meta name="referrer" content="no-referrer" /></HeadContent>
 <section class="auth-shell">
-    <div class="auth-copy"><h1>Complete account setup.</h1><p>Choose your password to confirm your email and prepare your account for sign-in.</p></div>
     <div class="auth-card">
+        <div class="auth-heading"><h1>Set up your account</h1><p>Choose your password.</p></div>
         @if (_completed)
         {
             <p role="status">Account setup complete. Sign in with the invited account's username or email and the password you just chose.</p>
@@ -38,6 +43,17 @@
 </section>
 
 @code {
+    [SupplyParameterFromQuery(Name = "tenantId")] public Guid? TenantId { get; set; }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || TenantId is null) return;
+        var selected = await WorkspaceSelection.GetAsync();
+        if (selected?.TenantId == TenantId) return;
+        var response = await ApiClient.SendAsync<WorkspaceInfoResponse>(HttpMethod.Get, $"api/v1/workspaces/resolve?tenantId={TenantId}", requiresAuthentication: false);
+        if (!response.IsSuccess || response.Data is null) { _message = "This workspace is not available."; StateHasChanged(); return; }
+        await WorkspaceSelection.SetAsync(new(response.Data.TenantId, response.Data.Identifier, response.Data.Name));
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
     [SupplyParameterFromQuery(Name = "userId")] public string? UserId { get; set; }
     [SupplyParameterFromQuery(Name = "token")] public string? Token { get; set; }
     private string _password = string.Empty;
@@ -72,7 +88,7 @@
         try
         {
             var response = await ApiClient.SendAsync<bool>(HttpMethod.Post,
-                ST.UI.Blazor.Features.Shared.BackendApi.EndpointFormatter.Format(ApiSettings.Value.Endpoints.Iam.Auth.AcceptInvitation, ApiSettings.Value.Version),
+                EndpointFormatter.Format(ApiSettings.Value.Endpoints.Iam.Auth.AcceptInvitation, ApiSettings.Value.Version),
                 new AcceptAccountInvitationRequest(UserId, Token, _password, _confirmPassword), requiresAuthentication: false,
                 unavailableMessage: "Account setup is unavailable. Please try again.");
             _completed = response.IsSuccess;

@@ -10,7 +10,10 @@ using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Entities;
+using StoredRefreshToken = ST.Domain.Features.IAM.Users.Entities.RefreshToken;
 using ST.Infrastructure.Configuration;
+using ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Services;
+using System.Security.Claims;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.SharedKernel.Dtos.Common;
@@ -36,7 +39,7 @@ internal sealed class VerifyTotpCode(
     ISessionService sessionService,
     IHttpContextAccessor httpContextAccessor,
     IOptions<JwtSettings> jwtSettings,
-    ILogger<VerifyTotpCode> logger) : IRequestHandler<VerifyOtpCommand, AppResponse<VerifyOtpResponse>>
+    ILogger<VerifyTotpCode> logger, SignInChallengeFactory challengeFactory, TimeProvider timeProvider) : IRequestHandler<VerifyOtpCommand, AppResponse<VerifyOtpResponse>>
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
 
@@ -53,14 +56,25 @@ internal sealed class VerifyTotpCode(
                 return AppResponses.Failure<VerifyOtpResponse>("User not found");
             }
 
+            var proof = challengeFactory.Validate(user, request.ChallengeToken);
+            var firstFactor = proof is not null && SignInChallengeFactory.IsFirstFactorChallenge(proof, user);
+            var enrolled = user.TwoFactorEnabled;
             TotpVerificationResult verification;
 
             var tempSecret = await iamUnitOfWork.TempTotpSecretRepository
                 .GetValidTempSecretByUserIdAsync(user.Id)
                 .ConfigureAwait(false);
 
-            if (tempSecret != null)
+            if (tempSecret != null && !firstFactor)
             {
+                var enrollmentSession = httpContextAccessor.HttpContext?.User;
+                if (enrollmentSession?.FindFirstValue("session_id") is null
+                    || enrollmentSession.FindFirstValue(ClaimTypes.NameIdentifier) != user.Id
+                    || enrollmentSession.FindFirstValue("tenant_id") != user.TenantId.ToString())
+                {
+                    return AppResponses.Failure<VerifyOtpResponse>("Sign in before verifying authenticator setup.");
+                }
+
                 ServiceLogDefinitions.LogUsingTempSecret(logger, user.Id);
                 var tempSecretDecryption = TryDecryptTotpSecret(user, tempSecret.EncryptedSecret);
 
@@ -78,6 +92,7 @@ internal sealed class VerifyTotpCode(
                     await iamUnitOfWork.AppUserTotpSecretRepository.DeactivateUserSecretsAsync(user.Id).ConfigureAwait(false);
 
                     var newSecret = AppUserTotpSecret.Create(
+                        timeProvider.GetUtcNow(),
                         user.Id,
                         tempSecret.EncryptedSecret,
                         user.Id);
@@ -86,7 +101,6 @@ internal sealed class VerifyTotpCode(
                     await iamUnitOfWork.TempTotpSecretRepository.DeleteAsync(tempSecret.Id, cancellationToken).ConfigureAwait(false);
                     await iamUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
-                    var isValid = await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, request.Code.ToString(System.Globalization.CultureInfo.InvariantCulture)).ConfigureAwait(false);
                     var enableResult = await userManager.SetTwoFactorEnabledAsync(user, true).ConfigureAwait(false);
                     if (!enableResult.Succeeded)
                     {
@@ -99,6 +113,11 @@ internal sealed class VerifyTotpCode(
             }
             else
             {
+                if (!firstFactor)
+                {
+                    return AppResponses.Failure<VerifyOtpResponse>("Sign in again before verifying your authenticator.");
+                }
+
                 verification = await VerifyUserTotpAsync(user, request.Code, cancellationToken).ConfigureAwait(false);
                 if (verification.IsUnavailable)
                 {
@@ -134,17 +153,24 @@ internal sealed class VerifyTotpCode(
                 return AppResponses.Failure<VerifyOtpResponse>("Could not retrieve user claims");
             }
 
+            userClaims.Add(new Claim("amr", "mfa"));
+            if (user.RequiresAdministratorSetup && enrolled && firstFactor)
+            {
+                userClaims.Add(new Claim("administrator_mfa", "true"));
+            }
             var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
             var tokenExpiry = jwtService.GetTokenExpiry(tokenResponse);
             var refreshToken = jwtService.CreateRefreshToken();
-            var refreshTokenEntity = ST.Domain.Features.IAM.Users.Entities.RefreshToken.Create(
+            var now = timeProvider.GetUtcNow();
+            var refreshTokenEntity = StoredRefreshToken.Create(
+                now,
                 user.Id,
                 refreshToken,
-                DateTimeOffset.UtcNow.AddHours(_jwtSettings.RefreshTokenExpiryHours),
+                now.AddHours(_jwtSettings.RefreshTokenExpiryHours),
                 user.Id,
                 httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString());
 
-            user.RecordSuccessfulLogin();
+            user.RecordSuccessfulLogin(now);
             await userManager.UpdateAsync(user).ConfigureAwait(false);
             await iamUnitOfWork.ExecuteInTransactionWithRetryAsync(async () =>
             {
@@ -221,7 +247,7 @@ internal sealed class VerifyTotpCode(
         }
 
         await cache.RemoveAsync(attemptKey, ct).ConfigureAwait(false);
-        secretEntity.MarkAsUsed();
+        secretEntity.MarkAsUsed(timeProvider.GetUtcNow());
 
         await iamUnitOfWork.AppUserTotpSecretRepository.UpdateAsync(secretEntity, ct).ConfigureAwait(false);
         await iamUnitOfWork.CompleteAsync(ct).ConfigureAwait(false);
@@ -255,7 +281,7 @@ internal sealed class VerifyTotpCode(
             var secretBytes = Base32Encoding.ToBytes(secret);
             var totp = new Totp(secretBytes, step: 30, mode: OtpHashMode.Sha1, totpSize: 6);
             var window = new VerificationWindow(windowSize, windowSize);
-            return totp.VerifyTotp(code.Trim(), out _, window);
+            return totp.VerifyTotp(timeProvider.GetUtcNow().UtcDateTime, code.Trim(), out _, window);
         }
         catch (Exception ex)
         {

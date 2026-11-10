@@ -3,7 +3,7 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.UI.Blazor.Features.Shared.Messaging;
 using ST.UI.Blazor.Logging;
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
+using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 
 namespace ST.UI.Blazor.Features.IAM.Users.Contracts.Implementations;
 
@@ -15,15 +15,21 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
 
     public bool IsAuthenticated => CurrentUser?.IsAuthenticated != false && CurrentUser is not null;
 
-    public CurrentUserResponse? CurrentUser { get; private set; }
+    public event Action? AuthenticationChanged;
+    private CurrentUserResponse? _currentUser;
+    public CurrentUserResponse? CurrentUser
+    {
+        get => _currentUser;
+        private set { _currentUser = value; AuthenticationChanged?.Invoke(); }
+    }
 
     public string? ProfilePictureDataUri { get; private set; }
 
     public string? PendingTwoFactorUserId { get; private set; }
+    private string? _pendingTwoFactorToken;
 
     public string? LastError { get; private set; }
 
-    public bool HasFullAccess => IsInRole("System Administrator");
 
     public bool MfaEnrollmentRequired => CurrentUser?.MfaEnrollmentRequired == true;
 
@@ -74,6 +80,7 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
                 AuthSessionLogDefinitions.LogSessionInitializationFailed(logger, ex);
                 CurrentUser = null;
                 PendingTwoFactorUserId = null;
+                _pendingTwoFactorToken = null;
                 LastError = "We could not restore your previous session. Please sign in again.";
                 await TryClearStorageAsync().ConfigureAwait(false);
             }
@@ -106,11 +113,13 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
         if (response.Data.Requires2FA)
         {
             PendingTwoFactorUserId = response.Data.UserId;
+            _pendingTwoFactorToken = response.Data.Token;
             CurrentUser = null;
             return response;
         }
 
         PendingTwoFactorUserId = null;
+        _pendingTwoFactorToken = null;
         await RefreshCurrentUserAsync().ConfigureAwait(false);
 
         if (CurrentUser is null && response.Data.UserInfo is not null)
@@ -137,11 +146,13 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
         if (response.Data.Requires2FA)
         {
             PendingTwoFactorUserId = response.Data.UserId;
+            _pendingTwoFactorToken = response.Data.Token;
             CurrentUser = null;
             return response;
         }
 
         PendingTwoFactorUserId = null;
+        _pendingTwoFactorToken = null;
         await RefreshCurrentUserAsync().ConfigureAwait(false);
 
         if (CurrentUser is null && response.Data.UserInfo is not null)
@@ -168,11 +179,13 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
         if (response.Data.Requires2FA)
         {
             PendingTwoFactorUserId = response.Data.UserId;
+            _pendingTwoFactorToken = response.Data.Token;
             CurrentUser = null;
             return response;
         }
 
         PendingTwoFactorUserId = null;
+        _pendingTwoFactorToken = null;
         await RefreshCurrentUserAsync().ConfigureAwait(false);
 
         if (CurrentUser is null && response.Data.UserInfo is not null)
@@ -189,7 +202,7 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var response = await authService.VerifyTotpAsync(request).ConfigureAwait(false);
+        var response = await authService.VerifyTotpAsync(request with { ChallengeToken = _pendingTwoFactorToken }).ConfigureAwait(false);
         if (!response.IsSuccess || response.Data is null)
         {
             LastError = response.Message;
@@ -198,6 +211,7 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
 
         await storage.SaveAsync(response.Data.Token, response.Data.RefreshToken, response.Data.SessionId).ConfigureAwait(false);
         PendingTwoFactorUserId = null;
+        _pendingTwoFactorToken = null;
         await RefreshCurrentUserAsync().ConfigureAwait(false);
 
         return response;
@@ -208,6 +222,7 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
         var response = await authService.LogoutAsync().ConfigureAwait(false);
         CurrentUser = null;
         PendingTwoFactorUserId = null;
+        _pendingTwoFactorToken = null;
         ProfilePictureDataUri = null;
         LastError = null;
         IsInitialized = true;
@@ -221,8 +236,10 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
             return true;
         }
 
-        return HasFullAccess
-            || CurrentUser?.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true;
+        if (permission.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase)) return CurrentUser?.IsPlatformStaff == true && CurrentUser.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true;
+
+        if (CurrentUser?.UnavailablePermissions.Contains(permission, StringComparer.OrdinalIgnoreCase) == true) return false;
+        return CurrentUser?.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true;
     }
 
     public bool HasAnyPermission(params string[] permissions)

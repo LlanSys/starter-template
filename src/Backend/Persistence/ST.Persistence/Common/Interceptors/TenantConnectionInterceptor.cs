@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using ST.Domain.Shared.Contracts.Common;
@@ -14,6 +15,7 @@ namespace ST.Persistence.Common.Interceptors;
 public class TenantConnectionInterceptor : DbConnectionInterceptor
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ConditionalWeakTable<DbConnection, OriginalConnection> _originalConnections = new();
 
     public TenantConnectionInterceptor(IServiceProvider serviceProvider)
     {
@@ -29,16 +31,18 @@ public class TenantConnectionInterceptor : DbConnectionInterceptor
 
     public override async ValueTask<InterceptionResult> ConnectionOpeningAsync(DbConnection connection, ConnectionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var resolver = scope.ServiceProvider.GetRequiredService<ITenantConnectionResolver>();
+        var resolver = _serviceProvider.GetRequiredService<ITenantConnectionResolver>();
 
-        var newConnectionString = await resolver.GetConnectionStringAsync(cancellationToken).ConfigureAwait(false);
-
-        if (!string.IsNullOrWhiteSpace(newConnectionString) && connection.ConnectionString != newConnectionString)
+        var original = _originalConnections.GetValue(connection, current => new OriginalConnection(current.ConnectionString));
+        var tenantConnection = await resolver.GetConnectionStringAsync(cancellationToken).ConfigureAwait(false);
+        var connectionString = string.IsNullOrWhiteSpace(tenantConnection) ? original.ConnectionString : tenantConnection;
+        if (!string.Equals(connection.ConnectionString, connectionString, StringComparison.Ordinal))
         {
-            connection.ConnectionString = newConnectionString;
+            connection.ConnectionString = connectionString;
         }
 
         return await base.ConnectionOpeningAsync(connection, eventData, result, cancellationToken).ConfigureAwait(false);
     }
+
+    private sealed record OriginalConnection(string ConnectionString);
 }

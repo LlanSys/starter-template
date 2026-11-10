@@ -1,0 +1,76 @@
+@using ST.SharedKernel.Features.IAM.Users.Dtos
+@using ST.UI.Blazor.Configuration
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+@inject IOptions<BackendApiSettings> Settings
+@inject NavigationManager Navigation
+
+@if (_providers.Length > 0)
+{
+    <article class="security-card">
+        <div class="card-heading"><span>Connected sign-in</span></div>
+        <p>Confirm your current password and authenticate with the provider you want to connect.</p>
+        @if (_ticket is null)
+        {
+            <label for="connect-password">Current password</label>
+            <input id="connect-password" type="password" class="form-control" autocomplete="current-password" @bind="_password" maxlength="128" />
+            @foreach (var provider in _providers)
+            {
+                <MudButton Disabled="@_busy" OnClick="() => PrepareAsync(provider)" Variant="Variant.Outlined" Class="mt-2">
+                    Connect @provider.DisplayName
+                </MudButton>
+            }
+        }
+        else
+        {
+            <form method="post" action="@($"{Settings.Value.PublicBaseUrl!.TrimEnd('/')}/{Path}/connect/start")">
+                <input type="hidden" name="tenantId" value="@TenantId" />
+                <input type="hidden" name="returnUrl" value="@($"{Navigation.BaseUri}iam/sso-callback")" />
+                <input type="hidden" name="provider" value="@_selected?.Scheme" />
+                <input type="hidden" name="ticket" value="@_ticket" />
+                <button type="submit" class="btn btn-st-primary">Continue to @_selected?.DisplayName</button>
+            </form>
+        }
+        @if (_message is not null)
+        {
+            <p role="alert">@_message</p>
+        }
+    </article>
+}
+
+@code {
+    [Parameter] public Guid TenantId { get; set; }
+
+    private string Path => $"api/v{Settings.Value.Version}/iam/auth/sso";
+    private SsoProviderResponse[] _providers = [];
+    private SsoProviderResponse? _selected;
+    private string _password = string.Empty;
+    private string? _ticket;
+    private string? _message;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Settings.Value.PublicBaseUrl)) return;
+        var result = await Api.SendAsync<SsoProviderResponse[]>(HttpMethod.Get, $"{Path}/providers", requiresAuthentication: false);
+        _providers = result.Data ?? [];
+    }
+
+    private async Task PrepareAsync(SsoProviderResponse provider)
+    {
+        _busy = true;
+        try
+        {
+            var result = await Api.SendAsync<string>(HttpMethod.Post, $"{Path}/connect",
+                new ConnectExternalIdentityRequest(provider.Scheme, _password));
+            _ticket = result.Data;
+            _selected = provider;
+            _message = result.IsSuccess ? null : UserMessageSanitizer.Normalize(result.Message, "Could not start the connection.");
+        }
+        finally
+        {
+            _password = string.Empty;
+            _busy = false;
+        }
+    }
+}

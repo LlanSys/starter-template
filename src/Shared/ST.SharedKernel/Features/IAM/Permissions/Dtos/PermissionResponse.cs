@@ -8,4 +8,8 @@ public sealed record PermissionResponse(
     string Resource,
     string Action,
     string Description,
-    bool IsActive);
+    bool IsActive)
+{
+    public bool IsStandard { get; init; }
+    public string ModuleKey { get; init; } = "iam";
+}

@@ -8,10 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation">
+    <PackageReference Include="FluentValidation" Version="12.2.0">
       <VersionOverride>12.1.1</VersionOverride>
     </PackageReference>
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions">
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0">
       <VersionOverride>12.1.1</VersionOverride>
     </PackageReference>
     <PackageReference Include="MediatR" Version="14.2.0" />

@@ -13,7 +13,7 @@
     else if (CanView)
     {
         <MudTooltip Text="View">
-            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Default" Size="Size.Small" Class="table-action-button view-action" OnClick="OnView" />
+            <MudIconButton aria-label="View" Icon="@Icons.Material.Filled.Visibility" Color="Color.Default" Size="Size.Small" Class="table-action-button view-action" OnClick="OnView" />
         </MudTooltip>
     }
 
@@ -31,21 +31,21 @@
     else if (CanEdit)
     {
         <MudTooltip Text="Edit">
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" Class="table-action-button edit-action" OnClick="OnEdit" />
+            <MudIconButton aria-label="Edit" Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" Class="table-action-button edit-action" OnClick="OnEdit" />
         </MudTooltip>
     }
 
     @if (CanDelete)
     {
         <MudTooltip Text="Delete">
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Class="table-action-button delete-action" OnClick="OnDelete" />
+            <MudIconButton aria-label="Delete" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Class="table-action-button delete-action" OnClick="OnDelete" />
         </MudTooltip>
     }
 
     @if (ExtraActions.Count > 0)
     {
         <MudTooltip Text="More actions">
-            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" IconColor="Color.Inherit" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="table-action-button">
+            <MudMenu aria-label="More actions" Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" IconColor="Color.Inherit" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="table-action-button">
                 @foreach (var action in ExtraActions)
                 {
                     <MudMenuItem OnClick="@(() => OnExtraAction.InvokeAsync(action))">@action</MudMenuItem>

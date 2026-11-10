@@ -12,7 +12,7 @@ namespace ST.Application.Features.Shared.Payments.CommandHandlers.Mpesa;
 
 internal sealed class ProcessMpesaStkCallbackHandler(
     ISharedUnitOfWork sharedUnitOfWork,
-    ILogger<ProcessMpesaStkCallbackHandler> logger) : IRequestHandler<ProcessMpesaStkCallbackCommand, AppResponse<string>>
+    ILogger<ProcessMpesaStkCallbackHandler> logger, TimeProvider timeProvider) : IRequestHandler<ProcessMpesaStkCallbackCommand, AppResponse<string>>
 {
     public async Task<AppResponse<string>> Handle(ProcessMpesaStkCallbackCommand request, CancellationToken cancellationToken)
     {
@@ -47,15 +47,15 @@ internal sealed class ProcessMpesaStkCallbackHandler(
 
             if (resultCode == 0)
             {
-                paymentRecord.UpdateStatus(PaymentStatus.Success, statusMessage: resultDesc);
+                paymentRecord.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Success, statusMessage: resultDesc);
             }
             else if (resultCode == 1032)
             {
-                paymentRecord.UpdateStatus(PaymentStatus.Cancelled, statusMessage: resultDesc);
+                paymentRecord.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Cancelled, statusMessage: resultDesc);
             }
             else
             {
-                paymentRecord.UpdateStatus(PaymentStatus.Failed, statusMessage: resultDesc);
+                paymentRecord.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Failed, statusMessage: resultDesc);
             }
 
             await sharedUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);

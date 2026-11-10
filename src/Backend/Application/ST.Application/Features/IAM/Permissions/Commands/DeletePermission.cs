@@ -4,12 +4,14 @@ using ST.Domain.Features.IAM.Contracts;
 using ST.SharedKernel.Dtos.Common;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using ST.Application.Features.ControlPlane.Modules;
+using ST.Domain.Features.ControlPlane.Modules.Entities;
 
 namespace ST.Application.Features.IAM.Permissions.Commands;
 
 
 
-internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeletePermissionCommandHandler> logger)
+internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, ILogger<DeletePermissionCommandHandler> logger, IEffectiveModulePolicy policy, TimeProvider timeProvider)
     : IRequestHandler<DeletePermissionCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(DeletePermissionCommand command, CancellationToken cancellationToken)
@@ -22,7 +24,14 @@ internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
                 return AppResponses.Failure<bool>($"Permission {command.Id} not found.");
             }
 
-            permission.MarkAsDeleted(command.UserId);
+            var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
+            if (EffectiveModuleAccess.TenantSettingsPermissions.Contains(permission.Key, StringComparer.OrdinalIgnoreCase)
+                || access.Catalogue.Any(entry => entry.Kind == ModuleCatalogueKind.Permission
+                    && string.Equals(entry.Key, permission.Key, StringComparison.OrdinalIgnoreCase)))
+            {
+                return AppResponses.Failure<bool>("Standard permissions are managed in the platform module catalogue.");
+            }
+            permission.MarkAsDeleted(command.UserId, timeProvider.GetUtcNow());
             await unitOfWork.PermissionRepository.UpdateAsync(permission, cancellationToken).ConfigureAwait(false);
             var saved = await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false) > 0;
 

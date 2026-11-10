@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using ST.Infrastructure.Features.IAM.Authorization;
+using ST.Tests.Unit.TestFixtures;
 using ST.Application.Features.IAM.Users.Mappings;
 using ST.Infrastructure.Configuration;
 using ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Services;
@@ -26,7 +28,23 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using IdentityOptionsFactory = Microsoft.Extensions.Options.Options;
 using NSubstitute;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Caching.Distributed;
+using ST.Application.Contracts.Interfaces.Common;
+using ST.Application.Features.IAM.Users.Contracts.Interfaces;
+using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
+using ST.Domain.Features.ControlPlane.Contracts;
+using ST.SharedKernel.Dtos.Common;
+using ST.SharedKernel.Features.Shared.Notifications.Dtos;
+using ST.Tests.Unit.TestFixtures;
+using StoredRefreshToken = ST.Domain.Features.IAM.Users.Entities.RefreshToken;
+using System.Net;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Text;
 
 namespace ST.Tests.Unit.Infrastructure.IAM;
 
@@ -65,10 +83,12 @@ public sealed class IndependentAccountTests
     public async Task DuplicateIdentityInAnotherTenantOrSoftDeletedAccountIsRejected()
     {
         using var fixture = new Fixture();
-        var user = AppUser.CreateAccount(Guid.CreateVersion7(), "EXISTING", "Existing", "Account", "USER@EXAMPLE.TEST", null, ActorId);
+        var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, Guid.CreateVersion7(), "EXISTING", "Existing", "Account", "USER@EXAMPLE.TEST", null, ActorId);
+        fixture.Tenant.TenantId.Returns(user.TenantId);
         Assert.True((await fixture.Users.CreateAsync(user, Password)).Succeeded);
         user.IsDeleted = true;
         await fixture.Context.SaveChangesAsync();
+        fixture.Tenant.TenantId.Returns(TenantId);
 
         var response = await fixture.Create.Handle(Command(), CancellationToken.None);
 
@@ -238,7 +258,7 @@ public sealed class IndependentAccountTests
         Assert.True((await fixture.Users.AddClaimAsync(user, new Claim("permission", "Accounts.View"))).Succeeded);
         Assert.True((await fixture.Users.AddClaimAsync(user, new Claim("employee_id", Guid.CreateVersion7().ToString()))).Succeeded);
         var sessionId = Guid.CreateVersion7();
-        var service = new ClaimsService(fixture.Users, fixture.Roles, NullLogger<ClaimsService>.Instance);
+        var service = new ClaimsService(fixture.Users, fixture.Roles, NullLogger<ClaimsService>.Instance, TimeProvider.System);
 
         var claims = await service.GetUserClaimsAsync(user, sessionId);
 
@@ -262,7 +282,7 @@ public sealed class IndependentAccountTests
         user.TwoFactorEnabled = enrolled;
         user.LastLoginAt = DateTimeOffset.UtcNow.AddMinutes(-2);
         user.EmailConfirmed = true;
-        user.SetProfilePicture(new Uri("https://private-storage.example.test/private-image"), ActorId);
+        user.SetProfilePicture(DateTimeOffset.UnixEpoch, new Uri("https://private-storage.example.test/private-image"), ActorId);
         Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
         Assert.True((await fixture.Users.AddToRolesAsync(user, ["System Administrator"])).Succeeded);
         var sessionId = Guid.CreateVersion7().ToString();
@@ -277,7 +297,7 @@ public sealed class IndependentAccountTests
                     new Claim("permission", "Accounts.View")], "test"))
             }
         };
-        var handler = new GetCurrentUser(http, fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance);
+        var handler = new GetCurrentUser(http, fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance, new TestModulePolicy());
 
         var response = await handler.Handle(new GetCurrentUserCommand(), CancellationToken.None);
 
@@ -299,7 +319,7 @@ public sealed class IndependentAccountTests
     {
         using var fixture = new Fixture();
         var handler = new GetCurrentUser(new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
-            fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance);
+            fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance, new TestModulePolicy());
         var response = await handler.Handle(new GetCurrentUserCommand(), CancellationToken.None);
         Assert.False(response.IsSuccess);
         Assert.Null(response.Data);
@@ -375,11 +395,11 @@ public sealed class IndependentAccountTests
     public async Task AccessChangesRejectUnresolvedDeletedAndOtherTenantAccounts(string scenario)
     {
         using var fixture = new Fixture();
+        if (scenario == "tenant") fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
         var user = await fixture.AddUserAsync();
-        if (scenario == "tenant") user.TenantId = Guid.CreateVersion7();
         if (scenario == "deleted") user.IsDeleted = true;
         Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
-        if (scenario == "unresolved") fixture.Tenant.TenantId.Returns(Guid.Empty);
+        fixture.Tenant.TenantId.Returns(scenario == "unresolved" ? Guid.Empty : TenantId);
         var activation = await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None);
         var deactivation = await fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("reason"), ActorId), CancellationToken.None);
         Assert.False(activation.IsSuccess);
@@ -467,7 +487,7 @@ public sealed class IndependentAccountTests
         Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
         var stamp = user.SecurityStamp;
         await SeedAccessAsync(fixture, user);
-        fixture.Publisher.Publish(Arg.Any<ST.Domain.Shared.Contracts.Common.IDomainEvent>(), Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException("Event failure")));
+        fixture.Publisher.Publish(Arg.Any<IDomainEvent>(), Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException("Event failure")));
         await Assert.ThrowsAsync<InvalidOperationException>(() => activate
             ? fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None)
             : fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("Reason"), ActorId), CancellationToken.None));
@@ -481,8 +501,8 @@ public sealed class IndependentAccountTests
 
     private static async Task SeedAccessAsync(Fixture fixture, AppUser user)
     {
-        fixture.Context.AppUserSessions.Add(AppUserSession.Create(Guid.CreateVersion7(), user.Id, "127.0.0.1", "test-agent", DateTimeOffset.UtcNow.AddHours(1), ActorId));
-        fixture.Context.RefreshTokens.Add(ST.Domain.Features.IAM.Users.Entities.RefreshToken.Create(user.Id, Guid.CreateVersion7().ToString(), DateTimeOffset.UtcNow.AddDays(1), ActorId));
+        fixture.Context.AppUserSessions.Add(AppUserSession.Create(DateTimeOffset.UnixEpoch, Guid.CreateVersion7(), user.Id, "127.0.0.1", "test-agent", DateTimeOffset.UtcNow.AddHours(1), ActorId));
+        fixture.Context.RefreshTokens.Add(StoredRefreshToken.Create(DateTimeOffset.UnixEpoch, user.Id, Guid.CreateVersion7().ToString(), DateTimeOffset.UtcNow.AddDays(1), ActorId));
         await fixture.Context.SaveChangesAsync();
     }
     private static CreateAppUserCommand Command(ICollection<string>? roles = null) => new(
@@ -528,10 +548,10 @@ public sealed class IndependentAccountTests
         var token = await fixture.Users.GenerateUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user));
         if (rejection == "disabled") user.IsActive = false;
         if (rejection == "deleted") user.IsDeleted = true;
-        if (rejection == "other-tenant") fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
         if (rejection == "changed-email") user.Email = "changed@example.test";
         if (rejection == "tampered-token") token = "invalid-token";
         await fixture.Users.UpdateAsync(user);
+        if (rejection == "other-tenant") fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
         var response = await fixture.AcceptInvitation.Handle(new AcceptAccountInvitationCommand(
             new AcceptAccountInvitationRequest(user.Id, token, "ChosenPassword42!", "ChosenPassword42!")), CancellationToken.None);
         Assert.False(response.IsSuccess);
@@ -567,9 +587,9 @@ public sealed class IndependentAccountTests
         await fixture.Users.UpdateAsync(user);
         var originalHash = user.PasswordHash;
         var originalStamp = user.SecurityStamp;
-        ST.SharedKernel.Features.Shared.Notifications.Dtos.SendEmailRequest? sent = null;
-        fixture.Email.SendEmailAsync(Arg.Any<ST.SharedKernel.Features.Shared.Notifications.Dtos.SendEmailRequest>(), Arg.Any<CancellationToken>())
-            .Returns(call => { sent = call.Arg<ST.SharedKernel.Features.Shared.Notifications.Dtos.SendEmailRequest>(); return ST.SharedKernel.Dtos.Common.AppResponses.Success<ST.SharedKernel.Features.Shared.Notifications.Dtos.SendEmailResponse>(null!); });
+        SendEmailRequest? sent = null;
+        fixture.Email.SendEmailAsync(Arg.Any<SendEmailRequest>(), Arg.Any<CancellationToken>())
+            .Returns(call => { sent = call.Arg<SendEmailRequest>(); return AppResponses.Success<SendEmailResponse>(null!); });
         var response = await fixture.Invite.Handle(new InviteAdminUserCommand(user.Id), CancellationToken.None);
         Assert.True(response.IsSuccess);
         Assert.NotNull(sent);
@@ -577,9 +597,9 @@ public sealed class IndependentAccountTests
         Assert.Contains("https://starter.example.test/iam/accept-invitation?", sent.Body, StringComparison.Ordinal);
         Assert.Contains("&lt;script&gt;", sent.Body, StringComparison.Ordinal);
         Assert.DoesNotContain(Password, sent.Body, StringComparison.Ordinal);
-        var linkMatch = System.Text.RegularExpressions.Regex.Match(sent.Body!, "href=\"([^\"]+)\"");
-        var link = new Uri(System.Net.WebUtility.HtmlDecode(linkMatch.Groups[1].Value));
-        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(link.Query);
+        var linkMatch = Regex.Match(sent.Body!, "href=\"([^\"]+)\"");
+        var link = new Uri(WebUtility.HtmlDecode(linkMatch.Groups[1].Value));
+        var query = QueryHelpers.ParseQuery(link.Query);
         Assert.Equal(user.Id, query["userId"].ToString());
         Assert.True(await fixture.Users.VerifyUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user), query["token"].ToString()));
         Assert.Equal(originalHash, user.PasswordHash);
@@ -608,7 +628,7 @@ public sealed class IndependentAccountTests
         user.EmailConfirmed = true;
         await fixture.Users.UpdateAsync(user);
         byte[] credentialId = [12, 34, 56];
-        byte[] handle = System.Text.Encoding.UTF8.GetBytes(user.Id);
+        byte[] handle = Encoding.UTF8.GetBytes(user.Id);
         fixture.Context.Fido2Credentials.Add(new Fido2Credential
         {
             UserId = user.Id,
@@ -736,12 +756,12 @@ public sealed class IndependentAccountTests
         user.IsDeleted = state == "deleted";
         user.EmailConfirmed = state != "unconfirmed";
         await fixture.Users.UpdateAsync(user);
-        var cache = Substitute.For<Microsoft.Extensions.Caching.Distributed.IDistributedCache>();
+        var cache = Substitute.For<IDistributedCache>();
         var handler = new VerifyEmailOtp(fixture.Users, null!,
-            Substitute.For<ST.Application.Features.IAM.Users.Contracts.Interfaces.IClaimsService>(),
-            Substitute.For<ST.Application.Features.IAM.Users.Contracts.Interfaces.IJwtService>(), cache, fixture.UnitOfWork,
-            Substitute.For<ST.Application.Features.IAM.Users.Contracts.Interfaces.ISessionService>(), new HttpContextAccessor(),
-            Options.Create(new JwtSettings()), NullLogger<VerifyEmailOtp>.Instance);
+            Substitute.For<IClaimsService>(),
+            Substitute.For<IJwtService>(), cache, fixture.UnitOfWork,
+            Substitute.For<ISessionService>(), new HttpContextAccessor(),
+            Options.Create(new JwtSettings()), NullLogger<VerifyEmailOtp>.Instance, TimeProvider.System);
         var response = await handler.Handle(new VerifyEmailOtpCommand(new VerifyEmailOtpRequest
         { UserId = user.Id, Code = "123456", Purpose = "Login" }), CancellationToken.None);
         Assert.False(response.IsSuccess);
@@ -765,13 +785,13 @@ public sealed class IndependentAccountTests
             CreatedBy = ActorId
         }, CancellationToken.None);
         await fixture.Context.SaveChangesAsync();
-        var passkeys = Substitute.For<ST.Application.Features.IAM.Users.Contracts.Interfaces.IPasskeyService>();
+        var passkeys = Substitute.For<IPasskeyService>();
         var handler = new LoginWithPasskey(fixture.Users, new HttpContextAccessor(),
-            Substitute.For<ST.Application.Features.IAM.Users.Contracts.Interfaces.IJwtService>(),
-            Substitute.For<ST.Application.Features.IAM.Users.Contracts.Interfaces.IClaimsService>(),
-            Substitute.For<ST.Application.Contracts.Interfaces.Common.IServiceManager>(), fixture.UnitOfWork,
+            Substitute.For<IJwtService>(),
+            Substitute.For<IClaimsService>(),
+            Substitute.For<IServiceManager>(), fixture.UnitOfWork,
             passkeys, TimeProvider.System, Options.Create(new JwtSettings()), NullLogger<LoginWithPasskey>.Instance);
-        using var document = System.Text.Json.JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json);
         var response = await handler.Handle(new LoginWithPasskeyCommand(null, correlation, document.RootElement), CancellationToken.None);
         Assert.False(response.IsSuccess);
         Assert.DoesNotContain("Exception", response.Message!, StringComparison.Ordinal);
@@ -795,8 +815,8 @@ public sealed class IndependentAccountTests
         public AcceptAccountInvitation AcceptInvitation { get; }
         public InviteAdminUser Invite { get; }
         public ResetPassword Reset { get; }
-        public ST.Application.Features.Shared.Notifications.Contracts.Interfaces.IEmailService Email { get; } = Substitute.For<ST.Application.Features.Shared.Notifications.Contracts.Interfaces.IEmailService>();
-        public ST.Infrastructure.Configuration.EmailSettings EmailSettings { get; } = new() { Provider = "LocalMailpit", ClientBaseUrl = "https://starter.example.test" };
+        public IEmailService Email { get; } = Substitute.For<IEmailService>();
+        public EmailSettings EmailSettings { get; } = new() { Provider = "LocalMailpit", ClientBaseUrl = "https://starter.example.test" };
 
         [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
             Justification = "UserManager and RoleManager own their stores and Fixture.Dispose disposes both managers.")]
@@ -811,8 +831,8 @@ public sealed class IndependentAccountTests
             Context.Database.EnsureCreated();
             Users = new TestUserManager(new UserStore<AppUser, AppRole, TestIamDBContext>(Context));
             Users.RegisterTokenProvider(TokenOptions.DefaultProvider, new DataProtectorTokenProvider<AppUser>(
-                new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(),
-                Microsoft.Extensions.Options.Options.Create(new DataProtectionTokenProviderOptions()),
+                new EphemeralDataProtectionProvider(),
+                Options.Create(new DataProtectionTokenProviderOptions()),
                 NullLogger<DataProtectorTokenProvider<AppUser>>.Instance));
             Roles = new RoleManager<AppRole>(new RoleStore<AppRole, TestIamDBContext>(Context),
                 [new RoleValidator<AppRole>()], new UpperInvariantLookupNormalizer(),
@@ -823,13 +843,16 @@ public sealed class IndependentAccountTests
                 Substitute.For<IPermissionRepository>(), Substitute.For<IMenuRepository>(), Publisher, NullLogger<IamUnitOfWork>.Instance);
             UnitOfWork = uow;
             PasskeyPolicy = new PasskeyCredentialPolicy(uow, Tenant);
-            Create = new CreateAppUser(Users, Roles, uow, Tenant, NullLogger<CreateAppUser>.Instance);
-            Update = new UpdateAdminUser(Users, Roles, uow, Tenant, NullLogger<UpdateAdminUser>.Instance);
-            Activate = new ActivateAdminUser(Users, uow, Tenant, NullLogger<ActivateAdminUser>.Instance);
-            Deactivate = new DeactivateAdminUser(Users, uow, Tenant, NullLogger<DeactivateAdminUser>.Instance);
-            Reset = new ResetPassword(Users, uow, Substitute.For<ST.Application.Contracts.Interfaces.Common.ICacheService>(), Publisher, Tenant, NullLogger<ResetPassword>.Instance);
-            AcceptInvitation = new AcceptAccountInvitation(Users, uow, Tenant, NullLogger<AcceptAccountInvitation>.Instance);
-            Invite = new InviteAdminUser(Users, Tenant, Email, Microsoft.Extensions.Options.Options.Create(EmailSettings), NullLogger<InviteAdminUser>.Instance);
+            var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("permission", "users.manage_roles")], "Test"));
+            var http = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = principal } };
+            var delegation = new IamDelegation(Context, http, new TestModulePolicy(), Roles);
+            Create = new CreateAppUser(Users, Roles, uow, Tenant, NullLogger<CreateAppUser>.Instance, TimeProvider.System, delegation);
+            Update = new UpdateAdminUser(Users, Roles, uow, Tenant, NullLogger<UpdateAdminUser>.Instance, TimeProvider.System, delegation);
+            Activate = new ActivateAdminUser(Users, uow, Tenant, NullLogger<ActivateAdminUser>.Instance, TimeProvider.System);
+            Deactivate = new DeactivateAdminUser(Users, uow, Tenant, NullLogger<DeactivateAdminUser>.Instance, TimeProvider.System);
+            Reset = new ResetPassword(Users, uow, Substitute.For<ICacheService>(), Publisher, Tenant, NullLogger<ResetPassword>.Instance, TimeProvider.System);
+            AcceptInvitation = new AcceptAccountInvitation(Users, uow, Tenant, NullLogger<AcceptAccountInvitation>.Instance, Substitute.For<IControlPlaneUnitOfWork>(), TimeProvider.System);
+            Invite = new InviteAdminUser(Users, Tenant, Email, Options.Create(EmailSettings), NullLogger<InviteAdminUser>.Instance, Substitute.For<IControlPlaneUnitOfWork>());
         }
 
         public async Task AddRoleAsync(string name)
@@ -837,7 +860,7 @@ public sealed class IndependentAccountTests
 
         public async Task<AppUser> AddUserAsync()
         {
-            var user = AppUser.CreateAccount(TenantId, "user", "First", "Last", "user@example.test", null, ActorId);
+            var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, Tenant.TenantId, "user", "First", "Last", "user@example.test", null, ActorId);
             Assert.True((await Users.CreateAsync(user, Password)).Succeeded);
             return user;
         }
@@ -852,7 +875,7 @@ public sealed class IndependentAccountTests
     }
 
     private sealed class TestIamDBContext(DbContextOptions<TestIamDBContext> options,
-        ICurrentTenantProvider tenant, ICurrentActorProvider actor) : IamDBContext(options, tenant, actor)
+        ICurrentTenantProvider tenant, ICurrentActorProvider actor) : IamDBContext(options, TimeProvider.System, tenant, actor)
     {
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -870,7 +893,7 @@ public sealed class IndependentAccountTests
     }
 
     private sealed class TestUserManager(IUserStore<AppUser> store) : UserManager<AppUser>(store,
-        Microsoft.Extensions.Options.Options.Create(new IdentityOptions()), new PasswordHasher<AppUser>(), [new UserValidator<AppUser>()],
+        IdentityOptionsFactory.Create(new IdentityOptions()), new PasswordHasher<AppUser>(), [new UserValidator<AppUser>()],
         [new PasswordValidator<AppUser>()], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(),
         null!, NullLogger<UserManager<AppUser>>.Instance)
     {

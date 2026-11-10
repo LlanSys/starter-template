@@ -1,10 +1,10 @@
 # Tenant Onboarding Workflow
 
-This document outlines the end-to-end operational workflows for onboarding new tenants to the StarterTemplate SaaS platform. Because the platform supports both **Pooled** and **Isolated** isolation tiers, the onboarding steps vary based on the level of isolation required by the client.
+This document outlines the operational workflows for onboarding new tenants to the StarterTemplate SaaS platform. See [secure workspace onboarding](secure-workspace-onboarding.md) for KYC review, invitation delivery, acceptance, and MFA. Because the platform supports both **Pooled** and **Isolated** isolation tiers, the onboarding steps vary based on the level of isolation required by the client.
 
 ## 1. Onboarding a Pooled Tenant
 
-A pooled tenant shares compute, database, and caching infrastructure with other pooled tenants. Data is logically isolated via row-level security and EF Core Global Query Filters. This is the fastest and cheapest way to onboard a new customer.
+A pooled tenant shares compute, database, and caching infrastructure with other pooled tenants. StarterTemplate enforces logical isolation through tenant-scoped EF queries and tenant ownership checks on writes. This is the fastest and cheapest way to onboard a new customer.
 
 ### Workflow
 
@@ -20,7 +20,7 @@ A pooled tenant shares compute, database, and caching infrastructure with other 
 
 3. **Provisioning Complete:**
    - The system creates the tenant record in the Control Plane database.
-   - The tenant is immediately active. When users for this tenant log in, the application routes their traffic to the shared infrastructure and uses their `TenantId` to filter data automatically.
+   - The tenant awaits KYC. A reviewer records the evidence reference and approves KYC. Approval can activate a pooled tenant on the existing stamp. Workspace routing uses its `TenantId` to scope data.
 
 ---
 
@@ -65,49 +65,49 @@ An isolated tenant receives their own dedicated physical infrastructure. They do
 | **Infrastructure** | Uses existing shared resources. | Requires running IaC pipelines to provision dedicated resources (App, DB, Key Vault). |
 | **Deployment Stamp** | Reuses an existing `Pooled` stamp. | Requires creating a new `Isolated` stamp in the Control Panel using the new Key Vault URI. |
 | **Cost & Time** | Instant onboarding, lowest cost. | Slower onboarding (infrastructure deployment time), premium cost. |
-| **Data Isolation** | Logical (Row-Level Security, EF Filters). | Physical (Dedicated Database). |
+| **Data Isolation** | Logical (tenant-scoped EF reads and writes). | Physical (Dedicated Database). |
 
 ---
 
-## 3. Post-Provisioning Activation Runbook (Isolated Tenants)
+## 3. Isolated workspace provisioning
 
-After the `provision-isolated-stamp.yml` GitHub Actions workflow completes, the tenant record is still in `Provisioning` status. The provisioning workflow cannot automatically activate the tenant because the API does not expose a public inbound webhook for GitHub Actions callbacks. Activation is a deliberate operator gate.
+KYC approval persists a provisioning attempt ID and a two-hour deadline with the workspace. The dispatcher passes the workspace, attempt, registered stamp ID, resource group and provider to `provision-isolated-stamp.yml`. Each isolated stamp belongs to one workspace. A unique database reservation prevents two concurrent owners.
 
-### Steps
+The workflow serializes work by stamp, publishes API and Blazor images tagged with the checked-out commit, provisions resources, applies IAM and Shared migrations, configures the runtime, deploys both applications and waits for their health checks. The isolated runtime uses the shared ControlPlane connection, its own data database, a stamp-bound tenant resolver, and its own signing key, issuer and audience. Its invitation worker initializes and delivers onboarding only for workspaces assigned to that stamp. A persisted, expiring setup lease serializes initialization across requests and replicas. Role initialization completes before invitation delivery.
 
-1. **Confirm the GitHub Actions workflow succeeded.**
-   - Navigate to the repository → **Actions** → **Provision Isolated Stamp**.
-   - Confirm the run for the correct `stamp_id` shows a green ✅.
+The workflow reports success or failure to `POST /api/v1/control-plane/provisioning/{tenantId}/attempts/{operationId}`. This endpoint requires the dedicated GitHub OIDC policy. It checks the GitHub signature, issuer, audience, immutable repository ID, repository, exact subject, ref and workflow. Configure these claims using the [GitHub OIDC reference](https://docs.github.com/en/actions/reference/security/oidc). The separate operator endpoint requires an authenticated platform session and its operation permission.
 
-2. **Retrieve the Key Vault URI from the Bicep deployment output.**
-   - In Azure Portal → Resource Group → Deployments → the latest `stamp-isolated` deployment.
-   - Copy the `keyVaultUri` output value (e.g., `https://kv-{stamp-id}-prod.vault.azure.net/`).
+Completion verifies the current attempt, KYC, provider, schema and destination ownership before activation. Repeating an identical completed result succeeds. Stale attempts and conflicting destinations are rejected. Failed dispatches and reported failures enter `ProvisioningFailed`. The timeout worker expires interrupted attempts. Retry retains the KYC evidence and creates a new attempt.
 
-3. **Update the DeploymentStamp with the Key Vault URI.**
-   - Call `PUT /api/v1/control-plane/stamps/{stampId}` with the Key Vault URI.
-   - This allows the application to resolve per-tenant secrets at runtime via Managed Identity.
+### Configuration
 
-4. **Activate the tenant.**
-   - Call `POST /api/v1/control-plane/tenants/{tenantId}/activate`.
-   - The tenant status transitions to `Active`.
-   - `TenantResolutionMiddleware` will now resolve the tenant for incoming requests on the provisioned hostname.
+Configure these values before enabling isolated provisioning. Keep the repository variable `AZURE_DEPLOYMENT_ENABLED` false through local verification.
 
-5. **Verify end-to-end.**
-   - Make a test request to the tenant's hostname and confirm the correct tenant ID is resolved.
-   - Confirm the connection interceptor routes to the isolated database (check logs for `TenantDbMetadata_<tenantId>` cache key).
+| Location | Setting | Purpose |
+| --- | --- | --- |
+| Control-plane host | `ControlPlane:Provisioning:Enabled` | Enables dispatch and timeout processing. |
+| Control-plane host | `ControlPlane:GitHub:RepoOwner`, `RepoName`, `Pat` | Dispatches the workflow in the owning repository. Store the scoped credential in the host secret store. |
+| Control-plane host | `ControlPlane:Provisioning:Authentication:Enabled` | Enables the machine completion policy. |
+| Control-plane host | Authentication `Repository`, `RepositoryId`, `Subject`, `Ref`, `Audience` | Exact trusted GitHub claims. Configure the subject emitted for the protected environment, including any configured immutable-subject format. The default audience is `urn:startertemplate:provisioning`. |
+| GitHub environment | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_REGION` | Selects the deployment identity and location. |
+| GitHub environment | `DATABASE_PROVIDER` | Matches the ControlPlane provider. Each host uses its configured provider. |
+| GitHub environment | `PROVISIONING_CALLBACK_ORIGIN`, `PROVISIONING_CALLBACK_AUDIENCE` | HTTPS control-plane origin and matching OIDC audience. |
+| GitHub environment | `PROVISIONING_TRUSTED_PROXY_CIDR` | Bounded network for the stamp's immediate trusted ingress. Validate the actual ingress in staging. |
+| GitHub secrets | `AZURE_SQL_ADMIN_PASSWORD` | Initializes the stamp database. |
+| GitHub secrets | `PROVISIONING_CONTROLPLANE_CONNECTION` | Central ControlPlane connection available to the new runtime. Prefer an explicitly authorized managed identity where the deployment supports it. |
+| GitHub secrets | `GHCR_PAT` | Allows the deployed container applications to pull their private images. |
+| Pooled production host | `Tenant:DeploymentStampId` | Binds the host to its registered pooled stamp. The isolated workflow supplies the corresponding binding for dedicated hosts. |
 
----
+Use the protected GitHub environment `starter-azure-prod` with reviewed deployments from the configured ref. Reserve the target resource group and authorize the CI workload for resource deployment, the required role assignments, and Key Vault secret management before its first run. Its Key Vault data access must include reading the new connection secret and writing the ControlPlane connection and initial signing key. Verify that the deployed API identity can access its configured ControlPlane database.
 
-## 4. ProvisioningFailed Recovery
+The workflow preserves an existing signing key and stops if it cannot verify that key. Resource names derive from the registered stamp ID. Runtime settings include the generated API and client origins. Successful completion records the client origin so sign-in from the central UI can route to the owning UI. Configure Microsoft and Google registrations and credentials for the actual stamp origins when enabling those providers.
 
-If the `provision-isolated-stamp.yml` workflow fails, or the `GitHubActionsStampProvisioner` cannot dispatch the workflow (e.g., expired PAT, misconfigured repo name), the tenant is automatically set to `ProvisioningFailed` status.
+### Failure and recovery
 
-### Recovery Steps
+Inspect the current workspace state and the matching GitHub run. Correct the configuration, then call `POST /api/v1/control-plane/tenants/{tenantId}/provisioning/retry`. A retry requires recorded KYC approval and a failed or expired attempt. Earlier callbacks retain their original attempt ID and cannot activate the new attempt.
 
-1. **Diagnose** — Check the API logs for the `Stamp provisioning dispatch failed` error entry. Confirm the GitHub Actions credentials (`ControlPlane:GitHub:Pat`, `RepoOwner`, `RepoName`) are correctly set.
+The operator completion endpoint remains `POST /api/v1/controlplane/webhooks/provisioning-completed/{tenantId}`. It requires platform permission and the current operation ID. Supply a verified destination and matching provider through the protected request body.
 
-2. **Fix the root cause** — Update the configuration (e.g., rotate the PAT in `dotnet user-secrets` or Key Vault).
+Apply the ControlPlane migrations before deploying the updated API. The ownership migration backfills existing isolated assignments and adds a unique index. Reconcile multiple workspaces assigned to one isolated stamp before upgrading. Legacy provisioning records receive a fresh attempt through recovery.
 
-3. **Retry provisioning** — Call `POST /api/v1/control-plane/tenants/{tenantId}/activate`. The activate handler transitions the status to `Active` (for manual/already-provisioned cases). If infrastructure was never created, run the provisioning workflow manually from GitHub Actions UI before calling activate.
-
-4. **Alternatively, provision manually** — Navigate to GitHub Actions → **Provision Isolated Stamp** → **Run workflow**, provide `stamp_id`, `resource_group`, and `database_provider`, then follow the Post-Provisioning Activation Runbook above.
+Use the [stamp migration procedure](stamp-migration-runbook.md) for a prepared tenant-only data move and the [backup and restore procedure](tenant-backup-restore.md) for recovery. Record dataset validation, key-ring access, private assets and queued work before cutover. Local provider tests rehearse the IAM account slice, physical routing, suspension, exclusive ownership and rollback. Deployment-specific data, provider-account login, key access, ingress, backups and recovery objectives require cloud acceptance.

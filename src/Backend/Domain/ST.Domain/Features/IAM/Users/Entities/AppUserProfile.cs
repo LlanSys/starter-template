@@ -21,7 +21,7 @@ public class AppUserProfile : BaseEntity, ISoftDeletable
 
     private AppUserProfile() { }
 
-    public static AppUserProfile Create(string appUserId, string? telephoneNo, string? mobileNo, string? email, string createdBy)
+    public static AppUserProfile Create(DateTimeOffset now, string appUserId, string? telephoneNo, string? mobileNo, string? email, string createdBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appUserId);
         ArgumentException.ThrowIfNullOrWhiteSpace(createdBy);
@@ -33,26 +33,26 @@ public class AppUserProfile : BaseEntity, ISoftDeletable
             TelephoneNo = telephoneNo?.Trim(),
             MobileNo = mobileNo?.Trim(),
             Email = email?.Trim(),
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
             CreatedBy = createdBy
         };
     }
 
-    public void UpdateContact(string? telephoneNo, string? mobileNo, string? email, string updatedBy)
+    public void UpdateContact(DateTimeOffset now, string? telephoneNo, string? mobileNo, string? email, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
 
         TelephoneNo = telephoneNo?.Trim();
         MobileNo = mobileNo?.Trim();
         Email = email?.Trim();
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
         DeletedBy = deletedBy;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         IsDeleted = true;
     }
 }

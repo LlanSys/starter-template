@@ -1,5 +1,6 @@
 @page "/control-panel/impersonation"
 @layout ControlPlaneLayout
+@attribute [Authorize(Policy = "ControlPlane.Manage")]
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject IAuditService AuditService

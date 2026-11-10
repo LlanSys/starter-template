@@ -1,50 +1,27 @@
 using MudBlazor;
+using System.Collections.Frozen;
 using System.Reflection;
-
 namespace ST.UI.Blazor.Components.Common;
 
 internal static class MenuIconMapper
 {
-    private static readonly Lazy<Dictionary<string, string>> MaterialFilledIcons = new(BuildMaterialFilledIconMap);
-
-    public static IReadOnlyList<MenuIconOption> Options { get; } =
-    [
-        new("AccountTree", "Account tree", Icons.Material.Filled.AccountTree),
-        new("AdminPanelSettings", "Admin panel", Icons.Material.Filled.AdminPanelSettings),
-        new("AutoStories", "Story/book", Icons.Material.Filled.AutoStories),
-        new("Badge", "Badge", Icons.Material.Filled.Badge),
-        new("Business", "Business", Icons.Material.Filled.Business),
-        new("Dashboard", "Dashboard", Icons.Material.Filled.Dashboard),
-        new("Devices", "Devices", Icons.Material.Filled.Devices),
-        new("Group", "Group", Icons.Material.Filled.Group),
-        new("LockPerson", "Security lock", Icons.Material.Filled.LockPerson),
-        new("Menu", "Generic menu", Icons.Material.Filled.Menu),
-        new("MenuOpen", "Menu", Icons.Material.Filled.MenuOpen),
-        new("Settings", "Settings", Icons.Material.Filled.Settings)
-    ];
-
+    private static readonly FrozenDictionary<string, string> IconsByKey = typeof(Icons.Material)
+        .GetNestedTypes(BindingFlags.Public)
+        .SelectMany(style => style.GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.FieldType == typeof(string))
+            .Select(field => KeyValuePair.Create($"{style.Name}.{field.Name}", (string)field.GetValue(null)!)))
+        .ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+    private static readonly string[] Keys = IconsByKey.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray();
     public static string Resolve(string? icon)
     {
-        var key = icon?.Trim();
-        return string.IsNullOrWhiteSpace(key)
-            ? Icons.Material.Filled.Menu
-            : Options.FirstOrDefault(option => option.Key.Equals(key, StringComparison.OrdinalIgnoreCase))?.Icon
-            ?? (MaterialFilledIcons.Value.TryGetValue(key, out var resolvedIcon) ? resolvedIcon : Icons.Material.Filled.Menu);
+        var key = icon?.Trim() ?? string.Empty;
+        if (!key.Contains('.', StringComparison.Ordinal)) key = $"Filled.{key}";
+        return IconsByKey.GetValueOrDefault(key, Icons.Material.Filled.Menu);
     }
-
-    private static Dictionary<string, string> BuildMaterialFilledIconMap()
+    public static Task<IEnumerable<string>> SearchAsync(string? text, CancellationToken cancellationToken)
     {
-        return typeof(Icons.Material.Filled)
-            .GetProperties(BindingFlags.Public | BindingFlags.Static)
-            .Where(static property => property.PropertyType == typeof(string))
-            .Select(static property => new
-            {
-                property.Name,
-                Icon = property.GetValue(null) as string
-            })
-            .Where(static item => !string.IsNullOrWhiteSpace(item.Icon))
-            .ToDictionary(static item => item.Name, static item => item.Icon!, StringComparer.OrdinalIgnoreCase);
+        cancellationToken.ThrowIfCancellationRequested();
+        var terms = (text ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return Task.FromResult<IEnumerable<string>>(Keys.Where(key => terms.All(term => key.Contains(term, StringComparison.OrdinalIgnoreCase))).ToArray());
     }
 }
-
-internal sealed record MenuIconOption(string Key, string Label, string Icon);

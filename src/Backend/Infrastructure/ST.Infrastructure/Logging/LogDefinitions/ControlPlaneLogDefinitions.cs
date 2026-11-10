@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Net;
 
 namespace ST.Infrastructure.Logging;
 
@@ -44,7 +45,7 @@ internal static partial class ControlPlaneLogDefinitions
     public static partial void LogGitHubActionCredentialsNotConfigured(ILogger logger);
 
     [LoggerMessage(EventId = 2614, Level = LogLevel.Error, Message = "Failed to trigger GitHub Actions workflow for stamp provisioning. Status: {StatusCode}, Error: {Error}")]
-    public static partial void LogGitHubActionTriggerFailed(ILogger logger, System.Net.HttpStatusCode statusCode, string error);
+    public static partial void LogGitHubActionTriggerFailed(ILogger logger, HttpStatusCode statusCode, string error);
 
     [LoggerMessage(EventId = 2615, Level = LogLevel.Information, Message = "Successfully triggered GitHub Actions workflow for stamp {StampId}")]
     public static partial void LogGitHubActionTriggerSuccess(ILogger logger, string stampId);

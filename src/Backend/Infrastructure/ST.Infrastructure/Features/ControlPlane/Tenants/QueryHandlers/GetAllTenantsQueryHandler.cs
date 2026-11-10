@@ -44,6 +44,7 @@ public class GetAllTenantsQueryHandler : IRequestHandler<GetAllTenantsQuery, App
                 DatabaseConnectionString = t.DatabaseConnectionString != null ? "********" : null,
                 EnabledModules = t.Modules?.Where(m => m.IsActive).Select(m => m.ModuleKey).ToList() ?? [],
                 CreatedAt = t.CreatedAt,
+                KycApprovedAt = t.KycApprovedAt,
                 UpdatedAt = t.UpdatedAt
             })
             .ToList();

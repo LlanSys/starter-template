@@ -17,6 +17,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
+using StoredRefreshToken = ST.Domain.Features.IAM.Users.Entities.RefreshToken;
+using System.Globalization;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
@@ -30,7 +32,8 @@ internal sealed class VerifyEmailOtp(
     ISessionService sessionService,
     IHttpContextAccessor httpContextAccessor,
     IOptions<JwtSettings> jwtSettings,
-    ILogger<VerifyEmailOtp> logger) : IRequestHandler<VerifyEmailOtpCommand, AppResponse<VerifyEmailOtpResponse>>
+    ILogger<VerifyEmailOtp> logger,
+    TimeProvider timeProvider) : IRequestHandler<VerifyEmailOtpCommand, AppResponse<VerifyEmailOtpResponse>>
 {
     private readonly JwtSettings _jwtSettings = jwtSettings.Value;
 
@@ -61,7 +64,7 @@ internal sealed class VerifyEmailOtp(
 
         if (!isValid)
         {
-            await cache.SetStringAsync(attemptKey, (attempts + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) }, ct).ConfigureAwait(false);
+            await cache.SetStringAsync(attemptKey, (attempts + 1).ToString(CultureInfo.InvariantCulture), new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) }, ct).ConfigureAwait(false);
             ServiceLogDefinitions.LogInvalidEmailOtp(logger, user.Id);
             return AppResponses.Failure<VerifyEmailOtpResponse>("Invalid code");
         }
@@ -79,19 +82,19 @@ internal sealed class VerifyEmailOtp(
                 ServiceLogDefinitions.LogEmailConfirmedViaOtp(logger, user.Id);
             }
             return AppResponses.Success("Email confirmed",
-                new VerifyEmailOtpResponse(string.Empty, string.Empty, user.Id, null, true, DateTimeOffset.UtcNow, null!, []));
+                new VerifyEmailOtpResponse(string.Empty, string.Empty, user.Id, null, true, timeProvider.GetUtcNow(), null!, []));
         }
 
         if (string.Equals(req.Purpose, "PasswordReset", StringComparison.OrdinalIgnoreCase))
         {
             return AppResponses.Success("Code verified",
-                new VerifyEmailOtpResponse(string.Empty, string.Empty, user.Id, null, true, DateTimeOffset.UtcNow, null!, []));
+                new VerifyEmailOtpResponse(string.Empty, string.Empty, user.Id, null, true, timeProvider.GetUtcNow(), null!, []));
         }
 
         if (!string.Equals(req.Purpose, "Login", StringComparison.OrdinalIgnoreCase))
         {
             return AppResponses.Success("Code verified",
-                new VerifyEmailOtpResponse(string.Empty, string.Empty, user.Id, null, true, DateTimeOffset.UtcNow, null!, []));
+                new VerifyEmailOtpResponse(string.Empty, string.Empty, user.Id, null, true, timeProvider.GetUtcNow(), null!, []));
         }
 
         var requestedSessionId = Guid.CreateVersion7();
@@ -114,14 +117,16 @@ internal sealed class VerifyEmailOtp(
         var token = await jwtService.CreateTokenAsync(claims).ConfigureAwait(false);
         var refreshToken = jwtService.CreateRefreshToken();
         var expiry = jwtService.GetTokenExpiry(token);
-        var refreshTokenEntity = ST.Domain.Features.IAM.Users.Entities.RefreshToken.Create(
+        var now = timeProvider.GetUtcNow();
+        var refreshTokenEntity = StoredRefreshToken.Create(
+            now,
             user.Id,
             refreshToken,
-            DateTimeOffset.UtcNow.AddHours(_jwtSettings.RefreshTokenExpiryHours),
+            now.AddHours(_jwtSettings.RefreshTokenExpiryHours),
             user.Id,
             httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString());
 
-        user.RecordSuccessfulLogin();
+        user.RecordSuccessfulLogin(now);
         await userManager.UpdateAsync(user).ConfigureAwait(false);
         await iamUnitOfWork.ExecuteInTransactionWithRetryAsync(async () =>
         {

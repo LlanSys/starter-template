@@ -13,6 +13,7 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Azure.Communication.Email;
 using Azure;
+using MailKit.Security;
 
 namespace ST.Infrastructure.Features.Shared.Notifications.Contracts.Implementations.Services;
 
@@ -21,7 +22,8 @@ internal sealed class EmailDeliveryService(
     IHttpClientFactory httpClientFactory,
     IHostEnvironment environment,
     IServiceProvider serviceProvider,
-    ILogger<EmailDeliveryService> logger) : IEmailService
+    ILogger<EmailDeliveryService> logger,
+    TimeProvider timeProvider) : IEmailService
 {
     private readonly EmailSettings _settings = options.Value;
 
@@ -105,7 +107,7 @@ internal sealed class EmailDeliveryService(
         await smtpClient.ConnectAsync(
             _settings.LocalMailpit.Host,
             _settings.LocalMailpit.Port,
-            MailKit.Security.SecureSocketOptions.None,
+            SecureSocketOptions.None,
             cancellationToken).ConfigureAwait(false);
 
         var messageId = await smtpClient.SendAsync(message, cancellationToken).ConfigureAwait(false);
@@ -281,10 +283,10 @@ internal sealed class EmailDeliveryService(
 
     private sealed record ResendResponse(string Id);
 
-    private static SendEmailResponse CreateResponse(string messageId, SendEmailRequest request) =>
+    private SendEmailResponse CreateResponse(string messageId, SendEmailRequest request) =>
         new(
             messageId,
-            DateTimeOffset.UtcNow,
+            timeProvider.GetUtcNow(),
             request.To ?? string.Empty,
             request.Subject ?? string.Empty);
 

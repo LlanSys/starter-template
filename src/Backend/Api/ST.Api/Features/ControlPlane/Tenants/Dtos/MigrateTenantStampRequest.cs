@@ -4,4 +4,5 @@ namespace ST.Api.Features.ControlPlane.Tenants.Dtos;
 
 public record MigrateTenantStampRequest(
     Guid NewDeploymentStampId,
-    string NewDatabaseConnectionString);
+    string NewDatabaseConnectionString,
+    string? NewClientOrigin = null);

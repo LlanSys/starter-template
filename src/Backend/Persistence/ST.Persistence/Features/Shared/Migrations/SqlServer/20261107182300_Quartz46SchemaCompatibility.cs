@@ -1,0 +1,82 @@
+using Microsoft.EntityFrameworkCore.Migrations;
+
+namespace ST.Persistence.Features.Shared.Migrations.SqlServer;
+
+public partial class Quartz46SchemaCompatibility : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        // Quartz owns these tables outside EF's model. Apply the required schema changes through 4.6.
+        migrationBuilder.Sql(
+            """
+            IF OBJECT_ID(N'dbo.QRTZ_PAUSED_JOB_GRPS', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.QRTZ_PAUSED_JOB_GRPS (
+                    SCHED_NAME nvarchar(120) NOT NULL,
+                    JOB_GROUP nvarchar(150) NOT NULL,
+                    CONSTRAINT PK_QRTZ_PAUSED_JOB_GRPS PRIMARY KEY (SCHED_NAME, JOB_GROUP)
+                );
+            END;
+
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'MISFIRE_ORIG_FIRE_TIME') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD MISFIRE_ORIG_FIRE_TIME bigint NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'EXECUTION_GROUP') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD EXECUTION_GROUP nvarchar(200) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'PREFERRED_NODE') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD PREFERRED_NODE nvarchar(200) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'PREFERRED_NODE_AUTO') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD PREFERRED_NODE_AUTO bit NOT NULL DEFAULT (0);
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'RETRY_POLICY') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD RETRY_POLICY nvarchar(250) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'RETRY_ATTEMPT') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD RETRY_ATTEMPT int NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'CONTINUES_TRIGGER_NAME') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD CONTINUES_TRIGGER_NAME nvarchar(150) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'CONTINUES_TRIGGER_GROUP') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD CONTINUES_TRIGGER_GROUP nvarchar(150) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'CONTINUATION_CONDITION') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD CONTINUATION_CONDITION int NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'OVERLAP_POLICY') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD OVERLAP_POLICY int NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'PAUSE_REASON') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD PAUSE_REASON nvarchar(250) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'PAUSED_BY') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD PAUSED_BY nvarchar(200) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'PAUSED_AT') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD PAUSED_AT bigint NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_TRIGGERS', N'MISFIRE_THRESHOLD') IS NULL
+                ALTER TABLE dbo.QRTZ_TRIGGERS ADD MISFIRE_THRESHOLD bigint NULL;
+
+            IF COL_LENGTH(N'dbo.QRTZ_FIRED_TRIGGERS', N'EXECUTION_GROUP') IS NULL
+                ALTER TABLE dbo.QRTZ_FIRED_TRIGGERS ADD EXECUTION_GROUP nvarchar(200) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_FIRED_TRIGGERS', N'PROGRESS') IS NULL
+                ALTER TABLE dbo.QRTZ_FIRED_TRIGGERS ADD PROGRESS int NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_FIRED_TRIGGERS', N'PROGRESS_MESSAGE') IS NULL
+                ALTER TABLE dbo.QRTZ_FIRED_TRIGGERS ADD PROGRESS_MESSAGE nvarchar(250) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_FIRED_TRIGGERS', N'INTERRUPT_REQUESTED_TIME') IS NULL
+                ALTER TABLE dbo.QRTZ_FIRED_TRIGGERS ADD INTERRUPT_REQUESTED_TIME bigint NULL;
+
+            IF COL_LENGTH(N'dbo.QRTZ_PAUSED_TRIGGER_GRPS', N'PAUSE_REASON') IS NULL
+                ALTER TABLE dbo.QRTZ_PAUSED_TRIGGER_GRPS ADD PAUSE_REASON nvarchar(250) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_PAUSED_TRIGGER_GRPS', N'PAUSED_BY') IS NULL
+                ALTER TABLE dbo.QRTZ_PAUSED_TRIGGER_GRPS ADD PAUSED_BY nvarchar(200) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_PAUSED_TRIGGER_GRPS', N'PAUSED_AT') IS NULL
+                ALTER TABLE dbo.QRTZ_PAUSED_TRIGGER_GRPS ADD PAUSED_AT bigint NULL;
+
+            IF COL_LENGTH(N'dbo.QRTZ_PAUSED_JOB_GRPS', N'PAUSE_REASON') IS NULL
+                ALTER TABLE dbo.QRTZ_PAUSED_JOB_GRPS ADD PAUSE_REASON nvarchar(250) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_PAUSED_JOB_GRPS', N'PAUSED_BY') IS NULL
+                ALTER TABLE dbo.QRTZ_PAUSED_JOB_GRPS ADD PAUSED_BY nvarchar(200) NULL;
+            IF COL_LENGTH(N'dbo.QRTZ_PAUSED_JOB_GRPS', N'PAUSED_AT') IS NULL
+                ALTER TABLE dbo.QRTZ_PAUSED_JOB_GRPS ADD PAUSED_AT bigint NULL;
+
+            IF COL_LENGTH(N'dbo.QRTZ_SCHEDULER_STATE', N'QUARTZ_VERSION') IS NULL
+                ALTER TABLE dbo.QRTZ_SCHEDULER_STATE ADD QUARTZ_VERSION nvarchar(20) NULL;
+            """);
+    }
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        // Retain scheduler data and any columns that already existed before this migration.
+    }
+}

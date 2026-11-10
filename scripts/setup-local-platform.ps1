@@ -2,7 +2,8 @@
 param(
     [switch]$IncludeSqlServer,
     [switch]$IncludeSeq,
-    [switch]$SkipPull
+    [switch]$SkipPull,
+    [switch]$UseSharedLocalKeyRing
 )
 
 $ErrorActionPreference = 'Stop'
@@ -94,6 +95,8 @@ foreach ($key in $requiredKeys) {
     }
 }
 
+& (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles $composeFile
+
 $volumeNames = @(
     'startertemplate_rabbitmq-data',
     'startertemplate_redis-data',
@@ -160,11 +163,21 @@ if (-not $SkipPull) {
     }
 }
 
-& (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles $composeFile
-
 & docker @composeArguments up -d --wait
 if ($LASTEXITCODE -ne 0) {
     throw "Docker Compose startup failed with exit code $LASTEXITCODE."
+}
+
+if ($UseSharedLocalKeyRing) {
+    # Existing protected data must be checked before choosing a different key store.
+    @{
+        'DataProtection:UseExternalKeyStore' = 'true'
+        'DataProtection:BlobKeyUri' = ''
+        'DataProtection:RedisKeyRingConnectionString' = "localhost:$($environment.REDIS_HOST_PORT),password=$($environment.REDIS_PASSWORD),abortConnect=false"
+        'DataProtection:RedisKeyRingKey' = 'StarterTemplate-DataProtection-Keys'
+        'DataProtection:KeyEncryptionMode' = 'None'
+    } | ConvertTo-Json | dotnet user-secrets set --project $apiProject
+    if ($LASTEXITCODE -ne 0) { throw 'Local shared Data Protection configuration failed.' }
 }
 
 Write-Host ''

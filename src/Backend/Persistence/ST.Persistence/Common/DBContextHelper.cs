@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
 using System.Linq.Expressions;
+using System.Reflection;
+using System.Security.Cryptography;
 
 namespace ST.Persistence.Common;
 
@@ -82,15 +84,13 @@ internal static class DBContextHelper
         {
             var property = entry.Metadata.FindProperty(nameof(BaseEntity.RowVersion));
             if (property is not null)
-                entry.Property(property.Name).CurrentValue = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+                entry.Property(property.Name).CurrentValue = RandomNumberGenerator.GetBytes(16);
         }
     }
 
-    public static void UpdateAuditAndSoftDelete(ChangeTracker changeTracker, string userId, Guid tenantId)
+    public static void UpdateAuditAndSoftDelete(ChangeTracker changeTracker, string userId, Guid tenantId, DateTimeOffset now)
     {
         StampTenantIds(changeTracker, tenantId);
-
-        var now = DateTimeOffset.UtcNow;
 
         foreach (var entry in changeTracker.Entries<IAuditable>())
         {
@@ -169,8 +169,9 @@ internal static class DBContextHelper
 
         if (HasTenantId(entityType))
         {
+            entityType.FindProperty(nameof(BaseEntity.TenantId))!.IsConcurrencyToken = true;
             var tenantFilter = (LambdaExpression)typeof(DBContextHelper)
-                .GetMethod(nameof(CreateTenantFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                .GetMethod(nameof(CreateTenantFilter), BindingFlags.NonPublic | BindingFlags.Static)!
                 .MakeGenericMethod(entityClrType, typeof(TContext))
                 .Invoke(null, [context])!;
 
@@ -216,9 +217,33 @@ internal static class DBContextHelper
         return Expression.Lambda(Expression.AndAlso(leftBody, rightBody), parameter);
     }
 
-    private static bool HasTenantId(IMutableEntityType entityType)
+    private static bool HasTenantId(IReadOnlyEntityType entityType)
     {
         return entityType.FindProperty(nameof(BaseEntity.TenantId))?.ClrType == typeof(Guid);
+    }
+
+    public static void EnforceTenantOwnership(ChangeTracker changeTracker, Guid tenantId)
+    {
+        foreach (var entry in changeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                || !HasTenantId(entry.Metadata))
+            {
+                continue;
+            }
+
+            var property = entry.Property(nameof(BaseEntity.TenantId));
+            if (entry.State == EntityState.Added && Equals(property.CurrentValue, Guid.Empty))
+            {
+                property.CurrentValue = tenantId;
+            }
+
+            if (tenantId == Guid.Empty || !Equals(property.CurrentValue, tenantId)
+                || (entry.State != EntityState.Added && !Equals(property.OriginalValue, tenantId)))
+            {
+                throw new InvalidOperationException("A tenant-scoped write must target the current workspace.");
+            }
+        }
     }
 
     private static void StampTenantIds(ChangeTracker changeTracker, Guid tenantId)

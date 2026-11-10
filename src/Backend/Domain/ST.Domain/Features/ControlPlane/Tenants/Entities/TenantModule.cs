@@ -14,7 +14,7 @@ public class TenantModule : IAuditable
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? ExpiresAt { get; set; }
 
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }

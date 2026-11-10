@@ -9,6 +9,7 @@ namespace ST.Application.Features.ControlPlane.Tenants.Queries;
 
 public record GetAllTenantsQuery : IRequest<AppResponse<List<TenantResponse>>>, ICachableRequest
 {
+    public bool BypassCache => true; // Operator configuration must reflect approvals and entitlement edits immediately.
     public string CacheGroup => "tenants";
     public string Discriminator => "all";
     public string? CacheUserId => null;

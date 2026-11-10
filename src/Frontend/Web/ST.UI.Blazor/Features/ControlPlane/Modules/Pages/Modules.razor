@@ -1,0 +1,89 @@
+@page "/control-panel/modules"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@rendermode InteractiveServer
+@using ST.SharedKernel.Features.ControlPlane.Modules.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@if (!Embedded) { <PageTitle>Modules | StarterTemplate</PageTitle> }
+<div class="d-flex justify-end mb-4"><MudButton OnClick="New" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small">Add module</MudButton></div>
+@if (_message is not null) { <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">@_message</MudAlert> }
+@if (_editing)
+{
+    <MudPaper Elevation="0" Class="pa-4 mb-4" Outlined="true">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_key" Label="Key" ReadOnly="_id.HasValue" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_description" Label="Description" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+
+        </MudGrid>
+        <div class="d-flex justify-end gap-2 mt-3"><MudButton OnClick="@(() => _editing = false)">Cancel</MudButton><MudButton OnClick="SaveAsync" Disabled="_busy" Color="Color.Primary" Variant="Variant.Filled">Save</MudButton></div>
+    </MudPaper>
+}
+<div class="d-flex justify-space-between align-center mb-2"><h2 class="platform-page-title">Modules</h2><MudChip T="string" Size="Size.Small">@Filtered.Count() shown</MudChip></div>
+<MudTextField @bind-Value="_search" Immediate="true" Label="Search modules" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+<div class="st-table-scroll">
+<MudTable Items="Filtered" Dense="true" Hover="true" Elevation="0" Breakpoint="Breakpoint.None" RowsPerPage="25" Loading="_busy" Style="min-width: 650px;">
+    <HeaderContent><MudTh>Name</MudTh><MudTh>Implementation</MudTh><MudTh>Status</MudTh><MudTh>Actions</MudTh></HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Implementation"><MudChip T="string" Size="Size.Small" Color="@(context.IsImplemented ? Color.Success : Color.Default)">@(context.IsImplemented ? "Available" : "Awaiting implementation")</MudChip></MudTd>
+        <MudTd DataLabel="Status">@(context.IsRetired ? "Retired" : context.IsActive ? "Active" : "Disabled")</MudTd>
+        <MudTd DataLabel="Actions"><TableRowActions CanView="true" OnView="@(() => Navigation.NavigateTo($"/control-panel/modules/{context.Key}"))" CanDelete="false" CanEdit="!context.IsRetired" OnEdit="@(() => Edit(context))" ExtraActions="@Actions(context)" OnExtraAction="@(action => ChangeLifecycleAsync(context, action))" />
+            @if (IsEssential(context)) { <MudTooltip Text="Required platform capability"><MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" /></MudTooltip> }</MudTd>
+    </RowTemplate>
+    <NoRecordsContent><MudText>@(_busy ? "Loading modules…" : "No modules registered.")</MudText></NoRecordsContent>
+    <PagerContent><MudTablePager PageSizeOptions="[25, 50, 100]" /></PagerContent>
+</MudTable>
+</div>
+@code {
+    [Parameter] public bool Embedded { get; set; }
+    private string _search = "";
+    private IEnumerable<ModuleResponse> Filtered => _modules.Where(module => module.Name.Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private static bool IsEssential(ModuleResponse module) => module.Key.Equals("Core", StringComparison.OrdinalIgnoreCase) || module.Key.Equals("IAM", StringComparison.OrdinalIgnoreCase);
+    private static IReadOnlyList<string> Actions(ModuleResponse module) => module.IsRetired || IsEssential(module) ? [] : [module.IsActive ? "Disable" : "Enable", "Retire"];
+    private async Task ChangeLifecycleAsync(ModuleResponse module, string action)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync($"{action} {module.Name}?", action == "Retire" ? "This permanently withdraws the module from all tenants. Its data is retained. Retired modules cannot be re-enabled." : action == "Disable" ? "This makes the module unavailable to all tenants until it is enabled again. Its data is retained." : "This restores access for tenants with an active assignment.", yesText: action, cancelText: "Cancel");
+        if (confirmed != true || _busy) return;
+        _busy = true;
+        try {
+            var change = action switch { "Enable" => ModuleLifecycleAction.Enable, "Retire" => ModuleLifecycleAction.Retire, _ => ModuleLifecycleAction.Disable };
+            var response = await Api.SendAsync<ModuleResponse>(HttpMethod.Post, $"api/v1/control-plane/modules/{module.Id}/lifecycle", new ModuleLifecycleRequest(change));
+            if (response.IsSuccess) Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+            else _message = UserMessageSanitizer.Normalize(response.Message, "Could not change module status.");
+        } finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private IReadOnlyList<ModuleResponse> _modules = [];
+    private bool _editing, _active = true, _busy;
+    private Guid? _id;
+    private string _key = "", _name = "", _description = "";
+    private string? _message;
+    protected override async Task OnAfterRenderAsync(bool firstRender) { if (firstRender) { await LoadAsync(); StateHasChanged(); } }
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try { var response = await Api.SendAsync<IReadOnlyList<ModuleResponse>>(HttpMethod.Get, "api/v1/control-plane/modules");
+            if (response.IsSuccess && response.Data is not null) _modules = response.Data;
+            else _message = UserMessageSanitizer.Normalize(response.Message, "Could not load modules."); }
+        finally { _busy = false; }
+    }
+    private void New() { _id = null; _key = ""; _name = ""; _description = ""; _active = true; _editing = true; }
+    private void Edit(ModuleResponse module) { _id = module.Id; _key = module.Key; _name = module.Name; _description = module.Description; _active = module.IsActive; _editing = true; }
+    private async Task SaveAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try {
+            var response = await Api.SendAsync<ModuleResponse>(_id.HasValue ? HttpMethod.Put : HttpMethod.Post,
+                _id.HasValue ? $"api/v1/control-plane/modules/{_id}" : "api/v1/control-plane/modules", new SaveModuleRequest(_key, _name, _description, _active));
+            if (response.IsSuccess) { _editing = false; _message = "Module saved."; }
+            else _message = UserMessageSanitizer.Normalize(response.Message, "Could not save the module.");
+        } finally { _busy = false; }
+        if (!_editing) await LoadAsync();
+    }
+}

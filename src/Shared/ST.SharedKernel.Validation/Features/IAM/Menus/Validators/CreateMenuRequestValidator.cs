@@ -11,6 +11,10 @@ public sealed class CreateMenuRequestValidator : Validator<CreateMenuRequest>
         RuleLevelCascadeMode = CascadeMode.Stop;
         ClassLevelCascadeMode = CascadeMode.Stop;
 
+        RuleFor(x => x.RequiredRoleNames).Must(values => values is null || values.Count <= 100).WithMessage("Select at most 100 roles.");
+        RuleForEach(x => x.RequiredRoleNames).NotEmpty().MaximumLength(256);
+        RuleFor(x => x.RequiredPermissionKeys).Must(values => values is null || values.Count <= 100).WithMessage("Select at most 100 permissions.");
+        RuleForEach(x => x.RequiredPermissionKeys).NotEmpty().MaximumLength(150).Matches("^[a-z0-9_.:-]+$");
         RuleFor(x => x.Title)
             .NotEmpty().WithMessage("Menu title is required.")
             .MaximumLength(120).WithMessage("Menu title cannot exceed 120 characters.");
@@ -39,8 +43,13 @@ public sealed class CreateMenuRequestValidator : Validator<CreateMenuRequest>
     }
 
     private static bool BeRelativeRoute(string route)
-        => route.Length > 0
+    {
+        // Rooted application routes are classified as absolute file URIs on Unix.
+        return route.Length > 0
             && route[0] == '/'
             && !route.StartsWith("//", StringComparison.Ordinal)
-            && !Uri.TryCreate(route, UriKind.Absolute, out _);
+            && !route.Contains('\\')
+            && !route.Any(char.IsControl)
+            && Uri.TryCreate(route, UriKind.Relative, out _);
+    }
 }

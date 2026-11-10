@@ -25,7 +25,7 @@ namespace ST.Infrastructure.Messaging.Consumers;
 public abstract class IntegrationEventEmailConsumer<TEvent>(
     IEmailComposer<TEvent> composer,
     ISharedUnitOfWork sharedUnitOfWork,
-    ILogger<IntegrationEventEmailConsumer<TEvent>> logger) : IConsumer<TEvent> where TEvent : class, IIntegrationEvent
+    ILogger<IntegrationEventEmailConsumer<TEvent>> logger, TimeProvider timeProvider) : IConsumer<TEvent> where TEvent : class, IIntegrationEvent
 
 {
     public async Task Consume(ConsumeContext<TEvent> context)
@@ -58,6 +58,7 @@ public abstract class IntegrationEventEmailConsumer<TEvent>(
             MessageBusLogDefinitions.LogPermanentEventFailure(logger, typeof(TEvent).Name, retryCount + 1, ex);
 
             var failed = FailedMessage.RecordPermanentFailure(
+                timeProvider.GetUtcNow(),
                 messageId,
                 typeof(TEvent).FullName!,
                 JsonSerializer.Serialize(evt),

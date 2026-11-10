@@ -28,7 +28,7 @@ public sealed class MenuPlacement : ReferenceCatalogEntity
         };
     }
 
-    public void Update(string label, string description, bool isActive, string updatedBy)
+    public void Update(DateTimeOffset now, string label, string description, bool isActive, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentNullException.ThrowIfNull(description);
@@ -37,6 +37,6 @@ public sealed class MenuPlacement : ReferenceCatalogEntity
         Label = label.Trim();
         Description = description.Trim();
         IsActive = isActive;
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 }

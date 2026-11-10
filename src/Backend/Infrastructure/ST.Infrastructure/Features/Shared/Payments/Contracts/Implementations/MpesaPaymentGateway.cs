@@ -18,7 +18,8 @@ namespace ST.Infrastructure.Features.Shared.Payments.Contracts.Implementations;
 internal sealed class MpesaPaymentGateway(
     IHttpClientFactory httpClientFactory,
     IOptions<PaymentSettings> options,
-    ILogger<MpesaPaymentGateway> logger) : IPaymentGateway, IMpesaC2BService
+    ILogger<MpesaPaymentGateway> logger,
+    TimeProvider timeProvider) : IPaymentGateway, IMpesaC2BService
 {
     private readonly MpesaPaymentSettings _settings = options.Value.Mpesa;
 
@@ -50,7 +51,7 @@ internal sealed class MpesaPaymentGateway(
                     "M-Pesa authentication failed. Please try again.");
             }
 
-            var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+            var timestamp = timeProvider.GetUtcNow().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
             var password = Convert.ToBase64String(
                 Encoding.UTF8.GetBytes($"{_settings.ShortCode}{_settings.PassKey}{timestamp}"));
 
@@ -147,7 +148,7 @@ internal sealed class MpesaPaymentGateway(
                     "M-Pesa authentication failed. Please try again.");
             }
 
-            var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+            var timestamp = timeProvider.GetUtcNow().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
             var password = Convert.ToBase64String(
                 Encoding.UTF8.GetBytes($"{_settings.ShortCode}{_settings.PassKey}{timestamp}"));
             var providerRequest = new MpesaStkQueryRequest(

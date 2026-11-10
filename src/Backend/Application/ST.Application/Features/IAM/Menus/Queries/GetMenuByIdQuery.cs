@@ -12,6 +12,7 @@ namespace ST.Application.Features.IAM.Menus.Queries;
 
 public sealed record GetMenuByIdQuery(Guid Id, string UserId) : IRequest<AppResponse<MenuResponse>>, ICachableRequest
 {
+    public bool BypassCache => true;
     public string CacheGroup => "menus";
     public string Discriminator => CacheKeys.Entity("menus", Id.ToString());
     public string? CacheUserId => null;

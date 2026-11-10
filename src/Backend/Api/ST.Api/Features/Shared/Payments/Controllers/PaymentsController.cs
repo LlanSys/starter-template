@@ -23,6 +23,7 @@ namespace ST.Api.Features.Shared.Payments.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/shared/payments")]
 [ApiController]
+[RequireModule("payments", "/payments")]
 [Authorize]
 public sealed class PaymentsController(ISender sender, ILogger<PaymentsController> logger) : BaseController
 {

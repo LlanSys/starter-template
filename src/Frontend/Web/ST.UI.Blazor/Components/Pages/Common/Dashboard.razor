@@ -1,12 +1,13 @@
+@attribute [Authorize(Policy = "Page:/dashboard") ]
 @page "/dashboard"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@attribute [Authorize]
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 
 <PageTitle>Dashboard | StarterTemplate</PageTitle>
 <section class="dashboard-page">
     <div class="dashboard-hero compact-hero">
-        <div><h1>Welcome, @DisplayName.</h1><p>Your workspace is ready for your application's features.</p></div>
+        <h1>Dashboard</h1>
     </div>
     <MudGrid Spacing="2">
         <MudItem xs="12" md="6">
@@ -17,17 +18,11 @@
                 <MudButton Href="/profile" Variant="Variant.Text">Manage profile</MudButton>
             </MudPaper>
         </MudItem>
-        <MudItem xs="12" md="6">
-            <MudPaper Class="poc-panel" Elevation="0">
-                <h2>Workspace</h2><p>Open the navigation menu to access the features available to your account.</p>
-            </MudPaper>
-        </MudItem>
+
     </MudGrid>
 </section>
 
 @code {
-    private string DisplayName => string.IsNullOrWhiteSpace(AuthSession.CurrentUser?.UserName)
-        ? "there" : AuthSession.CurrentUser.UserName;
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;

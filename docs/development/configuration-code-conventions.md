@@ -2,6 +2,12 @@
 
 This document defines how application configuration values should be consumed in code.
 
+## Type names and time
+
+Use namespace using directives and short type names in handwritten C# and Razor. Use descriptive aliases for actual collisions. Generated migrations, namespace declarations and string-based type or configuration contracts preserve their existing representations.
+
+Inject `TimeProvider` into runtime services that make time-based decisions or schedule timers. Register `TimeProvider.System` once at a composition root. Capture the instant once per decision or persistence operation and pass a timestamp value to the domain. Keep existing timestamp fields and DTO types. Use a controllable provider for expiration tests and pass it to clock-driven timers. Migrate older reads in focused batches.
+
 ## Typed Mode And Provider Selection
 
 Configuration values may remain strings in JSON, user-secrets, environment variables, and Key Vault because that is how .NET configuration works. Once those values enter code, parse mode/provider/transport values once into a typed enum and branch on the enum.

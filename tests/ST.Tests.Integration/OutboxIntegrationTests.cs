@@ -34,6 +34,7 @@ public class OutboxIntegrationTests
         await connection.OpenAsync();
 
         await using var provider = new ServiceCollection()
+            .AddSingleton(TimeProvider.System)
             .AddSingleton<ICurrentTenantProvider, DummyTenantProvider>()
             .AddSingleton<ICurrentActorProvider, DummyActorProvider>()
             .AddDbContext<SharedDBContext>(o => o.UseSqlite(connection))
@@ -57,7 +58,7 @@ public class OutboxIntegrationTests
 
         await db.Database.EnsureCreatedAsync();
 
-        var message = new AppUserCreatedEvent(Guid.CreateVersion7().ToString(), Guid.CreateVersion7(), "user", "Test User", "user@example.test");
+        var message = new AppUserCreatedEvent(Guid.CreateVersion7().ToString(), Guid.CreateVersion7(), "user", "Test User", "user@example.test", DateTimeOffset.UnixEpoch);
 
         // Act
         await using var tx = await db.Database.BeginTransactionAsync();
@@ -79,6 +80,7 @@ public class OutboxIntegrationTests
         await connection.OpenAsync();
 
         await using var provider = new ServiceCollection()
+            .AddSingleton(TimeProvider.System)
             .AddSingleton<ICurrentTenantProvider, DummyTenantProvider>()
             .AddSingleton<ICurrentActorProvider, DummyActorProvider>()
             .AddDbContext<SharedDBContext>(options =>
@@ -105,7 +107,7 @@ public class OutboxIntegrationTests
 
         await db.Database.EnsureCreatedAsync();
 
-        var clientEvent = new AppUserCreatedEvent(Guid.CreateVersion7().ToString(), Guid.CreateVersion7(), "user", "Test User", "test@example.test");
+        var clientEvent = new AppUserCreatedEvent(Guid.CreateVersion7().ToString(), Guid.CreateVersion7(), "user", "Test User", "test@example.test", DateTimeOffset.UnixEpoch);
 
         await using var tx = await db.Database.BeginTransactionAsync();
 

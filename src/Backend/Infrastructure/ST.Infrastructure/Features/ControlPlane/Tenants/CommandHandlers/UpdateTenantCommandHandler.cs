@@ -18,6 +18,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Tenants.CommandHandlers;
 
 public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, AppResponse<TenantResponse>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<UpdateTenantCommandHandler> _logger;
     private readonly IEncryptionService _encryptionService;
@@ -27,10 +28,11 @@ public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, A
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<UpdateTenantCommandHandler> logger,
         IEncryptionService encryptionService,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _timeProvider = timeProvider;
         _encryptionService = encryptionService;
         _actorProvider = actorProvider;
     }
@@ -45,7 +47,17 @@ public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, A
             return AppResponses.Failure<TenantResponse>("Tenant not found.");
         }
 
-        var duplicateHostName = await _unitOfWork.Tenants.AnyAsync(t => t.HostName == request.Request.HostName && t.Id != request.Id, cancellationToken).ConfigureAwait(false);
+        var providerChanged = request.Request.DatabaseProvider is { } provider
+            && !string.Equals(provider, tenant.DatabaseProvider, StringComparison.OrdinalIgnoreCase);
+        var connectionChanged = request.Request.DatabaseConnectionString is { } connection
+            && (connection.Length > 0 || tenant.DatabaseConnectionString is not null);
+        if (tenant.Status == TenantStatus.Active && (providerChanged || connectionChanged))
+        {
+            return AppResponses.Failure<TenantResponse>("Suspend the workspace before changing its database route.");
+        }
+
+        var hostName = request.Request.HostName.Trim().TrimEnd('.').ToLowerInvariant();
+        var duplicateHostName = await _unitOfWork.Tenants.AnyAsync(t => t.HostName.ToLower() == hostName && t.Id != request.Id, cancellationToken).ConfigureAwait(false);
 
         if (duplicateHostName)
         {
@@ -63,7 +75,7 @@ public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, A
         }
 
         tenant.DisplayName = request.Request.DisplayName;
-        tenant.HostName = request.Request.HostName;
+        tenant.HostName = hostName;
         tenant.ContactEmail = request.Request.ContactEmail;
         tenant.MaxUsers = request.Request.MaxUsers;
         tenant.SubscriptionTier = parsedTier;
@@ -80,7 +92,7 @@ public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, A
                 : null;
         }
 
-        tenant.UpdatedAt = DateTimeOffset.UtcNow;
+        tenant.UpdatedAt = _timeProvider.GetUtcNow();
         tenant.UpdatedBy = _actorProvider.ActorId;
 
         await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);

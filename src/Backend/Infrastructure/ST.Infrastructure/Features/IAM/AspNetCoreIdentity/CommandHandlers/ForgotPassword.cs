@@ -56,7 +56,7 @@ internal sealed class ForgotPassword(
         }
 
         var token = await userManager.GeneratePasswordResetTokenAsync(user).ConfigureAwait(false);
-        var resetUri = BuildResetUri(user.Email, token);
+        var resetUri = BuildResetUri(user.Email, token, user.TenantId);
         var displayName = WebUtility.HtmlEncode($"{user.FirstName} {user.LastName}".Trim());
         var encodedUri = WebUtility.HtmlEncode(resetUri.ToString());
 
@@ -75,11 +75,11 @@ internal sealed class ForgotPassword(
         return AppResponses.Success(GenericMessage, response);
     }
 
-    private Uri BuildResetUri(string email, string token)
+    private Uri BuildResetUri(string email, string token, Guid tenantId)
     {
         var baseUri = new Uri(_emailSettings.ClientBaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
         var resetUri = new Uri(baseUri, _recoverySettings.ResetPath.TrimStart('/'));
-        var query = $"email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
+        var query = $"email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}&tenantId={tenantId:D}";
         return new UriBuilder(resetUri) { Query = query }.Uri;
     }
 }

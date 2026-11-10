@@ -7,6 +7,8 @@ using ST.Domain.Shared.Exceptions;
 using ST.Infrastructure.Contracts.Implementations.Common;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
+using Microsoft.Extensions.Options;
+using ST.Infrastructure.Configuration;
 
 namespace ST.Tests.Unit.ControlPlane.Tenants;
 
@@ -31,7 +33,7 @@ public sealed class TenantRoutingApprovalTests
     }
 
     [Fact]
-    public async Task SuspensionBlocksPreviouslyCachedDatabaseRoute()
+    public async Task SuspensionBlocksPreviouslyResolvedDatabaseRoute()
     {
         var tenant = CreateTenant(TenantStatus.Active);
         var uow = Substitute.For<IControlPlaneUnitOfWork>();
@@ -47,11 +49,28 @@ public sealed class TenantRoutingApprovalTests
         encryption.Received(1).Decrypt("encrypted-database");
     }
 
-    private static ServiceProvider CreateServices(Guid tenantId, IControlPlaneUnitOfWork uow, IEncryptionService encryption)
+    [Fact]
+    public async Task BoundHostUsesItsOwnDatabaseAndRejectsAnotherStamp()
+    {
+        var tenant = CreateTenant(TenantStatus.Active);
+        tenant.DeploymentStampId = tenant.DeploymentStamp!.Id;
+        var unit = Substitute.For<IControlPlaneUnitOfWork>();
+        unit.Tenants.FindByIdAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(tenant);
+        var encryption = Substitute.For<IEncryptionService>();
+        using var owned = CreateServices(tenant.Id, unit, encryption, tenant.DeploymentStampId);
+        Assert.Null(await owned.GetRequiredService<ITenantConnectionResolver>().GetConnectionStringAsync());
+        encryption.DidNotReceiveWithAnyArgs().Decrypt(default!);
+        using var foreign = CreateServices(tenant.Id, unit, encryption, Guid.CreateVersion7());
+        await Assert.ThrowsAsync<TenantNotResolvedException>(
+            () => foreign.GetRequiredService<ITenantConnectionResolver>().GetConnectionStringAsync());
+    }
+
+    private static ServiceProvider CreateServices(Guid tenantId, IControlPlaneUnitOfWork uow, IEncryptionService encryption, Guid? stampId = null)
     {
         var currentTenant = Substitute.For<ICurrentTenantProvider>();
         currentTenant.TenantId.Returns(tenantId);
-        return new ServiceCollection().AddMemoryCache()
+        return new ServiceCollection().AddOptions()
+            .AddSingleton<IOptions<OrgSettings>>(Options.Create(new OrgSettings { DeploymentStampId = stampId }))
             .AddSingleton(uow).AddSingleton(encryption).AddSingleton(currentTenant)
             .AddScoped<ITenantConnectionResolver, TenantConnectionResolver>().BuildServiceProvider();
     }
@@ -65,6 +84,12 @@ public sealed class TenantRoutingApprovalTests
         CreatedBy = "creator-id",
         Status = status,
         DatabaseConnectionString = "encrypted-database",
-        DatabaseProvider = "SqlServer"
+        DatabaseProvider = "SqlServer",
+        DeploymentStamp = new DeploymentStamp
+        {
+            Name = "Test stamp",
+            TargetResourceGroup = "Test",
+            CreatedBy = "creator-id"
+        }
     };
 }

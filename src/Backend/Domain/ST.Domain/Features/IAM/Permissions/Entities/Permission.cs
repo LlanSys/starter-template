@@ -6,6 +6,8 @@ namespace ST.Domain.Features.IAM.Permissions.Entities;
 public sealed class Permission : BaseEntity, ISoftDeletable
 {
 
+    public string ModuleKey { get; private set; } = "iam";
+    public void SetModule(string moduleKey) { ArgumentException.ThrowIfNullOrWhiteSpace(moduleKey); ModuleKey = moduleKey.Trim().ToLowerInvariant(); }
     public string Key { get; private set; } = string.Empty;
     public string Context { get; private set; } = string.Empty;
     public string Resource { get; private set; } = string.Empty;
@@ -50,7 +52,7 @@ public sealed class Permission : BaseEntity, ISoftDeletable
         };
     }
 
-    public void Update(string context, string resource, string action, string description, bool isActive, string updatedBy)
+    public void Update(DateTimeOffset now, string context, string resource, string action, string description, bool isActive, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(context);
         ArgumentException.ThrowIfNullOrWhiteSpace(resource);
@@ -67,18 +69,18 @@ public sealed class Permission : BaseEntity, ISoftDeletable
         Key = $"{normalizedResource}.{normalizedAction}";
         Description = description.Trim();
         IsActive = isActive;
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
         IsActive = false;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy.Trim();
-        SetUpdatedInfo(deletedBy);
+        SetUpdatedInfo(deletedBy, now);
     }
 
     private static string NormalizeSegment(string value)

@@ -76,14 +76,25 @@ internal class TenantService(IBackendApiClient client) : ITenantService
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<AppResponse<TenantResponse>> ApproveAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<AppResponse<TenantResponse>> ApproveAsync(Guid id, ApproveTenantRequest request, CancellationToken cancellationToken = default)
     {
         return await client.SendAsync<TenantResponse>(
             HttpMethod.Post,
             $"{BasePath}/{id}/approve",
+            request: request,
             requiresAuthentication: true,
             unavailableMessage: "Unable to approve tenant.",
             cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<AppResponse<TenantResponse>> RetryProvisioningAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return client.SendAsync<TenantResponse>(
+            HttpMethod.Post,
+            $"{BasePath}/{id}/provisioning/retry",
+            requiresAuthentication: true,
+            unavailableMessage: "Unable to retry provisioning.",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<AppResponse<TenantResponse>> AddModuleAsync(Guid id, AddTenantModuleRequest request, CancellationToken cancellationToken = default)

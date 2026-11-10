@@ -2,12 +2,11 @@ using MassTransit;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 
 namespace ST.Infrastructure.Logging;
 
-public class LoggingConsumeFilter<T>(ILogger<LoggingConsumeFilter<T>> logger) : IFilter<ConsumeContext<T>> where T : class
+public class LoggingConsumeFilter<T>(ILogger<LoggingConsumeFilter<T>> logger, TimeProvider timeProvider) : IFilter<ConsumeContext<T>> where T : class
 {
     public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
     {
@@ -29,7 +28,7 @@ public class LoggingConsumeFilter<T>(ILogger<LoggingConsumeFilter<T>> logger) : 
             _ = bool.TryParse(isRedeliveredValue.ToString(), out isRedelivered);
         }
 
-        var stopwatch = Stopwatch.StartNew();
+        var startedAt = timeProvider.GetTimestamp();
 
         try
         {
@@ -37,18 +36,16 @@ public class LoggingConsumeFilter<T>(ILogger<LoggingConsumeFilter<T>> logger) : 
 
             await next.Send(context).ConfigureAwait(false);
 
-            stopwatch.Stop();
-
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
+            var elapsedMs = (long)timeProvider.GetElapsedTime(startedAt).TotalMilliseconds;
 
             MessageBusLogDefinitions.LogConsumeFailure(
                 logger,
                 messageType,
                 messageId,
-                stopwatch.ElapsedMilliseconds,
+                elapsedMs,
                 retryCount + 1,
                 isRedelivered,
                 ex.Message,

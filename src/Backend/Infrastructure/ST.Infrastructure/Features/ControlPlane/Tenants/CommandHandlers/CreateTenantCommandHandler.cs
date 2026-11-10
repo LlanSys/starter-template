@@ -25,19 +25,22 @@ public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, A
     private readonly IEncryptionService _encryptionService;
     private readonly IStampProvisioner _stampProvisioner;
     private readonly ICurrentActorProvider _actorProvider;
+    private readonly TimeProvider _timeProvider;
 
     public CreateTenantCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<CreateTenantCommandHandler> logger,
         IEncryptionService encryptionService,
         IStampProvisioner stampProvisioner,
-        ICurrentActorProvider actorProvider)
+        ICurrentActorProvider actorProvider,
+        TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _encryptionService = encryptionService;
         _stampProvisioner = stampProvisioner;
         _actorProvider = actorProvider;
+        _timeProvider = timeProvider;
     }
 
     public async Task<AppResponse<TenantResponse>> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
@@ -46,7 +49,8 @@ public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, A
         ArgumentNullException.ThrowIfNull(request.Request, nameof(request.Request));
 
         var req = request.Request;
-        var existingTenant = await _unitOfWork.Tenants.AnyAsync(t => t.Identifier == req.Identifier || t.HostName == req.HostName, cancellationToken).ConfigureAwait(false);
+        var hostName = req.HostName.Trim().TrimEnd('.').ToLowerInvariant();
+        var existingTenant = await _unitOfWork.Tenants.AnyAsync(t => t.Identifier == req.Identifier || t.HostName.ToLower() == hostName, cancellationToken).ConfigureAwait(false);
 
         if (existingTenant)
         {
@@ -60,6 +64,12 @@ public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, A
             return AppResponses.Failure<TenantResponse>("The specified Deployment Stamp does not exist.");
         }
 
+        if (stamp.IsolationTier == IsolationTier.Isolated
+            && await _unitOfWork.Tenants.AnyAsync(tenant => tenant.DeploymentStampId == stamp.Id, cancellationToken).ConfigureAwait(false))
+        {
+            return AppResponses.Failure<TenantResponse>("This isolated deployment stamp already belongs to a workspace.");
+        }
+
         SubscriptionTier parsedTier;
         try
         {
@@ -70,15 +80,19 @@ public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, A
             return AppResponses.Failure<TenantResponse>("Invalid Subscription Tier.");
         }
 
+        var now = _timeProvider.GetUtcNow();
         var tenant = new Tenant
         {
             Identifier = req.Identifier,
             DisplayName = req.DisplayName,
-            HostName = req.HostName,
+            HostName = hostName,
             ContactEmail = req.ContactEmail,
+            AdministratorEmail = req.InitialAdministrator?.AdministratorEmail.Trim(),
+            CreatedAt = now,
             MaxUsers = req.MaxUsers,
             SubscriptionTier = parsedTier,
             DeploymentStampId = req.DeploymentStampId,
+            ExclusiveStampId = stamp.IsolationTier == IsolationTier.Isolated ? stamp.Id : null,
             DatabaseProvider = req.DatabaseProvider,
             DatabaseConnectionString = !string.IsNullOrWhiteSpace(req.DatabaseConnectionString)
                 ? _encryptionService.Encrypt(req.DatabaseConnectionString)
@@ -87,6 +101,13 @@ public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, A
         };
 
         await _unitOfWork.Tenants.CreateAsync(tenant, cancellationToken).ConfigureAwait(false);
+        if (req.InitialAdministrator is { SendInvitation: true } administrator)
+        {
+            await _unitOfWork.AdministratorInvitations.CreateAsync(new TenantAdministratorInvitation(tenant.Id,
+                administrator.AdministratorEmail, administrator.FirstName, administrator.LastName, _actorProvider.ActorId, now),
+                cancellationToken).ConfigureAwait(false);
+        }
+
         await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
         ControlPlaneLogDefinitions.LogTenantCreated(_logger, tenant.Id, tenant.Identifier);

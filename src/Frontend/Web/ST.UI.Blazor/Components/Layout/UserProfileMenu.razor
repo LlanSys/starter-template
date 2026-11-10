@@ -1,51 +1,40 @@
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @rendermode InteractiveServer
+@inject TimeProvider Clock
 @inject IAuthSession AuthSession
+@inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject ILogger<UserProfileMenu> Logger
+@inject ProtectedSessionStorage WorkspaceStorage
 
-<div class="sidebar-profile">
+<div class="account-menu">
     @if (AuthSession.IsAuthenticated)
     {
-        <details class="profile-card">
-            <summary>
-                @if (ProfilePictureSource is not null)
-                {
-                    <MudAvatar Size="Size.Medium" Class="profile-avatar">
-                        <MudImage Src="@ProfilePictureSource" Alt="@Initials" />
-                    </MudAvatar>
-                }
-                else
-                {
-                    <MudAvatar Size="Size.Medium" Class="profile-avatar">@Initials</MudAvatar>
-                }
-                <span class="profile-copy">
-                    <strong>@DisplayName</strong>
-                    <small>@PrimaryRole</small>
-                </span>
-                <MudIcon Icon="@Icons.Material.Filled.ExpandLess" Size="Size.Small" />
+        <details>
+            <summary aria-label="Account menu">
+                <MudAvatar Size="Size.Small">
+                    @if (ProfilePictureSource is not null)
+                    {
+                        <MudImage Src="@ProfilePictureSource" Alt="" />
+                    }
+                    else
+                    {
+                        @Initials
+                    }
+                </MudAvatar>
+                <span class="account-name">@DisplayName</span>
+                <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" />
             </summary>
-
-            <div class="profile-actions">
-                <a href="/profile">
-                    <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Small" />
-                    Profile
-                </a>
-                <button type="button" @onclick="LogoutAsync">
-                    <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" />
-                    Logout
-                </button>
+            <div class="account-actions">
+                <a href="/profile"><MudIcon Icon="@Icons.Material.Filled.PersonOutline" Size="Size.Small" />Profile</a>
+                <a href="/iam/security"><MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Small" />Security</a>
+                <button type="button" @onclick="LogoutAsync"><MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" />Sign out</button>
             </div>
         </details>
     }
     else
     {
-        <a class="profile-card sign-in-card" href="/iam/sign-in">
-            <MudAvatar Size="Size.Medium">ST</MudAvatar>
-            <div>
-                <strong>@ProfileFallbackTitle</strong>
-                <span>@ProfileFallbackMessage</span>
-            </div>
-        </a>
+        <a href="/iam/sign-in">@(_sessionRestoreFailed ? "Sign in again" : "Sign in")</a>
     }
 </div>
 
@@ -62,13 +51,7 @@
         }
     }
 
-    private string PrimaryRole => RoleDisplay.SelectPrimaryRole(AuthSession.CurrentUser?.Roles, "Signed in");
-
     private bool _sessionRestoreFailed;
-
-    private string ProfileFallbackTitle => _sessionRestoreFailed ? "Session needs refresh" : "Session pending";
-
-    private string ProfileFallbackMessage => _sessionRestoreFailed ? "Sign in again" : "Profile loads after sign in";
 
     private string Initials
     {
@@ -98,7 +81,7 @@
 
         try
         {
-            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(8));
+            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(8), Clock);
         }
         catch (TimeoutException ex)
         {
@@ -118,7 +101,10 @@
 
     private async Task LogoutAsync()
     {
-        await AuthSession.SignOutAsync();
-        Navigation.NavigateTo("/iam/sign-in");
+        var wasDemo = AuthSession.CurrentUser?.IsDemoWorkspace == true;
+        await AuthService.LogoutAsync();
+        if (wasDemo) await AuthService.LogoutAsync();
+        await WorkspaceStorage.DeleteAsync("workspace.platform");
+        Navigation.NavigateTo("/iam/sign-in", forceLoad: true);
     }
 }

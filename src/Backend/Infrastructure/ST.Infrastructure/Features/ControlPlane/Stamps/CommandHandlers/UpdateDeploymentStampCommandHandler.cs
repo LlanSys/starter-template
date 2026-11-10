@@ -17,6 +17,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Stamps.CommandHandlers;
 
 public class UpdateDeploymentStampCommandHandler : IRequestHandler<UpdateDeploymentStampCommand, AppResponse<DeploymentStampResponse>>
 {
+    private readonly TimeProvider _timeProvider;
     private readonly IControlPlaneUnitOfWork _unitOfWork;
     private readonly ILogger<UpdateDeploymentStampCommandHandler> _logger;
     private readonly IEncryptionService _encryptionService;
@@ -24,10 +25,11 @@ public class UpdateDeploymentStampCommandHandler : IRequestHandler<UpdateDeploym
     public UpdateDeploymentStampCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<UpdateDeploymentStampCommandHandler> logger,
-        IEncryptionService encryptionService)
+        IEncryptionService encryptionService, TimeProvider timeProvider)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _timeProvider = timeProvider;
         _encryptionService = encryptionService;
     }
 
@@ -58,6 +60,33 @@ public class UpdateDeploymentStampCommandHandler : IRequestHandler<UpdateDeploym
             return AppResponses.Failure<DeploymentStampResponse>("Invalid Isolation Tier.");
         }
 
+        var providerChanged = request.Request.DatabaseProvider is { } provider
+            && !string.Equals(provider, stamp.DatabaseProvider, StringComparison.OrdinalIgnoreCase);
+        var connectionChanged = request.Request.DatabaseConnectionString is { } connection
+            && (connection.Length > 0 || stamp.DatabaseConnectionString is not null);
+        if ((providerChanged || connectionChanged || parsedTier != stamp.IsolationTier)
+            && await _unitOfWork.Tenants.AnyAsync(tenant => tenant.DeploymentStampId == stamp.Id
+                && tenant.Status == TenantStatus.Active, cancellationToken).ConfigureAwait(false))
+        {
+            return AppResponses.Failure<DeploymentStampResponse>("Suspend the workspaces on this stamp before changing its database route or isolation tier.");
+        }
+
+        if (parsedTier != stamp.IsolationTier)
+        {
+            var owners = await _unitOfWork.Tenants.FindAll().AsTracking()
+                .Where(tenant => tenant.DeploymentStampId == stamp.Id)
+                .Take(2).ToArrayAsync(cancellationToken).ConfigureAwait(false);
+            if (parsedTier == IsolationTier.Isolated && owners.Length > 1)
+            {
+                return AppResponses.Failure<DeploymentStampResponse>("Move the additional workspaces before making this stamp isolated.");
+            }
+
+            foreach (var owner in owners)
+            {
+                owner.ExclusiveStampId = parsedTier == IsolationTier.Isolated ? stamp.Id : null;
+            }
+        }
+
         stamp.Name = request.Request.Name;
         stamp.TargetResourceGroup = request.Request.TargetResourceGroup;
         stamp.IsolationTier = parsedTier;
@@ -75,7 +104,7 @@ public class UpdateDeploymentStampCommandHandler : IRequestHandler<UpdateDeploym
                 : null;
         }
 
-        stamp.UpdatedAt = DateTimeOffset.UtcNow;
+        stamp.UpdatedAt = _timeProvider.GetUtcNow();
         stamp.UpdatedBy = "System";
 
         await _unitOfWork.DeploymentStamps.UpdateAsync(stamp, cancellationToken).ConfigureAwait(false)  ;

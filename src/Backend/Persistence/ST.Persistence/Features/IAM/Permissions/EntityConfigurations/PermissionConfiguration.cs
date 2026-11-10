@@ -11,13 +11,14 @@ internal sealed class PermissionConfiguration : IEntityTypeConfiguration<Permiss
     {
         builder.ToTable("Permissions");
 
+        builder.Property(permission => permission.ModuleKey).HasMaxLength(80).IsRequired();
         builder.HasKey(permission => permission.Id);
 
         builder.Property(permission => permission.Key)
             .HasMaxLength(160)
             .IsRequired();
 
-        builder.HasIndex(permission => permission.Key)
+        builder.HasIndex(permission => new { permission.TenantId, permission.Key })
             .IsUnique()
             .HasDatabaseName("UX_Permissions_Key");
 

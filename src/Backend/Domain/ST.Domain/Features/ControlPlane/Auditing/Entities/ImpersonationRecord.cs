@@ -14,14 +14,14 @@ public class ImpersonationRecord : IAuditable
     public required Guid TargetTenantId { get; set; }
     public required string TargetTenantName { get; set; }
     public required string Reason { get; set; }
-    public DateTimeOffset StartTime { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset StartTime { get; set; }
     public required DateTimeOffset ExpiryTime { get; set; }
 
     // Status can be updated if the user explicitly exits early.
     // Otherwise, we rely on lazy evaluation based on ExpiryTime.
     public ImpersonationRecordStatus Status { get; set; }
 
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }

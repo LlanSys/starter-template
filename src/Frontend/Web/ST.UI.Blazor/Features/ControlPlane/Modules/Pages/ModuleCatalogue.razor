@@ -1,0 +1,141 @@
+@page "/control-panel/modules/{ModuleKey}"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@using ST.SharedKernel.Features.ControlPlane.Modules.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+<PageTitle>@(_module?.Name ?? "Module") | StarterTemplate</PageTitle>
+<MudButton Href="/control-panel?tab=modules" StartIcon="@Icons.Material.Filled.ArrowBack" Size="Size.Small">Modules</MudButton>
+<h1 class="platform-page-title my-3">@(_module?.Name ?? "Module")</h1>
+@if (_message is not null) { <MudAlert Dense="true" Severity="Severity.Info" Class="mb-3">@_message</MudAlert> }
+<MudTabs @bind-ActivePanelIndex="_tab" Elevation="0">
+    <MudTabPanel Text="Pages" />
+    <MudTabPanel Text="Navigation" />
+    <MudTabPanel Text="Permissions" />
+    <MudTabPanel Text="Role templates" />
+    <MudTabPanel Text="Flags" />
+    <MudTabPanel Text="Dependencies" />
+</MudTabs>
+@if (_tab < 4)
+{
+    <div class="d-flex justify-end my-3"><MudButton OnClick="NewEntry" Disabled="_busy || _module?.IsRetired == true" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add">@(_tab is 0 or 1 ? "Register page" : _tab == 2 ? "Add permission" : "Add role template")</MudButton></div>
+    @if (_form is not null)
+    {
+        <MudPaper Outlined="true" Elevation="0" Class="pa-4 mb-3">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_form.Title" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_form.Key" Label="Key" ReadOnly="_form.Id.HasValue" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                @if (_form.Kind == "Page")
+                {
+                    <MudItem xs="12" sm="6"><MudTextField @bind-Value="_form.Path" Label="Page path" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                    <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_form.ParentKey" Label="Parent" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">@foreach(var parent in AllEntries.Where(x => x.Kind == "Page" && x.Key != _form.Key)) { <MudSelectItem Value="@parent.Key">@parent.Title</MudSelectItem> }</MudSelect></MudItem>
+                    <MudItem xs="12" sm="6"><MudAutocomplete T="string" @bind-Value="_form.Icon" Label="Icon" SearchFunc="MenuIconMapper.SearchAsync" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                    <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_form.Placement" Label="Show in" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem Value='@("Sidebar")'>Sidebar</MudSelectItem><MudSelectItem Value='@("AdminCenter")'>Admin Center</MudSelectItem><MudSelectItem Value='@("Features")'>Features</MudSelectItem></MudSelect></MudItem>
+                    <MudItem xs="12" sm="6"><MudNumericField @bind-Value="_form.DisplayOrder" Label="Position" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                    <MudItem xs="12" sm="6"><MudSwitch @bind-Value="_form.ShowInNavigation" Label="Show in navigation" Color="Color.Primary" /></MudItem>
+                }
+                @if (_form.Kind != "Permission")
+                {
+                    <MudItem xs="12"><MenuAccessPicker Label="Permissions" Options="@PermissionOptions" @bind-Values="_form.PermissionKeys" /></MudItem>
+                }
+                @if (_form.Kind == "Page")
+                {
+                    <MudItem xs="12"><MenuAccessPicker Label="Default audience roles" Options="@RoleOptions" @bind-Values="_form.RoleNames" /></MudItem>
+                }
+                <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_form.FeatureFlag" Label="Feature flag" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">@foreach(var flag in _flags.Where(x => x.TenantId == Guid.Empty)) { <MudSelectItem Value="@flag.Key">@flag.Name</MudSelectItem> }</MudSelect></MudItem>
+                <MudItem xs="12" sm="6"><MudSwitch @bind-Value="_form.IsActive" Label="Active" Color="Color.Primary" /></MudItem>
+            </MudGrid>
+            <div class="d-flex justify-end gap-2 mt-3"><MudButton OnClick="@(() => _form = null)">Cancel</MudButton><MudButton OnClick="SaveEntryAsync" Disabled="_busy" Color="Color.Primary" Variant="Variant.Filled">Save</MudButton></div>
+        </MudPaper>
+    }
+    <div class="d-flex justify-space-between align-center mb-2"><MudText Typo="Typo.h6">@TabTitle</MudText><MudChip T="string" Size="Size.Small">@Entries.Count() shown</MudChip></div>
+    <MudTextField @bind-Value="_search" Immediate="true" Label="Search" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
+    <div class="st-table-scroll"><MudTable Items="Entries" Dense="true" Elevation="0" Breakpoint="Breakpoint.None" RowsPerPage="25" Loading="_busy" Style="min-width:650px">
+        <HeaderContent><MudTh>Name</MudTh>@if(_tab is 0 or 1) { <MudTh>Page</MudTh><MudTh>Show in</MudTh> }<MudTh>Status</MudTh><MudTh>Actions</MudTh></HeaderContent>
+        <RowTemplate><MudTd>@context.Title</MudTd>@if(_tab is 0 or 1) { <MudTd>@context.Path</MudTd><MudTd>@context.Placement</MudTd> }<MudTd>@(!context.IsActive ? "Disabled" : context.IsImplemented ? "Available" : "Awaiting implementation")</MudTd><MudTd><TableRowActions CanView="false" CanDelete="false" CanEdit="@(_module?.IsRetired != true)" OnEdit="@(() => EditEntry(context))" /></MudTd></RowTemplate>
+        <NoRecordsContent><MudText>No entries.</MudText></NoRecordsContent><PagerContent><MudTablePager /></PagerContent>
+    </MudTable></div>
+}
+else if (_tab == 4)
+{
+    <MudGrid Spacing="2" Class="my-3">
+        <MudItem xs="12" sm="6"><MudTextField @bind-Value="_flagKey" Label="Flag key" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="12" sm="6"><MudTextField @bind-Value="_flagName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="12" sm="6"><MudSelect T="Guid" @bind-Value="_flagTenant" Label="Scope" Variant="Variant.Outlined" Margin="Margin.Dense"><MudSelectItem Value="Guid.Empty">Platform default</MudSelectItem>@foreach(var tenant in _tenants) { <MudSelectItem Value="@tenant.Id">@tenant.DisplayName</MudSelectItem> }</MudSelect></MudItem>
+        <MudItem xs="12" sm="6"><MudSwitch @bind-Value="_flagEnabled" Label="Enabled" Color="Color.Primary" /></MudItem>
+    </MudGrid>
+    <div class="d-flex justify-end gap-2 mb-3">@if(_flagTenant != Guid.Empty) { <MudButton OnClick="@(() => SaveFlagAsync(true))" Disabled="_busy">Use platform default</MudButton> }<MudButton OnClick="@(() => SaveFlagAsync(false))" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary">Save flag</MudButton></div>
+    <MudTable Items="_flags" Dense="true" Elevation="0"><HeaderContent><MudTh>Name</MudTh><MudTh>Scope</MudTh><MudTh>Enabled</MudTh><MudTh>Actions</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@(context.TenantId == Guid.Empty ? "Platform default" : _tenants.FirstOrDefault(x => x.Id == context.TenantId)?.DisplayName)</MudTd><MudTd>@context.IsEnabled</MudTd><MudTd><TableRowActions CanView="false" CanDelete="false" OnEdit="@(() => EditFlag(context))" /></MudTd></RowTemplate></MudTable>
+}
+else
+{
+    <MenuAccessPicker Label="Required modules" Options="@DependencyOptions" @bind-Values="_dependencies" />
+    <div class="d-flex justify-end mt-3"><MudButton OnClick="SaveDependenciesAsync" Disabled="_busy || _module?.IsRetired == true" Variant="Variant.Filled" Color="Color.Primary">Save dependencies</MudButton></div>
+}
+@code {
+    [Parameter] public string ModuleKey { get; set; } = "";
+    private ModuleResponse? _module;
+    private IReadOnlyList<ModuleResponse> _modules = [];
+    private IReadOnlyList<CatalogueEntryResponse> _entries = [], _available = [];
+    private IReadOnlyList<ModuleFlagResponse> _flags = [];
+    private IReadOnlyList<TenantResponse> _tenants = [];
+    private IReadOnlyList<string> _dependencies = [];
+    private string _loaded = "", _search = "", _flagKey = "", _flagName = "";
+    private Guid _flagTenant;
+    private bool _flagEnabled, _busy;
+    private string? _message;
+    private int _tab;
+    private EntryForm? _form;
+    private string TabTitle => _tab switch { 0 => "Pages", 1 => "Navigation defaults", 2 => "Permissions", _ => "Role templates" };
+    private IEnumerable<CatalogueEntryResponse> AllEntries => _entries.Concat(_available).DistinctBy(x => x.Key);
+    private IReadOnlyList<string> PermissionOptions => AllEntries.Where(x => x.Kind == "Permission" && x.IsActive).Select(x => x.Key).ToArray();
+    private IReadOnlyList<string> RoleOptions => AllEntries.Where(x => x.Kind == "RoleTemplate" && x.IsActive).Select(x => x.Title).ToArray();
+    private IReadOnlyList<string> DependencyOptions => _modules.Where(x => !x.Key.Equals(ModuleKey, StringComparison.OrdinalIgnoreCase) && !x.IsRetired).Select(x => x.Name).ToArray();
+    private IEnumerable<CatalogueEntryResponse> Entries => _entries.Where(x => x.Kind == (_tab < 2 ? "Page" : _tab == 2 ? "Permission" : "RoleTemplate") && (_tab != 1 || x.ShowInNavigation) && (string.IsNullOrWhiteSpace(_search) || x.Title.Contains(_search, StringComparison.OrdinalIgnoreCase) || x.Key.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+    protected override async Task OnAfterRenderAsync(bool firstRender) { if (!_busy && _loaded != ModuleKey) { _loaded = ModuleKey; await LoadAsync(); StateHasChanged(); } }
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try {
+            var entries = await Api.SendAsync<IReadOnlyList<CatalogueEntryResponse>>(HttpMethod.Get, $"api/v1/control-plane/modules/{ModuleKey}/catalogue");
+            if(entries.IsSuccess && entries.Data is not null) _entries = entries.Data; else _message = UserMessageSanitizer.Normalize(entries.Message, "Could not load module catalogue.");
+            var modules = await Api.SendAsync<IReadOnlyList<ModuleResponse>>(HttpMethod.Get, "api/v1/control-plane/modules"); _modules = modules.Data ?? []; _module = _modules.FirstOrDefault(x => x.Key.Equals(ModuleKey, StringComparison.OrdinalIgnoreCase));
+            var available = await Api.SendAsync<IReadOnlyList<CatalogueEntryResponse>>(HttpMethod.Get, "api/v1/modules/available"); _available = available.Data ?? [];
+            var flags = await Api.SendAsync<IReadOnlyList<ModuleFlagResponse>>(HttpMethod.Get, $"api/v1/control-plane/modules/{ModuleKey}/flags"); _flags = flags.Data ?? [];
+            var tenants = await Api.SendAsync<IReadOnlyList<TenantResponse>>(HttpMethod.Get, "api/v1/control-plane/tenants"); _tenants = tenants.Data ?? [];
+            _dependencies = _modules.Where(x => _module?.DependencyKeys.Contains(x.Key, StringComparer.OrdinalIgnoreCase) == true).Select(x => x.Name).ToArray();
+        } finally { _busy = false; }
+    }
+    private void NewEntry() => _form = new EntryForm { Kind = _tab < 2 ? "Page" : _tab == 2 ? "Permission" : "RoleTemplate" };
+    private void EditEntry(CatalogueEntryResponse entry) => _form = new EntryForm { Id = entry.Id, Key = entry.Key, Kind = entry.Kind, Title = entry.Title, Path = entry.Path, ParentKey = entry.ParentKey, Icon = entry.Icon, Placement = entry.Placement, DisplayOrder = entry.DisplayOrder, ShowInNavigation = entry.ShowInNavigation, PermissionKeys = entry.PermissionKeys, RoleNames = entry.RoleNames, FeatureFlag = entry.FeatureFlag, IsActive = entry.IsActive, Version = entry.Version };
+    private async Task SaveEntryAsync()
+    {
+        if(_busy || _form is null) return; _busy = true;
+        try {
+            var x = _form; var request = new SaveCatalogueEntryRequest(x.Key, x.Kind, x.Title, x.Path, x.ParentKey, x.Icon, x.Placement, x.DisplayOrder, x.ShowInNavigation, x.PermissionKeys.ToArray(), x.RoleNames.ToArray(), x.FeatureFlag, x.IsActive, x.Version);
+            var response = await Api.SendAsync<CatalogueEntryResponse>(x.Id.HasValue ? HttpMethod.Put : HttpMethod.Post, $"api/v1/control-plane/modules/{ModuleKey}/catalogue" + (x.Id.HasValue ? $"/{x.Id}" : ""), request);
+            _message = response.IsSuccess ? "Catalogue saved." : UserMessageSanitizer.Normalize(response.Message, "Could not save catalogue entry."); if(response.IsSuccess) _form = null;
+        } finally { _busy = false; }
+        await LoadAsync();
+    }
+    private void EditFlag(ModuleFlagResponse flag) { _flagKey = flag.Key; _flagName = flag.Name; _flagTenant = flag.TenantId; _flagEnabled = flag.IsEnabled; }
+    private async Task SaveFlagAsync(bool useDefault)
+    {
+        if(_busy) return; _busy = true;
+        try { var response = await Api.SendAsync<bool>(HttpMethod.Put, $"api/v1/control-plane/modules/{ModuleKey}/flags", new SaveModuleFlagRequest(_flagTenant, _flagKey, _flagName, _flagEnabled, useDefault)); _message = response.IsSuccess ? "Flag saved." : UserMessageSanitizer.Normalize(response.Message, "Could not save flag."); } finally { _busy = false; }
+        await LoadAsync();
+    }
+    private async Task SaveDependenciesAsync()
+    {
+        if(_busy || _module is null) return; _busy = true;
+        try { var response = await Api.SendAsync<ModuleResponse>(HttpMethod.Put, $"api/v1/control-plane/modules/{_module.Id}", new SaveModuleRequest(_module.Key, _module.Name, _module.Description, _module.IsActive) { DependencyKeys = _modules.Where(x => _dependencies.Contains(x.Name)).Select(x => x.Key).ToArray() }); _message = response.IsSuccess ? "Dependencies saved." : UserMessageSanitizer.Normalize(response.Message, "Could not save dependencies."); } finally { _busy = false; }
+        await LoadAsync();
+    }
+    private sealed class EntryForm
+    {
+        public Guid? Id { get; set; } public string Key { get; set; } = ""; public string Kind { get; set; } = "Page"; public string Title { get; set; } = "";
+        public string Path { get; set; } = ""; public string? ParentKey { get; set; } public string Icon { get; set; } = "Menu"; public string Placement { get; set; } = "Sidebar";
+        public int DisplayOrder { get; set; } public bool ShowInNavigation { get; set; } = true; public IReadOnlyList<string> PermissionKeys { get; set; } = []; public IReadOnlyList<string> RoleNames { get; set; } = [];
+        public string? FeatureFlag { get; set; } public bool IsActive { get; set; } = true; public int? Version { get; set; }
+    }
+}

@@ -2,6 +2,7 @@ using ST.Domain.Shared.Contracts.Common;
 using ST.Persistence.Common.Interceptors;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using System;
 using System.Data;
 using System.Data.Common;
@@ -91,6 +92,22 @@ public class TenantConnectionInterceptorTests
 
         // Assert
         Assert.Equal("Server=OldServer;Database=SharedDB;", fakeConnection.ConnectionString);
+    }
+
+    [Fact]
+    public async Task ReopeningForPooledRoutingRestoresTheOriginalConnection()
+    {
+        var resolver = Substitute.For<ITenantConnectionResolver>();
+        resolver.GetConnectionStringAsync(Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult<string?>("Server=NewServer;Database=TenantDB;"), Task.FromResult<string?>(null));
+        using var provider = new ServiceCollection().AddSingleton(resolver).BuildServiceProvider();
+        var interceptor = new TenantConnectionInterceptor(provider);
+        using var connection = new FakeDbConnection();
+
+        await interceptor.ConnectionOpeningAsync(connection, default!, new InterceptionResult(), CancellationToken.None);
+        Assert.Equal("Server=NewServer;Database=TenantDB;", connection.ConnectionString);
+        await interceptor.ConnectionOpeningAsync(connection, default!, new InterceptionResult(), CancellationToken.None);
+        Assert.Equal("Server=OldServer;Database=SharedDB;", connection.ConnectionString);
     }
 
     [Fact]

@@ -14,24 +14,101 @@ public class Tenant : IAuditable, IHasDomainEvents
     public required string DisplayName { get; set; }
     public required string HostName { get; set; }
     public string? ContactEmail { get; set; }
+    public string? ClientOrigin { get; set; }
+    public bool IsDemo { get; set; }
+    public int DemoFixtureVersion { get; set; }
+    public DateTimeOffset? DemoResetAt { get; set; }
+    public int WorkspaceVersion { get; set; }
+    public DateTimeOffset? WorkspaceInitializedAt { get; set; }
+    public string? AdministratorUserId { get; set; }
+    public string? AdministratorEmail { get; set; }
+    public DateTimeOffset? InvitationSentAt { get; set; }
     public int MaxUsers { get; set; }
     public SubscriptionTier SubscriptionTier { get; set; }
     public TenantStatus Status { get; set; } = TenantStatus.PendingApproval;
 
-    public void Approve(string actorId)
+    public static readonly Guid PlatformTenantId = Guid.Parse("0194f700-0000-7000-8000-000000000001");
+
+    public DateTimeOffset? SessionsInvalidBefore { get; private set; }
+    public Guid? ProvisioningOperationId { get; private set; }
+    public DateTimeOffset? ProvisioningDeadline { get; private set; }
+    public Guid? WorkspaceSetupLeaseId { get; private set; }
+    public DateTimeOffset? WorkspaceSetupLeaseUntil { get; private set; }
+    public DateTimeOffset? KycApprovedAt { get; private set; }
+    public string? KycApprovedBy { get; private set; }
+    public string? KycEvidenceReference { get; private set; }
+
+    public bool IsCustomerWorkspace => !IsDemo && Id != PlatformTenantId;
+    public bool CanProvision => !IsCustomerWorkspace || KycApprovedAt.HasValue;
+    public bool CanInviteAdministrator => IsCustomerWorkspace && KycApprovedAt.HasValue && Status == TenantStatus.Active;
+
+    public void Approve(string actorId, DateTimeOffset now, string? evidenceReference)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
-        if (Status != TenantStatus.PendingApproval)
-            throw new InvalidOperationException($"Cannot approve tenant from status {Status}");
+        if (IsCustomerWorkspace)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(evidenceReference);
+            if (evidenceReference.Trim().Length > 256)
+            {
+                throw new ArgumentException("The evidence reference must be at most 256 characters.", nameof(evidenceReference));
+            }
+
+            if (KycApprovedAt.HasValue)
+            {
+                throw new InvalidOperationException("KYC is already approved.");
+            }
+
+            KycApprovedAt = now;
+            KycApprovedBy = actorId;
+            KycEvidenceReference = evidenceReference.Trim();
+        }
+        else if (Status != TenantStatus.PendingApproval)
+        {
+            throw new InvalidOperationException("The platform workspace is already initialized.");
+        }
+
+        if (Status == TenantStatus.PendingApproval)
+        {
+            Status = TenantStatus.PendingProvisioning;
+        }
+
+        UpdatedBy = actorId;
+        UpdatedAt = now;
+    }
+
+    public bool IsProvisioningExpired(DateTimeOffset now)
+    {
+        return Status == TenantStatus.Provisioning
+            && (ProvisioningOperationId is null || (ProvisioningDeadline is { } deadline && deadline <= now));
+    }
+
+    public Guid BeginProvisioning(DateTimeOffset now, TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        MarkAsProvisioning();
+        ProvisioningOperationId = Guid.CreateVersion7();
+        ProvisioningDeadline = now.Add(timeout);
+        return ProvisioningOperationId.Value;
+    }
+
+    public void RetryProvisioning(DateTimeOffset? now = null)
+    {
+        if (!CanProvision || (Status != TenantStatus.ProvisioningFailed
+            && !(now.HasValue && IsProvisioningExpired(now.Value))))
+        {
+            throw new InvalidOperationException("Only approved workspaces with failed provisioning can retry.");
+        }
 
         Status = TenantStatus.PendingProvisioning;
-        UpdatedBy = actorId;
-        UpdatedAt = DateTimeOffset.UtcNow; // We will use TimeProvider in application layer, but here standard fallback
     }
 
     public void MarkAsProvisioning()
     {
-        if (Status != TenantStatus.PendingProvisioning)
+        if (!CanProvision || Status != TenantStatus.PendingProvisioning)
             throw new InvalidOperationException($"Cannot start provisioning from status {Status}");
 
         Status = TenantStatus.Provisioning;
@@ -39,10 +116,48 @@ public class Tenant : IAuditable, IHasDomainEvents
 
     public void MarkAsActive()
     {
-        if (Status is not (TenantStatus.PendingProvisioning or TenantStatus.Provisioning or TenantStatus.Suspended))
+        if (!CanProvision || Status is not (TenantStatus.PendingProvisioning or TenantStatus.Provisioning))
             throw new InvalidOperationException($"Cannot activate tenant from status {Status}");
 
         Status = TenantStatus.Active;
+    }
+
+    public void Reactivate(DateTimeOffset now)
+    {
+        if (!CanProvision || Status != TenantStatus.Suspended)
+        {
+            throw new InvalidOperationException("Only an approved suspended workspace can be reactivated.");
+        }
+
+        SessionsInvalidBefore = now;
+        Status = TenantStatus.Active;
+    }
+
+    public bool TryBeginWorkspaceSetup(Guid leaseId, DateTimeOffset now)
+    {
+        if (leaseId == Guid.Empty || Status != TenantStatus.Active || !CanProvision
+            || WorkspaceSetupLeaseUntil > now)
+        {
+            return false;
+        }
+
+        WorkspaceSetupLeaseId = leaseId;
+        WorkspaceSetupLeaseUntil = now.AddMinutes(2);
+        return true;
+    }
+
+    public void CompleteWorkspaceSetup(Guid leaseId, DateTimeOffset now)
+    {
+        if (Status != TenantStatus.Active || !CanProvision
+            || WorkspaceSetupLeaseId != leaseId || WorkspaceSetupLeaseUntil <= now)
+        {
+            throw new InvalidOperationException("The workspace setup lease is unavailable.");
+        }
+
+        WorkspaceVersion = 1;
+        WorkspaceInitializedAt ??= now;
+        WorkspaceSetupLeaseId = null;
+        WorkspaceSetupLeaseUntil = null;
     }
 
     public void Suspend()
@@ -57,8 +172,8 @@ public class Tenant : IAuditable, IHasDomainEvents
     {
         Status = TenantStatus.ProvisioningFailed;
     }
-    private readonly System.Collections.Generic.List<IDomainEvent> _domainEvents = [];
-    public System.Collections.Generic.IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    private readonly List<IDomainEvent> _domainEvents = [];
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     public void RaiseDomainEvent(IDomainEvent domainEvent)
     {
@@ -71,6 +186,7 @@ public class Tenant : IAuditable, IHasDomainEvents
     }
 
     public Guid DeploymentStampId { get; set; }
+    public Guid? ExclusiveStampId { get; set; }
     public DeploymentStamp? DeploymentStamp { get; set; }
 
     public string? DatabaseProvider { get; set; }
@@ -78,7 +194,7 @@ public class Tenant : IAuditable, IHasDomainEvents
 
     public ICollection<TenantModule> Modules { get; set; } = [];
 
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }

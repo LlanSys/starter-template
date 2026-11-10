@@ -18,6 +18,8 @@ public sealed class DevelopmentSeedSettings
     [Required]
     public string AdminPassword { get; init; } = string.Empty;
 
+    public bool GrantPlatformAccess { get; init; }
+
     public bool ResetExistingAdminPassword { get; init; }
 
     public Guid TenantId { get; init; } = new("0194f700-0000-7000-8000-000000000001");

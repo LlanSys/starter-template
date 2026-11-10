@@ -34,7 +34,7 @@ public class EmailTemplate : BaseEntity, ISoftDeletable
         };
     }
 
-    public void UpdateContent(string subject, string body, string updatedBy)
+    public void UpdateContent(DateTimeOffset now, string subject, string body, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(body);
@@ -42,14 +42,14 @@ public class EmailTemplate : BaseEntity, ISoftDeletable
 
         Subject = subject.Trim();
         Body = body;
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
         IsDeleted = true;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy;
     }
 }

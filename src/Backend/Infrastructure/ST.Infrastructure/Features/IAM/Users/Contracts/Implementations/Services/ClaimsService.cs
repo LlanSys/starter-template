@@ -15,7 +15,7 @@ namespace ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Service
 
 internal sealed class ClaimsService(
     UserManager<AppUser> userManager,
-    RoleManager<AppRole> roleManager, ILogger<ClaimsService> logger) : IClaimsService
+    RoleManager<AppRole> roleManager, ILogger<ClaimsService> logger, TimeProvider timeProvider) : IClaimsService
 {
     private readonly UserManager<AppUser> _userManager = userManager;
     private readonly RoleManager<AppRole> _roleManager = roleManager;
@@ -54,7 +54,7 @@ internal sealed class ClaimsService(
                 new(JwtRegisteredClaimNames.Sub, user.Id),
                 new(ClaimTypes.NameIdentifier, user.Id),
                 new(JwtRegisteredClaimNames.Jti, Guid.CreateVersion7().ToString()),
-                new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
+                new(JwtRegisteredClaimNames.Iat, timeProvider.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
 
                 new("tenant_id", user.TenantId.ToString()),
                 new(JwtRegisteredClaimNames.Name, $"{user.FirstName} {user.LastName}"),
@@ -64,6 +64,9 @@ internal sealed class ClaimsService(
 
             if (sessionId.HasValue && sessionId.Value != Guid.Empty)
                 claims.Add(new("session_id", sessionId.Value.ToString()));
+
+            if (user.RequiresAdministratorSetup)
+                return claims;
 
             var roles = await _userManager.GetRolesAsync(user).ConfigureAwait(false);
 
@@ -84,7 +87,7 @@ internal sealed class ClaimsService(
             }
 
             var directClaims = await _userManager.GetClaimsAsync(user).ConfigureAwait(false);
-            claims.AddRange(directClaims.Where(c => c.Type == "permission"));
+            claims.AddRange(directClaims.Where(c => c.Type is "permission" or "platform_staff" or "demo_workspace" or "demo_actor_id" or "demo_readonly" or "support_grant_id" or "support_actor_id"));
 
             return [.. claims
                 .GroupBy(static claim => $"{claim.Type}:{claim.Value}", StringComparer.OrdinalIgnoreCase)
@@ -104,7 +107,7 @@ internal sealed class ClaimsService(
         {
             new(JwtRegisteredClaimNames.Sub, user.Id),
             new(JwtRegisteredClaimNames.Jti, Guid.CreateVersion7().ToString()),
-            new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
+            new(JwtRegisteredClaimNames.Iat, timeProvider.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
 
             new("tenant_id", user.TenantId.ToString()),
             new(JwtRegisteredClaimNames.Name, $"{user.FirstName} {user.LastName}"),
@@ -126,7 +129,7 @@ internal sealed class ClaimsService(
 
         // Get permissions assigned DIRECTLY to the USER (the "Permission 5" case)
         var directClaims = await _userManager.GetClaimsAsync(user).ConfigureAwait(false);
-        claims.AddRange(directClaims.Where(c => c.Type == "permission"));
+        claims.AddRange(directClaims.Where(c => c.Type is "permission" or "platform_staff" or "demo_workspace" or "demo_actor_id" or "demo_readonly" or "support_grant_id" or "support_actor_id"));
 
         // Return a distinct list (so Permission 1 isn't added twice if it's in both)
         return [.. claims.GroupBy(c => c.Value).Select(g => g.First())];

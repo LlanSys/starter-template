@@ -36,7 +36,7 @@ public sealed class CreateTenantCommandHandlerTests
         _encryptionService = Substitute.For<IEncryptionService>();
         _actorProvider = Substitute.For<ICurrentActorProvider>();
         _actorProvider.ActorId.Returns("test-actor-id");
-        _handler = new CreateTenantCommandHandler(_unitOfWork, _logger, _encryptionService, _provisioner, _actorProvider);
+        _handler = new CreateTenantCommandHandler(_unitOfWork, _logger, _encryptionService, _provisioner, _actorProvider, TimeProvider.System);
     }
 
     [Fact]

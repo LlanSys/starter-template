@@ -28,6 +28,7 @@ public class FailedMessage : BaseEntity, ISoftDeletable
     private FailedMessage() { }
 
     public static FailedMessage RecordPermanentFailure(
+        DateTimeOffset now,
         string messageId,
         string messageType,
         string payload,
@@ -53,38 +54,38 @@ public class FailedMessage : BaseEntity, ISoftDeletable
             ErrorMessage = errorMessage,
             ErrorStackTrace = errorStackTrace,
             RetryCount = retryCount,
-            FailedAt = DateTimeOffset.UtcNow,
+            FailedAt = now,
             Status = FailedMessageStatus.Permanent,
             CreatedBy = createdBy
         };
     }
 
-    public void MarkResolved(string resolutionNotes, string resolvedBy)
+    public void MarkResolved(DateTimeOffset now, string resolutionNotes, string resolvedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resolutionNotes);
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedBy);
 
         IsResolved = true;
-        ResolvedAt = DateTimeOffset.UtcNow;
+        ResolvedAt = now;
         ResolutionNotes = resolutionNotes;
-        SetUpdatedInfo(resolvedBy);
+        SetUpdatedInfo(resolvedBy, now);
     }
 
-    public void MarkForManualRetry(string updatedBy)
+    public void MarkForManualRetry(DateTimeOffset now, string updatedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
 
         Status = FailedMessageStatus.ManualRetry;
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy;
-        SetUpdatedInfo(deletedBy);
+        SetUpdatedInfo(deletedBy, now);
     }
 }

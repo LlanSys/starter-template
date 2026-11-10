@@ -1,5 +1,8 @@
 @inject ITenantService TenantService
 @inject ISnackbar Snackbar
+@inject IBackendApiClient Api
+@using ST.SharedKernel.Features.ControlPlane.Modules.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
 
 <MudDialog>
     <DialogContent>
@@ -11,14 +14,19 @@
             @foreach (var module in _enabledModules)
             {
                 <MudItem xs="12" Class="d-flex align-center">
-                    <MudText Typo="Typo.body1" Class="flex-grow-1">@module</MudText>
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveModuleAsync(module))" title="Remove module" Disabled="_isBusy" />
+                    <MudText Typo="Typo.body1" Class="flex-grow-1">@(_modules.FirstOrDefault(option => option.Key.Equals(module, StringComparison.OrdinalIgnoreCase))?.Name ?? module)</MudText>
+                    @if (module.Equals("Core", StringComparison.OrdinalIgnoreCase) || module.Equals("IAM", StringComparison.OrdinalIgnoreCase))
+                    { <MudText Typo="Typo.caption">Required</MudText> }
+                    else { <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveModuleAsync(module))" title="Remove module" Disabled="_isBusy" /> }
                 </MudItem>
             }
 
             <MudItem xs="12" Class="mt-4">
                 <div class="d-flex gap-2">
-                    <MudTextField T="string" @bind-Value="_newModuleKey" Label="Module key" Margin="Margin.Dense" Variant="Variant.Outlined" Disabled="_isBusy" />
+                    <MudSelect T="string" @bind-Value="_newModuleKey" Label="Module" Margin="Margin.Dense" Variant="Variant.Outlined" Disabled="_isBusy">
+                        @foreach (var option in _modules.Where(module => module.IsActive && module.IsImplemented && !_enabledModules.Contains(module.Key, StringComparer.OrdinalIgnoreCase)))
+                        { <MudSelectItem Value="@option.Key">@option.Name</MudSelectItem> }
+                    </MudSelect>
                     <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" Class="mt-1" OnClick="AddModuleAsync" Disabled="@(string.IsNullOrWhiteSpace(_newModuleKey) || _isBusy)">Add</MudButton>
                 </div>
             </MudItem>
@@ -30,6 +38,7 @@
 </MudDialog>
 
 @code {
+    private IReadOnlyList<ModuleResponse> _modules = [];
     private List<string> _enabledModules = [];
     private string _newModuleKey = string.Empty;
     private bool _isBusy;
@@ -40,9 +49,12 @@
     [Parameter, EditorRequired]
     public TenantResponse ExistingTenant { get; set; } = default!;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _enabledModules = [.. ExistingTenant.EnabledModules];
+        var response = await Api.SendAsync<IReadOnlyList<ModuleResponse>>(HttpMethod.Get, "api/v1/control-plane/modules");
+        if (response.IsSuccess && response.Data is not null) _modules = response.Data;
+        else Snackbar.Add(UserMessageSanitizer.Normalize(response.Message, "Could not load modules."), Severity.Warning);
     }
 
     private async Task AddModuleAsync()

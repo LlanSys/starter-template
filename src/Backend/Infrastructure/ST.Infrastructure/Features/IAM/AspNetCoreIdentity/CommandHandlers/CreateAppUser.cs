@@ -3,6 +3,7 @@ using ST.Application.Features.IAM.Users.Mappings;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Infrastructure.Features.IAM.Authorization;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.SharedKernel.Dtos.Common;
@@ -18,7 +19,7 @@ internal sealed class CreateAppUser(
     RoleManager<AppRole> roleManager,
     IIamUnitOfWork iamUnitOfWork,
     ICurrentTenantProvider tenantProvider,
-    ILogger<CreateAppUser> logger) : IRequestHandler<CreateAppUserCommand, AppResponse<AppUserResponse>>
+    ILogger<CreateAppUser> logger, TimeProvider timeProvider, IamDelegation delegation) : IRequestHandler<CreateAppUserCommand, AppResponse<AppUserResponse>>
 {
     public async Task<AppResponse<AppUserResponse>> Handle(CreateAppUserCommand command, CancellationToken ct)
     {
@@ -53,10 +54,16 @@ internal sealed class CreateAppUser(
                 return AppResponses.Failure<AppUserResponse>("One or more requested roles do not exist.");
             }
 
+            if (!await delegation.CanChangeRolesAsync([], roles, ct).ConfigureAwait(false))
+            {
+                return AppResponses.Failure<AppUserResponse>("You cannot assign one or more requested roles.");
+            }
+
             var response = await iamUnitOfWork.ExecuteInTransactionAsync(async () =>
             {
                 // Begin the IAM transaction before Identity saves the account or role membership.
-                var user = AppUser.CreateAccount(tenantProvider.TenantId, userName,
+                var now = timeProvider.GetUtcNow();
+                var user = AppUser.CreateAccount(now, tenantProvider.TenantId, userName,
                     request.FirstName, request.LastName, email, request.PhoneNumber, command.UserId);
                 var createResult = await userManager.CreateAsync(user, request.Password).ConfigureAwait(false);
                 if (!createResult.Succeeded)
@@ -73,11 +80,11 @@ internal sealed class CreateAppUser(
                     }
                 }
 
-                var profile = AppUserProfile.Create(user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UserId);
+                var profile = AppUserProfile.Create(now, user.Id, user.PhoneNumber, user.PhoneNumber, user.Email, command.UserId);
                 await iamUnitOfWork.AppUserProfileRepository.CreateAsync(profile, ct).ConfigureAwait(false);
                 await iamUnitOfWork.CompleteAsync(ct).ConfigureAwait(false);
                 // The transactional UoW dispatches this event after the operation, before committing.
-                user.RaiseAppUserCreatedEvent();
+                user.RaiseAppUserCreatedEvent(now);
                 return AppResponses.Success("User created successfully.", user.ToAppUserResponse(roles));
             }, ct).ConfigureAwait(false);
 

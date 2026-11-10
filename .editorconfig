@@ -52,7 +52,7 @@ dotnet_diagnostic.CA1062.severity = warning      # Validate arguments
 # Cross-language naming (not relevant for most apps)
 dotnet_diagnostic.CA1716.severity = none        # 'Shared' keyword issue
 
-# Delegate naming (false positives in MAUI/iOS)
+# Delegate naming convention
 dotnet_diagnostic.CA1711.severity = none
 
 # Naming conventions (handled by team, not compiler)
@@ -121,10 +121,10 @@ dotnet_diagnostic.CA1062.severity = none
 dotnet_diagnostic.CA1861.severity = none
 
 ########################################
-# 🧱 MAUI / PLATFORM-SPECIFIC EXCEPTIONS
+# Delegate naming compatibility
 ########################################
 
-# MAUI iOS delegate naming (AppDelegate etc.)
+# Existing delegate naming compatibility
 dotnet_diagnostic.CA1711.severity = none
 
 ########################################

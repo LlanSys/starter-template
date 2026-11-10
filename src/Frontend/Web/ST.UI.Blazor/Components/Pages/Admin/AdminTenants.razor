@@ -1,21 +1,20 @@
 @page "/control-panel/tenants"
+@using ST.SharedKernel.Dtos.Common
+@using ST.SharedKernel.Features.ControlPlane
+@using ST.UI.Blazor.Features.ControlPlane.Tenants.Components
 @layout ControlPlaneLayout
+@attribute [Authorize(Policy = "ControlPlane.Manage")]
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject ITenantService TenantService
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
-@using ST.UI.Blazor.Features.ControlPlane.Auditing.Components
 
-<PageTitle>Tenants | StarterTemplate</PageTitle>
+@if (!Embedded) { <PageTitle>Tenants | StarterTemplate</PageTitle> }
 
 <section class="dashboard-page">
-    <div class="mb-4">
-        <MudButton Href="/control-panel" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Control Panel</MudButton>
-    </div>
-
-    <MudPaper Class="poc-panel" Elevation="0">
+    <MudPaper Class="platform-list" Elevation="0">
         <div class="panel-heading">
             <h2 style="color: var(--st-moss); font-weight: 700;">Tenant List</h2>
             <div class="d-flex align-center gap-3">
@@ -40,14 +39,14 @@
             <MudTable @ref="_table" Items="_tenants" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 25rem)" Style="min-width: 900px;" Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh Style="width: 15rem;">Name</MudTh>
-                    <MudTh>Hostname</MudTh>
+                    <MudTh>Workspace</MudTh><MudTh>Hostname</MudTh>
                     <MudTh>Stamp</MudTh>
                     <MudTh Style="width: 10rem;">Status</MudTh>
                     <MudTh Style="width: 10rem;">Actions</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Name">@context.DisplayName</MudTd>
-                    <MudTd DataLabel="Hostname">@context.HostName</MudTd>
+                    <MudTd>@(context.Identifier == "default" ? "Platform" : context.Identifier == "vendor-demo" ? "Demo" : "Customer")</MudTd><MudTd DataLabel="Hostname">@context.HostName</MudTd>
                     <MudTd DataLabel="Stamp">@context.DeploymentStampId</MudTd>
                     <MudTd DataLabel="Status">
                         <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Active" ? Color.Success : Color.Error)">
@@ -81,6 +80,7 @@
 </section>
 
 @code {
+    [Parameter] public bool Embedded { get; set; }
     private readonly List<TenantResponse> _tenants = [];
     private bool _isLoading = true;
     private string? _message;
@@ -140,7 +140,9 @@
 
     private async Task HandleExtraActionAsync(string action, TenantResponse tenant)
     {
-        if (action == "Manage modules")
+        if (action == "Set up workspace") { Navigation.NavigateTo($"/control-panel/tenants/{tenant.Id}/setup"); }
+        else if (action == "Request support") { Navigation.NavigateTo($"/control-panel/support?tenant={tenant.Id}"); }
+        else if (action == "Manage modules")
         {
             await OpenModulesDialogAsync(tenant);
         }
@@ -152,11 +154,7 @@
         {
             await ConfirmActivateAsync(tenant);
         }
-        else if (action == "Impersonate tenant")
-        {
-            await OpenImpersonateDialogAsync(tenant);
-        }
-        else if (action == "Approve tenant")
+        else if (action is "Approve KYC" or "Retry provisioning")
         {
             await ConfirmApproveAsync(tenant);
         }
@@ -169,16 +167,21 @@
         {
             actions.Add("Manage modules");
 
-            if (tenant.Status == "PendingApproval")
+            if (tenant.KycApprovedAt is null && tenant.Identifier is not ("default" or "vendor-demo")
+                && AuthSession.HasPermission(PlatformAccess.ApproveKycPermission))
             {
-                actions.Add("Approve tenant");
+                actions.Add("Approve KYC");
             }
-            else if (tenant.Status == "Active")
+
+            if (tenant.Status == "Active")
             {
-                actions.Add("Suspend tenant");
-                actions.Add("Impersonate tenant");
+                if (tenant.Identifier != "default" && tenant.Identifier != "vendor-demo") {
+                    actions.Add("Set up workspace"); actions.Add("Request support"); actions.Add("Suspend tenant");
+                }
+                // Support entry remains disabled until scoped support grants are enforced.
             }
-            else if (tenant.Status == "Suspended")
+            else if (tenant.Status == "ProvisioningFailed" && tenant.KycApprovedAt.HasValue) { actions.Add("Retry provisioning"); }
+            else if (tenant.Status == "Suspended" && tenant.KycApprovedAt.HasValue)
             {
                 actions.Add("Activate tenant");
             }
@@ -261,52 +264,40 @@
 
     private async Task ConfirmApproveAsync(TenantResponse tenant)
     {
-        var parameters = new DialogParameters
+        AppResponse<TenantResponse> response;
+        if (tenant.Status == "ProvisioningFailed" && tenant.KycApprovedAt.HasValue)
         {
-            { nameof(ConfirmDialog.Message), $"Approve tenant {tenant.DisplayName}? This will approve them for infrastructure provisioning." },
-            { nameof(ConfirmDialog.ConfirmText), "Verify" }
-        };
-
-        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
-            "Confirm Tenant Approval",
-            parameters,
-            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true });
-
-        var result = await dialog.Result;
-        if (result is not { Canceled: false }) return;
-
-        var response = await TenantService.ApproveAsync(tenant.Id);
+            var confirmation = await DialogService.ShowAsync<ConfirmDialog>(
+                "Retry provisioning",
+                new DialogParameters
+                {
+                    { nameof(ConfirmDialog.Message), $"Retry provisioning for {tenant.DisplayName}?" },
+                    { nameof(ConfirmDialog.ConfirmText), "Retry" }
+                });
+            if (await confirmation.Result is not { Canceled: false }) return;
+            response = await TenantService.RetryProvisioningAsync(tenant.Id);
+        }
+        else
+        {
+            var dialog = await DialogService.ShowAsync<TenantKycDialog>($"Approve KYC for {tenant.DisplayName}");
+            if (await dialog.Result is not { Canceled: false, Data: string evidence }) return;
+            response = await TenantService.ApproveAsync(tenant.Id, new ApproveTenantRequest(evidence));
+        }
         if (!response.IsSuccess)
         {
             Snackbar.Add(response.Message ?? "Tenant approval failed.", Severity.Error);
             return;
         }
 
-        Snackbar.Add($"Tenant approved for {tenant.DisplayName}. Provisioning started.", Severity.Success);
+        var message = response.Data?.Status switch
+        {
+            "Active" => $"{tenant.DisplayName} approved. Ready for workspace setup.",
+            "Provisioning" => $"Provisioning requested for {tenant.DisplayName}.",
+            "ProvisioningFailed" => "Provisioning could not start. Check the deployment configuration and retry.",
+            _ => "Workspace approval updated."
+        };
+        Snackbar.Add(message, response.Data?.Status == "ProvisioningFailed" ? Severity.Error : Severity.Success);
         await LoadTenantsAsync();
     }
 
-    private async Task OpenImpersonateDialogAsync(TenantResponse tenant)
-    {
-        var parameters = new DialogParameters
-        {
-            { nameof(StartImpersonationDialog.Tenant), tenant }
-        };
-
-        var dialog = await DialogService.ShowAsync<StartImpersonationDialog>(
-            "Impersonate Tenant",
-            parameters,
-            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
-
-        var result = await dialog.Result;
-        if (result is { Canceled: false })
-        {
-            // Usually we might redirect to a dashboard or refresh state here.
-            // For now, let's just trigger a full app reload to reinitialize AuthSession with the new impersonation token if it's set via cookies.
-            // Wait, does the API return an impersonation token that we need to store?
-            // The API command `StartImpersonation` returns a record. The actual impersonation usually requires the client to swap the token,
-            // or the server sets an impersonation cookie. If the token is swapped, we might need a page reload.
-            Navigation.NavigateTo("/", forceLoad: true);
-        }
-    }
 }

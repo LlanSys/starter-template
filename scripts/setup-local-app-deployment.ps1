@@ -2,7 +2,8 @@
 param(
     [switch]$UseContainerSql,
     [switch]$IncludeSeq,
-    [switch]$SkipPull
+    [switch]$SkipPull,
+    [switch]$UseSharedLocalKeyRing
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,6 +70,10 @@ if ($SkipPull) {
     $platformArguments.SkipPull = $true
 }
 
+if ($UseSharedLocalKeyRing) {
+    $platformArguments.UseSharedLocalKeyRing = $true
+}
+
 & $platformScript @platformArguments
 if ($LASTEXITCODE -ne 0) {
     throw "Local platform setup failed with exit code $LASTEXITCODE."
@@ -113,6 +118,8 @@ $composeArguments = @(
     '-f', $appsComposeFile,
     '--profile', 'apps'
 )
+
+& (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles @($composeFile, $appsComposeFile)
 
 & docker @composeArguments up -d --build --wait
 if ($LASTEXITCODE -ne 0) {

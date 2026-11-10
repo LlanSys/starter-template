@@ -52,6 +52,8 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
             }
         }
 
+        if (Request.Headers["X-Test-PlatformStaff"] == "true") claims.Add(new Claim("platform_staff", "true"));
+
         var identity = new ClaimsIdentity(claims, AuthenticationScheme);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, AuthenticationScheme);

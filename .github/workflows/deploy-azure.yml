@@ -451,6 +451,10 @@ jobs:
             image: starter-template-blazor
             dockerfile: ops/docker/blazor.Dockerfile
     steps:
+      - name: Normalize image namespace
+        shell: bash
+        run: echo "IMAGE_NAMESPACE=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -469,8 +473,8 @@ jobs:
         if: needs.setup.outputs.target == 'aca-acr'
         run: |
           az acr login --name ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
-          echo "DOCKER_REGISTRY=${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io" >> $GITHUB_ENV
-          echo "DOCKER_NAMESPACE=" >> $GITHUB_ENV
+          echo "DOCKER_REGISTRY=${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io" >> "$GITHUB_ENV"
+          echo "DOCKER_NAMESPACE=" >> "$GITHUB_ENV"
 
       - name: Login to GHCR
         if: needs.setup.outputs.target == 'aca-ghcr'
@@ -483,8 +487,8 @@ jobs:
       - name: Set GHCR Environment
         if: needs.setup.outputs.target == 'aca-ghcr'
         run: |
-          echo "DOCKER_REGISTRY=ghcr.io" >> $GITHUB_ENV
-          echo "DOCKER_NAMESPACE=${{ env.IMAGE_NAMESPACE }}/" >> $GITHUB_ENV
+          echo "DOCKER_REGISTRY=ghcr.io" >> "$GITHUB_ENV"
+          echo "DOCKER_NAMESPACE=${{ env.IMAGE_NAMESPACE }}/" >> "$GITHUB_ENV"
 
       - name: Build and push image
         uses: docker/build-push-action@v6
@@ -509,6 +513,10 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Normalize image namespace
+        shell: bash
+        run: echo "IMAGE_NAMESPACE=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
       - name: Sign in to Azure with OIDC
         uses: azure/login@v2
         with:

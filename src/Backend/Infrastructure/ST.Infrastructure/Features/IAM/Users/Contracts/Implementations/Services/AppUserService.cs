@@ -9,7 +9,7 @@ using System.Text;
 
 namespace ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Services;
 
-internal sealed class AppUserService(UserManager<AppUser> userManager) : IAppUserService
+internal sealed class AppUserService(UserManager<AppUser> userManager, TimeProvider timeProvider) : IAppUserService
 {
     private readonly UserManager<AppUser> _userManager = userManager;
 
@@ -26,7 +26,7 @@ internal sealed class AppUserService(UserManager<AppUser> userManager) : IAppUse
 
     public async Task<bool> DeleteAsync(AppUser appUser)
     {
-        appUser.MarkAsDeleted("System");
+        appUser.MarkAsDeleted("System", timeProvider.GetUtcNow());
         var result = await _userManager.UpdateAsync(appUser).ConfigureAwait(false);
         return result.Succeeded;
     }

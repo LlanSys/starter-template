@@ -17,9 +17,11 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
     private readonly ICurrentTenantProvider? _tenantProvider;
     private readonly ICurrentActorProvider? _actorProvider;
     private readonly ILogger<SharedDBContext>? _logger;
+    internal TimeProvider Clock { get; }
 
     public SharedDBContext(
         DbContextOptions<SharedDBContext> options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider tenantProvider,
         ICurrentActorProvider actorProvider,
         ILogger<SharedDBContext>? logger = null
@@ -28,10 +30,12 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         _tenantProvider = tenantProvider;
         _actorProvider = actorProvider;
         _logger = logger;
+        Clock = timeProvider;
     }
 
     protected SharedDBContext(
         DbContextOptions options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider tenantProvider,
         ICurrentActorProvider actorProvider,
         ILogger<SharedDBContext>? logger = null
@@ -40,6 +44,7 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         _tenantProvider = tenantProvider;
         _actorProvider = actorProvider;
         _logger = logger;
+        Clock = timeProvider;
     }
     public DbSet<EmailTemplate> EmailTemplates { get; set; }
     public DbSet<FailedMessage> FailedMessages { get; set; }
@@ -71,15 +76,31 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         DBContextHelper.ApplyStandardModelConventions(modelBuilder, this);
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        if (_tenantProvider is not null)
+        {
+            throw new NotSupportedException("Use asynchronous persistence for a tenant-scoped workspace.");
+        }
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         try
         {
+            if (_tenantProvider is not null)
+            {
+                var tenantId = CurrentTenantId;
+                DBContextHelper.EnforceTenantOwnership(ChangeTracker, tenantId);
+            }
+
             var domainEvents = DBContextHelper.CollectDomainEvents(ChangeTracker);
             DBContextHelper.ClearDomainEventsFromAggregates(ChangeTracker);
             DBContextHelper.StampPostgreSqlConcurrency(this);
-            DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId);
-            var result = await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId, Clock.GetUtcNow());
+            var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken).ConfigureAwait(false);
             _collectedDomainEvents ??= [];
             _collectedDomainEvents.AddRange(domainEvents);
             return result;

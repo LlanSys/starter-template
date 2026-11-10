@@ -1,4 +1,6 @@
 @page "/iam/security"
+@using ST.UI.Blazor.Features.IAM.Users.Components
+@using System.Text.Json
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject IAuthService AuthService
@@ -24,6 +26,10 @@
         </div>
 
         <div class="security-grid">
+            @if (AuthSession.CurrentUser is { AdministratorSetupRequired: false } currentUser)
+            {
+                <ExternalProviderConnection TenantId="currentUser.TenantId" />
+            }
             <article class="security-card">
                 <div class="card-heading">
                     <span>Password</span>
@@ -208,8 +214,8 @@
     private bool _hasLoadedOtpStatus;
     private string? _message;
     private string? _qrCodeDataUri;
-    private ST.SharedKernel.Features.IAM.Users.Dtos.OtpStatusResponse? _otpStatus;
-    private ST.SharedKernel.Features.IAM.Users.Dtos.TwoFactorSetupInfo? _setupInfo;
+    private OtpStatusResponse? _otpStatus;
+    private TwoFactorSetupInfo? _setupInfo;
     private readonly TotpVerificationModel _verification = new();
 
     private bool _isChangingPassword;
@@ -221,7 +227,7 @@
     private bool _passkeyIsError;
     private string? _passkeyMessage;
     private bool _hasLoadedPasskeys;
-    private IReadOnlyList<ST.SharedKernel.Features.IAM.Users.Dtos.PasskeyResponse>? _passkeys;
+    private IReadOnlyList<PasskeyResponse>? _passkeys;
 
     private bool IsTotpEnabled => _otpStatus?.IsEnabled == true;
 
@@ -326,7 +332,7 @@
         _isError = false;
         _message = null;
 
-        var response = await AuthSession.CompleteTwoFactorAsync(new ST.SharedKernel.Features.IAM.Users.Dtos.VerifyOtpRequest
+        var response = await AuthSession.CompleteTwoFactorAsync(new VerifyOtpRequest
         {
             UserId = AuthSession.CurrentUser.AppUserId,
             Code = _verification.Code,
@@ -350,6 +356,13 @@
         _verification.Code = string.Empty;
         await AuthSession.RefreshAsync();
         await LoadOtpStatusAsync();
+        if (AuthSession.CurrentUser?.AdministratorSetupRequired == true)
+        {
+            await AuthSession.SignOutAsync();
+            Navigation.NavigateTo("/iam/sign-in", replace: true);
+            return;
+        }
+
         Navigation.NavigateTo("/dashboard", replace: true);
     }
 
@@ -359,7 +372,7 @@
         _passwordIsError = false;
         _passwordMessage = null;
 
-        var request = new ST.SharedKernel.Features.IAM.Users.Dtos.ChangePasswordRequest(
+        var request = new ChangePasswordRequest(
             _passwordModel.CurrentPassword,
             _passwordModel.NewPassword);
 
@@ -419,7 +432,7 @@
 
         _setupInfo = null;
         _qrCodeDataUri = null;
-        _otpStatus = new ST.SharedKernel.Features.IAM.Users.Dtos.OtpStatusResponse(
+        _otpStatus = new OtpStatusResponse(
             IsConfigured: false,
             IsEnabled: false,
             ProviderName: "Authenticator",
@@ -444,7 +457,7 @@
         _passkeyMessage = null;
 
         var optionsResponse = await AuthService.RequestPasskeyRegistrationOptionsAsync();
-        if (!optionsResponse.IsSuccess || optionsResponse.Data.ValueKind == System.Text.Json.JsonValueKind.Undefined)
+        if (!optionsResponse.IsSuccess || optionsResponse.Data.ValueKind == JsonValueKind.Undefined)
         {
             _isRegisteringPasskey = false;
             _passkeyIsError = true;
@@ -467,8 +480,8 @@
                 "webauthn.registerPasskey",
                 optionsResponse.Data.GetRawText());
 
-            var attestation = System.Text.Json.JsonDocument.Parse(attestationJson).RootElement;
-            var registerResponse = await AuthService.RegisterPasskeyAsync(new ST.SharedKernel.Features.IAM.Users.Dtos.RegisterPasskeyRequest(attestation));
+            var attestation = JsonDocument.Parse(attestationJson).RootElement;
+            var registerResponse = await AuthService.RegisterPasskeyAsync(new RegisterPasskeyRequest(attestation));
 
             _isRegisteringPasskey = false;
 

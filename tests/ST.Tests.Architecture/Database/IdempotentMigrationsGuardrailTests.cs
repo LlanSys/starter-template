@@ -15,6 +15,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
+using Microsoft.Extensions.FileProviders;
 
 namespace ST.Tests.Architecture.Database;
 
@@ -28,6 +29,7 @@ public class IdempotentMigrationsGuardrailTests
     public void SqlServerContexts_ShouldUseIdempotentMigrationsGenerator(Type contextType, Type expectedGeneratorType)
     {
         var services = new ServiceCollection();
+        services.AddSingleton(TimeProvider.System);
         var config = BuildConfiguration("SqlServer");
 
         var env = new DummyHostEnvironment();
@@ -54,6 +56,7 @@ public class IdempotentMigrationsGuardrailTests
     public void PostgreSqlContexts_ShouldUseIdempotentMigrationsGenerator(Type contextType, Type expectedGeneratorType)
     {
         var services = new ServiceCollection();
+        services.AddSingleton(TimeProvider.System);
         var config = BuildConfiguration("PostgreSql");
 
         var env = new DummyHostEnvironment();
@@ -71,6 +74,10 @@ public class IdempotentMigrationsGuardrailTests
 
         var generator = context.Database.GetService<IMigrationsSqlGenerator>();
         Assert.IsType(expectedGeneratorType, generator);
+
+        var historySql = context.GetService<IHistoryRepository>().GetCreateIfNotExistsScript();
+        Assert.Contains("CREATE TABLE IF NOT EXISTS", historySql, StringComparison.Ordinal);
+        Assert.DoesNotContain("IF NOT EXISTS IF NOT EXISTS", historySql, StringComparison.Ordinal);
     }
 
     private static IConfiguration BuildConfiguration(string provider)
@@ -89,7 +96,7 @@ public class IdempotentMigrationsGuardrailTests
         public string EnvironmentName { get; set; } = "Development";
         public string ApplicationName { get; set; } = "BT";
         public string ContentRootPath { get; set; } = "";
-        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 
     private sealed class DummyTenantProvider : ICurrentTenantProvider

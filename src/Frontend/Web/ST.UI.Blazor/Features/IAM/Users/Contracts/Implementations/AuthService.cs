@@ -5,8 +5,10 @@ using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.UI.Blazor.Configuration;
 using ST.UI.Blazor.Features.Shared.BackendApi;
 using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces;
-using ST.UI.Rcl.Features.IAM.Users.Contracts.Interfaces;
+using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
+using System.Text.Json;
 
 namespace ST.UI.Blazor.Features.IAM.Users.Contracts.Implementations;
 
@@ -131,7 +133,7 @@ internal sealed class AuthService(IBackendApiClient apiClient, ITokenStorage sto
             {
                 var multipart = new MultipartFormDataContent();
                 var fileContent = new ByteArrayContent(content);
-                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
                 multipart.Add(fileContent, "file", fileName);
                 return multipart;
             });
@@ -148,7 +150,7 @@ internal sealed class AuthService(IBackendApiClient apiClient, ITokenStorage sto
             HttpMethod.Post,
             Format(_apiSettings.Endpoints.Iam.Users.VerifyTotp),
             request,
-            requiresAuthentication: false,
+            requiresAuthentication: string.IsNullOrEmpty(request.ChallengeToken),
             unavailableMessage: "The identity service is unavailable. Please try again.",
             timeoutMessage: "The identity service timed out. Please try again.");
     }
@@ -167,8 +169,8 @@ internal sealed class AuthService(IBackendApiClient apiClient, ITokenStorage sto
             Format(_apiSettings.Endpoints.Iam.Users.TotpStatus, ("userId", userId)));
     }
 
-    public Task<AppResponse<System.Text.Json.JsonElement>> RequestPasskeyRegistrationOptionsAsync()
-        => SendWithRefreshAsync<System.Text.Json.JsonElement>(HttpMethod.Post, Format(_apiSettings.Endpoints.Iam.Auth.PasskeyRegistrationOptions));
+    public Task<AppResponse<JsonElement>> RequestPasskeyRegistrationOptionsAsync()
+        => SendWithRefreshAsync<JsonElement>(HttpMethod.Post, Format(_apiSettings.Endpoints.Iam.Auth.PasskeyRegistrationOptions));
 
     public Task<AppResponse<bool>> RegisterPasskeyAsync(RegisterPasskeyRequest request)
     {

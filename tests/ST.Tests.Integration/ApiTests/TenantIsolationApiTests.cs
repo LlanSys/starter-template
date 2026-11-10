@@ -15,8 +15,10 @@ public sealed class TenantIsolationApiTests(StarterTemplateWebApplicationFactory
     public async Task IndependentAccountCannotBeReadOrActivatedByAnotherTenant()
     {
         var tenantA = Guid.CreateVersion7();
+        var tenantB = Guid.CreateVersion7();
+        await factory.RegisterTenantAsync(tenantA);await factory.RegisterTenantAsync(tenantB);
         using var clientA = CreateClient(tenantA, "users.create,users.view,users.edit");
-        using var clientB = CreateClient(Guid.CreateVersion7(), "users.view,users.edit");
+        using var clientB = CreateClient(tenantB, "users.view,users.edit");
         var userName = $"neutral-{Guid.CreateVersion7():N}";
         var created = await clientA.PostAsJsonAsync("/api/v1/iam/admin/users",
             new CreateAppUserRequest(userName, $"{userName}@example.test", "StrongPassword42!", "Test", "Account", null, []));

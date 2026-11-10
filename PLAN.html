@@ -529,12 +529,12 @@
         2. Architectural Direction
       </h2>
       <p>
-        The solution implements a **logical modular monolith** structure. The frontend targets (Blazor Web & MAUI Mobile) serve as HTTP consumers to the backend controllers API, ensuring zero database connectivity leakage into the UI presentation host.
+        The solution implements a **logical modular monolith** structure. The frontend (Blazor Web) serves as an HTTP consumer to the backend controllers API, ensuring zero database connectivity leakage into the UI presentation host.
       </p>
 
       <div class="flow-container">
         <div class="flow-row">
-          <div class="flow-node highlight">ST.UI.Rcl</div>
+          <div class="flow-node highlight">UI contracts owned by Blazor features</div>
         </div>
         <div class="flow-row">
           <span class="flow-arrow">▼</span>
@@ -542,7 +542,6 @@
         </div>
         <div class="flow-row">
           <div class="flow-node">ST.UI.Blazor</div>
-          <div class="flow-node">ST.UI.Maui</div>
         </div>
         <div class="flow-row">
           <span class="flow-arrow">▼</span>

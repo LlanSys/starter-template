@@ -136,29 +136,13 @@ SaaS multitenancy is ready when:
 
 ## Middleware Ordering And Tenant Resolution Contract
 
-This section documents a deliberate architectural decision. **Do not change the middleware order without updating this section.**
+Forwarded headers are evaluated using loopback and deployment-configured trusted proxies. Tenant resolution runs after endpoint routing and before authentication. A registered active customer host resolves one workspace and any explicit selector must match it. A configured central API host accepts a workspace selector for anonymous sign-in and recovery. An unrecognized host cannot select a workspace.
 
-`TenantResolutionMiddleware` is placed in the pipeline **after `UseRouting()`** and **before `UseAuthentication()`**:
+After authentication, the signed tenant must agree with any workspace resolved by the host or selector. The API then rebuilds authority from current IAM and module state before checking permissions. Demo and support sessions retain their separate restrictions. Background work restores its explicit workspace scope before dispatch.
 
-```
-UseRouting()
-UseMiddleware<TenantResolutionMiddleware>()   ← hostname-based resolution runs here
-UseAuthentication()                            ← JWT tenant_id claim is available from here
-UseAuthorization()
-```
+IAM and Shared add the tenant ID to row-level concurrency predicates and reject mutations carrying a different tenant ID. This application-level boundary also applies to detached updates. Raw SQL and set-based operations bypass the change tracker. Every such operation requires an explicit ownership predicate. Database-native row-level security requires separate design and certification.
 
-**Why before `UseAuthentication()`?**
-Hostname resolution does not require an authenticated user. The middleware resolves the tenant purely from the `Host` HTTP header (or `X-Forwarded-Host` for proxied requests), looks up the matching `Tenant.HostName` in the ControlPlane database (cached for 5 minutes), and injects the resolved tenant ID into a request header.
-
-**Resolution fallback priority in `CurrentTenantProvider`:**
-1. `tenant_id` JWT claim (populated post-auth for already-authenticated requests).
-2. Request header injected by `TenantResolutionMiddleware` (hostname-derived).
-3. `OrgSettings:DefaultTenantId` configuration value (single-stamp deployments).
-4. Throws `TenantNotResolvedException` if none of the above resolves.
-
-**Claim vs. header precedence:** JWT claim wins. For isolated stamps, the JWT `tenant_id` claim is the authoritative source. The header is a fallback for anonymous or pre-auth paths.
-
-**Security implication:** If a proxied request arrives with a forged `X-Forwarded-Host`, it could influence hostname-based resolution. Mitigate this by configuring `ForwardedHeadersOptions.KnownProxies` or `KnownNetworks` to only accept forwarded headers from trusted upstream addresses.
+Before a pooled production release, verify two real customer workspaces through the configured ingress. Check sign-in and recovery, forwarded-header spoofing, wrong-host tokens, cross-workspace reads and writes, inactive tenants, grant removal on an existing bearer, support approval and revocation, and protected files and jobs. Recycle the application and confirm the shared key ring preserves MFA. For the isolated tier, also prove provisioning, database/provider routing, callback, token separation, tenant-only restore and rollback on an actual stamp.
 
 ---
 

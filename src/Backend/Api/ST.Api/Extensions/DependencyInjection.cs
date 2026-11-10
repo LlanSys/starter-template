@@ -42,6 +42,10 @@ using System.IO.Compression;
 using System.Net;
 using System.Reflection;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using ST.Api.Features.Shared.Payments.Workers;
+using System.Security.Cryptography.X509Certificates;
 
 
 namespace ST.Api.Extensions;
@@ -87,7 +91,7 @@ internal static partial class DependencyInjection
 
         services.AddValidatorsFromAssembly(assembly);
 
-        services.AddHostedService<ST.Api.Features.Shared.Payments.Workers.PaymentReconciliationWorker>();
+        services.AddHostedService<PaymentReconciliationWorker>();
 
         return services;
     }
@@ -253,14 +257,14 @@ internal static partial class DependencyInjection
         var thumbprint = certificateThumbprint.Replace(" ", string.Empty);
         var logger = NullLoggerFactory.Instance.CreateLogger("DataProtection");
 
-        using var store = new System.Security.Cryptography.X509Certificates.X509Store(
-            System.Security.Cryptography.X509Certificates.StoreName.My,
-            System.Security.Cryptography.X509Certificates.StoreLocation.CurrentUser);
+        using var store = new X509Store(
+            StoreName.My,
+            StoreLocation.CurrentUser);
 
-        store.Open(System.Security.Cryptography.X509Certificates.OpenFlags.ReadOnly);
+        store.Open(OpenFlags.ReadOnly);
         var cert = store.Certificates
-            .Find(System.Security.Cryptography.X509Certificates.X509FindType.FindByThumbprint, thumbprint, validOnly: false)
-            .OfType<System.Security.Cryptography.X509Certificates.X509Certificate2>()
+            .Find(X509FindType.FindByThumbprint, thumbprint, validOnly: false)
+            .OfType<X509Certificate2>()
             .FirstOrDefault();
         store.Close();
 
@@ -342,7 +346,7 @@ internal static partial class DependencyInjection
 
                     context.HttpContext.Response.Headers.RetryAfter = retryAfter;
 
-                    var problemDetails = new Microsoft.AspNetCore.Mvc.ProblemDetails
+                    var problemDetails = new ProblemDetails
                     {
                         Status = StatusCodes.Status429TooManyRequests,
                         Title = "Too Many Requests",
@@ -430,7 +434,7 @@ internal static partial class DependencyInjection
 
         var assembly = typeof(IntegrationEventEmailConsumer<>).Assembly;
 
-        services.Configure<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherOptions>(options =>
+        services.Configure<HealthCheckPublisherOptions>(options =>
         {
             options.Delay = TimeSpan.FromSeconds(2);
             options.Predicate = check => check.Tags.Contains("ready");
@@ -571,10 +575,11 @@ internal static partial class DependencyInjection
                 context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
                 context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
 
-                var isScalarPage = environment.IsDevelopment()
-                    && context.Request.Path.StartsWithSegments("/scalar", StringComparison.OrdinalIgnoreCase);
+                var isApiTool = environment.IsDevelopment()
+                    && (context.Request.Path.StartsWithSegments("/scalar", StringComparison.OrdinalIgnoreCase)
+                        || context.Request.Path.StartsWithSegments(GraphQLExtensions.ExplorerPath, StringComparison.OrdinalIgnoreCase));
 
-                var contentSecurityPolicy = isScalarPage
+                var contentSecurityPolicy = isApiTool
                     ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
                     : "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';";
 

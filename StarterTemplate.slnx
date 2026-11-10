@@ -27,13 +27,6 @@
     </Project>
   </Folder>
   <Folder Name="/src/Frontend/">
-    <Project Path="src/Frontend/Mobile/ST.UI.Maui/ST.UI.Maui.csproj" Id="f3ec1ec9-b940-4621-be50-59c07a007130">
-      <Platform Solution="*|x64" Project="x64" />
-      <Deploy Solution="*|x64" />
-    </Project>
-    <Project Path="src/Frontend/Shared/ST.UI.Rcl/ST.UI.Rcl.csproj" Id="32a3c1a0-9ef0-4187-b4df-2082c2f14338">
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
     <Project Path="src/Frontend/Web/ST.UI.Blazor/ST.UI.Blazor.csproj" Id="00663238-a0f3-4c06-bd1e-b0bf695cfbfc">
       <Platform Solution="*|x64" Project="x64" />
     </Project>
@@ -43,6 +36,11 @@
       <Platform Solution="*|x64" Project="x64" />
     </Project>
     <Project Path="src/Shared/ST.SharedKernel/ST.SharedKernel.csproj" Id="b64c5e5b-24f7-425a-bc18-5211e0f47141">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/ST.DatabaseTools/ST.DatabaseTools.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>
   </Folder>

@@ -6,17 +6,18 @@
 @inject ILogger<SsoCallback> Logger
 @inject ISnackbar Snackbar
 
-<PageTitle>SSO Callback | StarterTemplate</PageTitle>
+<PageTitle>External sign-in | StarterTemplate</PageTitle>
+<HeadContent><meta name="referrer" content="no-referrer" /></HeadContent>
 
 <section class="auth-shell">
-    <div class="auth-copy">
-        <span class="eyebrow">Identity and access</span>
-        <h1>Authenticating with Microsoft...</h1>
-        <p>Please wait while we verify your external credentials and securely log you into the application.</p>
-    </div>
-
-    <div class="auth-card" style="text-align: center; padding: 3rem;">
-        @if (_isError)
+    <div class="auth-card">
+        <div class="auth-heading"><h1>Signing in</h1></div>
+        @if (Connected == "1")
+        {
+            <p role="status">The sign-in provider is connected.</p>
+            <a href="/iam/security">Return to account security</a>
+        }
+        else if (_isError)
         {
             <div class="alert alert-danger" role="alert">@_message</div>
             <a class="btn btn-outline-secondary mt-3" href="/iam/sign-in">Back to Sign In</a>
@@ -33,13 +34,15 @@
     [SupplyParameterFromQuery]
     public string? Code { get; set; }
 
+    [SupplyParameterFromQuery] public string? Connected { get; set; }
+
     private bool _isBusy;
     private bool _isError;
     private string _message = "Processing authentication...";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (firstRender && Connected != "1")
         {
             await ProcessCallbackAsync();
             StateHasChanged();
@@ -51,7 +54,7 @@
         if (string.IsNullOrWhiteSpace(Code))
         {
             _isError = true;
-            _message = "No authentication code was received from the external provider.";
+            _message = "External sign-in could not be completed. Use your established sign-in method or try again.";
             return;
         }
 
@@ -64,7 +67,7 @@
             if (!response.IsSuccess || response.Data is null)
             {
                 _isError = true;
-                _message = GetDisplayMessage(response.Message, "We could not sign you in with Microsoft. Please try again or use another sign in method.");
+                _message = GetDisplayMessage(response.Message, "We could not sign you in with this provider. Please try again or use another sign in method.");
                 Snackbar.Add(_message, Severity.Error);
                 return;
             }

@@ -11,18 +11,18 @@ Keep .NET 10, the modular monolith, Clean Architecture boundaries, bounded-conte
 
 Work exclusively in StarterTemplate. Do not merge or deploy automatically. Keep credentials in user-secrets or deployed secret stores, and give every clone its own repository identity, host secret IDs, ports, infrastructure resources and configuration.
 
-Approved identity: private `odhiamboally/starter-template`, namespace `ST`, directory `E:\Repos\StarterTemplate`. Use the existing rename script for downstream clones.
+Approved identity: private `odhiamboally/starter-template`, namespace `ST`, directory `E:\Repos\StarterTemplate`. The repository was subsequently transferred to `LlanSys/starter-template`. Use the existing rename script for downstream clones.
 
 ## Retention inventory
 
 | Area | Retain | Boundary |
 | --- | --- | --- |
-| IAM | Accounts, credentials, roles, permissions, direct grants, activation/invitation, recovery, disabling, sessions, MFA, passkeys, SSO, private avatars | No Customer/Employee/Department or KYC dependency |
+| IAM | Accounts, credentials, roles, permissions, direct grants, activation/invitation, recovery, disabling, sessions, MFA, passkeys, SSO, private avatars | No Customer, Employee, or Department record dependency |
 | Persistence | Generic repository, UoW/transactions, specifications, audit, soft delete, concurrency, provider support | IAM, Shared, ControlPlane retained contexts only |
 | Platform | Logging, tracing, metrics, health, validation, sanitized responses, resilience, tenant-aware caching, feature flags | No business vocabulary required to operate |
 | Messaging | Domain/integration events, outbox, retry, failed messages, background execution, notifications | Remove only Banking/HR producers, consumers, templates and registrations |
 | UI | Authenticated shell, native authorization, admin users/roles/permissions/menus, shared components, API clients | No business links, default business menus or Department selectors |
-| Tenancy | Tenant resolution/isolation, stamp routing, controlled provisioning and audit | Neutral approval; no mandatory business KYC |
+| Tenancy | Tenant resolution/isolation, stamp routing, controlled provisioning and audit | Mandatory customer-workspace KYC and controlled provisioning |
 | Delivery | Rename tooling, CI, deployment/IaC, local Compose, provider configuration, Data Protection | New repository identity; remove original deployment bindings |
 
 Payments, reporting, mobile and advanced provisioning remain during the first refactor. Decide optional-module packaging separately. Their presence is not evidence of runtime certification.
@@ -81,7 +81,7 @@ Gate: API and Web build; dependency searches show no active Banking/HR domain de
 
 ### Phase 3 Neutral tenant approval
 
-Change business KYC to administrative approval, with consistent API/UI/event terminology. Keep approval permission, audit actor, controlled provisioning, suspension and active-only routing. Product-specific compliance checks are downstream policy.
+Keep KYC mandatory at the customer-workspace boundary. Store the reviewer, approval time and an evidence reference in Control Plane. Downstream applications define any additional business-specific evidence and review policy.
 
 Gate: transition, unauthorized, forbidden and tenant routing tests pass; no path provisions or routes an unapproved tenant accidentally.
 

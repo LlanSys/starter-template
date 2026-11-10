@@ -12,10 +12,11 @@ public class IamSqlServerDBContext : IamDBContext
 {
     public IamSqlServerDBContext(
         DbContextOptions<IamSqlServerDBContext> options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider? tenantProvider = null,
         ICurrentActorProvider? actorProvider = null,
         ILogger<IamDBContext>? logger = null)
-        : base(options, tenantProvider, actorProvider, logger)
+        : base(options, timeProvider, tenantProvider, actorProvider, logger)
     {
     }
 

@@ -134,3 +134,9 @@
     right: 1rem;
     top: 0.85rem;
 }
+
+/* Quiet shared application shell. */
+.sidebar { background: #172033; }
+.app-top-row { background: #fff; height: 3.75rem; justify-content: flex-end; backdrop-filter: none; }
+
+.app-top-row { gap: 1rem; }

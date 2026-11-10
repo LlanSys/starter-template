@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ST.Domain.Shared.Contracts.Common;
+using Microsoft.Extensions.Logging;
 
 namespace ST.Persistence.Features.Shared.DataContext;
 
@@ -10,10 +11,11 @@ public class SharedSqlServerDBContext : SharedDBContext
 {
     public SharedSqlServerDBContext(
         DbContextOptions<SharedSqlServerDBContext> options,
+        TimeProvider timeProvider,
         ICurrentTenantProvider tenantProvider,
         ICurrentActorProvider actorProvider,
-        Microsoft.Extensions.Logging.ILogger<SharedDBContext>? logger = null)
-        : base(options, tenantProvider, actorProvider, logger)
+        ILogger<SharedDBContext>? logger = null)
+        : base(options, timeProvider, tenantProvider, actorProvider, logger)
     {
     }
 

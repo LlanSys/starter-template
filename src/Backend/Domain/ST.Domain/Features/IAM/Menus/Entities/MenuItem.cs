@@ -15,6 +15,9 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
     public string Placement { get; private set; } = string.Empty;
     public string? RequiredPermissionKey { get; private set; }
     public string? RequiredModule { get; private set; }
+    public string[] RequiredRoleNames { get; private set; } = [];
+    public string[] RequiredPermissionKeys { get; private set; } = [];
+
     public int DisplayOrder { get; private set; }
     public bool IsActive { get; private set; } = true;
     public bool IsDeleted { get; set; }
@@ -66,6 +69,7 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
     }
 
     public void Update(
+        DateTimeOffset now,
         Guid? parentId,
 
         string key,
@@ -100,18 +104,38 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
         RequiredModule = NormalizeOptional(requiredModule);
         DisplayOrder = displayOrder;
         IsActive = isActive;
-        SetUpdatedInfo(updatedBy);
+        SetUpdatedInfo(updatedBy, now);
     }
 
-    public void MarkAsDeleted(string deletedBy)
+    public void SetVisibility(IEnumerable<string>? roles, IEnumerable<string>? permissions)
+    {
+        RequiredRoleNames = Normalize(roles);
+        RequiredPermissionKeys = Normalize(permissions);
+    }
+
+    public bool IsVisibleTo(IReadOnlySet<string> roles, IReadOnlySet<string> permissions)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+        ArgumentNullException.ThrowIfNull(permissions);
+        var required = RequiredPermissionKeys.AsEnumerable();
+        if (RequiredPermissionKey is not null) required = required.Append(RequiredPermissionKey);
+        return (RequiredRoleNames.Length == 0 || RequiredRoleNames.Any(roles.Contains))
+            && required.All(permissions.Contains);
+    }
+
+    private static string[] Normalize(IEnumerable<string>? values)
+        => values?.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
+
+    public void MarkAsDeleted(string deletedBy, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
 
         IsDeleted = true;
         IsActive = false;
-        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedAt = now;
         DeletedBy = deletedBy.Trim();
-        SetUpdatedInfo(deletedBy);
+        SetUpdatedInfo(deletedBy, now);
     }
 
     private static string NormalizeKey(string value)

@@ -16,29 +16,12 @@
         }
         else
         {
-            <div class="dashboard-hero compact-hero">
-                <div>
-                    <span class="eyebrow">Administration</span>
-                    <h1>Admin center.</h1>
-                    <p>Manage the platform building blocks: users, staff, customers, roles, permissions, and operational settings.</p>
-                </div>
-            </div>
+            <h1 class="platform-page-title mb-4">Admin Center</h1>
 
-            <div class="admin-module-grid">
-                @foreach (var module in _modules)
-                {
-                    <MudPaper Class="admin-tile" Elevation="0">
-                        <MudIcon Icon="@MenuIconMapper.Resolve(module.Icon)" Class="tile-icon" />
-                        <div>
-                            <strong>@module.Title</strong>
-                            <span>@module.Description</span>
-                        </div>
-                        <MudButton Href="@module.Url" Variant="Variant.Text" Size="Size.Small" Class="st-small-button" EndIcon="@Icons.Material.Filled.ArrowForward">
-                            Open
-                        </MudButton>
-                    </MudPaper>
-                }
-            </div>
+            <MudTable Items="_modules" Dense="true" Elevation="0" Breakpoint="Breakpoint.None">
+                <HeaderContent><MudTh>Name</MudTh><MudTh Style="width: 5rem">Actions</MudTh></HeaderContent>
+                <RowTemplate><MudTd>@context.Title</MudTd><MudTd><MudTooltip Text="Open"><MudIconButton Href="@context.Url" Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" aria-label="@($"Open {context.Title}")" /></MudTooltip></MudTd></RowTemplate>
+            </MudTable>
         }
     </section>
 </RequireAuthenticated>

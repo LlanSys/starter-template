@@ -12,7 +12,9 @@ internal sealed class IamPasskeyChallengeRepository(IamDBContext context)
     public async Task ReplaceAsync(PasskeyChallenge challenge, CancellationToken cancellationToken)
     {
         // Expiration/replacement are deliberate atomic persistence operations; no tracked account writes are committed here.
-        await context.PasskeyChallenges.Where(item => item.Key == challenge.Key || item.ExpiresAtUtc <= DateTime.UtcNow)
+        var utcNow = context.Clock.GetUtcNow().UtcDateTime;
+        var tenantId = context.CurrentTenantId;
+        await context.PasskeyChallenges.Where(item => item.TenantId == tenantId && (item.Key == challenge.Key || item.ExpiresAtUtc <= utcNow))
             .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         await CreateAsync(challenge, cancellationToken).ConfigureAwait(false);
     }
@@ -23,7 +25,8 @@ internal sealed class IamPasskeyChallengeRepository(IamDBContext context)
             .SingleOrDefaultAsync(item => item.Key == key, cancellationToken).ConfigureAwait(false);
         if (challenge is null) return null;
         // Exactly one caller wins the delete. Failed/malformed ceremonies also consume their challenge.
-        var consumed = await context.PasskeyChallenges.Where(item => item.Id == challenge.Id)
+        var tenantId = context.CurrentTenantId;
+        var consumed = await context.PasskeyChallenges.Where(item => item.Id == challenge.Id && item.TenantId == tenantId)
             .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         return consumed == 1 && challenge.ExpiresAtUtc > utcNow ? challenge.OptionsJson : null;
     }

@@ -1,5 +1,6 @@
 using ST.Application.Exceptions;
 using ST.Domain.Exceptions;
+using ST.Domain.Shared.Exceptions;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +10,7 @@ using System.Security.Cryptography;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 using DataAnnotationsValidationException = System.ComponentModel.DataAnnotations.ValidationException;
+using FluentValidationValidationException = FluentValidation.ValidationException;
 
 namespace ST.Api.Middleware;
 
@@ -36,6 +38,12 @@ internal sealed class ApiExceptionHandler : IExceptionHandler
                 status = (int)HttpStatusCode.Unauthorized;
                 title = "Authentication Failed";
                 detail = "We could not sign you in. Please check your account status or contact support.";
+                break;
+
+            case TenantNotResolvedException:
+                status = (int)HttpStatusCode.NotFound;
+                title = "Workspace Unavailable";
+                detail = "This workspace is unavailable.";
                 break;
 
             case UnauthorizedAccessException:
@@ -83,7 +91,7 @@ internal sealed class ApiExceptionHandler : IExceptionHandler
                 problemDetails.Extensions["errors"] = errors;
                 break;
 
-            case FluentValidation.ValidationException fluentEx:
+            case FluentValidationValidationException fluentEx:
                 status = (int)HttpStatusCode.BadRequest;
                 title = "Validation Error";
                 detail = "One or more validation errors occurred.";

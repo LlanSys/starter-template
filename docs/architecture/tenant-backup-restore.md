@@ -1,30 +1,17 @@
 # Tenant Backup and Restore Procedure
 
-This runbook outlines the Data Protection (Backup) and Disaster Recovery (Restore) strategy for tenants hosted in Isolated Stamps, as well as the standard Azure backup strategy for the Pooled Stamp.
+Record the recovery point objective and recovery time objective for each deployment. Verify the actual retention, redundancy, and earliest restorable point for each database and storage account. The isolated stamp templates rely on provider defaults for database backup settings. Rehearse recovery to measure what the deployment can deliver before committing to an objective.
 
-## Recovery Objectives (Isolated Stamps)
-- **RPO (Recovery Point Objective):** 5 minutes (via Azure SQL/PostgreSQL Point-in-Time Restore transaction logs).
-- **RTO (Recovery Time Objective):** < 2 hours for a full isolated stamp restoration.
+## Rehearse before cutover
 
-## Azure Managed Backups
+1. Identify the workspace, stamp, database provider, and the restore timestamp. Record the current route for rollback.
+2. Restore into a new target using the provider's point-in-time restore process. Use an environment inaccessible to ordinary users and external integrations. Preserve the Data Protection application name, key ring, and access to its encryption key. Include workspace blobs in the rehearsal.
+3. Check the restored schema, workspace ownership, data counts, and private assets. If the restore uses an earlier point, reconcile credentials, grants, MFA, and revoked access against current records before opening the workspace. Check pending jobs and outbox messages before enabling delivery.
+4. For a pooled restore, treat the recovered database as containing multiple workspaces. For one-workspace recovery, extract only that workspace's rows with tenant predicates and ownership joins. Validate the import against the affected workspace and a second workspace. For a stamp-wide recovery, validate all workspaces on that stamp and coordinate the outage for all of them.
 
-By default, all Azure SQL and Azure Database for PostgreSQL flexible servers provisioned by the Bicep template have automated backups enabled.
-- **Retention:** 35 days for Point-in-Time Restore (PITR).
-- **Geo-redundancy:** Backups are replicated to a paired Azure region to protect against primary region failure.
+## Restore an isolated workspace
 
-## Procedure: Point-In-Time Restore (PITR)
-
-If an isolated tenant experiences catastrophic data loss or corruption (e.g., accidental deletion), the operator must perform a PITR.
-
-1. **Locate the Database:** Navigate to the Azure Portal -> Resource Groups -> The isolated tenant's resource group.
-2. **Initiate Restore:**
-   - Select the SQL/PostgreSQL Server.
-   - Click **Restore** from the overview blade.
-   - Select the desired timestamp (must be within the 35-day retention window).
-   - Enter a new database name for the restored data (e.g., `tenantdb-restored-20260810`).
-3. **Verify Data Integrity:** Connect to the restored database using `psql` or SQL Server Management Studio and verify the target data is intact.
-4. **Cutover to Restored DB:**
-   - Put the Tenant into `Maintenance` mode via the Control Plane API: `PUT /api/controlplane/tenants/{tenantId}/status`.
-   - Update the `DatabaseConnectionString` using the `MigrateTenantStampCommand` endpoint, pointing it to the newly restored database.
-   - Set the Tenant status back to `Active`.
-5. **Cleanup:** Delete the old (corrupted) database to stop incurring compute/storage charges.
+1. Suspend the approved workspace with `POST /api/v1/control-plane/tenants/{id}/suspend`. Quiesce scheduled and in-flight work and confirm the source stops receiving writes.
+2. Verify the restored destination is registered, uses the serving host's database provider, and has the required schema and secrets. Run the [stamp migration procedure](stamp-migration-runbook.md) using `POST /api/v1/control-plane/tenants/{id}/stamp-migration` over TLS. Keep connection strings out of logs and tickets.
+3. Reactivate with `POST /api/v1/control-plane/tenants/{id}/activate`. Confirm that old access and refresh tokens are rejected. Sign in afresh and check that reads, writes, jobs, and private assets use the restored route. Record the observed recovery point and time.
+4. If validation fails, suspend again and assess any writes to the new database before returning to the recorded route. Retain the source and restore evidence under the deployment's retention policy until the recovery is accepted.

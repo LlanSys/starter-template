@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
 
 namespace ST.Persistence.Common.DesignTime;
 
@@ -38,7 +40,7 @@ internal static class DesignTimeConfigurationFactory
     }
 
     public static void ConfigureSqlServer(
-        Microsoft.EntityFrameworkCore.Infrastructure.SqlServerDbContextOptionsBuilder sqlOptions,
+        SqlServerDbContextOptionsBuilder sqlOptions,
         string migrationsHistoryTable)
     {
         ArgumentNullException.ThrowIfNull(sqlOptions);
@@ -49,7 +51,7 @@ internal static class DesignTimeConfigurationFactory
     }
 
     public static void ConfigurePostgreSql(
-        Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.NpgsqlDbContextOptionsBuilder pgOptions,
+        NpgsqlDbContextOptionsBuilder pgOptions,
         string migrationsHistoryTable)
     {
         ArgumentNullException.ThrowIfNull(pgOptions);

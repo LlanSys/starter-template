@@ -6,7 +6,5 @@ namespace ST.Domain.Features.ControlPlane.Tenants.Events;
 public record TenantStampChangedDomainEvent(
     Guid TenantId,
     Guid? OldStampId,
-    Guid NewStampId) : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+    Guid NewStampId,
+    DateTimeOffset OccurredAt) : IDomainEvent;

@@ -3,7 +3,7 @@ using ST.SharedKernel.Features.Shared.Lookups.Dtos;
 using ST.UI.Blazor.Configuration;
 using ST.UI.Blazor.Features.Shared.BackendApi;
 using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces;
-using ST.UI.Rcl.Features.Shared.Lookups.Contracts.Interfaces;
+using ST.UI.Blazor.Features.Shared.Lookups.Contracts.Interfaces;
 using Microsoft.Extensions.Options;
 using System.Globalization;
 

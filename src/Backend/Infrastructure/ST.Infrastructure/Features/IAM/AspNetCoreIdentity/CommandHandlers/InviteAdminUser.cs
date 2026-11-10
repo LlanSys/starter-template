@@ -2,6 +2,7 @@ using System.Net;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Infrastructure.Configuration;
 using ST.Infrastructure.Logging;
@@ -15,7 +16,7 @@ using Microsoft.Extensions.Options;
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 
 internal sealed class InviteAdminUser(UserManager<AppUser> users, ICurrentTenantProvider tenantProvider,
-    IEmailService email, IOptions<EmailSettings> settings, ILogger<InviteAdminUser> logger)
+    IEmailService email, IOptions<EmailSettings> settings, ILogger<InviteAdminUser> logger, IControlPlaneUnitOfWork controlPlane)
     : IRequestHandler<InviteAdminUserCommand, AppResponse<bool>>
 {
     public async Task<AppResponse<bool>> Handle(InviteAdminUserCommand command, CancellationToken cancellationToken)
@@ -27,6 +28,11 @@ internal sealed class InviteAdminUser(UserManager<AppUser> users, ICurrentTenant
                 return AppResponses.NotFound<bool>("User not found.");
             if (!user.IsActive || user.EmailConfirmed || string.IsNullOrWhiteSpace(user.Email))
                 return AppResponses.Failure<bool>("Activate an account with an unverified email before sending an invitation.");
+            if (await controlPlane.Tenants.AnyAsync(
+                tenant => tenant.Id == user.TenantId && tenant.AdministratorUserId == user.Id, cancellationToken).ConfigureAwait(false))
+            {
+                return AppResponses.Failure<bool>("Use workspace setup to invite the initial administrator.");
+            }
             if (string.IsNullOrWhiteSpace(settings.Value.Provider) || string.Equals(settings.Value.Provider, "NoOp", StringComparison.OrdinalIgnoreCase))
                 return AppResponses.Failure<bool>("Account invitation delivery requires an email provider.");
             if (!Uri.TryCreate(settings.Value.ClientBaseUrl, UriKind.Absolute, out var baseUri)
@@ -35,7 +41,7 @@ internal sealed class InviteAdminUser(UserManager<AppUser> users, ICurrentTenant
                 return AppResponses.Failure<bool>("Account invitation delivery is not configured.");
 
             var token = await users.GenerateUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user)).ConfigureAwait(false);
-            var link = new Uri(baseUri, $"/iam/accept-invitation?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}");
+            var link = new Uri(baseUri, $"/iam/accept-invitation?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}&tenantId={user.TenantId:D}");
             var result = await email.SendEmailAsync(new SendEmailRequest
             {
                 To = user.Email,

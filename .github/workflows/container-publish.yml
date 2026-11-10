@@ -14,7 +14,6 @@ on:
       - "ops/docker/**"
       - "src/Backend/**"
       - "src/Frontend/Web/**"
-      - "src/Frontend/Shared/**"
       - "src/Shared/**"
       - ".dockerignore"
       - ".github/workflows/container-publish.yml"
@@ -24,7 +23,6 @@ on:
       - "ops/docker/**"
       - "src/Backend/**"
       - "src/Frontend/Web/**"
-      - "src/Frontend/Shared/**"
       - "src/Shared/**"
       - ".dockerignore"
       - ".github/workflows/container-publish.yml"
@@ -56,6 +54,10 @@ jobs:
             dockerfile: ops/docker/blazor.Dockerfile
 
     steps:
+      - name: Normalize image namespace
+        shell: bash
+        run: echo "IMAGE_NAMESPACE=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@v4
 

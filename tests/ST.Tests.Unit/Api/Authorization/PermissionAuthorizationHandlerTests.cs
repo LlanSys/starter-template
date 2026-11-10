@@ -1,4 +1,6 @@
 using ST.Api.Common.Authorization;
+using ST.SharedKernel.Features.ControlPlane;
+using ST.Tests.Unit.TestFixtures;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
@@ -13,21 +15,21 @@ public sealed class PermissionAuthorizationHandlerTests
         var requirement = new PermissionRequirement("users.edit");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler().HandleAsync(context);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
 
         Assert.True(context.HasSucceeded);
     }
 
     [Fact]
-    public async Task HandleAsync_Should_Succeed_For_System_Administrator()
+    public async Task HandleAsync_Should_Deny_An_Administrator_Role_Without_The_Permission()
     {
-        var user = CreatePrincipal(new Claim(ClaimTypes.Role, PermissionAuthorizationConstants.SystemAdministratorRole));
+        var user = CreatePrincipal(new Claim(ClaimTypes.Role, "System Administrator"));
         var requirement = new PermissionRequirement("roles.delete");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler().HandleAsync(context);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
 
-        Assert.True(context.HasSucceeded);
+        Assert.False(context.HasSucceeded);
     }
 
     [Fact]
@@ -37,9 +39,47 @@ public sealed class PermissionAuthorizationHandlerTests
         var requirement = new PermissionRequirement("users.edit");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
-        await new PermissionAuthorizationHandler().HandleAsync(context);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
 
         Assert.False(context.HasSucceeded);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public async Task PlatformAccessRequiresStaffAndExplicitPermission(bool staff, bool permission, bool expected)
+    {
+        var claims = new List<Claim> { new(ClaimTypes.Role, "System Administrator") };
+        if (staff) claims.Add(new Claim("platform_staff", "true"));
+        if (permission) claims.Add(new Claim("permission", "control_plane.manage"));
+        var requirement = new PermissionRequirement("control_plane.manage");
+        var context = new AuthorizationHandlerContext([requirement], CreatePrincipal(claims.ToArray()), null);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
+        Assert.Equal(expected, context.HasSucceeded);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlatformManagementAloneCannotApproveKyc(bool approvalGranted)
+    {
+        var claims = new List<Claim>
+        {
+            new("platform_staff", "true"),
+            new("permission", PlatformAccess.Permission)
+        };
+        if (approvalGranted)
+        {
+            claims.Add(new Claim("permission", PlatformAccess.ApproveKycPermission));
+        }
+
+        var requirement = new PermissionRequirement(PlatformAccess.ApproveKycPermission);
+        var context = new AuthorizationHandlerContext([requirement], CreatePrincipal(claims.ToArray()), null);
+        await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
+
+        Assert.Equal(approvalGranted, context.HasSucceeded);
     }
 
     private static ClaimsPrincipal CreatePrincipal(params Claim[] claims)

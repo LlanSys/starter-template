@@ -1,0 +1,43 @@
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using ST.UI.Blazor.Features.ControlPlane.Demo
+@using ST.SharedKernel.Features.ControlPlane.Support
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IAuthSession AuthSession
+@inject IAuthService AuthService
+@inject ITokenStorage Tokens
+@inject ProtectedSessionStorage SessionStorage
+@inject NavigationManager Navigation
+@inject IBackendApiClient Api
+@if (AuthSession.CurrentUser?.SupportGrantId is not null)
+{
+    <div class="workspace-context"><strong>Support · @AuthSession.CurrentUser.WorkspaceName · @(AuthSession.CurrentUser.IsReadOnlySupport ? "Read-only" : "Scoped writes") · until @AuthSession.CurrentUser.SupportExpiresAt?.ToLocalTime().ToString("t")</strong><MudButton OnClick="ReturnAsync" Disabled="_busy" Size="Size.Small">End support and return</MudButton></div>
+}
+else if (AuthSession.CurrentUser?.IsDemoWorkspace == true)
+{
+    <div class="workspace-context"><span class="workspace-demo-label">@(AuthSession.CurrentUser.IsReadOnlyDemo ? "Demo · Read-only" : "Demo · Tenant administration")</span><MudButton OnClick="ReturnAsync" Disabled="_busy" Size="Size.Small">Return to platform</MudButton></div>
+}
+else if (AuthSession.CurrentUser?.IsPlatformStaff == true)
+{
+    <div class="workspace-context"><a href="/control-panel">Platform administration</a></div>
+}
+@if (_error is not null) { <span role="alert">@_error</span> }
+@code {
+    private bool _busy;
+    private string? _error;
+    private async Task ReturnAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try {
+            var backup = await SessionStorage.GetAsync<PlatformSessionBackup>("workspace.platform");
+            if (!backup.Success || backup.Value is null) { _error = "Sign in again to return to platform administration."; return; }
+            if (AuthSession.CurrentUser?.SupportGrantId is { } supportId)
+                await Api.SendAsync<SupportResult>(HttpMethod.Post,$"api/v1/iam/support/{supportId}/exit");
+            await AuthService.LogoutAsync();
+            var platform = await Tokens.GetAsync();
+            if (string.IsNullOrWhiteSpace(platform.AccessToken) && !await Tokens.SaveAsync(backup.Value.AccessToken, backup.Value.RefreshToken, backup.Value.SessionId)) { _error = "Could not restore the platform session."; return; }
+            await SessionStorage.DeleteAsync("workspace.platform");
+            Navigation.NavigateTo("/control-panel", forceLoad: true);
+        } finally { _busy = false; }
+    }
+}

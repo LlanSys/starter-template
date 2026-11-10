@@ -1,6 +1,8 @@
 using ST.Persistence.Common.DesignTime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Migrations;
+using ST.Persistence.Features.Shared.Migrations.Generators;
 
 namespace ST.Persistence.Features.IAM.DataContext;
 
@@ -15,7 +17,7 @@ public class IamSqlServerDBContextFactory : IDesignTimeDbContextFactory<IamSqlSe
         optionsBuilder.UseSqlServer(
             connectionString,
             sqlOptions => DesignTimeConfigurationFactory.ConfigureSqlServer(sqlOptions, "__EFMigrationsHistory_IAM"))
-            .ReplaceService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator, ST.Persistence.Features.Shared.Migrations.Generators.IdempotentSqlServerMigrationsSqlGenerator>();
-        return new IamSqlServerDBContext(optionsBuilder.Options);
+            .ReplaceService<IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
+        return new IamSqlServerDBContext(optionsBuilder.Options, TimeProvider.System);
     }
 }

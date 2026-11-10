@@ -53,7 +53,7 @@ public abstract class SharedTenantIsolationTests<TFixture> : IClassFixture<TFixt
         var actorProvider = new TestActorProvider();
 
         // Seed data acting as tenant 1
-        using (var context = new SharedDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new SharedDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             await context.Database.EnsureCreatedAsync();
 
@@ -64,7 +64,7 @@ public abstract class SharedTenantIsolationTests<TFixture> : IClassFixture<TFixt
 
         // Seed data acting as tenant 2
         tenantProvider.TenantId = tenant2;
-        using (var context = new SharedDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new SharedDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             var setting2 = new OrgSetting($"SETTING_2_{tenant2}", "Value 2", "test");
             context.OrgSettings.Add(setting2);
@@ -73,7 +73,7 @@ public abstract class SharedTenantIsolationTests<TFixture> : IClassFixture<TFixt
 
         // Act - Query as tenant 1
         tenantProvider.TenantId = tenant1;
-        using (var context = new SharedDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new SharedDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             var items = await context.OrgSettings.ToListAsync();
 
@@ -84,7 +84,7 @@ public abstract class SharedTenantIsolationTests<TFixture> : IClassFixture<TFixt
 
         // Act - Query as tenant 2
         tenantProvider.TenantId = tenant2;
-        using (var context = new SharedDBContext(_options, tenantProvider, actorProvider))
+        using (var context = new SharedDBContext(_options, TimeProvider.System, tenantProvider, actorProvider))
         {
             var items = await context.OrgSettings.ToListAsync();
 

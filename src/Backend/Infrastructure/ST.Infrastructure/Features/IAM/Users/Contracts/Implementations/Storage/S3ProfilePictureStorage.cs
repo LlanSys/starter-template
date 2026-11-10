@@ -4,6 +4,7 @@ using Amazon.S3.Transfer;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
+using System.Net;
 
 namespace ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Storage;
 
@@ -74,7 +75,7 @@ internal sealed class S3ProfilePictureStorage(IOptions<ProfileImageStorageSettin
             var response = await s3Client.GetObjectAsync(getRequest, cancellationToken).ConfigureAwait(false);
             return new ProfilePictureFile(response.ResponseStream, response.Headers.ContentType, Path.GetFileName(blobName));
         }
-        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }

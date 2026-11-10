@@ -23,7 +23,7 @@ internal sealed class IamTokenRepository : Repository<RefreshToken>, ITokenRepos
 
     public async Task<List<RefreshToken>> GetActiveTokensByUserIdAsync(string userId)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _iamContext.Clock.GetUtcNow();
         return await FindByCondition(token =>
             token.AppUserId == userId &&
             !token.RevokedAt.HasValue &&
@@ -67,9 +67,10 @@ internal sealed class IamTokenRepository : Repository<RefreshToken>, ITokenRepos
 
     public async Task<List<RefreshToken>> GetExpiredTokensAsync(int daysOld = 30)
     {
-        var cutoffDate = DateTimeOffset.UtcNow.AddDays(-daysOld);
+        var now = _iamContext.Clock.GetUtcNow();
+        var cutoffDate = now.AddDays(-daysOld);
         return await _iamContext.RefreshTokens
-            .Where(rt => rt.ExpiresAt < DateTimeOffset.UtcNow && rt.CreatedAt < cutoffDate)
+            .Where(rt => rt.ExpiresAt < now && rt.CreatedAt < cutoffDate)
             .ToListAsync().ConfigureAwait(false);
     }
 
@@ -86,20 +87,20 @@ internal sealed class IamTokenRepository : Repository<RefreshToken>, ITokenRepos
 
         foreach (var token in tokens)
         {
-            token.Revoke(reason, revokedByIp);
+            token.Revoke(_iamContext.Clock.GetUtcNow(), reason, revokedByIp);
             await UpdateAsync(token).ConfigureAwait(false);
         }
     }
 
     public async Task RevokeRefreshTokenAsync(RefreshToken refreshToken, string reason, string? revokedByIp = null)
     {
-        refreshToken.Revoke(reason, revokedByIp);
+        refreshToken.Revoke(_iamContext.Clock.GetUtcNow(), reason, revokedByIp);
         await UpdateRefreshTokenAsync(refreshToken).ConfigureAwait(false);
     }
 
     public async Task RevokeRefreshTokenAsync(RefreshToken refreshToken, string reason)
     {
-        refreshToken.Revoke(reason);
+        refreshToken.Revoke(_iamContext.Clock.GetUtcNow(), reason);
         _iamContext.RefreshTokens.Update(refreshToken);
         await Task.CompletedTask.ConfigureAwait(false);
     }
@@ -109,9 +110,10 @@ internal sealed class IamTokenRepository : Repository<RefreshToken>, ITokenRepos
         var activeTokens = await GetActiveTokensByUserIdAsync(userId).ConfigureAwait(false);
         if (!activeTokens.Any()) return;
 
+        var now = _iamContext.Clock.GetUtcNow();
         foreach (var token in activeTokens)
         {
-            token.Revoke(reason, revokedByIp);
+            token.Revoke(now, reason, revokedByIp);
         }
 
         _iamContext.UpdateRange(activeTokens);
@@ -120,7 +122,7 @@ internal sealed class IamTokenRepository : Repository<RefreshToken>, ITokenRepos
 
     public async Task<bool> IsTokenActiveAsync(string token)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _iamContext.Clock.GetUtcNow();
         return await FindByCondition(t =>
                 t.Token == token &&
                 !t.RevokedAt.HasValue &&
@@ -132,15 +134,15 @@ internal sealed class IamTokenRepository : Repository<RefreshToken>, ITokenRepos
 
     public async Task MarkTokenAsUsedAsync(RefreshToken refreshToken)
     {
-        refreshToken.MarkAsUsed();
+        refreshToken.MarkAsUsed(_iamContext.Clock.GetUtcNow());
         _iamContext.RefreshTokens.Update(refreshToken);
         await Task.CompletedTask.ConfigureAwait(false);
     }
 
     public async Task CleanupExpiredTokensAsync(string? userId = null)
     {
-        var cutoffDate = DateTimeOffset.UtcNow.AddDays(-30);
-        var now = DateTimeOffset.UtcNow;
+        var now = _iamContext.Clock.GetUtcNow();
+        var cutoffDate = now.AddDays(-30);
 
         var query = _iamContext.RefreshTokens
             .Where(rt =>

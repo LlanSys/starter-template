@@ -6,7 +6,7 @@ services:
     image:
       registry_type: ghcr
       registry: ghcr.io
-      repository: odhiamboally/starter-template-api
+      repository: llansys/starter-template-api
       tag: latest
     http_port: 8080
     instance_size_slug: basic-xxs
@@ -72,7 +72,7 @@ services:
     image:
       registry_type: ghcr
       registry: ghcr.io
-      repository: odhiamboally/starter-template-blazor
+      repository: llansys/starter-template-blazor
       tag: latest
     http_port: 8080
     instance_size_slug: basic-xxs

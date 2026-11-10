@@ -5,4 +5,5 @@ namespace ST.Domain.Features.IAM.Permissions.Contracts.Repositories;
 
 public interface IPermissionRepository : IRepository<Permission>
 {
+    Task<bool> HasUsedKeyAsync(string key, CancellationToken cancellationToken);
 }

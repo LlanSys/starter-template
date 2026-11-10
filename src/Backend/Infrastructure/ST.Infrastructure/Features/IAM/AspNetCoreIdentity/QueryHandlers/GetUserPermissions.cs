@@ -4,10 +4,11 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using ST.Application.Features.ControlPlane.Modules;
 
 namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.QueryHandlers;
 
-internal sealed class GetUserPermissions(UserManager<AppUser> userManager)
+internal sealed class GetUserPermissions(UserManager<AppUser> userManager, IEffectiveModulePolicy policy)
     : IRequestHandler<GetUserPermissionsQuery, AppResponse<UserPermissionsResponse>>
 {
     public async Task<AppResponse<UserPermissionsResponse>> Handle(GetUserPermissionsQuery request, CancellationToken cancellationToken)
@@ -18,9 +19,11 @@ internal sealed class GetUserPermissions(UserManager<AppUser> userManager)
             return AppResponses.Failure<UserPermissionsResponse>("User not found.");
         }
 
+        var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
         var permissions = (await userManager.GetClaimsAsync(user).ConfigureAwait(false))
             .Where(static claim => claim.Type == "permission")
             .Select(static claim => claim.Value)
+            .Where(access.PermissionAvailable)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToList();

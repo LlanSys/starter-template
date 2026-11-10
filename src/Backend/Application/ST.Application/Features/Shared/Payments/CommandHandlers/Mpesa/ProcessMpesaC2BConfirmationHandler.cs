@@ -15,7 +15,7 @@ namespace ST.Application.Features.Shared.Payments.CommandHandlers.Mpesa;
 
 internal sealed class ProcessMpesaC2BConfirmationHandler(
     ISharedUnitOfWork sharedUnitOfWork,
-    ILogger<ProcessMpesaC2BConfirmationHandler> logger) : IRequestHandler<ProcessMpesaC2BConfirmationCommand, AppResponse<string>>
+    ILogger<ProcessMpesaC2BConfirmationHandler> logger, TimeProvider timeProvider) : IRequestHandler<ProcessMpesaC2BConfirmationCommand, AppResponse<string>>
 {
     public async Task<AppResponse<string>> Handle(ProcessMpesaC2BConfirmationCommand request, CancellationToken cancellationToken)
     {
@@ -47,7 +47,7 @@ internal sealed class ProcessMpesaC2BConfirmationHandler(
             if (paymentRecord != null)
             {
                 // Update existing record
-                paymentRecord.UpdateStatus(PaymentStatus.Success, transId);
+                paymentRecord.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Success, transId);
             }
             else
             {
@@ -66,7 +66,7 @@ internal sealed class ProcessMpesaC2BConfirmationHandler(
                 };
 
                 // Explicitly set the provider reference
-                newRecord.UpdateStatus(PaymentStatus.Success, transId);
+                newRecord.UpdateStatus(timeProvider.GetUtcNow(), PaymentStatus.Success, transId);
 
                 await sharedUnitOfWork.PaymentRecordRepository.CreateAsync(newRecord, cancellationToken).ConfigureAwait(false);
             }

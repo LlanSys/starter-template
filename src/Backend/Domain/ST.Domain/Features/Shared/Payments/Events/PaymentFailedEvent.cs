@@ -9,7 +9,5 @@ public sealed record PaymentFailedEvent(
     string CustomerReference,
     string Provider,
     Money Amount,
-    string FailureReason) : IDomainEvent
-{
-    public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
-}
+    string FailureReason,
+    DateTimeOffset OccurredAt) : IDomainEvent;

@@ -15,13 +15,15 @@ public sealed class AccountSessionValidationTests
     {
         var sessionId = Guid.CreateVersion7().ToString();
         var context = Context(sessionId);
+        context.Request.Path = "/graphql";
+        context.Request.Headers.Accept = "application/graphql-response+json";
         await using var body = new MemoryStream();
         context.Response.Body = body;
         var service = Substitute.For<ISessionService>();
         service.IsSessionValidAsync(sessionId, "account", Arg.Any<CancellationToken>())
             .Returns(AppResponses.Failure<bool>("Session is not active"));
         var calledNext = false;
-        var middleware = new SessionValidationMiddleware(_ => { calledNext = true; return Task.CompletedTask; }, NullLogger<SessionValidationMiddleware>.Instance);
+        var middleware = new SessionValidationMiddleware(_ => { calledNext = true; return Task.CompletedTask; }, NullLogger<SessionValidationMiddleware>.Instance, TimeProvider.System);
         await middleware.InvokeAsync(context, service);
         Assert.False(calledNext);
         Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
@@ -39,7 +41,7 @@ public sealed class AccountSessionValidationTests
         var service = Substitute.For<ISessionService>();
         service.IsSessionValidAsync(sessionId, "account", Arg.Any<CancellationToken>())
             .Returns(AppResponses.Failure<bool>("Session is not active"));
-        var middleware = new SessionValidationMiddleware(_ => Task.CompletedTask, NullLogger<SessionValidationMiddleware>.Instance);
+        var middleware = new SessionValidationMiddleware(_ => Task.CompletedTask, NullLogger<SessionValidationMiddleware>.Instance, TimeProvider.System);
         await middleware.InvokeAsync(context, service);
         Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
         await service.Received(1).IsSessionValidAsync(sessionId, "account", Arg.Any<CancellationToken>());
@@ -53,7 +55,7 @@ public sealed class AccountSessionValidationTests
         var service = Substitute.For<ISessionService>();
         service.IsSessionValidAsync(sessionId, "account", Arg.Any<CancellationToken>()).Returns(AppResponses.Success("Valid", true));
         var calledNext = false;
-        var middleware = new SessionValidationMiddleware(_ => { calledNext = true; return Task.CompletedTask; }, NullLogger<SessionValidationMiddleware>.Instance);
+        var middleware = new SessionValidationMiddleware(_ => { calledNext = true; return Task.CompletedTask; }, NullLogger<SessionValidationMiddleware>.Instance, TimeProvider.System);
         await middleware.InvokeAsync(context, service);
         Assert.True(calledNext);
     }

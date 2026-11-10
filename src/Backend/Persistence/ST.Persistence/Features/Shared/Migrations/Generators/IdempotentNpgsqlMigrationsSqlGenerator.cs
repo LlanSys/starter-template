@@ -41,6 +41,13 @@ public class IdempotentNpgsqlMigrationsSqlGenerator : NpgsqlMigrationsSqlGenerat
     }
     protected override void Generate(CreateTableOperation operation, IModel? model, MigrationCommandListBuilder builder, bool terminate = true)
     {
+        // Npgsql adds IF NOT EXISTS when generating the migration history table.
+        if (model?.FindEntityType(typeof(HistoryRow)) is not null)
+        {
+            base.Generate(operation, model, builder, terminate);
+            return;
+        }
+
         var dummyBuilder = new MigrationCommandListBuilder(Dependencies);
         base.Generate(operation, model, dummyBuilder, terminate: false);
         dummyBuilder.EndCommand();

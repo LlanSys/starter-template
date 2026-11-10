@@ -18,6 +18,11 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.MsSql;
 using Xunit;
+using MediatR;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Data.SqlClient;
+using ST.Domain.Features.ControlPlane.Tenants.Entities;
+using ST.Tests.Integration.NeutralSlice;
 
 namespace ST.Tests.Integration.TestFixtures;
 
@@ -63,6 +68,17 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             .Build();
     }
 
+    internal async Task RegisterTenantAsync(Guid id)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>();
+        if (await db.Tenants.AnyAsync(x=>x.Id==id)) return;
+        var tenant = new Tenant { Id=id,Identifier=$"test-{id:N}",DisplayName="Test workspace",HostName=$"{id:N}.invalid",DeploymentStampId=Guid.Parse("0194f700-0000-7000-8000-000000000001"),CreatedBy="test-fixture",MaxUsers=100 };
+        tenant.Approve("test-fixture", DateTimeOffset.UnixEpoch, "review-1");tenant.MarkAsActive();
+        foreach(var module in new[]{"Core","IAM"}) tenant.Modules.Add(new TenantModule { TenantId=id,ModuleKey=module,CreatedBy="test-fixture" });
+        db.Tenants.Add(tenant);await db.SaveChangesAsync();
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -94,7 +110,7 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
                 options => { })
             .AddPolicyScheme("Certification", null, options => options.ForwardDefaultSelector = context =>
                 context.Request.Headers.Authorization.ToString().StartsWith(TestAuthHandler.AuthenticationScheme, StringComparison.Ordinal)
-                    ? TestAuthHandler.AuthenticationScheme : Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme);
+                    ? TestAuthHandler.AuthenticationScheme : JwtBearerDefaults.AuthenticationScheme);
             services.Configure<EmailSettings>(options =>
             {
                 options.Provider = "LocalMailpit";
@@ -114,11 +130,11 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             RewireDbContext<ControlPlaneDBContext, ControlPlaneSqlServerDBContext>(services, _containerConnectionString);
             RewireDbContext<IamDBContext, IamSqlServerDBContext>(services, _containerConnectionString);
             RewireDbContext<SharedDBContext, SharedSqlServerDBContext>(services, _containerConnectionString);
-            services.AddControllers().AddApplicationPart(typeof(ST.Tests.Integration.NeutralSlice.NeutralSliceController).Assembly);
-            services.AddDbContext<ST.Tests.Integration.NeutralSlice.NeutralSliceDBContext>(options => options.UseSqlServer(_containerConnectionString));
-            services.AddScoped<ST.Tests.Integration.NeutralSlice.NeutralSliceUnitOfWork>();
-            services.AddTransient<MediatR.IRequestHandler<ST.Tests.Integration.NeutralSlice.CreateNeutralNote, Guid>, ST.Tests.Integration.NeutralSlice.CreateNeutralNoteHandler>();
-            services.AddTransient<MediatR.IRequestHandler<ST.Tests.Integration.NeutralSlice.ReadNeutralNote, string?>, ST.Tests.Integration.NeutralSlice.ReadNeutralNoteHandler>();
+            services.AddControllers().AddApplicationPart(typeof(NeutralSliceController).Assembly);
+            services.AddDbContext<NeutralSliceDBContext>(options => options.UseSqlServer(_containerConnectionString));
+            services.AddScoped<NeutralSliceUnitOfWork>();
+            services.AddTransient<IRequestHandler<CreateNeutralNote, Guid>, CreateNeutralNoteHandler>();
+            services.AddTransient<IRequestHandler<ReadNeutralNote, string?>, ReadNeutralNoteHandler>();
 
         });
     }
@@ -132,8 +148,8 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         // Remove existing DbContextOptions descriptors registered by Program.cs
         var descriptorsToRemove = services
             .Where(d =>
-                d.ServiceType == typeof(Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptionsConfiguration<TContext>)
-             || d.ServiceType == typeof(Microsoft.EntityFrameworkCore.Infrastructure.IDbContextOptionsConfiguration<TSqlServerContext>)
+                d.ServiceType == typeof(IDbContextOptionsConfiguration<TContext>)
+             || d.ServiceType == typeof(IDbContextOptionsConfiguration<TSqlServerContext>)
              || d.ServiceType == typeof(DbContextOptions<TContext>)
              || d.ServiceType == typeof(DbContextOptions<TSqlServerContext>))
             .ToList();
@@ -183,7 +199,7 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         await sp.GetRequiredService<ControlPlaneDBContext>().Database.EnsureCreatedAsync();
         await CreateTablesAsync(sp.GetRequiredService<IamDBContext>());
         await CreateTablesAsync(sp.GetRequiredService<SharedDBContext>());
-        await CreateTablesAsync(sp.GetRequiredService<ST.Tests.Integration.NeutralSlice.NeutralSliceDBContext>());
+        await CreateTablesAsync(sp.GetRequiredService<NeutralSliceDBContext>());
     }
 
     new public async Task DisposeAsync()
@@ -205,7 +221,7 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             var creator = context.GetService<IRelationalDatabaseCreator>();
             await creator.CreateTablesAsync();
         }
-        catch (Microsoft.Data.SqlClient.SqlException ex)
+        catch (SqlException ex)
             when (ex.Number is 2714 or 1913)
         {
             // 2714 = There is already an object named '…' in the database.

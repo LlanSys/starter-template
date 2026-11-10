@@ -197,7 +197,7 @@ CREATE INDEX idx_qrtz_ft_job_req_recovery ON qrtz_fired_triggers (requests_recov
                     CreatedBy = table.Column<string>(type: "text", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     UpdatedBy = table.Column<string>(type: "text", nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: new byte[0])
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: Array.Empty<byte>())
                 },
                 constraints: table =>
                 {
@@ -229,7 +229,7 @@ CREATE INDEX idx_qrtz_ft_job_req_recovery ON qrtz_fired_triggers (requests_recov
                     CreatedBy = table.Column<string>(type: "text", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     UpdatedBy = table.Column<string>(type: "text", nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: new byte[0])
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: Array.Empty<byte>())
                 },
                 constraints: table =>
                 {
@@ -245,7 +245,7 @@ CREATE INDEX idx_qrtz_ft_job_req_recovery ON qrtz_fired_triggers (requests_recov
                     MessageId = table.Column<Guid>(type: "uuid", nullable: false),
                     ConsumerId = table.Column<Guid>(type: "uuid", nullable: false),
                     LockId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: true, defaultValue: new byte[0]),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: true, defaultValue: Array.Empty<byte>()),
                     Received = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ReceiveCount = table.Column<int>(type: "integer", nullable: false),
                     ExpirationTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -272,7 +272,7 @@ CREATE INDEX idx_qrtz_ft_job_req_recovery ON qrtz_fired_triggers (requests_recov
                     CreatedBy = table.Column<string>(type: "text", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     UpdatedBy = table.Column<string>(type: "text", nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: new byte[0])
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: Array.Empty<byte>())
                 },
                 constraints: table =>
                 {
@@ -285,7 +285,7 @@ CREATE INDEX idx_qrtz_ft_job_req_recovery ON qrtz_fired_triggers (requests_recov
                 {
                     OutboxId = table.Column<Guid>(type: "uuid", nullable: false),
                     LockId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: true, defaultValue: new byte[0]),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: true, defaultValue: Array.Empty<byte>()),
                     Created = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Delivered = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     LastSequenceNumber = table.Column<long>(type: "bigint", nullable: true),
@@ -319,7 +319,7 @@ CREATE INDEX idx_qrtz_ft_job_req_recovery ON qrtz_fired_triggers (requests_recov
                     CreatedBy = table.Column<string>(type: "text", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     UpdatedBy = table.Column<string>(type: "text", nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: new byte[0])
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false, defaultValue: Array.Empty<byte>())
                 },
                 constraints: table =>
                 {

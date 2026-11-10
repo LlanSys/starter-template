@@ -20,7 +20,7 @@ namespace ST.Infrastructure.Middleware;
 /// The <c>partial</c> modifier was removed — it was misleading and served no purpose.
 /// </para>
 /// </remarks>
-internal sealed class LoggingMiddleware(RequestDelegate next,ILogger<LoggingMiddleware> logger)
+internal sealed class LoggingMiddleware(RequestDelegate next, ILogger<LoggingMiddleware> logger, PathString excludedRequestBodyPath)
 {
     private static readonly HashSet<string> SensitiveFieldNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -30,6 +30,7 @@ internal sealed class LoggingMiddleware(RequestDelegate next,ILogger<LoggingMidd
         "code",
         "consumerKey",
         "consumerSecret",
+        "databaseConnectionString",
         "jwt",
         "passKey",
         "password",
@@ -48,7 +49,8 @@ internal sealed class LoggingMiddleware(RequestDelegate next,ILogger<LoggingMidd
         // We just echo it in the response header for client-side correlation.
         context.Response.Headers.TryAdd("X-Correlation-ID", context.TraceIdentifier);
 
-        if (logger.IsEnabled(LogLevel.Debug))
+        if (logger.IsEnabled(LogLevel.Debug)
+            && (!excludedRequestBodyPath.HasValue || !context.Request.Path.StartsWithSegments(excludedRequestBodyPath)))
         {
             // EnableBuffering allows the body to be read multiple times.
             // Without it, reading here would consume the stream and the
