@@ -2,6 +2,8 @@
 @using ST.UI.Blazor.Features.ControlPlane.Demo
 @using ST.SharedKernel.Features.ControlPlane.Support
 @using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@inject WorkspaceSelection WorkspaceSelection
 @inject IAuthSession AuthSession
 @inject IAuthService AuthService
 @inject ITokenStorage Tokens
@@ -34,8 +36,13 @@ else if (AuthSession.CurrentUser?.IsPlatformStaff == true)
             if (AuthSession.CurrentUser?.SupportGrantId is { } supportId)
                 await Api.SendAsync<SupportResult>(HttpMethod.Post,$"api/v1/iam/support/{supportId}/exit");
             await AuthService.LogoutAsync();
-            var platform = await Tokens.GetAsync();
-            if (string.IsNullOrWhiteSpace(platform.AccessToken) && !await Tokens.SaveAsync(backup.Value.AccessToken, backup.Value.RefreshToken, backup.Value.SessionId)) { _error = "Could not restore the platform session."; return; }
+            await SessionStorage.DeleteAsync("auth.workspace_tokens");
+            await WorkspaceSelection.RestoreAsync(backup.Value.Workspace);
+            if (!await Tokens.SaveAsync(backup.Value.AccessToken, backup.Value.RefreshToken, backup.Value.SessionId))
+            {
+                _error = "Could not restore the platform session.";
+                return;
+            }
             await SessionStorage.DeleteAsync("workspace.platform");
             Navigation.NavigateTo("/control-panel", forceLoad: true);
         } finally { _busy = false; }

@@ -109,11 +109,25 @@
         return true;
     }
     private bool _canReturnToPlatform;
-    private async Task RecoverPlatformAsync() {
-      var backup=await SessionStorage.GetAsync<PlatformSessionBackup>("workspace.platform");if(!backup.Success || backup.Value is null)return;
-      await Tokens.ClearAsync();var current=await Tokens.GetAsync();
-      if(string.IsNullOrWhiteSpace(current.AccessToken)) await Tokens.SaveAsync(backup.Value.AccessToken,backup.Value.RefreshToken,backup.Value.SessionId);
-      await SessionStorage.DeleteAsync("workspace.platform");Navigation.NavigateTo("/control-panel",forceLoad:true);
+    private async Task RecoverPlatformAsync()
+    {
+        var backup = await SessionStorage.GetAsync<PlatformSessionBackup>("workspace.platform");
+        if (!backup.Success || backup.Value is null)
+        {
+            return;
+        }
+
+        await SessionStorage.DeleteAsync("auth.workspace_tokens");
+        await WorkspaceSelection.RestoreAsync(backup.Value.Workspace);
+        if (!await Tokens.SaveAsync(backup.Value.AccessToken, backup.Value.RefreshToken, backup.Value.SessionId))
+        {
+            _message = "Could not restore the platform session. Please sign in again.";
+            _isError = true;
+            return;
+        }
+
+        await SessionStorage.DeleteAsync("workspace.platform");
+        Navigation.NavigateTo("/control-panel", forceLoad: true);
     }
     private SsoProviderResponse[] _ssoProviders = [];
 
