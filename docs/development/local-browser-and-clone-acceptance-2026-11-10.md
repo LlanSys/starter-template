@@ -51,13 +51,15 @@ All 16 checks passed through normal signed sessions against the disposable Docke
 
 A second fresh GitHub clone at fix revision `a658f9e3db76ca29fabb314393ec622617e23a9a` was renamed and independently configured again. Both host builds, all 184 renamed unit tests and 74 renamed architecture tests passed. Its new database received the full provider migrations; both hosts returned HTTP 200, normal credential login succeeded with mandatory MFA enrollment, and the renamed local database tool reported zero pending migrations for all three contexts. Later evidence-only documentation updates do not change that tested runtime source. Final merge/CI evidence is recorded in the release PR history.
 
+Release PR #3 merged as `3ac5a29d66fdf4b46d28d16ecf3417d8c4293411`. Main architecture, frontend and backend build/test CI completed successfully. Azure migrations and deployments were skipped with the repository deployment switch still false. The existing local Docker Blazor service was refreshed to the merged managed assemblies using the existing runtime base, preserving the real API, database and Data Protection stores. Health, sign-in and framework asset requests returned HTTP 200; anonymous GraphQL remained HTTP 401. Reloading the existing signed-in Account Security page restored the session successfully.
+
 ## Disposable cleanup
 
 Stopped only the owned test hosts, removed the acceptance Compose project/network, dropped the three explicitly named synthetic databases, and removed both clones' four generated secret stores, clone files, temporary credentials and key rings. Removed the four matching synthetic Mailpit invitation messages while retaining other messages. Verification logs and the redacted pass/fail results remain outside Git. The existing ST database still reports zero pending ControlPlane, IAM and Shared migrations. No second StarterTemplate worktree was retained.
 
 ## Remaining environment-specific sign-off
 
-Real Google/Microsoft account sign-in and account connection require the account owner's provider interaction. The disposable fixture did not copy or enable the existing application's provider credentials. Physical passkeys and external delivery/payment providers have their own acceptance scope.
+On 11 November 2026, the account owner completed both Google and Microsoft account-connection flows successfully in the existing local Docker application. The Microsoft attempt initially returned AADSTS50011; adding the Web redirect URI `http://localhost:8180/signin-oidc` to the correct Entra application registration resolved the mismatch. The existing Visual Studio HTTPS callback was retained. This confirms owner-tested account connection; a separate sign-out/provider-sign-in plus application-MFA acceptance run has not been independently observed. The disposable fixture did not copy or enable the existing application's provider credentials. Physical passkeys and external delivery/payment providers have their own acceptance scope.
 
 Cloud/dedicated-stamp execution remains pending: deployment identities, resource/Key Vault/database access, real ingress/origins, authenticated success/failure callbacks, interrupted-run timeout/retry, and full restore/cutover/rollback with key access, private assets and queued work. Record measured recovery objectives from that deployed rehearsal.
 
