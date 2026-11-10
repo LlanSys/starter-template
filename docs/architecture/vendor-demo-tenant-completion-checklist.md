@@ -1,5 +1,9 @@
 # Vendor / demo / tenant completion checklist
 
+## Browser and clean-clone acceptance — 2026-11-10
+
+The two-customer Docker browser pass, fresh GitHub clone, configuration checklist, reproduced UI handoff/denial fixes and verification boundaries are recorded in [the acceptance record](../development/local-browser-and-clone-acceptance-2026-11-10.md). Use [the reusable downstream checklist](../development/downstream-configuration-checklist.md) before configuring a new application, environment or stamp.
+
 ## Local IAM and tenancy hardening — 2026-11-09
 
 - Replaced administrator role-name shortcuts with current tenant-scoped grants. Protected reserved roles and checked role and direct-grant delegation through the IAM mutation paths.

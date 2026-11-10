@@ -4,6 +4,8 @@ StarterTemplate contains its own application code, plans, scripts and tests. A d
 
 The retained contexts are IAM, Shared and ControlPlane. Each has a fresh InitialStarter migration for SQL Server and PostgreSQL. Business entities and policies belong in the application clone. See the certification evidence and remaining environment-specific checks in the refactor plan.
 
+Use the [downstream configuration and release checklist](downstream-configuration-checklist.md) for every new application and environment. It covers settings the rename script does not allocate and records acceptance evidence.
+
 ## Rename before first run
 
 Clone StarterTemplate into the new application's directory and run its rename script from that root:
