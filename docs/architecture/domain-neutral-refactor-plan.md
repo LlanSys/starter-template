@@ -11,7 +11,7 @@ Keep .NET 10, the modular monolith, Clean Architecture boundaries, bounded-conte
 
 Work exclusively in StarterTemplate. Do not merge or deploy automatically. Keep credentials in user-secrets or deployed secret stores, and give every clone its own repository identity, host secret IDs, ports, infrastructure resources and configuration.
 
-Approved identity: private `odhiamboally/starter-template`, namespace `ST`, directory `E:\Repos\StarterTemplate`. Use the existing rename script for downstream clones.
+Approved identity: private `odhiamboally/starter-template`, namespace `ST`, directory `E:\Repos\StarterTemplate`. The repository was subsequently transferred to `LlanSys/starter-template`. Use the existing rename script for downstream clones.
 
 ## Retention inventory
 

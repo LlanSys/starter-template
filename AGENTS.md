@@ -25,7 +25,7 @@ This file is the canonical source of truth and working contract for AI coding to
 
 ## Project Identity
 
-- Repo: `odhiamboally/starter-template`
+- Repo: `LlanSys/starter-template`
 - Product: StarterTemplate
 - Root namespace prefix: `ST`
 - Rename a clone with `scripts/rename-template.ps1` before its first run or deployment.
