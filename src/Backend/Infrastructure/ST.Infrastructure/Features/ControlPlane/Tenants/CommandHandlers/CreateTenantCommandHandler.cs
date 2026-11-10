@@ -49,7 +49,8 @@ public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, A
         ArgumentNullException.ThrowIfNull(request.Request, nameof(request.Request));
 
         var req = request.Request;
-        var existingTenant = await _unitOfWork.Tenants.AnyAsync(t => t.Identifier == req.Identifier || t.HostName == req.HostName, cancellationToken).ConfigureAwait(false);
+        var hostName = req.HostName.Trim().TrimEnd('.').ToLowerInvariant();
+        var existingTenant = await _unitOfWork.Tenants.AnyAsync(t => t.Identifier == req.Identifier || t.HostName.ToLower() == hostName, cancellationToken).ConfigureAwait(false);
 
         if (existingTenant)
         {
@@ -61,6 +62,12 @@ public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, A
         if (stamp == null)
         {
             return AppResponses.Failure<TenantResponse>("The specified Deployment Stamp does not exist.");
+        }
+
+        if (stamp.IsolationTier == IsolationTier.Isolated
+            && await _unitOfWork.Tenants.AnyAsync(tenant => tenant.DeploymentStampId == stamp.Id, cancellationToken).ConfigureAwait(false))
+        {
+            return AppResponses.Failure<TenantResponse>("This isolated deployment stamp already belongs to a workspace.");
         }
 
         SubscriptionTier parsedTier;
@@ -78,13 +85,14 @@ public class CreateTenantCommandHandler : IRequestHandler<CreateTenantCommand, A
         {
             Identifier = req.Identifier,
             DisplayName = req.DisplayName,
-            HostName = req.HostName,
+            HostName = hostName,
             ContactEmail = req.ContactEmail,
             AdministratorEmail = req.InitialAdministrator?.AdministratorEmail.Trim(),
             CreatedAt = now,
             MaxUsers = req.MaxUsers,
             SubscriptionTier = parsedTier,
             DeploymentStampId = req.DeploymentStampId,
+            ExclusiveStampId = stamp.IsolationTier == IsolationTier.Isolated ? stamp.Id : null,
             DatabaseProvider = req.DatabaseProvider,
             DatabaseConnectionString = !string.IsNullOrWhiteSpace(req.DatabaseConnectionString)
                 ? _encryptionService.Encrypt(req.DatabaseConnectionString)

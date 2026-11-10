@@ -53,7 +53,7 @@ public sealed class ExternalSignInTests(StarterTemplateWebApplicationFactory fac
             var control = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>();
             var tenant = await control.Tenants.SingleAsync(item => item.Id == tenantId);
             Assert.Equal(TenantStatus.Suspended, tenant.Status);
-            tenant.MarkAsActive();
+            tenant.Reactivate(TimeProvider.System.GetUtcNow());
             await control.SaveChangesAsync();
         }
 

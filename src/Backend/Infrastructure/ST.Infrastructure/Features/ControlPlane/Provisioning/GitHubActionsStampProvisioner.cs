@@ -12,7 +12,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Provisioning;
 
 public class GitHubActionsStampProvisioner(HttpClient httpClient, IConfiguration configuration, ILogger<GitHubActionsStampProvisioner> logger) : IStampProvisioner
 {
-    public async Task ProvisionIsolatedStampAsync(string tenantId, string stampId, string resourceGroup, string databaseProvider, CancellationToken cancellationToken = default)
+    public async Task ProvisionIsolatedStampAsync(string tenantId, string stampId, string resourceGroup, string databaseProvider, Guid operationId, CancellationToken cancellationToken = default)
     {
         if (!bool.TryParse(configuration["ControlPlane:Provisioning:Enabled"],out var enabled) || !enabled) throw new InvalidOperationException("Isolated provisioning is disabled for this host.");
         var githubToken = configuration["ControlPlane:GitHub:Pat"];
@@ -35,6 +35,8 @@ public class GitHubActionsStampProvisioner(HttpClient httpClient, IConfiguration
             @ref = "main",
             inputs = new
             {
+                tenant_id = tenantId,
+                operation_id = operationId.ToString(),
                 stamp_id = stampId,
                 resource_group = resourceGroup,
                 database_provider = databaseProvider

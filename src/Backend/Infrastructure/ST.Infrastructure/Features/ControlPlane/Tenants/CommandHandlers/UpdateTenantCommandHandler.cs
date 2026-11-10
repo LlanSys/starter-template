@@ -47,7 +47,17 @@ public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, A
             return AppResponses.Failure<TenantResponse>("Tenant not found.");
         }
 
-        var duplicateHostName = await _unitOfWork.Tenants.AnyAsync(t => t.HostName == request.Request.HostName && t.Id != request.Id, cancellationToken).ConfigureAwait(false);
+        var providerChanged = request.Request.DatabaseProvider is { } provider
+            && !string.Equals(provider, tenant.DatabaseProvider, StringComparison.OrdinalIgnoreCase);
+        var connectionChanged = request.Request.DatabaseConnectionString is { } connection
+            && (connection.Length > 0 || tenant.DatabaseConnectionString is not null);
+        if (tenant.Status == TenantStatus.Active && (providerChanged || connectionChanged))
+        {
+            return AppResponses.Failure<TenantResponse>("Suspend the workspace before changing its database route.");
+        }
+
+        var hostName = request.Request.HostName.Trim().TrimEnd('.').ToLowerInvariant();
+        var duplicateHostName = await _unitOfWork.Tenants.AnyAsync(t => t.HostName.ToLower() == hostName && t.Id != request.Id, cancellationToken).ConfigureAwait(false);
 
         if (duplicateHostName)
         {
@@ -65,7 +75,7 @@ public class UpdateTenantCommandHandler : IRequestHandler<UpdateTenantCommand, A
         }
 
         tenant.DisplayName = request.Request.DisplayName;
-        tenant.HostName = request.Request.HostName;
+        tenant.HostName = hostName;
         tenant.ContactEmail = request.Request.ContactEmail;
         tenant.MaxUsers = request.Request.MaxUsers;
         tenant.SubscriptionTier = parsedTier;

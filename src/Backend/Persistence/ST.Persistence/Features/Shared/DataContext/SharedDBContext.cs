@@ -76,15 +76,31 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         DBContextHelper.ApplyStandardModelConventions(modelBuilder, this);
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        if (_tenantProvider is not null)
+        {
+            throw new NotSupportedException("Use asynchronous persistence for a tenant-scoped workspace.");
+        }
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         try
         {
+            if (_tenantProvider is not null)
+            {
+                var tenantId = CurrentTenantId;
+                DBContextHelper.EnforceTenantOwnership(ChangeTracker, tenantId);
+            }
+
             var domainEvents = DBContextHelper.CollectDomainEvents(ChangeTracker);
             DBContextHelper.ClearDomainEventsFromAggregates(ChangeTracker);
             DBContextHelper.StampPostgreSqlConcurrency(this);
             DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId, Clock.GetUtcNow());
-            var result = await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken).ConfigureAwait(false);
             _collectedDomainEvents ??= [];
             _collectedDomainEvents.AddRange(domainEvents);
             return result;

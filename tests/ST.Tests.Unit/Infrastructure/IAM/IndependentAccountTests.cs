@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using ST.Infrastructure.Features.IAM.Authorization;
+using ST.Tests.Unit.TestFixtures;
 using ST.Application.Features.IAM.Users.Mappings;
 using ST.Infrastructure.Configuration;
 using ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Services;
@@ -82,9 +84,11 @@ public sealed class IndependentAccountTests
     {
         using var fixture = new Fixture();
         var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, Guid.CreateVersion7(), "EXISTING", "Existing", "Account", "USER@EXAMPLE.TEST", null, ActorId);
+        fixture.Tenant.TenantId.Returns(user.TenantId);
         Assert.True((await fixture.Users.CreateAsync(user, Password)).Succeeded);
         user.IsDeleted = true;
         await fixture.Context.SaveChangesAsync();
+        fixture.Tenant.TenantId.Returns(TenantId);
 
         var response = await fixture.Create.Handle(Command(), CancellationToken.None);
 
@@ -391,11 +395,11 @@ public sealed class IndependentAccountTests
     public async Task AccessChangesRejectUnresolvedDeletedAndOtherTenantAccounts(string scenario)
     {
         using var fixture = new Fixture();
+        if (scenario == "tenant") fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
         var user = await fixture.AddUserAsync();
-        if (scenario == "tenant") user.TenantId = Guid.CreateVersion7();
         if (scenario == "deleted") user.IsDeleted = true;
         Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
-        if (scenario == "unresolved") fixture.Tenant.TenantId.Returns(Guid.Empty);
+        fixture.Tenant.TenantId.Returns(scenario == "unresolved" ? Guid.Empty : TenantId);
         var activation = await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None);
         var deactivation = await fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("reason"), ActorId), CancellationToken.None);
         Assert.False(activation.IsSuccess);
@@ -544,10 +548,10 @@ public sealed class IndependentAccountTests
         var token = await fixture.Users.GenerateUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user));
         if (rejection == "disabled") user.IsActive = false;
         if (rejection == "deleted") user.IsDeleted = true;
-        if (rejection == "other-tenant") fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
         if (rejection == "changed-email") user.Email = "changed@example.test";
         if (rejection == "tampered-token") token = "invalid-token";
         await fixture.Users.UpdateAsync(user);
+        if (rejection == "other-tenant") fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
         var response = await fixture.AcceptInvitation.Handle(new AcceptAccountInvitationCommand(
             new AcceptAccountInvitationRequest(user.Id, token, "ChosenPassword42!", "ChosenPassword42!")), CancellationToken.None);
         Assert.False(response.IsSuccess);
@@ -839,8 +843,11 @@ public sealed class IndependentAccountTests
                 Substitute.For<IPermissionRepository>(), Substitute.For<IMenuRepository>(), Publisher, NullLogger<IamUnitOfWork>.Instance);
             UnitOfWork = uow;
             PasskeyPolicy = new PasskeyCredentialPolicy(uow, Tenant);
-            Create = new CreateAppUser(Users, Roles, uow, Tenant, NullLogger<CreateAppUser>.Instance, TimeProvider.System);
-            Update = new UpdateAdminUser(Users, Roles, uow, Tenant, NullLogger<UpdateAdminUser>.Instance, TimeProvider.System);
+            var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("permission", "users.manage_roles")], "Test"));
+            var http = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = principal } };
+            var delegation = new IamDelegation(Context, http, new TestModulePolicy(), Roles);
+            Create = new CreateAppUser(Users, Roles, uow, Tenant, NullLogger<CreateAppUser>.Instance, TimeProvider.System, delegation);
+            Update = new UpdateAdminUser(Users, Roles, uow, Tenant, NullLogger<UpdateAdminUser>.Instance, TimeProvider.System, delegation);
             Activate = new ActivateAdminUser(Users, uow, Tenant, NullLogger<ActivateAdminUser>.Instance, TimeProvider.System);
             Deactivate = new DeactivateAdminUser(Users, uow, Tenant, NullLogger<DeactivateAdminUser>.Instance, TimeProvider.System);
             Reset = new ResetPassword(Users, uow, Substitute.For<ICacheService>(), Publisher, Tenant, NullLogger<ResetPassword>.Instance, TimeProvider.System);
@@ -853,7 +860,7 @@ public sealed class IndependentAccountTests
 
         public async Task<AppUser> AddUserAsync()
         {
-            var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, TenantId, "user", "First", "Last", "user@example.test", null, ActorId);
+            var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, Tenant.TenantId, "user", "First", "Last", "user@example.test", null, ActorId);
             Assert.True((await Users.CreateAsync(user, Password)).Succeeded);
             return user;
         }

@@ -12,7 +12,6 @@ public interface IAuthSession
     string? ProfilePictureDataUri { get; }
     string? PendingTwoFactorUserId { get; }
     string? LastError { get; }
-    bool HasFullAccess { get; }
     bool MfaEnrollmentRequired { get; }
 
     Task InitializeAsync();

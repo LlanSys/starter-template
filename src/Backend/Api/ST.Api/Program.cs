@@ -2,6 +2,7 @@ using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Azure.Identity;
 
 using ST.Api.Configuration;
+using ST.Api.Common.Authorization;
 using ST.Api.Extensions;
 using ST.Api.Features.Shared.Realtime;
 using ST.Api.Health;
@@ -118,6 +119,7 @@ try
     builder.Services.AddApplicationServices(builder.Configuration);
     builder.Services.AddSharedInfrastructure(builder.Configuration, builder.Environment);
     builder.Services.AddIamModule(builder.Configuration, builder.Environment);
+    builder.Services.AddStampProvisioningAuthentication(builder.Configuration);
     builder.Services.AddSharedPersistence(builder.Configuration, builder.Environment);
     builder.Services.AddControlPlanePersistence(builder.Configuration, builder.Environment);
     builder.Services.ConfigureOutBoxMessagingWithGlobalRetry(builder.Configuration);
@@ -278,12 +280,8 @@ try
         healthChecks.AddCheck<KeyVaultHealthCheck>("key-vault", tags: ["ready", "dependency"]);
     }
 
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
-        options.KnownIPNetworks.Clear();
-        options.KnownProxies.Clear();
-    });
+    var trustedProxies = builder.Configuration.GetSection(TrustedProxySettings.SectionName).Get<TrustedProxySettings>() ?? new();
+    builder.Services.Configure<ForwardedHeadersOptions>(trustedProxies.Apply);
 
     var app = builder.Build();
 
@@ -334,6 +332,8 @@ try
     //app.UsePreAuthMiddleware();
 
     app.UseAuthentication();
+    app.UseMiddleware<TenantClaimBoundaryMiddleware>();
+    app.UseMiddleware<LiveAuthorityMiddleware>();
     app.UseMiddleware<DemoWorkspaceMiddleware>();
     app.UseMiddleware<SupportSessionMiddleware>();
 
@@ -401,7 +401,7 @@ try
 
     app.MapControllers();
     app.MapApiGraphQL();
-    app.MapHub<NotificationHub>("/hubs/notifications");
+    app.MapHub<NotificationHub>("/hubs/notifications", options => options.CloseOnAuthenticationExpiration = true);
 
     Log.Information("ST API started successfully");
 

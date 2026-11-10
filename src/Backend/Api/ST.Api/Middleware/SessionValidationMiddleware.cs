@@ -2,7 +2,6 @@ using ST.Api.Logging;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 
-using Microsoft.AspNetCore.Authentication;
 
 using System.Security.Claims;
 using System.Text.Json;
@@ -102,83 +101,25 @@ internal sealed class SessionValidationMiddleware(RequestDelegate next, ILogger<
             path.StartsWithSegments(skipPath, StringComparison.OrdinalIgnoreCase));
     }
 
-    private string? GetSessionId(HttpContext context)
+    private static string? GetSessionId(HttpContext context)
     {
-        // Prefer the authenticated session; retain headers/cookies for existing clients.
-
-        // The validated token owns the session. A client header cannot substitute a different session.
-        var sessionId = context.User.FindFirstValue("session_id")
-            ?? context.Request.Headers["X-Session-Id"].FirstOrDefault()
-            ?? context.Request.Cookies["session_id"];
-
-
-        // Only check session storage for non-API requests
-        if (sessionId == null && !IsApiRequest(context.Request))
-        {
-            try
-            {
-                sessionId = context.Session.GetString("SessionId");
-            }
-            catch (InvalidOperationException ex)
-            {
-                MiddlewareLogDefinitions.LogSessionStateUnavailable(logger, ex);
-                // Session not configured - ignore for API requests
-                // This is expected for API-only applications
-            }
-        }
-
-        return sessionId;
+        return context.User.FindFirstValue("session_id");
     }
 
     private async Task HandleSessionInvalid(HttpContext context, string? reason)
     {
-        // Bearer API requests have no cookie sign-out handler. Return 401 directly for those requests.
-        if (!IsApiRequest(context.Request))
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        context.Response.ContentType = "application/json";
+        var response = new
         {
-            try
-            {
-                await context.SignOutAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                MiddlewareLogDefinitions.LogSignOutError(logger, ex);
-                throw;
-            }
-        }
+            success = false,
+            message = "Your session has expired or you have been signed in from another location.",
+            code = "SESSION_INVALID",
+            reason,
+            timestamp = timeProvider.GetUtcNow(),
+            redirectUrl = "/Auth/SignIn?sessionExpired=true&reason=session_conflict"
+        };
 
-        // Determine if this is an API request or web request
-        if (IsApiRequest(context.Request))
-        {
-            // Return JSON response for API requests
-            context.Response.StatusCode = 401;
-            context.Response.ContentType = "application/json";
-
-            var apiResponse = new
-            {
-                success = false,
-                message = "Your session has expired or you have been signed in from another location.",
-                code = "SESSION_INVALID",
-                reason = reason,
-                timestamp = timeProvider.GetUtcNow(),
-                redirectUrl = "/Auth/SignIn?sessionExpired=true&reason=session_conflict"
-            };
-
-            await context.Response.WriteAsync(JsonSerializer.Serialize(apiResponse)).ConfigureAwait(false);
-        }
-        else
-        {
-            // Redirect web requests to login page
-            var returnUrl = context.Request.Path + context.Request.QueryString;
-            var redirectUrl = $"/Auth/SignIn?sessionExpired=true&reason=session_conflict&returnUrl={Uri.EscapeDataString(returnUrl)}";
-
-            context.Response.Redirect(redirectUrl);
-        }
-    }
-
-    private static bool IsApiRequest(HttpRequest request)
-    {
-        return request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
-               request.Headers.Accept.ToString().Contains("application/json", StringComparison.OrdinalIgnoreCase) ||
-               request.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true;
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response), context.RequestAborted).ConfigureAwait(false);
     }
 }

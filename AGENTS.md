@@ -68,6 +68,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - Every declared `DbSet<T>` entity must have explicit EF configuration.
 - Custom persistence context-related types use the project `DB` acronym, for example `IamDBContext`, `DBContextHelper`, and `ITenantFilteredDBContext`; keep Microsoft framework API names unchanged.
 - Respect tenant isolation, soft delete, and audit actor conventions.
+- Tenant-scoped writes must match the owning context. Never accept a tenant ID as write authority from a DTO. Include the persisted tenant key in detached write concurrency checks. Bulk operations must use an explicit tenant predicate in addition to the normal query filter.
 - `CreatedBy`, `UpdatedBy`, `ActivatedBy`, `DeactivatedBy`, and `DeletedBy` must store stable actor identifiers, not display names or labels such as `DevelopmentSeed`.
 - Prefer generic repository methods unless a concrete repository method is persistence-specific.
 - Compose queries before materialization. Do not call `ToListAsync` before filters, tenant scope, paging, projection, or security scope are applied.
@@ -99,11 +100,14 @@ This file is the canonical source of truth and working contract for AI coding to
 - Microsoft and Google sign-in bind a validated issuer and subject to the resolved workspace. Validate callback origins and protect workspace and intent in OIDC state. Consume hashed codes once in IAM and keep bearer/refresh tokens out of distributed cache.
 - Keep MassTransit on the approved shared 8.x pin defined in `Directory.Build.props` with exact package ranges.
 - Account responses and token claims are domain-neutral. Use AppUserMapping for backend account DTOs and LoginResponseMapping for UI login fallbacks; preserve tenant, session, permission and MFA state.
-- Administrative endpoints require permission-based authorization, not only `[Authorize]`.
+- Administrative endpoints require permission-based authorization in addition to `[Authorize]`.
+- Resolve API authority from the live account, role memberships, direct grants, active permission definitions and module entitlements. Display role names never grant permissions. Tenant delegation is bounded by the actor's active grants, and protected administrator roles are maintained by trusted setup.
 - Admin MFA enforcement is intentional; non-admin MFA can be policy-driven.
 - Session lifecycle must expire cleanly, warn before timeout, and avoid stale UI state.
 - Account access changes target the IAM account in the resolved tenant. Admin deactivation must atomically rotate the security stamp and revoke sessions/refresh tokens. Activation preserves credentials and email verification; invitation delivery is separate.
-- Session validation uses a signed session_id claim before client session headers/cookies.
+- Bearer access requires the signed tenant and session claims. First-factor challenges are accepted by the credential ceremony only. Forwarded headers are accepted from configured trusted proxies. On tenant-specific hosts, the hostname, any explicit selector and signed tenant must agree.
+- Bind production data-plane hosts with Tenant:DeploymentStampId. An isolated stamp has one workspace, enforced through the persisted exclusive reservation. Its runtime has a separate signing key, issuer and audience. Setup and invitation delivery run on the owning stamp. Persist an expiring workspace setup lease, fence stale owners, and finish role initialization before delivering the invitation.
+- Provisioning completion must match the persisted attempt, KYC and verified database schema/ownership. Machine callbacks use the dedicated GitHub OIDC policy with exact immutable repository identity, subject, ref, workflow and audience. Keep the operator permission endpoint separate. See docs/architecture/tenant-onboarding-workflow.md.
 - Blazor tokens use protected browser storage with a circuit-scoped in-memory fallback; do not mirror bearer or refresh tokens into Redis.
 - Profile images are private assets. Use API-mediated access, not direct public blob URLs.
 - Local secrets belong in `dotnet user-secrets`; production secrets belong in Azure Key Vault/App Service configuration.

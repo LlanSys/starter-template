@@ -80,7 +80,6 @@ public sealed class TotpController(ISender sender) : BaseController
 
         var currentUserId = GetUserId();
         if (!string.Equals(currentUserId, userId, StringComparison.OrdinalIgnoreCase)
-            && !User.IsInRole("System Administrator")
             && !User.HasClaim(static claim =>
                 string.Equals(claim.Type, "permission", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(claim.Value, "users.view", StringComparison.OrdinalIgnoreCase)))

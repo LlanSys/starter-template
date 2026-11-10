@@ -1178,6 +1178,10 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.SqlServer
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("ClientOrigin")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
                     b.Property<string>("ContactEmail")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -1210,6 +1214,9 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.SqlServer
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<Guid?>("ExclusiveStampId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("HostName")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -1240,11 +1247,20 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.SqlServer
                     b.Property<int>("MaxUsers")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset?>("ProvisioningDeadline")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("ProvisioningOperationId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset?>("SessionsInvalidBefore")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -1262,12 +1278,22 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.SqlServer
                     b.Property<DateTimeOffset?>("WorkspaceInitializedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<Guid?>("WorkspaceSetupLeaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("WorkspaceSetupLeaseUntil")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<int>("WorkspaceVersion")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("DeploymentStampId");
+
+                    b.HasIndex("ExclusiveStampId")
+                        .IsUnique()
+                        .HasFilter("[ExclusiveStampId] IS NOT NULL");
 
                     b.HasIndex("HostName")
                         .IsUnique();

@@ -54,7 +54,10 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             return AppResponses.Failure<TenantResponse>("KYC applies to customer workspaces.");
         }
 
-        if (request.Retry ? tenant.Status != TenantStatus.ProvisioningFailed || !tenant.CanProvision : tenant.KycApprovedAt.HasValue)
+        var now = _timeProvider.GetUtcNow();
+        if (request.Retry
+            ? !tenant.CanProvision || (tenant.Status != TenantStatus.ProvisioningFailed && !tenant.IsProvisioningExpired(now))
+            : tenant.KycApprovedAt.HasValue)
         {
             return AppResponses.Failure<TenantResponse>("The workspace is unavailable for this transition.");
         }
@@ -67,9 +70,17 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             return AppResponses.Failure<TenantResponse>("Deployment stamp for this tenant could not be found.");
         }
 
+        if (stamp.IsolationTier == IsolationTier.Isolated
+            && await _unitOfWork.Tenants.AnyAsync(
+                item => item.DeploymentStampId == stamp.Id && item.Id != tenant.Id, cancellationToken).ConfigureAwait(false))
+        {
+            return AppResponses.Failure<TenantResponse>("This isolated deployment stamp already belongs to another workspace.");
+        }
+
+        tenant.ExclusiveStampId = stamp.IsolationTier == IsolationTier.Isolated ? stamp.Id : null;
         if (request.Retry)
         {
-            tenant.RetryProvisioning();
+            tenant.RetryProvisioning(now);
         }
         else
         {
@@ -78,7 +89,7 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
 
         if (needsProvisioning && stamp.IsolationTier == IsolationTier.Isolated)
         {
-            tenant.MarkAsProvisioning();
+            var operationId = tenant.BeginProvisioning(now, TimeSpan.FromHours(2));
             await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);
             await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
@@ -86,9 +97,10 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             {
                 await _stampProvisioner.ProvisionIsolatedStampAsync(
                     tenant.Id.ToString(),
-                    stamp.Name,
+                    stamp.Id.ToString(),
                     stamp.TargetResourceGroup,
                     tenant.DatabaseProvider ?? stamp.DatabaseProvider ?? "PostgreSql",
+                    operationId,
                     cancellationToken).ConfigureAwait(false);
 
                 ControlPlaneLogDefinitions.LogStampProvisioningDispatched(_logger, tenant.Id, stamp.Name);
@@ -98,7 +110,15 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
                 ControlPlaneLogDefinitions.LogStampProvisioningFailed(_logger, tenant.Id, ex);
 
                 tenant.MarkAsProvisioningFailed();
-                // Optionally log the failure, but we want to allow retry via UI or manual intervention.
+                try
+                {
+                    await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    // An authenticated completion may have won the race with the failed dispatch response.
+                    ControlPlaneLogDefinitions.LogStampProvisioningFailed(_logger, tenant.Id, ex);
+                }
             }
         }
         else if (needsProvisioning)
@@ -107,8 +127,11 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             tenant.MarkAsActive();
         }
 
-        await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);
-        await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
+        if (!needsProvisioning || stamp.IsolationTier != IsolationTier.Isolated)
+        {
+            await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);
+            await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         var dto = new TenantResponse
         {

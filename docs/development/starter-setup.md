@@ -79,6 +79,32 @@ dotnet ef database update --project src/Backend/Persistence/ST.Persistence/ST.Pe
 
 For PostgreSQL substitute PostgreSql for SqlServer in all three context names. Each context owns its migration history table. Shared creates Quartz tables along with platform payment, notification and outbox persistence. Run application hosts from Visual Studio after migrations.
 
+## Check and update an existing local database
+
+From the StarterTemplate root, run the check after pulling changes or scaffolding migrations.
+
+```powershell
+.\scripts\update-local-database.ps1
+.\scripts\update-local-database.ps1 -Apply
+# Use -Provider PostgreSql for a PostgreSQL database.
+```
+
+The default command lists pending migration IDs for ControlPlane, IAM and Shared. With `-Apply`, all three contexts are checked before any migration runs. A missing StarterTemplate baseline, unknown migration, history gap, or model drift blocks the update. The command rechecks all three histories after applying migrations. Each context is upgraded separately. If a later context fails, correct the reported problem and rerun the check before applying again.
+
+The command uses the API's Development configuration, user-secrets and process environment. SQL Server is the default. The provider must match `DatabaseSettings:Provider`, and the three contexts must share `ConnectionStrings:DefaultConnection`. Set `ST_DATABASE_CONNECTION` in the current process to select an explicit local application database instead. Both paths reject remote and system databases. Keep database credentials out of arguments and logs.
+
+Keep the database running and pause the API hosts before applying pending migrations. Back up local data you need to retain. Use the fresh setup above for a new database. The local command runs independently of GitHub Actions and the Azure deployment setting.
+
+## Production tenant boundary
+
+Before routing cloud traffic, configure the central API DNS names in `Tenant__CentralApiHosts__0` and any additional indexed entries. Include both browser-facing and server-to-server API names where applicable. Customer vanity hosts come from the active workspace registry. Set `TrustedForwardedHeaders__Proxies__0` or `TrustedForwardedHeaders__Networks__0` for the immediate trusted proxy addresses or CIDRs. Loopback is trusted by default. Validate that the ingress overwrites incoming forwarded headers and limits direct access to the API origin.
+
+Review existing administrator grants before upgrading a database that used the System Administrator role shortcut. Preserve verified platform staff and give legitimate workspace administrators explicit tenant grants. Rerunning the configured bootstrap seeder grants permissions to the verified bootstrap account only. It does not promote members by role name. Existing users must have a tenant-bound access token with a session ID. Active roles and grants are reevaluated on protected API requests.
+
+Quartz jobs queued by this version record their originating tenant. For older jobs with no tenant field, reconcile queued items before upgrading. Set `BackgroundJobs__LegacyTenantId` only when all outstanding legacy jobs belong to one known workspace. Otherwise requeue them in their verified workspace scopes.
+
+Complete the two-workspace ingress, IAM and data-isolation checks before onboarding production customers. See [the tenancy readiness gate](../architecture/saas-multitenancy-strategy.md#readiness-gate).
+
 ## Invite a first workspace administrator
 
 Use the customer workspace onboarding flow for the initial administrator. It requires KYC approval, completed provisioning, explicit invitation acceptance, and authenticator verification. See [secure workspace onboarding](../architecture/secure-workspace-onboarding.md) for setup and Microsoft and Google configuration.

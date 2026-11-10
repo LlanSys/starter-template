@@ -12,7 +12,7 @@ internal sealed class GetNavigationMenusQueryHandler(IEffectiveNavigation naviga
         var rows = await navigation.GetAsync(cancellationToken).ConfigureAwait(false);
         var permissions = query.PermissionKeys.Where(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || access.PermissionAvailable(key)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var roles = (query.RoleNames ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var visible = rows.ToDictionary(x => x.Menu.Id, x => x.Available && x.Menu.IsActive && x.Menu.IsVisibleTo(roles, permissions, query.HasFullAccess)
+        var visible = rows.ToDictionary(x => x.Menu.Id, x => x.Available && x.Menu.IsActive && x.Menu.IsVisibleTo(roles, permissions)
             && x.Menu.RequiredPermissionKeys.All(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) ? permissions.Contains(key) : access.PermissionAvailable(key))
             && (x.Definition is null || x.Definition.RoleNames.Length == 0 || x.Definition.RoleNames.Any(roles.Contains)));
         var tree = NavigationHierarchy.Visible(rows.Select(x => x.Menu), menu => visible[menu.Id])

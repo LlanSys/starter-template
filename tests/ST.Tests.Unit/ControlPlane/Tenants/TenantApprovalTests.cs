@@ -44,7 +44,7 @@ public sealed class TenantApprovalTests
         tenant.MarkAsProvisioning();
         tenant.MarkAsActive();
         tenant.Suspend();
-        tenant.MarkAsActive();
+        tenant.Reactivate(DateTimeOffset.UnixEpoch.AddDays(1));
         Assert.Equal(TenantStatus.Active, tenant.Status);
     }
 

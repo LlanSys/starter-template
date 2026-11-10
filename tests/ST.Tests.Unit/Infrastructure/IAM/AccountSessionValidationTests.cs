@@ -15,6 +15,8 @@ public sealed class AccountSessionValidationTests
     {
         var sessionId = Guid.CreateVersion7().ToString();
         var context = Context(sessionId);
+        context.Request.Path = "/graphql";
+        context.Request.Headers.Accept = "application/graphql-response+json";
         await using var body = new MemoryStream();
         context.Response.Body = body;
         var service = Substitute.For<ISessionService>();

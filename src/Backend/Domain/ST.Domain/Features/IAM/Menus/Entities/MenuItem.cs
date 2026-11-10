@@ -113,15 +113,14 @@ public sealed class MenuItem : BaseEntity, ISoftDeletable
         RequiredPermissionKeys = Normalize(permissions);
     }
 
-    public bool IsVisibleTo(IReadOnlySet<string> roles, IReadOnlySet<string> permissions, bool hasFullAccess)
+    public bool IsVisibleTo(IReadOnlySet<string> roles, IReadOnlySet<string> permissions)
     {
         ArgumentNullException.ThrowIfNull(roles);
         ArgumentNullException.ThrowIfNull(permissions);
         var required = RequiredPermissionKeys.AsEnumerable();
         if (RequiredPermissionKey is not null) required = required.Append(RequiredPermissionKey);
         return (RequiredRoleNames.Length == 0 || RequiredRoleNames.Any(roles.Contains))
-            && required.All(key => string.Equals(key, "control_plane.manage", StringComparison.OrdinalIgnoreCase)
-                ? permissions.Contains(key) : hasFullAccess || permissions.Contains(key));
+            && required.All(permissions.Contains);
     }
 
     private static string[] Normalize(IEnumerable<string>? values)

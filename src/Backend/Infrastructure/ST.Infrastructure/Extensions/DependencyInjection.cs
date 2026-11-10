@@ -103,6 +103,10 @@ public static class DependencyInjection
         services.AddScoped<IAdministratorInvitationService, AdministratorInvitationService>();
         services.AddScoped<AdministratorInvitationDelivery>();
         services.AddHostedService<AdministratorInvitationWorker>();
+        if (configuration.GetValue<bool>("ControlPlane:Provisioning:Enabled"))
+        {
+            services.AddHostedService<ProvisioningTimeoutWorker>();
+        }
         services.AddScoped<WorkspaceTenantOverride>();
         services.AddScoped<IWorkspaceTenantOverride>(provider => provider.GetRequiredService<WorkspaceTenantOverride>());
         services.AddScoped<IDemoFixture, NavigationDemoFixture>();
@@ -165,6 +169,7 @@ public static class DependencyInjection
         var authProviderSettings = configuration.GetSection(AuthProviderSettings.SectionName).Get<AuthProviderSettings>() ?? new AuthProviderSettings();
         var messagingSettings = configuration.GetSection(MessagingSettings.SectionName).Get<MessagingSettings>() ?? new MessagingSettings();
         var backgroundJobSettings = configuration.GetSection(BackgroundJobSettings.SectionName).Get<BackgroundJobSettings>() ?? new BackgroundJobSettings();
+        services.AddSingleton(backgroundJobSettings);
         ConfigureObservability(services, configuration, environment, observabilitySettings);
         if (backgroundJobSettings.Enabled)
         {
@@ -193,6 +198,8 @@ public static class DependencyInjection
 
         services.AddHttpClient<IApiService, ApiService>();
         services.AddHttpClient<IStampProvisioner, GitHubActionsStampProvisioner>();
+        services.AddScoped<ITenantDatabaseReadiness, TenantDatabaseReadiness>();
+
         services.AddScoped<ICurrentTenantProvider, CurrentTenantProvider>();
         services.AddScoped<ITenantConnectionResolver, TenantConnectionResolver>();
         services.AddScoped<IEffectiveNavigation, EffectiveNavigation>();
@@ -247,7 +254,8 @@ public static class DependencyInjection
             backgroundJobSettings.Enabled
                 ? new BackgroundJobService(
                     _.GetRequiredService<ISchedulerFactory>(),
-                    _.GetRequiredService<ILogger<BackgroundJobService>>())
+                    _.GetRequiredService<ILogger<BackgroundJobService>>(),
+                    _.GetRequiredService<ICurrentTenantProvider>())
                 : new NoOpBackgroundJobService());
         services.AddScoped<IEncryptionService, EncryptionService>();
         services.AddScoped<IOrgSettingsProvider, CachedOrgSettingsProvider>();
@@ -440,6 +448,19 @@ public static class DependencyInjection
 
         options.Events = new JwtBearerEvents
         {
+            OnTokenValidated = context =>
+            {
+                var principal = context.Principal;
+                if (principal is null || principal.HasClaim("temp_auth", "true")
+                    || string.IsNullOrWhiteSpace(principal.FindFirstValue(ClaimTypes.NameIdentifier))
+                    || !Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) || tenantId == Guid.Empty
+                    || !Guid.TryParse(principal.FindFirstValue("session_id"), out var sessionId) || sessionId == Guid.Empty)
+                {
+                    context.Fail("A tenant-bound account session is required.");
+                }
+
+                return Task.CompletedTask;
+            },
             OnAuthenticationFailed = context =>
             {
                 if (context.Exception is SecurityTokenExpiredException)

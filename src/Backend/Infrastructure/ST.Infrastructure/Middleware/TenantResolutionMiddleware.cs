@@ -1,66 +1,80 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using ST.Domain.Features.ControlPlane.Contracts;
-using ST.Domain.Features.ControlPlane.Tenants.Entities;
 using ST.Domain.Features.ControlPlane.Tenants.Enums;
 using ST.Infrastructure.Configuration;
-using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace ST.Infrastructure.Middleware;
 
-public class TenantResolutionMiddleware
+public class TenantResolutionMiddleware(RequestDelegate next, IOptions<OrgSettings> options)
 {
-    private readonly RequestDelegate _next;
-    private readonly ILogger<TenantResolutionMiddleware> _logger;
-    private readonly IMemoryCache _cache;
+    public const string ResolvedTenantItem = "ResolvedRequestTenant";
 
-    public TenantResolutionMiddleware(
-        RequestDelegate next,
-        ILogger<TenantResolutionMiddleware> logger,
-        IMemoryCache cache)
+    public async Task InvokeAsync(HttpContext context, IControlPlaneUnitOfWork controlPlane)
     {
-        _next = next;
-        _logger = logger;
-        _cache = cache;
-    }
-
-    public async Task InvokeAsync(HttpContext context, IServiceProvider serviceProvider)
-    {
-        ArgumentNullException.ThrowIfNull(context, nameof(context));
-        ArgumentNullException.ThrowIfNull(serviceProvider, nameof(serviceProvider));
-        var host = context.Request.Host.Host;
-        var OrgSettings = serviceProvider.GetRequiredService<IOptions<OrgSettings>>().Value;
-
-        // If the header already exists (e.g. injected by a proxy or explicitly provided), respect it
-        if (!context.Request.Headers.ContainsKey(OrgSettings.HeaderName))
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.StartsWithSegments("/ready", StringComparison.OrdinalIgnoreCase))
         {
-            var cacheKey = $"Tenant_Host_{host}";
-
-            if (!_cache.TryGetValue(cacheKey, out Guid tenantId))
-            {
-                using var scope = serviceProvider.CreateScope();
-                var uow = scope.ServiceProvider.GetRequiredService<IControlPlaneUnitOfWork>();
-
-                var tenant = await uow.Tenants
-                    .FirstOrDefaultAsync(t => t.HostName == host && t.Status == TenantStatus.Active, context.RequestAborted).ConfigureAwait(false);
-
-                tenantId = tenant?.Id ?? Guid.Empty;
-                _cache.Set(cacheKey, tenantId, TimeSpan.FromMinutes(5));
-            }
-
-            if (tenantId != Guid.Empty)
-            {
-                // Inject the tenant ID into the headers so CurrentTenantProvider can read it
-                context.Request.Headers[OrgSettings.HeaderName] = tenantId.ToString();
-            }
+            await next(context).ConfigureAwait(false);
+            return;
         }
 
-        await _next(context).ConfigureAwait(false);
+        var settings = options.Value;
+        var headers = context.Request.Headers;
+        var host = context.Request.Host.Host.TrimEnd('.').ToLowerInvariant();
+        Guid? selectedTenant = null;
+        if (headers.TryGetValue(settings.HeaderName, out var values))
+        {
+            if (values.Count != 1 || !Guid.TryParse(values[0], out var selector) || selector == Guid.Empty)
+            {
+                await Reject(context, StatusCodes.Status400BadRequest, "The workspace selector is invalid.").ConfigureAwait(false);
+                return;
+            }
+
+            selectedTenant = selector;
+        }
+
+        if (!settings.CentralApiHosts.Contains(host, StringComparer.OrdinalIgnoreCase))
+        {
+            var tenants = await controlPlane.Tenants.ListAsync(query => query
+                .Where(item => item.HostName.ToLower() == host
+                    && (!settings.DeploymentStampId.HasValue || item.DeploymentStampId == settings.DeploymentStampId))
+                .Select(item => new { item.Id, item.Status }).Take(2), context.RequestAborted).ConfigureAwait(false);
+            if (tenants.Count != 1 || tenants[0].Status != TenantStatus.Active)
+            {
+                await Reject(context, StatusCodes.Status404NotFound, "This workspace host is unavailable.").ConfigureAwait(false);
+                return;
+            }
+
+            var tenant = tenants[0];
+            if (selectedTenant is Guid supplied && supplied != tenant.Id)
+            {
+                await Reject(context, StatusCodes.Status400BadRequest, "The workspace selector conflicts with the request host.").ConfigureAwait(false);
+                return;
+            }
+
+            selectedTenant = tenant.Id;
+        }
+        else if (selectedTenant is Guid supplied && !await controlPlane.Tenants
+            .AnyAsync(item => item.Id == supplied && item.Status == TenantStatus.Active
+                && (!settings.DeploymentStampId.HasValue || item.DeploymentStampId == settings.DeploymentStampId), context.RequestAborted).ConfigureAwait(false))
+        {
+            await Reject(context, StatusCodes.Status404NotFound, "This workspace is unavailable.").ConfigureAwait(false);
+            return;
+        }
+
+        if (selectedTenant is Guid tenantId)
+        {
+            context.Items[ResolvedTenantItem] = tenantId;
+            headers[settings.HeaderName] = tenantId.ToString();
+        }
+
+        await next(context).ConfigureAwait(false);
+    }
+
+    private static Task Reject(HttpContext context, int status, string title)
+    {
+        return Results.Problem(statusCode: status, title: title).ExecuteAsync(context);
     }
 }

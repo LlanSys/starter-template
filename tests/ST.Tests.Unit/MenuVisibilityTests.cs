@@ -18,18 +18,18 @@ public sealed class MenuVisibilityTests
     {
         var menu = Menu();
         menu.SetVisibility(["Manager", "Reviewer"], ["users.view", "users.edit"]);
-        Assert.True(menu.IsVisibleTo(Set("reviewer"), Set("users.view", "users.edit"), false));
-        Assert.False(menu.IsVisibleTo(Set("Reviewer"), Set("users.view"), false));
-        Assert.False(menu.IsVisibleTo(Set("Other"), Set("users.view", "users.edit"), false));
+        Assert.True(menu.IsVisibleTo(Set("reviewer"), Set("users.view", "users.edit")));
+        Assert.False(menu.IsVisibleTo(Set("Reviewer"), Set("users.view")));
+        Assert.False(menu.IsVisibleTo(Set("Other"), Set("users.view", "users.edit")));
     }
 
     [Fact]
     public void EmptySelectionsAndLegacyPermissionRemainCompatible()
     {
-        Assert.True(Menu().IsVisibleTo(Set(), Set(), false));
+        Assert.True(Menu().IsVisibleTo(Set(), Set()));
         var menu = Menu("users.view");
-        Assert.False(menu.IsVisibleTo(Set(), Set(), false));
-        Assert.True(menu.IsVisibleTo(Set(), Set("USERS.VIEW"), false));
+        Assert.False(menu.IsVisibleTo(Set(), Set()));
+        Assert.True(menu.IsVisibleTo(Set(), Set("USERS.VIEW")));
     }
 
     [Fact]
@@ -37,12 +37,12 @@ public sealed class MenuVisibilityTests
     {
         var menu = Menu();
         menu.SetVisibility(["Reviewer"], ["users.view"]);
-        Assert.False(menu.IsVisibleTo(Set("System Administrator"), Set(), true));
-        Assert.True(menu.IsVisibleTo(Set("Reviewer"), Set(), true));
+        Assert.False(menu.IsVisibleTo(Set("System Administrator"), Set()));
+        Assert.False(menu.IsVisibleTo(Set("Reviewer"), Set()));
         menu.SetVisibility([], ["control_plane.manage"]);
-        Assert.False(menu.IsVisibleTo(Set("System Administrator"), Set(), true));
-        Assert.True(menu.IsVisibleTo(Set(), Set("control_plane.manage"), true));
-        Assert.False(Menu("control_plane.manage").IsVisibleTo(Set(), Set(), true));
+        Assert.False(menu.IsVisibleTo(Set("System Administrator"), Set()));
+        Assert.True(menu.IsVisibleTo(Set(), Set("control_plane.manage")));
+        Assert.False(Menu("control_plane.manage").IsVisibleTo(Set(), Set()));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class MenuVisibilityTests
         var stored = await context.Set<MenuItem>().IgnoreQueryFilters().SingleAsync(item => item.Id == menu.Id);
         Assert.Equal(2, stored.RequiredRoleNames.Length);
         Assert.Equal(new[] { "users.view" }, stored.RequiredPermissionKeys);
-        Assert.True(stored.IsVisibleTo(Set("Reviewer"), Set("users.view"), false));
+        Assert.True(stored.IsVisibleTo(Set("Reviewer"), Set("users.view")));
     }
 
     [Theory]

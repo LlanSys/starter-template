@@ -26,10 +26,9 @@ internal sealed class PermissionAuthorizationHandler(IEffectiveModulePolicy poli
         var access = await policy.GetAsync().ConfigureAwait(false);
         if (!access.PermissionAvailable(requirement.Permission)) return;
 
-        if (context.User.IsInRole(PermissionAuthorizationConstants.SystemAdministratorRole)
-            || context.User.Claims.Any(claim =>
-                string.Equals(claim.Type, PermissionAuthorizationConstants.ClaimType, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(claim.Value, requirement.Permission, StringComparison.OrdinalIgnoreCase)))
+        if (context.User.Claims.Any(claim =>
+            string.Equals(claim.Type, PermissionAuthorizationConstants.ClaimType, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(claim.Value, requirement.Permission, StringComparison.OrdinalIgnoreCase)))
         {
             context.Succeed(requirement);
         }

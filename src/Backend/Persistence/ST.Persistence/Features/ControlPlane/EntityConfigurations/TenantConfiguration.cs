@@ -11,6 +11,7 @@ internal class TenantConfiguration : IEntityTypeConfiguration<Tenant>
     {
         builder.ToTable("Tenants");
         builder.Property(x => x.AdministratorUserId).HasMaxLength(128);
+        builder.Property(x => x.ClientOrigin).HasMaxLength(2048);
         builder.Property(x => x.AdministratorEmail).HasMaxLength(256);
         builder.Property(x => x.KycApprovedBy).HasMaxLength(128);
         builder.Property(x => x.KycEvidenceReference).HasMaxLength(256);
@@ -58,6 +59,7 @@ internal class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.RowVersion)
             .IsRowVersion();
 
+        builder.HasIndex(x => x.ExclusiveStampId).IsUnique();
         builder.HasIndex(x => x.HostName).IsUnique();
         builder.HasIndex(x => x.Identifier).IsUnique();
 

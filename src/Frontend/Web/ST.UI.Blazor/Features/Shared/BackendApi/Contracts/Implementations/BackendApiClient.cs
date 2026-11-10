@@ -32,7 +32,8 @@ internal sealed class BackendApiClient(
         bool requiresAuthentication = true,
         string? unavailableMessage = null,
         string? timeoutMessage = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool includeWorkspaceSelector = true)
     {
         ArgumentNullException.ThrowIfNull(method);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
@@ -54,8 +55,14 @@ internal sealed class BackendApiClient(
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             using var message = CreateRequest(method, endpoint, request);
-            var selected = await selection.GetAsync().ConfigureAwait(false);
-            if (selected is not null) message.Headers.TryAddWithoutValidation(_apiSettings.TenantHeaderName, selected.TenantId.ToString());
+            if (includeWorkspaceSelector)
+            {
+                var selected = await selection.GetAsync().ConfigureAwait(false);
+                if (selected is not null)
+                {
+                    message.Headers.TryAddWithoutValidation(_apiSettings.TenantHeaderName, selected.TenantId.ToString());
+                }
+            }
 
             if (requiresAuthentication)
             {

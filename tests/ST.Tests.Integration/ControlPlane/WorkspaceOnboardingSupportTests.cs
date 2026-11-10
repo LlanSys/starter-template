@@ -30,6 +30,39 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
 {
     private static readonly Guid Platform = Guid.Parse("0194f700-0000-7000-8000-000000000001");
     [Fact]
+    public async Task ConcurrentWorkspaceInitializationProducesOneCompleteRoleAndInvitation()
+    {
+        var tenantId = Guid.CreateVersion7();
+        await factory.RegisterTenantAsync(tenantId);
+        var identity = await IdentityAsync(Platform, true);
+        using var vendor = Bearer(identity.Token);
+        var request = new InitializeWorkspaceRequest(
+            $"lease-{tenantId:N}@example.test", "Tenant", "Owner", true);
+        var responses = await Task.WhenAll(
+            vendor.PostAsJsonAsync($"/api/v1/control-plane/tenants/{tenantId}/workspace", request),
+            vendor.PostAsJsonAsync($"/api/v1/control-plane/tenants/{tenantId}/workspace", request));
+        try
+        {
+            Assert.Contains(responses, response => response.IsSuccessStatusCode);
+            Assert.All(responses, response => Assert.True((int)response.StatusCode < 500));
+        }
+        finally
+        {
+            foreach (var response in responses) { response.Dispose(); }
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var control = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>();
+        var tenant = await control.Tenants.AsNoTracking().SingleAsync(item => item.Id == tenantId);
+        Assert.Equal(1, tenant.WorkspaceVersion);
+        Assert.Null(tenant.WorkspaceSetupLeaseId);
+        Assert.Equal(1, await control.AdministratorInvitations.CountAsync(item => item.TenantId == tenantId));
+        var iam = scope.ServiceProvider.GetRequiredService<IamDBContext>();
+        Assert.Equal(1, await iam.Roles.IgnoreQueryFilters()
+            .CountAsync(role => role.TenantId == tenantId && role.Name == "Tenant Administrator"));
+    }
+
+    [Fact]
     public async Task InvitationMfaScopedSupportAndRevocationUseRealTenantSessions()
     {
         var a = Guid.CreateVersion7(); var b = Guid.CreateVersion7();

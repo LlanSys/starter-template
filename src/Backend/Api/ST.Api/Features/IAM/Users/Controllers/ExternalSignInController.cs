@@ -31,7 +31,8 @@ namespace ST.Api.Features.IAM.Users.Controllers;
 public sealed class ExternalSignInController(
     ISender sender, IAuthenticationSchemeProvider schemes, IControlPlaneUnitOfWork plane,
     IWorkspaceTenantOverride workspace, IAdministratorInvitationService invitations, IExternalIdentityConnection connections,
-    IOptions<ExternalSignInSettings> configuration) : BaseController
+    IOptions<ExternalSignInSettings> configuration,
+    IOptions<OrgSettings> hostSettings) : BaseController
 {
     [HttpGet("providers")]
     [AllowAnonymous]
@@ -193,7 +194,9 @@ public sealed class ExternalSignInController(
     }
 
     private Task<bool> IsWorkspaceActiveAsync(Guid tenantId, CancellationToken cancellationToken) =>
-        plane.Tenants.AnyAsync(tenant => tenant.Id == tenantId && tenant.Status == TenantStatus.Active && !tenant.IsDemo, cancellationToken);
+        plane.Tenants.AnyAsync(tenant => tenant.Id == tenantId && tenant.Status == TenantStatus.Active && !tenant.IsDemo
+            && (!hostSettings.Value.DeploymentStampId.HasValue
+                || tenant.DeploymentStampId == hostSettings.Value.DeploymentStampId), cancellationToken);
 
     private async Task<bool> IsEnabledAsync(string provider) =>
         IsProvider(provider) && await schemes.GetSchemeAsync(provider).ConfigureAwait(false) is not null;

@@ -1,3 +1,4 @@
+using ST.Application.Features.IAM.Users;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Dtos.Common;
@@ -25,6 +26,11 @@ internal sealed class UpdateRole(RoleManager<AppRole> roleManager, ILogger<Updat
             if (string.IsNullOrWhiteSpace(name))
             {
                 return AppResponses.Failure<AdminRoleListResponse>("Role name is required.");
+            }
+
+            if (RoleAccessRules.IsProtectedRole(role.Name) || RoleAccessRules.IsProtectedRole(name))
+            {
+                return AppResponses.Failure<AdminRoleListResponse>("This role name is reserved for workspace setup.");
             }
 
             role.Name = name;

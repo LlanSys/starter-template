@@ -90,9 +90,19 @@
     private async Task<bool> ResolveWorkspaceAsync(string? identifier = null, Guid? tenantId = null)
     {
         var query = tenantId.HasValue ? $"tenantId={tenantId}" : "identifier=" + Uri.EscapeDataString(identifier ?? "");
-        var response = await Api.SendAsync<WorkspaceInfoResponse>(HttpMethod.Get, "api/v1/workspaces/resolve?" + query, requiresAuthentication: false);
+        var response = await Api.SendAsync<WorkspaceInfoResponse>(HttpMethod.Get, "api/v1/workspaces/resolve?" + query, requiresAuthentication: false, includeWorkspaceSelector: false);
         if (!response.IsSuccess || response.Data is null) { _message = UserMessageSanitizer.Normalize(response.Message, "Workspace is not available."); _isError = true; return false; }
         var workspace = response.Data;
+        if (Uri.TryCreate(workspace.ClientOrigin, UriKind.Absolute, out var clientOrigin)
+            && (clientOrigin.Scheme == Uri.UriSchemeHttps || (clientOrigin.IsLoopback && clientOrigin.Scheme == Uri.UriSchemeHttp))
+            && !string.Equals(clientOrigin.GetLeftPart(UriPartial.Authority),
+                new Uri(Navigation.Uri).GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo(new Uri(clientOrigin,
+                "/iam/sign-in?workspace=" + Uri.EscapeDataString(workspace.Identifier)).AbsoluteUri, forceLoad: true);
+            return false;
+        }
+
         _selectedWorkspace = new(workspace.TenantId, workspace.Identifier, workspace.Name);
         _workspaceIdentifier = workspace.Identifier;
         await WorkspaceSelection.SetAsync(_selectedWorkspace);

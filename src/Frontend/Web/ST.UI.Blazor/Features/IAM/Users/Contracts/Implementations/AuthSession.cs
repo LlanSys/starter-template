@@ -30,7 +30,6 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
 
     public string? LastError { get; private set; }
 
-    public bool HasFullAccess => IsInRole("System Administrator");
 
     public bool MfaEnrollmentRequired => CurrentUser?.MfaEnrollmentRequired == true;
 
@@ -240,8 +239,7 @@ internal sealed class AuthSession(IAuthService authService, ITokenStorage storag
         if (permission.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase)) return CurrentUser?.IsPlatformStaff == true && CurrentUser.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true;
 
         if (CurrentUser?.UnavailablePermissions.Contains(permission, StringComparer.OrdinalIgnoreCase) == true) return false;
-        return HasFullAccess
-            || CurrentUser?.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true;
+        return CurrentUser?.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true;
     }
 
     public bool HasAnyPermission(params string[] permissions)

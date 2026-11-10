@@ -1,103 +1,79 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Domain.Features.ControlPlane.Contracts;
+using ST.Domain.Features.ControlPlane.Tenants.Enums;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Shared.Exceptions;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.DependencyInjection;
-using ST.Domain.Features.ControlPlane.Tenants.Enums;
+using ST.Persistence.Common.Configuration;
+using ST.Infrastructure.Configuration;
 
 namespace ST.Infrastructure.Contracts.Implementations.Common;
 
-internal sealed class TenantConnectionResolver : ITenantConnectionResolver
+internal sealed class TenantConnectionResolver(
+    ICurrentTenantProvider tenantProvider,
+    IServiceScopeFactory scopes,
+    IEncryptionService encryption,
+    IOptions<DatabaseSettings> databaseSettings,
+    IOptions<OrgSettings> hostSettings) : ITenantConnectionResolver
 {
-    private readonly ICurrentTenantProvider _tenantProvider;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IEncryptionService _encryptionService;
-    private readonly IMemoryCache _memoryCache;
-
-    public TenantConnectionResolver(
-        ICurrentTenantProvider tenantProvider,
-        IServiceProvider serviceProvider,
-        IEncryptionService encryptionService,
-        IMemoryCache memoryCache)
-    {
-        _tenantProvider = tenantProvider;
-        _serviceProvider = serviceProvider;
-        _encryptionService = encryptionService;
-        _memoryCache = memoryCache;
-    }
-
     public async Task<string?> GetConnectionStringAsync(CancellationToken cancellationToken = default)
     {
-        var tenantMetadata = await GetTenantMetadataAsync(cancellationToken).ConfigureAwait(false);
-        return tenantMetadata?.ConnectionString;
+        var metadata = await GetTenantMetadataAsync(cancellationToken).ConfigureAwait(false);
+        return metadata?.ConnectionString;
     }
 
     public async Task<string?> GetDatabaseProviderAsync(CancellationToken cancellationToken = default)
     {
-        var tenantMetadata = await GetTenantMetadataAsync(cancellationToken).ConfigureAwait(false);
-        return tenantMetadata?.Provider;
+        var metadata = await GetTenantMetadataAsync(cancellationToken).ConfigureAwait(false);
+        return metadata?.Provider;
     }
 
-    private async Task<TenantDatabaseMetadata?> GetTenantMetadataAsync(CancellationToken cancellationToken)
+    private Task<TenantDatabaseMetadata?> GetTenantMetadataAsync(CancellationToken cancellationToken)
     {
         Guid tenantId;
         try
         {
-            tenantId = _tenantProvider.TenantId;
+            tenantId = tenantProvider.TenantId;
         }
         catch (TenantNotResolvedException)
         {
-            // No tenant resolved for this request — pooled/anonymous path; return null so
-            // TenantConnectionInterceptor leaves the default connection string untouched.
-            return null;
+            return Task.FromResult<TenantDatabaseMetadata?>(null);
         }
 
-        // Lifecycle status is authoritative on every resolution, including a warm metadata cache.
-        using var scope = _serviceProvider.CreateScope();
-        var unitOfWork = scope.ServiceProvider.GetRequiredService<IControlPlaneUnitOfWork>();
-        var tenant = await unitOfWork.Tenants.FindByIdAsync(tenantId, cancellationToken).ConfigureAwait(false);
-        if (tenant is null || tenant.Status != TenantStatus.Active)
-        {
-            throw new TenantNotResolvedException("The requested tenant is unavailable.");
-        }
-
-        var cacheKey = $"TenantDbMetadata_{tenantId}";
-        if (_memoryCache.TryGetValue(cacheKey, out TenantDatabaseMetadata? cachedMetadata))
-        {
-            return cachedMetadata;
-        }
-
-        string? resolvedConnectionString = null;
-        string? resolvedProvider = null;
-
-        if (!string.IsNullOrEmpty(tenant.DatabaseConnectionString))
-        {
-            resolvedConnectionString = _encryptionService.Decrypt(tenant.DatabaseConnectionString);
-            resolvedProvider = tenant.DatabaseProvider;
-        }
-        else
-        {
-            var stamp = await unitOfWork.DeploymentStamps.FindByIdAsync(tenant.DeploymentStampId, cancellationToken).ConfigureAwait(false);
-            if (stamp != null && !string.IsNullOrEmpty(stamp.DatabaseConnectionString))
-            {
-                resolvedConnectionString = _encryptionService.Decrypt(stamp.DatabaseConnectionString);
-                resolvedProvider = stamp.DatabaseProvider;
-            }
-        }
-
-        var metadata = new TenantDatabaseMetadata(resolvedConnectionString, resolvedProvider);
-
-        var cacheOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
-
-        _memoryCache.Set(cacheKey, metadata, cacheOptions);
-
-        return metadata;
+        return LoadTenantMetadataAsync(tenantId, cancellationToken);
     }
 
-    private record TenantDatabaseMetadata(string? ConnectionString, string? Provider);
+    private async Task<TenantDatabaseMetadata?> LoadTenantMetadataAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var controlPlane = scope.ServiceProvider.GetRequiredService<IControlPlaneUnitOfWork>();
+        var tenant = await controlPlane.Tenants.FindByIdAsync(tenantId, cancellationToken).ConfigureAwait(false);
+        if (tenant is null || tenant.Status != TenantStatus.Active)
+        {
+            throw new TenantNotResolvedException("The requested workspace is unavailable.");
+        }
+
+        var stamp = tenant.DeploymentStamp
+            ?? await controlPlane.DeploymentStamps.FindByIdAsync(tenant.DeploymentStampId, cancellationToken).ConfigureAwait(false);
+        var connection = tenant.DatabaseConnectionString ?? stamp?.DatabaseConnectionString;
+        var boundStamp = hostSettings.Value.DeploymentStampId;
+        if (stamp is null || (boundStamp.HasValue && stamp.Id != boundStamp.Value)
+            || (!boundStamp.HasValue && stamp.IsolationTier == IsolationTier.Isolated && string.IsNullOrWhiteSpace(connection)))
+        {
+            throw new TenantNotResolvedException("The requested workspace is unavailable.");
+        }
+
+        var provider = tenant.DatabaseProvider ?? stamp.DatabaseProvider;
+        if (!string.IsNullOrWhiteSpace(provider)
+            && !string.Equals(provider, databaseSettings.Value.Provider, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new TenantNotResolvedException("The requested workspace requires a different database host.");
+        }
+
+        return new TenantDatabaseMetadata(boundStamp.HasValue || string.IsNullOrWhiteSpace(connection)
+            ? null : encryption.Decrypt(connection), provider);
+    }
+
+    private sealed record TenantDatabaseMetadata(string? ConnectionString, string? Provider);
 }

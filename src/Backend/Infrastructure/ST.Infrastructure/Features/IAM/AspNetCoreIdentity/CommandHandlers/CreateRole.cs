@@ -1,3 +1,4 @@
+using ST.Application.Features.IAM.Users;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Dtos.Common;
@@ -16,7 +17,10 @@ internal sealed class CreateRole(RoleManager<AppRole> roleManager, ILogger<Creat
         try
         {
             var roleName = command.Request.Name.Trim();
-            if (roleName.Equals("System Administrator", StringComparison.OrdinalIgnoreCase)) return AppResponses.Failure<AdminRoleListResponse>("This role name is reserved for platform setup.");
+            if (RoleAccessRules.IsProtectedRole(roleName))
+            {
+                return AppResponses.Failure<AdminRoleListResponse>("This role name is reserved for workspace setup.");
+            }
             if (string.IsNullOrWhiteSpace(roleName))
             {
                 return AppResponses.Failure<AdminRoleListResponse>("Role name is required.");

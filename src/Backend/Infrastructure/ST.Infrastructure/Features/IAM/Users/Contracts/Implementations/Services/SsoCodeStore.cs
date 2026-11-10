@@ -14,7 +14,14 @@ internal sealed class SsoCodeStore(
     public async Task<string> IssueAsync(AppUser user, string? connectionProvider, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
-        await iam.SsoAuthorizationCodes.Where(code => code.ExpiresAt <= now).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        var tenantId = scope.TenantId;
+        if (user.TenantId != tenantId)
+        {
+            throw new InvalidOperationException("The sign-in account must belong to the current workspace.");
+        }
+
+        await iam.SsoAuthorizationCodes.Where(code => code.TenantId == tenantId && code.ExpiresAt <= now)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
 
         var credential = SingleUseCredential.Create();
         iam.SsoAuthorizationCodes.Add(new SsoAuthorizationCode

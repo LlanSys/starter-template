@@ -1,5 +1,6 @@
 using ST.Application.Exceptions;
 using ST.Domain.Exceptions;
+using ST.Domain.Shared.Exceptions;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -37,6 +38,12 @@ internal sealed class ApiExceptionHandler : IExceptionHandler
                 status = (int)HttpStatusCode.Unauthorized;
                 title = "Authentication Failed";
                 detail = "We could not sign you in. Please check your account status or contact support.";
+                break;
+
+            case TenantNotResolvedException:
+                status = (int)HttpStatusCode.NotFound;
+                title = "Workspace Unavailable";
+                detail = "This workspace is unavailable.";
                 break;
 
             case UnauthorizedAccessException:

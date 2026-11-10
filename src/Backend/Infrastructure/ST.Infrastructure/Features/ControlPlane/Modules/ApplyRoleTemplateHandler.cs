@@ -2,6 +2,8 @@ using System.Security.Claims;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using ST.Application.Features.ControlPlane.Modules;
+using ST.Application.Features.IAM.Users;
+using ST.Infrastructure.Features.IAM.Authorization;
 using ST.Domain.Features.ControlPlane.Modules.Entities;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -9,7 +11,7 @@ using ST.Domain.Shared.Contracts.Common;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 namespace ST.Infrastructure.Features.ControlPlane.Modules;
-internal sealed class ApplyRoleTemplateHandler(IEffectiveModulePolicy policy, RoleManager<AppRole> roles, IIamUnitOfWork unit, ICurrentTenantProvider tenant) : IRequestHandler<ApplyRoleTemplateCommand, AppResponse<AdminRoleListResponse>>
+internal sealed class ApplyRoleTemplateHandler(IEffectiveModulePolicy policy, RoleManager<AppRole> roles, IIamUnitOfWork unit, ICurrentTenantProvider tenant, IamDelegation delegation) : IRequestHandler<ApplyRoleTemplateCommand, AppResponse<AdminRoleListResponse>>
 {
     public async Task<AppResponse<AdminRoleListResponse>> Handle(ApplyRoleTemplateCommand command, CancellationToken cancellationToken)
     {
@@ -17,7 +19,13 @@ internal sealed class ApplyRoleTemplateHandler(IEffectiveModulePolicy policy, Ro
         var template = access.Catalogue.FirstOrDefault(x => x.Key == command.Request.TemplateKey && x.Kind == ModuleCatalogueKind.RoleTemplate && access.EntryAvailable(x));
         if (template is null || template.PermissionKeys.Any(key => !access.PermissionAvailable(key))) return AppResponses.Failure<AdminRoleListResponse>("This role template is not available for your tenant.");
         if (template.Version != command.Request.ExpectedVersion) return AppResponses.Failure<AdminRoleListResponse>("The template changed. Reload it before applying.");
-        var name = command.Request.RoleName.Trim(); var existing = await roles.FindByNameAsync(name).ConfigureAwait(false);
+        var name = command.Request.RoleName.Trim();
+        if (RoleAccessRules.IsProtectedRole(name) || !delegation.CanDelegate(template.PermissionKeys))
+        {
+            return AppResponses.Failure<AdminRoleListResponse>("This role template or name cannot be assigned by this account.");
+        }
+
+        var existing = await roles.FindByNameAsync(name).ConfigureAwait(false);
         if (existing is not null && existing.TemplateKey != template.Key) return AppResponses.Failure<AdminRoleListResponse>("This name belongs to another tenant role. Choose a different name.");
         return await unit.ExecuteInTransactionAsync(async () =>
         {

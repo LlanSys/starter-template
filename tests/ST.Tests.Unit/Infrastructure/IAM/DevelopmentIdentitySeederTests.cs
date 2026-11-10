@@ -1,4 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
+using ST.Domain.Shared.Contracts.Common;
+using ST.Tests.Unit.TestFixtures;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Features.IAM.Users.Enums;
 using ST.Infrastructure.Configuration;
@@ -189,7 +192,11 @@ public sealed class DevelopmentIdentitySeederTests
                 Substitute.For<IRoleStore<AppRole>>(), Array.Empty<IRoleValidator<AppRole>>(),
                 new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), NullLogger<RoleManager<AppRole>>.Instance);
             Roles.CreateAsync(Arg.Any<AppRole>()).Returns(IdentityResult.Success);
-            Seeder = new DevelopmentIdentitySeeder(Roles, Users, Options.Create(settings), NullLogger<DevelopmentIdentitySeeder>.Instance, TimeProvider.System);
+            Users.GetClaimsAsync(Arg.Any<AppUser>()).Returns(new List<Claim>());
+            Users.AddClaimsAsync(Arg.Any<AppUser>(), Arg.Any<IEnumerable<Claim>>()).Returns(IdentityResult.Success);
+            Seeder = new DevelopmentIdentitySeeder(Roles, Users, Options.Create(settings),
+                NullLogger<DevelopmentIdentitySeeder>.Instance, TimeProvider.System, new TestModulePolicy(),
+                Substitute.For<IWorkspaceTenantOverride>());
             Users.ClearReceivedCalls();
             Roles.ClearReceivedCalls();
         }

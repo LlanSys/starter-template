@@ -1,4 +1,5 @@
 using ST.Application.Contracts.Interfaces.Common;
+using ST.Domain.Shared.Contracts.Common;
 using ST.Infrastructure.Jobs;
 using ST.Infrastructure.Logging;
 using MediatR;
@@ -14,7 +15,7 @@ using TriggerBuilder = Quartz.TriggerBuilder;
 
 namespace ST.Infrastructure.Contracts.Implementations.Common;
 
-internal sealed class BackgroundJobService(ISchedulerFactory _schedulerFactory, ILogger<BackgroundJobService> logger) : IBackgroundJobService
+internal sealed class BackgroundJobService(ISchedulerFactory _schedulerFactory, ILogger<BackgroundJobService> logger, ICurrentTenantProvider tenant) : IBackgroundJobService
 {
     public void Enqueue(IRequest request)
     {
@@ -27,6 +28,7 @@ internal sealed class BackgroundJobService(ISchedulerFactory _schedulerFactory, 
                 .WithIdentity($"{type.Name}_{Guid.CreateVersion7()}", "MediatRGroup")
                 .UsingJobData("CommandData", JsonSerializer.Serialize(request))
                 .UsingJobData("CommandType", type.AssemblyQualifiedName!)
+                .UsingJobData("TenantId", tenant.TenantId.ToString())
                 .Build();
 
             var trigger = TriggerBuilder.Create()
@@ -59,6 +61,7 @@ internal sealed class BackgroundJobService(ISchedulerFactory _schedulerFactory, 
             .WithIdentity($"{type.Name}_{Guid.CreateVersion7()}", "MediatRGroup")
             .UsingJobData("CommandData", JsonSerializer.Serialize(request))
             .UsingJobData("CommandType", type.AssemblyQualifiedName!)
+            .UsingJobData("TenantId", tenant.TenantId.ToString())
             .Build();
 
         // Define the Trigger (Execute now)

@@ -104,5 +104,5 @@ public sealed class TenantsController(ISender sender) : BaseController
     [HttpPost("{id:guid}/stamp-migration")]
     [RequirePermission("control_plane.manage")]
     public async Task<IActionResult> MigrateStamp(Guid id, MigrateTenantStampRequest request)
-        => HandleResponse(await sender.Send(new MigrateTenantStampCommand(id, request.NewDeploymentStampId, request.NewDatabaseConnectionString)).ConfigureAwait(false));
+        => HandleResponse(await sender.Send(new MigrateTenantStampCommand(id, request.NewDeploymentStampId, request.NewDatabaseConnectionString, request.NewClientOrigin)).ConfigureAwait(false));
 }

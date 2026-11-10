@@ -12,7 +12,7 @@ Run from Visual Studio:
 
 - `ST.Api`
 - `ST.UI.Blazor`
-- EF Core migrations and application debugging
+- [Local database checks and migrations](starter-setup.md#check-and-update-an-existing-local-database) and application debugging
 
 Run in Docker:
 
@@ -102,9 +102,32 @@ The app deployment overlay:
 - Stores ASP.NET Core Data Protection keys in Redis using `DataProtection:KeyEncryptionMode=None` for local-only development.
 - Keeps Azure Blob, Key Vault, Service Bus, and provider production settings untouched.
 
-If the local Redis volume/key ring is deleted after an authenticator app has been enrolled, previously encrypted TOTP secrets cannot be decrypted. The API treats this as a stale local security artifact: it logs the key-ring failure, disables the stale authenticator enrollment, and asks the user to sign in again and set up the authenticator app. This does not change Visual Studio or cloud behavior; it only protects the local app-deployment flow from exposing Data Protection internals.
+### Sharing the local API key ring
 
-If an authenticator enrollment is reset this way, delete the old StarterTemplate account entry from Microsoft Authenticator/Google Authenticator/1Password and scan the new QR code. Old 6-digit codes are tied to the old secret and will remain invalid.
+When Visual Studio and Docker use the same application database, configure both APIs to use the same Data Protection key ring and keep `DataProtection:ApplicationName` at `StarterTemplate`. The Windows API defaults to DPAPI-protected files in `%LOCALAPPDATA%\STApi\DataProtection-Keys`. Docker uses the `StarterTemplate-DataProtection-Keys` Redis key. When an authenticator's original key is unavailable, verification fails and the enrollment stays enabled.
+
+For a fresh local database, opt in before enrolling users. Add `-UseSharedLocalKeyRing` to either setup script to configure the Visual Studio API to use the Docker Redis ring. The setting persists in the local API user-secrets. Restart the Windows API to pick up the new ring. Preserve the Redis data volume and the original Windows key directory. This uses unencrypted-at-rest keys in the local Redis service. Restrict access to that service. Production key encryption and Blazor's separate browser-storage key ring follow their own configuration.
+
+#### Preserve an existing Windows enrollment
+
+Check all databases served by the local API before changing its key ring. Tenant and deployment stamp database credentials and sensitive organization settings also use this ring. The command below handles one explicitly selected IAM account. Review other accounts and any other protected data separately before switching the API.
+
+Run the tool as the Windows user who owns the original DPAPI keys. Start the local Docker API first so the destination ring has keys, then pause both API hosts while checking and applying the repair. Keep SQL Server or PostgreSQL and Redis running. Supply these variables in the current shell without printing their values.
+
+| Variable | Value |
+| --- | --- |
+| `ST_DATABASE_CONNECTION` | Existing IAM database connection string with a loopback host and explicit database name |
+| `ST_AUTHENTICATOR_USER_ID` | ID of the existing local IAM account |
+| `ST_LOCAL_SOURCE_KEY_DIRECTORY` | Original Windows key directory |
+| `ST_LOCAL_REDIS_CONNECTION` | Existing local Docker Redis connection string with a loopback host and the published port |
+
+```powershell
+dotnet run --project tools/ST.DatabaseTools -- SqlServer check-local-authenticator
+dotnet run --project tools/ST.DatabaseTools -- SqlServer reprotect-local-authenticator
+dotnet run --project tools/ST.DatabaseTools -- SqlServer check-local-authenticator
+```
+
+Use `PostgreSql` for a PostgreSQL database. The first check validates the conversion without saving. The repair changes ciphertext in one transaction and preserves the same authenticator enrollment. The second check should report zero records requiring reprotection. After checking any other protected records, use `-UseSharedLocalKeyRing`, restart both APIs, and verify a fresh authenticator code through each host. If the original keys are unavailable, use the approved account recovery process.
 
 Local Identity lockout is enabled to match production behavior. Five failed password attempts lock the account for five minutes. During local testing, wait for the lockout window to expire or reset the local user row intentionally in the development database; do not keep retrying because each failed password attempt increments the Identity lockout counter.
 
@@ -201,7 +224,7 @@ Pushes and pull-request merges must not create migration bundles, run Azure migr
 
 The Azure OIDC workflow, migration bundles, App Service deployment jobs, managed-identity configuration, and Key Vault/Blob settings remain in the repository. Local configuration overrides them through `appsettings.Development.json` and user-secrets; it does not replace them.
 
-Development explicitly disables external Data Protection key storage and selects the local Mailpit email provider. Existing Azure Blob/Key Vault URIs and production email provider secrets can remain configured without being contacted by the local runtime.
+Development defaults to filesystem Data Protection and selects the local Mailpit email provider. The shared local API ring is an explicit opt-in. Existing Azure Blob/Key Vault URIs and production email provider secrets can remain configured without being contacted by the local runtime.
 
 ## Messaging License Decision
 

@@ -182,6 +182,10 @@ output sqlServerFqdn string = databaseProvider == 'SqlServer' ? (sql.outputs.?se
 #disable-next-line BCP318
 output sqlDatabaseName string = databaseProvider == 'SqlServer' ? (sql.outputs.?databaseName ?? '') : (postgres.outputs.?databaseName ?? '')
 
+output keyVaultUri string = keyVault.outputs.keyVaultUri
+output apiAppNameOutput string = apiAppName
+output uiAppNameOutput string = uiAppName
+
 #disable-next-line BCP318
 output apiHost string = deploymentTarget == 'container-apps' ? (containerApps.outputs.?apiFqdn ?? '') : (appService.outputs.?apiDefaultHostName ?? '')
 #disable-next-line BCP318

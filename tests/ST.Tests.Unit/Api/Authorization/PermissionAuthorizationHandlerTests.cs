@@ -21,15 +21,15 @@ public sealed class PermissionAuthorizationHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_Should_Succeed_For_System_Administrator()
+    public async Task HandleAsync_Should_Deny_An_Administrator_Role_Without_The_Permission()
     {
-        var user = CreatePrincipal(new Claim(ClaimTypes.Role, PermissionAuthorizationConstants.SystemAdministratorRole));
+        var user = CreatePrincipal(new Claim(ClaimTypes.Role, "System Administrator"));
         var requirement = new PermissionRequirement("roles.delete");
         var context = new AuthorizationHandlerContext([requirement], user, resource: null);
 
         await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
 
-        Assert.True(context.HasSucceeded);
+        Assert.False(context.HasSucceeded);
     }
 
     [Fact]

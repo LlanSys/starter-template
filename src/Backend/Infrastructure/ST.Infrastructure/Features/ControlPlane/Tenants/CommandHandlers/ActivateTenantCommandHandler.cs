@@ -50,8 +50,9 @@ public class ActivateTenantCommandHandler : IRequestHandler<ActivateTenantComman
             return AppResponses.Failure<TenantResponse>("Only a suspended tenant can be reactivated. New tenants require approval and provisioning.");
         }
 
-        tenant.MarkAsActive();
-        tenant.UpdatedAt = _timeProvider.GetUtcNow();
+        var now = _timeProvider.GetUtcNow();
+        tenant.Reactivate(now);
+        tenant.UpdatedAt = now;
         tenant.UpdatedBy = _actorProvider.ActorId;
 
         await _unitOfWork.Tenants.UpdateAsync(tenant, cancellationToken).ConfigureAwait(false);

@@ -2,7 +2,8 @@
 param(
     [switch]$UseContainerSql,
     [switch]$IncludeSeq,
-    [switch]$SkipPull
+    [switch]$SkipPull,
+    [switch]$UseSharedLocalKeyRing
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,6 +68,10 @@ if ($IncludeSeq) {
 }
 if ($SkipPull) {
     $platformArguments.SkipPull = $true
+}
+
+if ($UseSharedLocalKeyRing) {
+    $platformArguments.UseSharedLocalKeyRing = $true
 }
 
 & $platformScript @platformArguments

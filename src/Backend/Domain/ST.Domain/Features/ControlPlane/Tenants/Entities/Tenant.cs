@@ -14,6 +14,7 @@ public class Tenant : IAuditable, IHasDomainEvents
     public required string DisplayName { get; set; }
     public required string HostName { get; set; }
     public string? ContactEmail { get; set; }
+    public string? ClientOrigin { get; set; }
     public bool IsDemo { get; set; }
     public int DemoFixtureVersion { get; set; }
     public DateTimeOffset? DemoResetAt { get; set; }
@@ -28,6 +29,11 @@ public class Tenant : IAuditable, IHasDomainEvents
 
     public static readonly Guid PlatformTenantId = Guid.Parse("0194f700-0000-7000-8000-000000000001");
 
+    public DateTimeOffset? SessionsInvalidBefore { get; private set; }
+    public Guid? ProvisioningOperationId { get; private set; }
+    public DateTimeOffset? ProvisioningDeadline { get; private set; }
+    public Guid? WorkspaceSetupLeaseId { get; private set; }
+    public DateTimeOffset? WorkspaceSetupLeaseUntil { get; private set; }
     public DateTimeOffset? KycApprovedAt { get; private set; }
     public string? KycApprovedBy { get; private set; }
     public string? KycEvidenceReference { get; private set; }
@@ -70,9 +76,29 @@ public class Tenant : IAuditable, IHasDomainEvents
         UpdatedAt = now;
     }
 
-    public void RetryProvisioning()
+    public bool IsProvisioningExpired(DateTimeOffset now)
     {
-        if (!CanProvision || Status != TenantStatus.ProvisioningFailed)
+        return Status == TenantStatus.Provisioning
+            && (ProvisioningOperationId is null || (ProvisioningDeadline is { } deadline && deadline <= now));
+    }
+
+    public Guid BeginProvisioning(DateTimeOffset now, TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        MarkAsProvisioning();
+        ProvisioningOperationId = Guid.CreateVersion7();
+        ProvisioningDeadline = now.Add(timeout);
+        return ProvisioningOperationId.Value;
+    }
+
+    public void RetryProvisioning(DateTimeOffset? now = null)
+    {
+        if (!CanProvision || (Status != TenantStatus.ProvisioningFailed
+            && !(now.HasValue && IsProvisioningExpired(now.Value))))
         {
             throw new InvalidOperationException("Only approved workspaces with failed provisioning can retry.");
         }
@@ -90,10 +116,48 @@ public class Tenant : IAuditable, IHasDomainEvents
 
     public void MarkAsActive()
     {
-        if (!CanProvision || Status is not (TenantStatus.PendingProvisioning or TenantStatus.Provisioning or TenantStatus.Suspended))
+        if (!CanProvision || Status is not (TenantStatus.PendingProvisioning or TenantStatus.Provisioning))
             throw new InvalidOperationException($"Cannot activate tenant from status {Status}");
 
         Status = TenantStatus.Active;
+    }
+
+    public void Reactivate(DateTimeOffset now)
+    {
+        if (!CanProvision || Status != TenantStatus.Suspended)
+        {
+            throw new InvalidOperationException("Only an approved suspended workspace can be reactivated.");
+        }
+
+        SessionsInvalidBefore = now;
+        Status = TenantStatus.Active;
+    }
+
+    public bool TryBeginWorkspaceSetup(Guid leaseId, DateTimeOffset now)
+    {
+        if (leaseId == Guid.Empty || Status != TenantStatus.Active || !CanProvision
+            || WorkspaceSetupLeaseUntil > now)
+        {
+            return false;
+        }
+
+        WorkspaceSetupLeaseId = leaseId;
+        WorkspaceSetupLeaseUntil = now.AddMinutes(2);
+        return true;
+    }
+
+    public void CompleteWorkspaceSetup(Guid leaseId, DateTimeOffset now)
+    {
+        if (Status != TenantStatus.Active || !CanProvision
+            || WorkspaceSetupLeaseId != leaseId || WorkspaceSetupLeaseUntil <= now)
+        {
+            throw new InvalidOperationException("The workspace setup lease is unavailable.");
+        }
+
+        WorkspaceVersion = 1;
+        WorkspaceInitializedAt ??= now;
+        WorkspaceSetupLeaseId = null;
+        WorkspaceSetupLeaseUntil = null;
     }
 
     public void Suspend()
@@ -122,6 +186,7 @@ public class Tenant : IAuditable, IHasDomainEvents
     }
 
     public Guid DeploymentStampId { get; set; }
+    public Guid? ExclusiveStampId { get; set; }
     public DeploymentStamp? DeploymentStamp { get; set; }
 
     public string? DatabaseProvider { get; set; }

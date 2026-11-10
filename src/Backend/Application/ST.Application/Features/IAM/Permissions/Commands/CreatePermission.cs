@@ -24,7 +24,8 @@ internal sealed class CreatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
             if (!access.Modules.Contains(command.Request.ModuleKey)) return AppResponses.Failure<PermissionResponse>("Select an enabled module for this permission.");
             var requestedKey = command.Request.Resource.Trim().ToLowerInvariant().Replace(' ', '_') + "." + command.Request.Action.Trim().ToLowerInvariant().Replace(' ', '_');
-            if (requestedKey.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || access.Catalogue.Any(x => x.Kind == ModuleCatalogueKind.Permission && x.Key == requestedKey)) return AppResponses.Failure<PermissionResponse>("Standard permissions are managed in the platform module catalogue.");
+            if (requestedKey.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || (EffectiveModuleAccess.TenantSettingsPermissions.Contains(requestedKey, StringComparer.OrdinalIgnoreCase)
+                || access.Catalogue.Any(entry => entry.Kind == ModuleCatalogueKind.Permission && string.Equals(entry.Key, requestedKey, StringComparison.OrdinalIgnoreCase)))) return AppResponses.Failure<PermissionResponse>("Standard permissions are managed in the platform module catalogue.");
             var catalogError = await ValidateCatalogAsync(unitOfWork, command.Request.Context, command.Request.Resource, command.Request.Action, cancellationToken, access)
                 .ConfigureAwait(false);
             if (catalogError is not null)
@@ -42,7 +43,7 @@ internal sealed class CreatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
 
             permission.SetModule(command.Request.ModuleKey);
             var duplicate = await unitOfWork.PermissionRepository
-                .AnyAsync(existing => existing.Key == permission.Key, cancellationToken)
+                .HasUsedKeyAsync(permission.Key, cancellationToken)
                 .ConfigureAwait(false);
 
             if (duplicate)

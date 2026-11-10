@@ -15,6 +15,6 @@ internal sealed class ResolveWorkspaceHandler(IControlPlaneUnitOfWork unit, ICur
         var tenant = !string.IsNullOrWhiteSpace(identifier)
             ? await unit.Tenants.FirstOrDefaultAsync(x => x.Identifier == identifier && x.Status == TenantStatus.Active && !x.IsDemo, cancellationToken).ConfigureAwait(false)
             : await unit.Tenants.FirstOrDefaultAsync(x => x.Id == id && x.Status == TenantStatus.Active && !x.IsDemo, cancellationToken).ConfigureAwait(false);
-        return tenant is null ? AppResponses.NotFound<WorkspaceInfoResponse>("Workspace is not available.") : AppResponses.Success(new WorkspaceInfoResponse(tenant.Id, tenant.Identifier, tenant.DisplayName));
+        return tenant is null ? AppResponses.NotFound<WorkspaceInfoResponse>("Workspace is not available.") : AppResponses.Success(new WorkspaceInfoResponse(tenant.Id, tenant.Identifier, tenant.DisplayName, tenant.ClientOrigin));
     }
 }

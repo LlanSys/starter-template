@@ -8,6 +8,9 @@ public class MigrateTenantStampCommandValidator : AbstractValidator<MigrateTenan
     {
         RuleFor(x => x.TenantId).NotEmpty();
         RuleFor(x => x.NewDeploymentStampId).NotEmpty();
-        RuleFor(x => x.NewDatabaseConnectionString).NotEmpty();
+        RuleFor(x => x.NewDatabaseConnectionString).NotEmpty().MaximumLength(4096);
+        RuleFor(x => x.NewClientOrigin)
+            .Must(origin => WorkspaceClientOrigin.TryNormalize(origin, out _))
+            .WithMessage("The destination client origin is invalid.");
     }
 }

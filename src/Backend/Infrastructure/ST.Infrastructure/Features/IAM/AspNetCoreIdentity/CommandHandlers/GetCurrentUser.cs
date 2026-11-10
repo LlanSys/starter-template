@@ -87,7 +87,7 @@ internal sealed class GetCurrentUser(
                 WorkspaceName = support is null ? null : (await httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IControlPlaneUnitOfWork>().Tenants.FindByIdAsync(support.WorkspaceId,cancellationToken).ConfigureAwait(false))?.DisplayName,
                 UnavailablePermissions = access.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && !access.PermissionAvailable(x.Key)).Select(x => x.Key).Concat(access.PrivatePermissionModules.Keys.Where(key => !access.PermissionAvailable(key))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
                 AvailablePages = access.AvailablePages.Where(page => !string.IsNullOrEmpty(page.Path)
-                    && page.PermissionKeys.All(key => access.PermissionAvailable(key) && (rolesList.Contains("System Administrator", StringComparer.OrdinalIgnoreCase) || permissions.Contains(key, StringComparer.OrdinalIgnoreCase))))
+                    && page.PermissionKeys.All(key => access.PermissionAvailable(key) && permissions.Contains(key, StringComparer.OrdinalIgnoreCase)))
                     .Select(page => page.Path).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
                 EnabledModules = access.Modules.ToArray(),
                 IsPlatformStaff = PlatformAccess.IsStaff(httpContextAccessor.HttpContext!.User),

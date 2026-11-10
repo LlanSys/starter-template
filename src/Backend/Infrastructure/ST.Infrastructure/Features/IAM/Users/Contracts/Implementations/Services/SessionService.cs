@@ -1,6 +1,8 @@
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.Domain.Features.IAM.Contracts;
+using ST.Domain.Features.ControlPlane.Contracts;
+using ST.Domain.Features.ControlPlane.Tenants.Enums;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -21,11 +23,27 @@ internal sealed class SessionService(
     IIamUnitOfWork iamUnitOfWork,
     ILogger<SessionService> logger,
     IOptions<SessionSettings> sessionSettings,
-    TimeProvider timeProvider) : ISessionService
+    TimeProvider timeProvider,
+    IControlPlaneUnitOfWork controlPlane,
+    ICurrentTenantProvider tenantProvider) : ISessionService
 {
     private readonly IIamUnitOfWork _unitOfWork = iamUnitOfWork;
     private readonly ILogger<SessionService> _logger = logger;
     private readonly SessionSettings _sessionSettings = sessionSettings.Value;
+
+    private Task<SessionWorkspaceAccess?> GetWorkspaceAccessAsync(CancellationToken cancellationToken)
+    {
+        var tenantId = tenantProvider.TenantId;
+        return controlPlane.Tenants.FirstOrDefaultAsync(query => query
+            .Where(tenant => tenant.Id == tenantId && tenant.Status == TenantStatus.Active)
+            .Select(tenant => new SessionWorkspaceAccess(tenant.SessionsInvalidBefore)), cancellationToken);
+    }
+
+    private async Task<bool> WorkspaceSessionIsCurrentAsync(AppUserSession session, CancellationToken cancellationToken)
+    {
+        var access = await GetWorkspaceAccessAsync(cancellationToken).ConfigureAwait(false);
+        return access is not null && (access.InvalidBefore is null || session.CreatedAt > access.InvalidBefore);
+    }
 
     public async Task<AppResponse<bool>> CheckConcurrentSessionsAsync(string userId, CancellationToken cancellationToken = default)
     {
@@ -50,6 +68,11 @@ internal sealed class SessionService(
     {
         try
         {
+            if (await GetWorkspaceAccessAsync(cancellationToken).ConfigureAwait(false) is null)
+            {
+                return AppResponses.Failure<Guid>("This workspace is unavailable.");
+            }
+
             // Check concurrent session limit
             var concurrentCheck = await CheckConcurrentSessionsAsync(userId, cancellationToken).ConfigureAwait(false);
             if (!concurrentCheck.IsSuccess)
@@ -92,13 +115,21 @@ internal sealed class SessionService(
         const int maxRetries = 3;
         try
         {
+            var access = await GetWorkspaceAccessAsync(cancellationToken).ConfigureAwait(false);
+            if (access is null)
+            {
+                return AppResponses.Failure<Guid>("This workspace is unavailable.");
+            }
+
             return await _unitOfWork.ExecuteInTransactionWithRetryAsync(async () =>
             {
                 // Query INSIDE transaction for consistency
                 var activeSessions = await _unitOfWork.SessionRepository.GetActiveSessionsByUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
 
                 // Check if session for THIS device exists
-                var existingSessionForDevice = activeSessions.FirstOrDefault(s => s.DeviceFingerprint == deviceFingerprint);
+                var existingSessionForDevice = activeSessions.FirstOrDefault(session =>
+                    session.DeviceFingerprint == deviceFingerprint
+                    && (access.InvalidBefore is null || session.CreatedAt > access.InvalidBefore));
 
                 // Get sessions to end (exclude current device session)
                 var sessionsToEnd = activeSessions.Where(s => s.DeviceFingerprint != deviceFingerprint).ToList();
@@ -299,7 +330,7 @@ internal sealed class SessionService(
                 return AppResponses.Failure<bool>("Session not found");
             }
 
-            if (!session.IsActive)
+            if (!session.IsActive || !await WorkspaceSessionIsCurrentAsync(session, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Failure<bool>("Session is not active");
             }
@@ -340,6 +371,7 @@ internal sealed class SessionService(
                 .ConfigureAwait(false);
 
             return freshSession != null && freshSession.IsActive && freshSession.ExpiresAt > timeProvider.GetUtcNow()
+                && await WorkspaceSessionIsCurrentAsync(freshSession, cancellationToken).ConfigureAwait(false)
                 ? AppResponses.Success("Session is valid (concurrency resolved)", true)
                 : AppResponses.Failure<bool>("Session has expired or is invalid");
         }
@@ -368,7 +400,7 @@ internal sealed class SessionService(
                 return AppResponses.Failure<bool>("Session not found");
             }
 
-            if (!session.IsActive)
+            if (!session.IsActive || !await WorkspaceSessionIsCurrentAsync(session, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Failure<bool>("Session is not active");
             }
@@ -408,7 +440,8 @@ internal sealed class SessionService(
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            if (freshSession != null && freshSession.IsActive && freshSession.ExpiresAt > timeProvider.GetUtcNow())
+            if (freshSession != null && freshSession.IsActive && freshSession.ExpiresAt > timeProvider.GetUtcNow()
+                && await WorkspaceSessionIsCurrentAsync(freshSession, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Success("Session is valid (concurrency resolved)", true);
             }
@@ -421,4 +454,6 @@ internal sealed class SessionService(
             throw;
         }
     }
+
+    private sealed record SessionWorkspaceAccess(DateTimeOffset? InvalidBefore);
 }

@@ -273,9 +273,8 @@ public sealed class IamAdminController(ISender sender) : BaseController
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (!PlatformAccess.IsStaff(User)) permissionKeys.RemoveAll(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase));
-        var hasFullAccess = User.IsInRole("System Administrator");
-
-        return HandleResponse(await sender.Send(new GetNavigationMenusQuery(placement, permissionKeys, userId, hasFullAccess, User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray())).ConfigureAwait(false));
+        return HandleResponse(await sender.Send(new GetNavigationMenusQuery(placement, permissionKeys, userId,
+            RoleNames: User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray()), HttpContext.RequestAborted).ConfigureAwait(false));
     }
 
     [RequireModule("iam", "/admin/menus")]

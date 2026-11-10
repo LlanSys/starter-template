@@ -1,3 +1,4 @@
+using ST.Application.Features.IAM.Users;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Infrastructure.Logging;
@@ -21,6 +22,11 @@ internal sealed class DeleteRole(RoleManager<AppRole> roleManager, IamDBContext 
             if (role is null)
             {
                 return AppResponses.Failure<bool>("Role not found.");
+            }
+
+            if (RoleAccessRules.IsProtectedRole(role.Name))
+            {
+                return AppResponses.Failure<bool>("This role is maintained by workspace setup.");
             }
 
             var assignedUserCount = await context.UserRoles

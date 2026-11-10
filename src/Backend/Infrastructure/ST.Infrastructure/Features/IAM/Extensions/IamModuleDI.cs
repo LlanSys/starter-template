@@ -7,6 +7,7 @@ using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.Infrastructure.Extensions;
 using ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 using ST.Infrastructure.Features.IAM.Users.Seeding;
+using ST.Infrastructure.Features.IAM.Authorization;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.IAM.Extensions;
 using MediatR;
@@ -38,6 +39,7 @@ public static class IamModuleDI
 
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IClaimsService, ClaimsService>();
+        services.AddScoped<IamDelegation>();
         services.AddScoped<IAppUserService, AppUserService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<ISmsComposer, SmsComposer>();

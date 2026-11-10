@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ST.Application.Features.IAM.Permissions.Commands;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Domain.Features.IAM.Contracts;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Permissions.Dtos;
@@ -8,6 +9,8 @@ using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ST.Application.Features.IAM.Users;
+using ST.Infrastructure.Features.IAM.Authorization;
 using ST.Infrastructure.Logging;
 using ST.Application.Features.ControlPlane.Modules;
 using ST.Domain.Features.ControlPlane.Modules.Entities;
@@ -17,7 +20,7 @@ namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 internal sealed class UpdateRolePermissions(
     RoleManager<AppRole> roleManager,
     IamDBContext context,
-    ILogger<UpdateRolePermissions> logger, IEffectiveModulePolicy policy)
+    ILogger<UpdateRolePermissions> logger, IEffectiveModulePolicy policy, IamDelegation delegation, IIamUnitOfWork unit)
     : IRequestHandler<UpdateRolePermissionsCommand, AppResponse<RolePermissionsResponse>>
 {
     public async Task<AppResponse<RolePermissionsResponse>> Handle(UpdateRolePermissionsCommand command, CancellationToken cancellationToken)
@@ -30,6 +33,11 @@ internal sealed class UpdateRolePermissions(
                 return AppResponses.Failure<RolePermissionsResponse>("Role not found.");
             }
 
+            if (RoleAccessRules.IsProtectedRole(role.Name))
+            {
+                return AppResponses.Failure<RolePermissionsResponse>("This role is maintained by workspace setup.");
+            }
+
             var requestedKeys = command.Request.PermissionKeys
                 .Where(static key => !string.IsNullOrWhiteSpace(key))
                 .Select(static key => key.Trim().ToLowerInvariant())
@@ -39,6 +47,12 @@ internal sealed class UpdateRolePermissions(
 
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
             if (requestedKeys.Any(key => !access.PermissionAvailable(key))) return AppResponses.Failure<RolePermissionsResponse>("Select permissions from enabled modules; platform permissions cannot be assigned here.");
+            if (role.ModuleKey is { } module && (!access.Modules.Contains(module)
+                || requestedKeys.Any(key => !string.Equals(access.RegisteredPermissionModule(key), module, StringComparison.OrdinalIgnoreCase))))
+            {
+                return AppResponses.Failure<RolePermissionsResponse>("Select permissions from this role's enabled module.");
+            }
+
             var validKeys = await context.Permissions
                 .AsNoTracking()
                 .Where(permission => requestedKeys.Contains(permission.Key) && permission.IsActive)
@@ -48,6 +62,7 @@ internal sealed class UpdateRolePermissions(
                 .ConfigureAwait(false);
 
             validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
+            validKeys.AddRange(EffectiveModuleAccess.TenantSettingsPermissions.Where(access.PermissionAvailable));
             var invalidKeys = requestedKeys
                 .Except(validKeys, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -61,35 +76,35 @@ internal sealed class UpdateRolePermissions(
                 .Where(static claim => claim.Type == "permission")
                 .ToList();
 
-            foreach (var claim in existingClaims.Where(claim => access.PermissionAvailable(claim.Value) && !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)))
+            var existingKeys = existingClaims.Select(claim => claim.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var removals = existingClaims.Where(claim => access.PermissionAvailable(claim.Value)
+                && !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)).ToArray();
+            var additions = requestedKeys.Where(key => !existingKeys.Contains(key)).ToArray();
+            if (!delegation.CanDelegate(additions.Concat(removals.Select(claim => claim.Value))))
             {
-                var removeResult = await roleManager.RemoveClaimAsync(role, claim).ConfigureAwait(false);
-                if (!removeResult.Succeeded)
-                {
-                    return AppResponses.Failure<RolePermissionsResponse>(string.Join(", ", removeResult.Errors.Select(static error => error.Description)));
-                }
+                return AppResponses.Failure<RolePermissionsResponse>("You can only change permissions you hold in this workspace.");
             }
 
-            var existingKeys = existingClaims
-                .Select(static claim => claim.Value)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var key in requestedKeys.Where(key => !existingKeys.Contains(key)))
+            return await unit.ExecuteInTransactionAsync(async () =>
             {
-                var addResult = await roleManager.AddClaimAsync(role, new Claim("permission", key)).ConfigureAwait(false);
-                if (!addResult.Succeeded)
+                foreach (var claim in removals)
                 {
-                    return AppResponses.Failure<RolePermissionsResponse>(string.Join(", ", addResult.Errors.Select(static error => error.Description)));
+                    IamGrantUpdateRejectedException.Ensure(await roleManager.RemoveClaimAsync(role, claim).ConfigureAwait(false));
                 }
-            }
 
-            if (role.ModuleKey is not null && requestedKeys.Any(key => !string.Equals(access.Catalogue.FirstOrDefault(x => x.Key == key)?.ModuleKey ?? access.PrivatePermissionModules.GetValueOrDefault(key), role.ModuleKey,StringComparison.OrdinalIgnoreCase))) {
-                role.ModuleKey=null;
-                if(!(await roleManager.UpdateAsync(role).ConfigureAwait(false)).Succeeded) return AppResponses.Failure<RolePermissionsResponse>("Could not update the role scope.");
-            }
-            return AppResponses.Success(
-                "Role permissions updated.",
-                new RolePermissionsResponse(role.Id, role.Name ?? string.Empty, requestedKeys));
+                foreach (var key in additions)
+                {
+                    IamGrantUpdateRejectedException.Ensure(await roleManager.AddClaimAsync(role, new Claim("permission", key)).ConfigureAwait(false));
+                }
+
+                await unit.CompleteAsync(cancellationToken).ConfigureAwait(false);
+                return AppResponses.Success("Role permissions updated.",
+                    new RolePermissionsResponse(role.Id, role.Name ?? string.Empty, requestedKeys));
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (IamGrantUpdateRejectedException)
+        {
+            return AppResponses.Failure<RolePermissionsResponse>("The requested IAM changes could not be saved.");
         }
         catch (Exception ex)
         {

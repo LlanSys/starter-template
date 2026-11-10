@@ -74,6 +74,10 @@ public class IdempotentMigrationsGuardrailTests
 
         var generator = context.Database.GetService<IMigrationsSqlGenerator>();
         Assert.IsType(expectedGeneratorType, generator);
+
+        var historySql = context.GetService<IHistoryRepository>().GetCreateIfNotExistsScript();
+        Assert.Contains("CREATE TABLE IF NOT EXISTS", historySql, StringComparison.Ordinal);
+        Assert.DoesNotContain("IF NOT EXISTS IF NOT EXISTS", historySql, StringComparison.Ordinal);
     }
 
     private static IConfiguration BuildConfiguration(string provider)

@@ -1,4 +1,5 @@
 using ST.Domain.Features.IAM.Menus.Entities;
+using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Tests.Integration.TestFixtures;
@@ -75,6 +76,57 @@ public abstract class TenantIsolationMutationTests<TFixture> : IClassFixture<TFi
             // The test suite catches the leak. This proves the query filter is actually doing the work.
             Assert.True(rawVisible >= 2, "Ignoring query filters should expose data from other tenants.");
         }
+    }
+
+    [Fact]
+    public async Task DetachedWritesCannotUseAnotherTenantsKeyOrChangeItsOwnership()
+    {
+        var tenantA = Guid.CreateVersion7();
+        var tenantB = Guid.CreateVersion7();
+        await using var owner = new IamDBContext(_options, TimeProvider.System, new TestTenantProvider { TenantId = tenantB });
+        await owner.Database.EnsureCreatedAsync();
+        var original = MenuItem.Create(null, "owned", "Owned by B", "Description", "/owned", "icon", "left", null, null, 1, "test");
+        owner.MenuItems.Add(original);
+        await owner.SaveChangesAsync();
+
+        await using (var wrong = new IamDBContext(_options, TimeProvider.System, new TestTenantProvider { TenantId = tenantA }))
+        {
+            var foreign = MenuItem.Create(null, "foreign", "Foreign insert", "Description", "/foreign", "icon", "left", null, null, 1, "test");
+            foreign.TenantId = tenantB;
+            wrong.MenuItems.Add(foreign);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => wrong.SaveChangesAsync());
+        }
+
+        var detached = await owner.MenuItems.AsNoTracking().SingleAsync(menu => menu.Id == original.Id);
+        detached.TenantId = tenantA;
+        await using (var wrong = new IamDBContext(_options, TimeProvider.System, new TestTenantProvider { TenantId = tenantA }))
+        {
+            wrong.MenuItems.Update(detached);
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => wrong.SaveChangesAsync());
+        }
+
+        original.TenantId = tenantA;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => owner.SaveChangesAsync());
+        owner.ChangeTracker.Clear();
+        Assert.Equal(tenantB, (await owner.MenuItems.AsNoTracking().SingleAsync(menu => menu.Id == original.Id)).TenantId);
+    }
+
+    [Fact]
+    public async Task TenantCannotCreateASessionForAnotherWorkspacesAccount()
+    {
+        var tenantA = Guid.CreateVersion7();
+        var tenantB = Guid.CreateVersion7();
+        await using var owner = new IamDBContext(_options, TimeProvider.System, new TestTenantProvider { TenantId = tenantB });
+        await owner.Database.EnsureCreatedAsync();
+        var now = TimeProvider.System.GetUtcNow();
+        var user = AppUser.CreateSystemUser(now, tenantB, $"owner-{tenantB:N}", $"owner-{tenantB:N}@example.test", "test");
+        owner.Users.Add(user);
+        await owner.SaveChangesAsync();
+
+        await using var foreign = new IamDBContext(_options, TimeProvider.System, new TestTenantProvider { TenantId = tenantA });
+        foreign.AppUserSessions.Add(AppUserSession.Create(now, Guid.CreateVersion7(), user.Id, "127.0.0.1",
+            "integration", now.AddHours(1), "test"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => foreign.SaveChangesAsync());
     }
 
     private class TestTenantProvider : ICurrentTenantProvider

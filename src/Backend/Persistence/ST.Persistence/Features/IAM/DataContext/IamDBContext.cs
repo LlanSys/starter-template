@@ -90,22 +90,51 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
         builder.Entity<AppUser>(entity => entity.ToTable("Users"));
         builder.Entity<AppRole>(entity => entity.ToTable("Roles"));
         builder.Entity<IdentityUserRole<string>>(entity => entity.ToTable("UserRoles"));
-        builder.Entity<IdentityRoleClaim<string>>(entity => entity.ToTable("RoleClaims"));
-        builder.Entity<IdentityUserClaim<string>>(entity => entity.ToTable("UserClaims"));
-        builder.Entity<IdentityUserLogin<string>>(entity => entity.ToTable("UserLogins"));
+        builder.Entity<IdentityRoleClaim<string>>(entity =>
+        {
+            entity.ToTable("RoleClaims");
+            entity.Property(claim => claim.RoleId).IsConcurrencyToken();
+        });
+        builder.Entity<IdentityUserClaim<string>>(entity =>
+        {
+            entity.ToTable("UserClaims");
+            entity.Property(claim => claim.UserId).IsConcurrencyToken();
+        });
+        builder.Entity<IdentityUserLogin<string>>(entity =>
+        {
+            entity.ToTable("UserLogins");
+            entity.Property(login => login.UserId).IsConcurrencyToken();
+        });
         builder.Entity<IdentityUserToken<string>>(entity => entity.ToTable("UserTokens"));
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        if (_tenantProvider is not null)
+        {
+            throw new NotSupportedException("Use asynchronous persistence for a tenant-scoped workspace.");
+        }
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         try
         {
+            if (_tenantProvider is not null)
+            {
+                var tenantId = CurrentTenantId;
+                DBContextHelper.EnforceTenantOwnership(ChangeTracker, tenantId);
+                await IdentityTenantWriteBoundary.EnforceAsync(this, tenantId, cancellationToken).ConfigureAwait(false);
+            }
+
             var domainEvents = DBContextHelper.CollectDomainEvents(ChangeTracker);
             DBContextHelper.ClearDomainEventsFromAggregates(ChangeTracker);
             DBContextHelper.StampPostgreSqlConcurrency(this);
             DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId, Clock.GetUtcNow());
 
-            var result = await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken).ConfigureAwait(false);
 
             _collectedDomainEvents ??= [];
             _collectedDomainEvents.AddRange(domainEvents);

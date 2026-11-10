@@ -7,7 +7,7 @@
 
 > Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
 
-> Last updated: 2026-10-30
+> Last updated: 2026-11-09
 >
 > This file is the canonical roadmap for the StarterTemplate solution.
 > It defines the architectural guardrails, execution order, and production-hardening specifications.
@@ -18,6 +18,14 @@
 ## Frontend simplification (2026-10-29)
 
 The supported frontend is the Interactive Server Blazor Web App. UI contracts moved into Blazor feature folders; MAUI, the separate RCL, and mobile CI were removed. Backend API DTOs remain in SharedKernel. Quartz jobs use the version 4 ValueTask/cancellation contract and asynchronous scope disposal. The Shared `Quartz46SchemaCompatibility` migrations upgrade SQL Server and PostgreSQL for Quartz 4.6.2 while preserving queued jobs and triggers.
+
+## IAM and tenant hardening
+
+The local Docker hardening pass replaces role-name authorization with current explicit grants, checks delegation, validates trusted ingress and signed tenant/session boundaries, enforces detached-write ownership, and invalidates pre-reactivation sessions through a persisted cutoff. SQL Server and PostgreSQL regression and migration tests passed. The isolated-stamp lifecycle now includes durable attempts, authenticated completion, destination checks, runtime stamp binding, exclusive ownership, owning-stamp onboarding and a complete deployment workflow. Current local evidence and cloud acceptance gates are in the [completion checklist](docs/architecture/vendor-demo-tenant-completion-checklist.md#local-iam-and-tenancy-hardening--2026-11-09).
+
+## Local migration workflow
+
+The local migration command checks ControlPlane, IAM and Shared against the selected development database. An explicit `-Apply` upgrades an existing StarterTemplate database after all three histories and model snapshots pass preflight. See the [local database workflow](docs/development/starter-setup.md#check-and-update-an-existing-local-database).
 
 ## GraphQL transport example
 

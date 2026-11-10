@@ -1,10 +1,12 @@
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Domain.Features.IAM.Contracts;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using ST.Infrastructure.Features.IAM.Authorization;
 using ST.Infrastructure.Logging;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 
@@ -13,7 +15,7 @@ namespace ST.Infrastructure.Features.IAM.AspNetCoreIdentity.CommandHandlers;
 internal sealed class UpdateUserRoles(
     UserManager<AppUser> userManager,
     RoleManager<AppRole> roleManager,
-    ILogger<UpdateUserRoles> logger, IRoleAvailability availability)
+    ILogger<UpdateUserRoles> logger, IRoleAvailability availability, IamDelegation delegation, IIamUnitOfWork unit)
     : IRequestHandler<UpdateUserRolesCommand, AppResponse<UserRolesResponse>>
 {
     public async Task<AppResponse<UserRolesResponse>> Handle(UpdateUserRolesCommand command, CancellationToken cancellationToken)
@@ -52,25 +54,32 @@ internal sealed class UpdateUserRoles(
             }
             var rolesToAdd = requestedRoles.Except(existingRoles, StringComparer.OrdinalIgnoreCase).ToList();
 
-            if (rolesToRemove.Count > 0)
+            var effectiveRoles = existingRoles.Except(rolesToRemove, StringComparer.OrdinalIgnoreCase).Concat(rolesToAdd);
+            if (!await delegation.CanChangeRolesAsync(existingRoles, effectiveRoles, cancellationToken).ConfigureAwait(false))
             {
-                var removeResult = await userManager.RemoveFromRolesAsync(user, rolesToRemove).ConfigureAwait(false);
-                if (!removeResult.Succeeded)
-                {
-                    return AppResponses.Failure<UserRolesResponse>(string.Join(", ", removeResult.Errors.Select(static error => error.Description)));
-                }
+                return AppResponses.Failure<UserRolesResponse>("You cannot change one or more of these role assignments.");
             }
 
-            if (rolesToAdd.Count > 0)
+            return await unit.ExecuteInTransactionAsync(async () =>
             {
-                var addResult = await userManager.AddToRolesAsync(user, rolesToAdd).ConfigureAwait(false);
-                if (!addResult.Succeeded)
+                if (rolesToRemove.Count > 0)
                 {
-                    return AppResponses.Failure<UserRolesResponse>(string.Join(", ", addResult.Errors.Select(static error => error.Description)));
+                    IamGrantUpdateRejectedException.Ensure(await userManager.RemoveFromRolesAsync(user, rolesToRemove).ConfigureAwait(false));
                 }
-            }
 
-            return AppResponses.Success("User roles updated.", new UserRolesResponse(user.Id, user.UserName ?? user.Email ?? user.Id, requestedRoles));
+                if (rolesToAdd.Count > 0)
+                {
+                    IamGrantUpdateRejectedException.Ensure(await userManager.AddToRolesAsync(user, rolesToAdd).ConfigureAwait(false));
+                }
+
+                await unit.CompleteAsync(cancellationToken).ConfigureAwait(false);
+                return AppResponses.Success("User roles updated.",
+                    new UserRolesResponse(user.Id, user.UserName ?? user.Email ?? user.Id, effectiveRoles.ToList()));
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (IamGrantUpdateRejectedException)
+        {
+            return AppResponses.Failure<UserRolesResponse>("The requested IAM changes could not be saved.");
         }
         catch (Exception ex)
         {

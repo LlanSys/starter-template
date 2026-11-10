@@ -15,6 +15,7 @@ namespace ST.Infrastructure.Features.ControlPlane.Tenants.Services;
 internal sealed partial class AdministratorInvitationDelivery(
     IControlPlaneUnitOfWork plane, IEmailService emailService, IOptions<EmailSettings> emailSettings,
     IOptions<AdministratorInvitationSettings> settings, ITenantWorkspaceProvisioner provisioner,
+    IOptions<OrgSettings> hostSettings,
     TimeProvider timeProvider, ILogger<AdministratorInvitationDelivery> logger)
 {
     public async Task DeliverAsync(CancellationToken cancellationToken)
@@ -27,7 +28,9 @@ internal sealed partial class AdministratorInvitationDelivery(
                 && item.DeliveredAt == null && item.NextAttemptAt <= now
                 && (item.LeaseUntil == null || item.LeaseUntil <= now)
                 && item.Tenant.KycApprovedAt != null && item.Tenant.Status == TenantStatus.Active
-                && !item.Tenant.IsDemo)
+                && !item.Tenant.IsDemo
+                && (!hostSettings.Value.DeploymentStampId.HasValue
+                    || item.Tenant.DeploymentStampId == hostSettings.Value.DeploymentStampId))
             .OrderBy(item => item.NextAttemptAt)
             .Take(10)
             .ToListAsync(cancellationToken).ConfigureAwait(false);

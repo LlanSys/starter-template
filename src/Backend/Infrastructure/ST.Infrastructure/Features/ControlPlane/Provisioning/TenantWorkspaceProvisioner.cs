@@ -1,4 +1,7 @@
 using System.Security.Claims;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using ST.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,8 +19,8 @@ using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos;
 
 namespace ST.Infrastructure.Features.ControlPlane.Provisioning;
 
-internal sealed class TenantWorkspaceProvisioner(
-    IControlPlaneUnitOfWork plane, IServiceScopeFactory scopes, TimeProvider timeProvider) : ITenantWorkspaceProvisioner
+internal sealed partial class TenantWorkspaceProvisioner(
+    IControlPlaneUnitOfWork plane, IServiceScopeFactory scopes, TimeProvider timeProvider, IOptions<OrgSettings> hostSettings, ILogger<TenantWorkspaceProvisioner> logger) : ITenantWorkspaceProvisioner
 {
     public async Task<AppResponse<WorkspaceSetupResponse>> InitializeAsync(
         Guid tenantId, InitializeWorkspaceRequest? request, string actorId, CancellationToken cancellationToken)
@@ -41,6 +44,58 @@ internal sealed class TenantWorkspaceProvisioner(
             return AppResponses.Failure<WorkspaceSetupResponse>("The deployment stamp is unavailable.");
         }
 
+        var now = timeProvider.GetUtcNow();
+        if (hostSettings.Value.DeploymentStampId is Guid hostStamp && hostStamp != tenant.DeploymentStampId)
+        {
+            try
+            {
+                await RecordInvitationAsync(tenant, request, actorId, now, cancellationToken).ConfigureAwait(false);
+                await plane.CompleteAsync(cancellationToken).ConfigureAwait(false);
+                return await GetStatusAsync(tenantId, cancellationToken).ConfigureAwait(false);
+            }
+            catch (DbUpdateException exception)
+            {
+                LogSetupFailure(logger, tenantId, exception);
+                return AppResponses.Failure<WorkspaceSetupResponse>("Workspace setup changed. Reload its status shortly.");
+            }
+        }
+
+        var leaseId = Guid.CreateVersion7();
+        if (!tenant.TryBeginWorkspaceSetup(leaseId, now))
+        {
+            return AppResponses.Failure<WorkspaceSetupResponse>("Workspace setup is in progress. Reload its status shortly.");
+        }
+
+        try
+        {
+            await plane.CompleteAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            LogSetupChanged(logger, tenantId);
+            return AppResponses.Failure<WorkspaceSetupResponse>("Workspace setup changed. Reload its status shortly.");
+        }
+
+        try
+        {
+            return await InitializeLeasedAsync(tenant, request, actorId, leaseId, now, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is DbUpdateException or InvalidOperationException)
+        {
+            LogSetupFailure(logger, tenantId, exception);
+            return AppResponses.Failure<WorkspaceSetupResponse>("Workspace setup could not finish. Reload its status and retry shortly.");
+        }
+    }
+
+    private async Task<AppResponse<WorkspaceSetupResponse>> InitializeLeasedAsync(
+        Tenant tenant,
+        InitializeWorkspaceRequest? request,
+        string actorId,
+        Guid leaseId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = tenant.Id;
         var modules = await plane.Modules.ListAsync(ct: cancellationToken).ConfigureAwait(false);
         var assignments = await plane.Tenants.FirstOrDefaultAsync(
             query => query.Where(item => item.Id == tenantId).Select(item => item.Modules.Select(module => module.ModuleKey).ToArray()),
@@ -92,20 +147,9 @@ internal sealed class TenantWorkspaceProvisioner(
             }, cancellationToken).ConfigureAwait(false);
         }
 
-        var now = timeProvider.GetUtcNow();
-        tenant.WorkspaceVersion = 1;
-        tenant.WorkspaceInitializedAt ??= now;
+        tenant.CompleteWorkspaceSetup(leaseId, timeProvider.GetUtcNow());
         tenant.UpdatedBy = actorId;
-        if (request is not null)
-        {
-            tenant.AdministratorEmail ??= request.AdministratorEmail.Trim();
-            if (request.SendInvitation && !await plane.AdministratorInvitations.AnyAsync(
-                item => item.TenantId == tenantId, cancellationToken).ConfigureAwait(false))
-            {
-                await plane.AdministratorInvitations.CreateAsync(new TenantAdministratorInvitation(
-                    tenantId, tenant.AdministratorEmail, request.FirstName, request.LastName, actorId, now), cancellationToken).ConfigureAwait(false);
-            }
-        }
+        await RecordInvitationAsync(tenant, request, actorId, now, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -113,6 +157,7 @@ internal sealed class TenantWorkspaceProvisioner(
         }
         catch (DbUpdateConcurrencyException)
         {
+            LogSetupChanged(logger, tenantId);
             return AppResponses.Failure<WorkspaceSetupResponse>("The workspace changed. Reload its setup status and try again.");
         }
 
@@ -135,6 +180,34 @@ internal sealed class TenantWorkspaceProvisioner(
             invitation?.DeliveredAt.HasValue == true, accepted, accepted,
             invitation?.FirstName ?? string.Empty, invitation?.LastName ?? string.Empty, invitation?.State.ToString()));
     }
+
+    private async Task RecordInvitationAsync(
+        Tenant tenant,
+        InitializeWorkspaceRequest? request,
+        string actorId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return;
+        }
+
+        tenant.AdministratorEmail ??= request.AdministratorEmail.Trim();
+        if (request.SendInvitation && !await plane.AdministratorInvitations.AnyAsync(
+            item => item.TenantId == tenant.Id, cancellationToken).ConfigureAwait(false))
+        {
+            await plane.AdministratorInvitations.CreateAsync(new TenantAdministratorInvitation(
+                tenant.Id, tenant.AdministratorEmail, request.FirstName, request.LastName, actorId, now),
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Workspace {TenantId} setup changed during initialization.")]
+    private static partial void LogSetupChanged(ILogger logger, Guid tenantId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Workspace {TenantId} setup did not complete.")]
+    private static partial void LogSetupFailure(ILogger logger, Guid tenantId, Exception exception);
 
     private static void Ensure(IdentityResult result)
     {

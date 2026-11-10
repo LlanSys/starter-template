@@ -3,6 +3,7 @@ using ST.Application.Features.IAM.Users.Mappings;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Infrastructure.Features.IAM.Authorization;
 using ST.Infrastructure.Logging;
 using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.SharedKernel.Dtos.Common;
@@ -18,7 +19,7 @@ internal sealed class CreateAppUser(
     RoleManager<AppRole> roleManager,
     IIamUnitOfWork iamUnitOfWork,
     ICurrentTenantProvider tenantProvider,
-    ILogger<CreateAppUser> logger, TimeProvider timeProvider) : IRequestHandler<CreateAppUserCommand, AppResponse<AppUserResponse>>
+    ILogger<CreateAppUser> logger, TimeProvider timeProvider, IamDelegation delegation) : IRequestHandler<CreateAppUserCommand, AppResponse<AppUserResponse>>
 {
     public async Task<AppResponse<AppUserResponse>> Handle(CreateAppUserCommand command, CancellationToken ct)
     {
@@ -51,6 +52,11 @@ internal sealed class CreateAppUser(
                 .CountAsync(role => normalizedRoles.Contains(role.NormalizedName), ct).ConfigureAwait(false) != normalizedRoles.Length)
             {
                 return AppResponses.Failure<AppUserResponse>("One or more requested roles do not exist.");
+            }
+
+            if (!await delegation.CanChangeRolesAsync([], roles, ct).ConfigureAwait(false))
+            {
+                return AppResponses.Failure<AppUserResponse>("You cannot assign one or more requested roles.");
             }
 
             var response = await iamUnitOfWork.ExecuteInTransactionAsync(async () =>

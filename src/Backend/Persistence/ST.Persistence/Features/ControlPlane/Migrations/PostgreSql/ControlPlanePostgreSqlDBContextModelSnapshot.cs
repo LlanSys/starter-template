@@ -1178,6 +1178,10 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("ClientOrigin")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<string>("ContactEmail")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
@@ -1210,6 +1214,9 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<Guid?>("ExclusiveStampId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("HostName")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -1240,11 +1247,20 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     b.Property<int>("MaxUsers")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("ProvisioningDeadline")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ProvisioningOperationId")
+                        .HasColumnType("uuid");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("bytea")
                         .HasDefaultValue(new byte[0]);
+
+                    b.Property<DateTimeOffset?>("SessionsInvalidBefore")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -1262,12 +1278,21 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     b.Property<DateTimeOffset?>("WorkspaceInitializedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("WorkspaceSetupLeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("WorkspaceSetupLeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("WorkspaceVersion")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
                     b.HasIndex("DeploymentStampId");
+
+                    b.HasIndex("ExclusiveStampId")
+                        .IsUnique();
 
                     b.HasIndex("HostName")
                         .IsUnique();

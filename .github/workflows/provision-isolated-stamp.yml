@@ -3,36 +3,110 @@ name: Provision Isolated Stamp
 on:
   workflow_dispatch:
     inputs:
+      tenant_id:
+        description: Approved workspace ID
+        required: true
+        type: string
+      operation_id:
+        description: Current provisioning attempt ID
+        required: true
+        type: string
       stamp_id:
-        description: "The unique ID for the stamp (used as resource prefix)"
+        description: Registered deployment stamp ID
         required: true
         type: string
       resource_group:
-        description: "The target resource group name"
+        description: Target resource group
         required: true
         type: string
       database_provider:
-        description: "Database provider (SqlServer or PostgreSql)"
+        description: Database provider
         required: true
-        default: "PostgreSql"
+        default: SqlServer
         type: choice
-        options:
-          - SqlServer
-          - PostgreSql
+        options: [SqlServer, PostgreSql]
 
 permissions:
   contents: read
-  id-token: write
+
+concurrency:
+  group: provision-stamp-${{ inputs.stamp_id }}
+  cancel-in-progress: false
 
 jobs:
   provision:
-    name: Provision Isolated Stamp Resources
     if: vars.AZURE_DEPLOYMENT_ENABLED == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     environment: starter-azure-prod
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      PROVISIONING_TENANT_ID: ${{ inputs.tenant_id }}
+      PROVISIONING_OPERATION_ID: ${{ inputs.operation_id }}
+      PROVISIONING_STAMP_ID: ${{ inputs.stamp_id }}
+      PROVISIONING_RESOURCE_GROUP: ${{ inputs.resource_group }}
+      PROVISIONING_DATABASE_PROVIDER: ${{ inputs.database_provider }}
+      PROVISIONING_CONTROLPLANE_PROVIDER: ${{ vars.DATABASE_PROVIDER || 'SqlServer' }}
+      PROVISIONING_REGION: ${{ vars.AZURE_REGION }}
+      PROVISIONING_CALLBACK_ORIGIN: ${{ vars.PROVISIONING_CALLBACK_ORIGIN }}
+      PROVISIONING_CALLBACK_AUDIENCE: ${{ vars.PROVISIONING_CALLBACK_AUDIENCE || 'urn:startertemplate:provisioning' }}
+      PROVISIONING_TRUSTED_PROXY_CIDR: ${{ vars.PROVISIONING_TRUSTED_PROXY_CIDR }}
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Validate provisioning identity and configuration
+        shell: pwsh
+        run: |
+          [void][Guid]::Parse($env:PROVISIONING_TENANT_ID)
+          [void][Guid]::Parse($env:PROVISIONING_OPERATION_ID)
+          [void][Guid]::Parse($env:PROVISIONING_STAMP_ID)
+          $origin = [Uri]$env:PROVISIONING_CALLBACK_ORIGIN
+          if ($origin.Scheme -ne 'https' -or $origin.AbsolutePath -ne '/' -or $origin.UserInfo -or $origin.Query -or $origin.Fragment) {
+            throw 'Configure an HTTPS control-plane callback origin.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:PROVISIONING_REGION) -or [string]::IsNullOrWhiteSpace($env:PROVISIONING_TRUSTED_PROXY_CIDR)) {
+            throw 'Configure the stamp region and trusted ingress network.'
+          }
+          $owner = "${{ github.repository_owner }}".ToLowerInvariant()
+          "namespace=$owner" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+        id: validate
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build migration host
+        run: |
+          dotnet tool restore
+          dotnet build src/Backend/Api/ST.Api/ST.Api.csproj --configuration Release -p:UseSharedCompilation=false
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ops/docker/api.Dockerfile
+          push: true
+          tags: ghcr.io/${{ steps.validate.outputs.namespace }}/starter-template-api:sha-${{ github.sha }}
+
+      - name: Publish Blazor image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ops/docker/blazor.Dockerfile
+          push: true
+          tags: ghcr.io/${{ steps.validate.outputs.namespace }}/starter-template-blazor:sha-${{ github.sha }}
 
       - name: Sign in to Azure with OIDC
         uses: azure/login@v2
@@ -41,21 +115,59 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Ensure Resource Group Exists
-        shell: bash
-        run: |
-          az group create --name "${{ inputs.resource_group }}" --location "${{ vars.AZURE_REGION || 'eastus' }}"
+      - name: Provision resources and workspace schemas
+        id: stamp
+        shell: pwsh
+        env:
+          PROVISIONING_SQL_PASSWORD: ${{ secrets.AZURE_SQL_ADMIN_PASSWORD }}
+          PROVISIONING_CONTROLPLANE_CONNECTION: ${{ secrets.PROVISIONING_CONTROLPLANE_CONNECTION }}
+        run: ./scripts/provision-isolated-stamp.ps1
 
-      - name: Run Bicep Deployment
-        uses: azure/arm-deploy@v2
+      - name: Deploy API
+        uses: azure/container-apps-deploy-action@v1
         with:
-          scope: resourcegroup
-          subscriptionId: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          resourceGroupName: ${{ inputs.resource_group }}
-          template: ./ops/azure/stamp-isolated/main.bicep
-          failOnStdErr: false
-          parameters: >
-            sqlAdministratorLogin="btadmin"
-            sqlAdministratorLoginPassword="${{ secrets.AZURE_SQL_ADMIN_PASSWORD }}"
-            databaseProvider="${{ inputs.database_provider }}"
-            resourcePrefix="${{ inputs.stamp_id }}"
+          resourceGroup: ${{ inputs.resource_group }}
+          containerAppName: ${{ steps.stamp.outputs.api_app_name }}
+          registryUrl: ghcr.io
+          registryUsername: ${{ github.actor }}
+          registryPassword: ${{ secrets.GHCR_PAT }}
+          imageToDeploy: ghcr.io/${{ steps.validate.outputs.namespace }}/starter-template-api:sha-${{ github.sha }}
+
+      - name: Deploy Blazor
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ inputs.resource_group }}
+          containerAppName: ${{ steps.stamp.outputs.ui_app_name }}
+          registryUrl: ghcr.io
+          registryUsername: ${{ github.actor }}
+          registryPassword: ${{ secrets.GHCR_PAT }}
+          imageToDeploy: ghcr.io/${{ steps.validate.outputs.namespace }}/starter-template-blazor:sha-${{ github.sha }}
+
+      - name: Verify deployed hosts
+        shell: pwsh
+        env:
+          STAMP_API_HOST: ${{ steps.stamp.outputs.api_host }}
+          STAMP_UI_HOST: ${{ steps.stamp.outputs.ui_host }}
+        run: |
+          $healthy = $false
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            try {
+              $api = Invoke-RestMethod -Uri ("https://" + $env:STAMP_API_HOST + "/health") -TimeoutSec 15
+              $ui = Invoke-WebRequest -Uri ("https://" + $env:STAMP_UI_HOST + "/iam/sign-in") -TimeoutSec 15
+              if ($api.status -eq 'Healthy' -and $ui.StatusCode -eq 200) { $healthy = $true; break }
+            } catch { Write-Host 'Waiting for deployed hosts.' }
+            Start-Sleep -Seconds 10
+          }
+          if (-not $healthy) { throw 'The deployed hosts did not pass readiness checks.' }
+
+      - name: Complete current provisioning attempt
+        shell: pwsh
+        env:
+          PROVISIONING_KEY_VAULT_NAME: ${{ steps.stamp.outputs.key_vault_name }}
+          PROVISIONING_UI_HOST: ${{ steps.stamp.outputs.ui_host }}
+        run: ./scripts/report-stamp-provisioning.ps1 -Succeeded
+
+      - name: Report failed provisioning attempt
+        if: failure()
+        shell: pwsh
+        run: ./scripts/report-stamp-provisioning.ps1

@@ -1,6 +1,37 @@
 # Vendor / demo / tenant completion checklist
 
-Local implementation delivered and verified on 2026-10-30 in E:/Repos/StarterTemplate. The existing working tree is preserved; changes remain uncommitted. Source delivery and verification boundaries are recorded separately.
+## Local IAM and tenancy hardening — 2026-11-09
+
+- Replaced administrator role-name shortcuts with current tenant-scoped grants. Protected reserved roles and checked role and direct-grant delegation through the IAM mutation paths.
+- Rebuilt bearer authority from current account, role, module, and permission state. Bound access to signed tenant and session claims. Reactivation persists a cutoff that prevents earlier sessions and refresh tokens from returning.
+- Restricted forwarded headers to configured proxies and validated workspace hosts, selectors, and signed claims. Reloaded authoritative routing state and required a suspended workspace for database-route changes.
+- Enforced tenant ownership on tracked and detached writes, including Identity relationships, for SQL Server and PostgreSQL. Scoped queued jobs and set-based credential cleanup.
+- Added the session cutoff, provisioning attempt/deadline, client origin, exclusive stamp reservation and workspace setup lease migrations for both providers. Fresh and upgrade migration tests passed, including repeat application.
+- Completed the isolated provisioning workflow source with commit-tagged API and UI images, infrastructure, destination migrations, runtime configuration, health checks and GitHub OIDC completion/failure reporting.
+- Bound dedicated hosts and invitation workers to their owning stamp. Verified exclusive database ownership, current-attempt completion and idempotent callback handling.
+- Added a persisted setup lease and deferred local invitation delivery until role initialization completes. The final suite covers concurrent HTTP setup and stale-owner fencing.
+- Verified tenant-only IAM account movement, suspended cutover, physical routing and rollback on both providers. Client origin moves with the database route, and public workspace discovery can recover from a stale browser selection.
+
+### Verification
+
+- Solution and Docker builds passed with compiler warnings. All 171 unit and 74 architecture tests passed.
+- The final full integration suite passed 52 tests and skipped the opt-in RabbitMQ transport test. The transport test passed separately during the preceding hardening pass.
+- The corrected concurrent setup and original invitation/MFA/support cases also passed together in a focused run. The initialization race found during verification was fixed before the final suite.
+- Bicep compiled with warnings, actionlint passed, and the provisioning/report scripts passed syntax and simulated-provider checks. Their Azure execution remains pending.
+- The final disposable renamed downstream source export built successfully and passed 74 architecture tests with fresh user-secret identities. It excluded ignored local configuration.
+- Focused whitespace formatting for new boundary code and regression tests, final patch whitespace, and the local endpoint allocation audit passed.
+- Rebuilt and started the local Docker API and Blazor hosts. The ST database on localhost,14335 has zero pending migrations across ControlPlane, IAM, and Shared.
+- Live Docker HTTP probes passed API health, the Blazor sign-in shell, public workspace discovery, unauthenticated machine callback and GraphQL denial, unknown hosts, conflicting workspace selectors, and untrusted forwarded headers.
+- Google and Microsoft challenges redirected to their provider hosts. Unapproved return origins and callbacks without verified external state were rejected. Completing sign-in with real provider accounts remains unverified.
+
+### Remaining release gates
+
+The user selected local Docker for this pass and kept cloud sign-off pending. Provisioning, completion/failure reporting and cutover/rollback implementation are delivered and verified within the local test scope above. Cloud execution must verify the deployment identity and Key Vault/database access, ingress, actual provider-account sign-in, and restoration of the deployment's data, key ring, private assets and queued work. Record measured recovery objectives from that rehearsal.
+
+The local Docker baseline includes these changes. Restart any Visual Studio API process that predates this baseline. Release publication and CI results are tracked in the repository PR history.
+
+## Historical verification — 2026-10-30
+
 
 ## Implemented
 

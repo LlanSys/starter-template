@@ -11,7 +11,8 @@ internal interface IBackendApiClient
         bool requiresAuthentication = true,
         string? unavailableMessage = null,
         string? timeoutMessage = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool includeWorkspaceSelector = true);
 
     Task<AppResponse<T>> SendMultipartAsync<T>(
         string endpoint,
