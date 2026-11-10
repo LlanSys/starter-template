@@ -1,4 +1,6 @@
-# Local browser and downstream acceptance — 2026-11-10
+# Local browser and downstream acceptance — 2026-11-10–11
+
+Local core checks started on 10 November and completed on 11 November 2026 (Africa/Nairobi). Provider-account and cloud sign-off remain separate below.
 
 ## Scope and identity
 
@@ -47,7 +49,11 @@ All 16 checks passed through normal signed sessions against the disposable Docke
 - The workstation's local EF command resolver reported that tools were not restored even after successful restore. Invoking the exact restored manifest-pinned EF 10.0.8 assembly completed migrations. No tool major version was changed.
 - Renaming deliberately leaves standalone branding initials and environment allocations for application review; these are explicit checks in the reusable checklist.
 
-The fix revision receives an additional clean-clone build/rename check before release publication is considered complete. Final commit/CI evidence belongs in the release PR history.
+A second fresh GitHub clone at fix revision `a658f9e3db76ca29fabb314393ec622617e23a9a` was renamed and independently configured again. Both host builds, all 184 renamed unit tests and 74 renamed architecture tests passed. Its new database received the full provider migrations; both hosts returned HTTP 200, normal credential login succeeded with mandatory MFA enrollment, and the renamed local database tool reported zero pending migrations for all three contexts. Later evidence-only documentation updates do not change that tested runtime source. Final merge/CI evidence is recorded in the release PR history.
+
+## Disposable cleanup
+
+Stopped only the owned test hosts, removed the acceptance Compose project/network, dropped the three explicitly named synthetic databases, and removed both clones' four generated secret stores, clone files, temporary credentials and key rings. Removed the four matching synthetic Mailpit invitation messages while retaining other messages. Verification logs and the redacted pass/fail results remain outside Git. The existing ST database still reports zero pending ControlPlane, IAM and Shared migrations. No second StarterTemplate worktree was retained.
 
 ## Remaining environment-specific sign-off
 
