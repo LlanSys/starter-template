@@ -37,6 +37,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RoleId")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
@@ -62,6 +63,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UserId")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
@@ -84,6 +86,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UserId")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
@@ -206,6 +209,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Title")
@@ -311,7 +315,6 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                             IsDeleted = false,
                             Key = "control-panel",
                             Placement = "Sidebar",
-                            RequiredPermissionKey = "control_plane.manage",
                             RequiredPermissionKeys = "[]",
                             RequiredRoleNames = "[]",
                             RowVersion = new byte[0],
@@ -332,7 +335,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                             Key = "control-panel-tenants",
                             ParentId = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9c10501"),
                             Placement = "ControlPanel",
-                            RequiredPermissionKey = "control_plane.manage",
+                            RequiredPermissionKey = "control_plane.view_tenants",
                             RequiredPermissionKeys = "[]",
                             RequiredRoleNames = "[]",
                             RowVersion = new byte[0],
@@ -353,7 +356,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                             Key = "control-panel-stamps",
                             ParentId = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9c10501"),
                             Placement = "ControlPanel",
-                            RequiredPermissionKey = "control_plane.manage",
+                            RequiredPermissionKey = "control_plane.view_stamps",
                             RequiredPermissionKeys = "[]",
                             RequiredRoleNames = "[]",
                             RowVersion = new byte[0],
@@ -555,6 +558,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Title")
@@ -647,6 +651,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -955,20 +960,580 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         },
                         new
                         {
-                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b10801"),
-                            Action = "manage",
-                            Context = "ControlPlane",
+                            Id = new Guid("0194f700-0000-7000-8000-000000000092"),
+                            Action = "assign",
+                            Context = "Shared",
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "System",
-                            Description = "Manage Control Plane Tenants and Stamps.",
+                            Description = "Assign operational tasks within this workspace.",
                             IsActive = true,
                             IsDeleted = false,
-                            Key = "control_plane.manage",
+                            Key = "tasks.assign",
+                            ModuleKey = "iam",
+                            Resource = "tasks",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000096"),
+                            Action = "view",
+                            Context = "IAM",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            Description = "View workspace organization settings.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "tenant-settings.view",
+                            ModuleKey = "iam",
+                            Resource = "tenant-settings",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000097"),
+                            Action = "create",
+                            Context = "IAM",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            Description = "Create workspace organization settings.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "tenant-settings.create",
+                            ModuleKey = "iam",
+                            Resource = "tenant-settings",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000098"),
+                            Action = "update",
+                            Context = "IAM",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            Description = "Update workspace organization settings.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "tenant-settings.update",
+                            ModuleKey = "iam",
+                            Resource = "tenant-settings",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000099"),
+                            Action = "delete",
+                            Context = "IAM",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            Description = "Delete workspace organization settings.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "tenant-settings.delete",
+                            ModuleKey = "iam",
+                            Resource = "tenant-settings",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000094"),
+                            Action = "view_platform_staff",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "View platform staff and their access history.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.view_platform_staff",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000095"),
+                            Action = "manage_platform_staff",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Manage platform staff membership and operation grants.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_platform_staff",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000093"),
+                            Action = "manage_tasks",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Assign platform operational tasks.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_tasks",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12001"),
+                            Action = "view_tenants",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: view tenants.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.view_tenants",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12002"),
+                            Action = "create_tenants",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: create tenants.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.create_tenants",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12003"),
+                            Action = "edit_tenants",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: edit tenants.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.edit_tenants",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12004"),
+                            Action = "manage_tenant_administrators",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage tenant administrators.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_tenant_administrators",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12005"),
+                            Action = "manage_tenant_lifecycle",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage tenant lifecycle.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_tenant_lifecycle",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12006"),
+                            Action = "manage_tenant_modules",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage tenant modules.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_tenant_modules",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12007"),
+                            Action = "migrate_tenants",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: migrate tenants.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.migrate_tenants",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12008"),
+                            Action = "view_stamps",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: view stamps.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.view_stamps",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12009"),
+                            Action = "manage_stamps",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage stamps.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_stamps",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12010"),
+                            Action = "view_modules",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: view modules.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.view_modules",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12011"),
+                            Action = "manage_modules",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage modules.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_modules",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12012"),
+                            Action = "view_audit",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: view audit.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.view_audit",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12013"),
+                            Action = "view_support",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: view support.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.view_support",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12014"),
+                            Action = "manage_support",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage support.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_support",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12015"),
+                            Action = "enter_demo",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: enter demo.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.enter_demo",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12016"),
+                            Action = "reset_demo",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: reset demo.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.reset_demo",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12017"),
+                            Action = "view_kyc",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: view kyc.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.view_kyc",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12018"),
+                            Action = "upload_kyc_documents",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: upload kyc documents.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.upload_kyc_documents",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12019"),
+                            Action = "download_kyc_documents",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: download kyc documents.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.download_kyc_documents",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12020"),
+                            Action = "review_kyc_documents",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: review kyc documents.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.review_kyc_documents",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12021"),
+                            Action = "manage_kyc_submissions",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage kyc submissions.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_kyc_submissions",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12022"),
+                            Action = "approve_kyc",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: approve kyc.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.approve_kyc",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12023"),
+                            Action = "manage_kyc_retention",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage kyc retention.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_kyc_retention",
+                            ModuleKey = "iam",
+                            Resource = "control_plane",
+                            RowVersion = new byte[0],
+                            TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("018fd81d-2c94-7ad0-a4a3-f1edb9b12024"),
+                            Action = "manage_kyc_holds",
+                            Context = "ControlPlane",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "00000000-0000-0000-0000-000000000001",
+                            Description = "Platform operation: manage kyc holds.",
+                            IsActive = true,
+                            IsDeleted = false,
+                            Key = "control_plane.manage_kyc_holds",
                             ModuleKey = "iam",
                             Resource = "control_plane",
                             RowVersion = new byte[0],
                             TenantId = new Guid("0194f700-0000-7000-8000-000000000001")
                         });
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.IAM.PlatformStaff.Entities.PlatformStaffChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("CurrentActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CurrentPermissionsJson")
+                        .IsRequired()
+                        .HasMaxLength(6000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("CurrentStaff")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("PreviousActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PreviousPermissionsJson")
+                        .IsRequired()
+                        .HasMaxLength(6000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("PreviousStaff")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("UserId", "OccurredAt");
+
+                    b.ToTable("PlatformStaffChanges", (string)null);
                 });
 
             modelBuilder.Entity("ST.Domain.Features.IAM.ReferenceData.Entities.MenuIcon", b =>
@@ -1019,6 +1584,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -1269,6 +1835,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -1381,6 +1948,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -1713,6 +2281,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -1898,6 +2467,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -2023,6 +2593,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -2169,6 +2740,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
@@ -2258,6 +2830,11 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTimeOffset?>("LastFailedLoginAt")
                         .HasColumnType("datetimeoffset");
 
@@ -2311,6 +2888,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("TotpSecret")
@@ -2340,6 +2918,11 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
 
                     b.HasIndex("TenantId")
                         .HasDatabaseName("IX_AppUsers_TenantId");
+
+                    b.HasIndex("TenantId", "NormalizedEmail")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AppUsers_Tenant_Email")
+                        .HasFilter("[NormalizedEmail] IS NOT NULL");
 
                     b.HasIndex("TenantId", "NormalizedUserName")
                         .IsUnique()
@@ -2406,6 +2989,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("TrustedUntil")
@@ -2482,6 +3066,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("nvarchar(30)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -2563,6 +3148,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -2638,6 +3224,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -2705,6 +3292,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("bigint");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -2767,6 +3355,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -2841,6 +3430,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Token")
@@ -2895,6 +3485,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("nvarchar(64)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("UserId")
@@ -2949,6 +3540,7 @@ namespace ST.Persistence.Features.IAM.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")

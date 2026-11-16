@@ -15,6 +15,30 @@
 
 ---
 
+## Tenant branding and sign-in terminology (2026-11-15)
+
+Use tenant-owned display names and derived initials in auth/sidebar branding, with a neutral loading shell and Organization Code/Change Organization fallback. Keep workspace as the internal tenant-context concept and preserve IAM, stamp resolution, MFA and permission boundaries. See [tenant branding and sign-in](docs/development/tenant-branding-and-sign-in.md) for the UX contract and hostname-discovery boundary.
+
+## Organization settings and workspace sign-in (2026-11-15)
+
+Implement the vendor-owned presentation catalogue (UTC time zone, regional/date/time formats and default page size), real UI consumers, permission-protected revision-checked save/reset, tenant-scoped audit and SQL Server/PostgreSQL migrations. Preserve TimeProvider UTC decisions and existing identities. Resolve workspace before credential entry, show the organization's name and retain Change Workspace/manual fallback. See [organization settings](docs/development/organization-settings.md) for contracts and verification boundaries.
+
+## .NET 10 dependency maintenance (2026-11-13)
+
+Package versions are centralized in Directory.Packages.props, with native version overrides disabled and the existing exact MassTransit 8.x contract preserved. The source policy checks stable .NET 10 SDK/targets, approved package families, tool/image versions, source isolation, coupled-family alignment and audit enforcement. Dependabot proposes grouped weekly patch/minor updates; major upgrades and scheduler/messaging/formatter contracts require deliberate review. Root dependency changes trigger backend, frontend and container workflows. Docker restore stages include the central manifest, and the root SDK file is canonically lowercase global.json for Linux. See [package management](docs/development/package-management.md).
+
+## Operational task assignment (2026-11-13)
+
+Individual operational tasks now support claim, assignment, reassignment, release, My Tasks, unassigned/team views and append-only history. Assignee eligibility is rechecked from current account/workspace/MFA/permission state; management authority does not replace task action permissions. Source occurrence keys and revision checks fence stale/concurrent claims. Workflow resolution removes active work and a bounded TimeProvider-driven worker records completion. SQL Server/PostgreSQL ControlPlane and IAM migrations accompany this slice. See [operational task assignment](docs/architecture/operational-task-assignment.md).
+
+## Authentication startup, attention and formatting (2026-11-13)
+
+Authentication uses in-card branding and a stable public loading shell. Provider discovery and workspace selection finish before sign-in controls appear; same-origin initialization no longer reloads the document. Dashboard attention requires action authority, separates personal actions from shared team work and informational support readiness, explains reasons/next steps, and fences stale results after authority changes. The BT source-formatting workflow is available through `scripts/Format-Code.ps1` and the build-only ST.SourceFormatting tool. See [UI conventions](docs/development/ui-conventions.md#authentication-startup-and-attention-items) and [readability](docs/development/code-readability.md) for the preserved security boundaries and formatting scope.
+
+## Platform overview and Control Panel navigation (2026-11-13)
+
+The BaseTemplate dashboard/tile-hub composition is carried into StarterTemplate with its own operation permissions and tenant model. Customer counters are database aggregates behind tenant-view authority; invitation data additionally requires administrator-management authority. Stamp counters reflect the existing Pooled/Isolated model. Former Control Panel tab bookmarks keep working through direct-list redirects. See [UI conventions](docs/development/ui-conventions.md#platform-overview-2026-11-13) for presentation and metric semantics.
+
 ## Frontend simplification (2026-10-29)
 
 The supported frontend is the Interactive Server Blazor Web App. UI contracts moved into Blazor feature folders; MAUI, the separate RCL, and mobile CI were removed. Backend API DTOs remain in SharedKernel. Quartz jobs use the version 4 ValueTask/cancellation contract and asynchronous scope disposal. The Shared `Quartz46SchemaCompatibility` migrations upgrade SQL Server and PostgreSQL for Quartz 4.6.2 while preserving queued jobs and triggers.
@@ -329,3 +353,71 @@ Implemented tabbed Deployment Stamps/Tenants/Modules tables, grouped/pinned side
 ## Vendor/demo/customer hierarchy completion (2026-10-30)
 
 Catalogue, tenant overrides, dependency/flag policy, shared workspace initialization, invitation/MFA onboarding and approved managed support are implemented. Current source and acceptance evidence: [completion checklist](docs/architecture/vendor-demo-tenant-completion-checklist.md) and [experience plan](docs/architecture/vendor-demo-tenant-experience-plan.md). The final browser scope and regression evidence are recorded there, including the manual customer-credential boundary. External billing/providers, messaging transport and actual isolated cloud rollout remain separate certifications.
+
+KYC evidence now has workspace-scoped private originals, platform and secure-link client uploads, append-only review feedback, revocation/expiry and provider migrations. Configuration and acceptance scope are recorded in [KYC documents](docs/development/kyc-documents.md).
+
+## Onboarding documentation and platform IAM acceptance (2026-11-11)
+
+The [customer journey](docs/architecture/tenant-onboarding-journey.md) separates implemented onboarding from proposed public trial intake, trial timing and later automation. [Paperless KYC](docs/architecture/kyc-paperless-and-automation.md) defines hybrid evidence and proposed client/staff flags; runtime forms and flags remain pending. [Verification and retention](docs/development/kyc-verification-and-retention-closure.md) now have explicit implementation and acceptance criteria. Platform role/password/MFA acceptance is tracked separately from tenant isolation and from manual browser evidence.
+
+Platform IAM acceptance completed locally on 2026-11-12: [matrix and browser evidence](docs/development/platform-iam-acceptance.md). Real password/MFA role cases passed 11/11; regression passed 190 unit, 74 architecture and 64 integration tests with one existing transport skip. Fixed custom-role staff MFA enrollment guidance, reserved-role claim issuance consistency, and missing Blazor KYC policy registration. Platform operation permission granularity remains an explicit design limitation; paperless forms/flags and processing/retention are documented plans.
+
+### 2026-11-12 — Granular platform authority and enabled KYC retention
+
+This supersedes the earlier coarse-permission and unconfigured-retention checkpoint.
+
+- [x] Retire `control_plane.manage` at runtime and migrate trusted legacy staff to explicit operation grants for both database providers. Preserve StarterTemplate's direct reserved grants and tenant/stamp/IAM model.
+- [x] Apply independent view/write/KYC/support/Demo permissions to REST, GraphQL and native Blazor policies; keep KYC-only and tenant-reader screens usable. Project verified MFA proof into the Blazor identity.
+- [x] Ship enabled general-business retention: relationship end +24 calendar months, unsuccessful closure 90 days, unfinished inactivity 30 days, recovery 30 days, orphan grace 7 days and indefinite holds reviewed every 90 days.
+- [x] Add versioned policy amendment, explicit case adoption, hold/release/review, reasoned closure and recoverable restoration UI.
+- [x] Persist deletion leases/retries and upload reservations; reconcile bounded orphan pages and retry durable intents independently of current blob listings. Verify provider absence before reporting erasure; preserve independent private erasure receipts across database restores.
+- [x] Block erased evidence collection/download/approval/reactivation, redact private notes and references, and keep KYC bodies out of request logs.
+- [x] Verify 202 unit, 74 architecture and 70 integration cases, with one existing transport skip, plus affected MFA/retention regression and four synthetic password/MFA browser profiles. Apply the additive local migrations after a verified backup.
+- [ ] Cloud provider/RBAC/version/snapshot/soft-delete/backup/restore certification remains pending under the user's local-Docker scope. Paperless runtime/flags and automated authenticity verification remain separate documented capabilities.
+
+References: [platform IAM acceptance](docs/development/platform-iam-acceptance.md), [retention policy and operations](docs/development/kyc-retention-policy.md), [onboarding journey](docs/architecture/tenant-onboarding-journey.md).
+
+Final local runtime check: API readiness Healthy/200, Blazor sign-in shell 200, all three contexts at zero pending migrations, default policy values confirmed in the working ST database, Docker apps refreshed and disposable acceptance resources removed. Source remains uncommitted; no cloud sign-off is asserted.
+
+### Document-specific KYC collection — 2026-11-12
+
+Replace the generic file picker with one upload per configured document type on both platform and client pages. A shared repeater supports additional files and a named Other option. Store stable keys separately from captured labels, filter/query by type, preserve legacy labels and include SQL Server/PostgreSQL upgrade migrations. The API catalogue is configurable for future documents without schema changes. KYC approval, IAM, submission scopes and retention protections remain enforced. Verification results are recorded in docs/development/kyc-documents.md.
+
+KYC layout follow-up: responsive three-column collection on both channels, wide client submission, uploads-first link placement and case tabs for collection versus document review/decision. Preserve unsent selections across tabs and verify desktop/mobile behavior.
+
+### Administration UI consistency — 2026-11-12
+
+Apply the Access Catalog card/header/tab/filter/table/pager composition across administration. Move Control Panel create actions into its header, remove embedded repeated titles, modernize Admin Center as permission-filtered icon links, retire template-only navigation through redirects and use a restrained shared MudProviderHost/CSS palette. Document the canonical pattern in docs/development/ui-conventions.md. Preserve IAM, tenant, KYC and support behavior.
+
+
+### 2026-11-14 — Tenant admission and private KYC file safety
+
+- [x] Align ordinary account creation with tenant-scoped invitation identities; retain deleted identity reservations and enforce unique tenant-normalized emails.
+- [x] Serialize Identity admission/restoration with SQL Server/PostgreSQL transaction-owned tenant locks; count human seats explicitly and preserve trusted proxy kinds.
+- [x] Quarantine new/legacy evidence until real ClamAV checks its exact original bytes; implement durable leases/retry/freshness, reviewer status/rescan, clean-only acceptance/download and initial KYC approval gates.
+- [x] Preserve erasure-ledger/retention ownership and restrict central scan processing to platform-owning runtimes.
+- [x] Verify 232 unit, 74 architecture and 93 distinct integration checks, including real RabbitMQ and scanner acceptance. Verify a renamed disposable downstream copy (API/UI builds and 74 architecture checks).
+- [x] Back up and upgrade the existing local database through the guarded workflow; all three context histories have zero pending migrations.
+- [x] Finish updated local Linux image rollout, anonymous authorization gates and health/backlog checks. API/UI/scanner are running and all context histories are current.
+
+Details and limits: [local closure record](docs/development/enterprise-gap-closure-2026-11-14.md). Changes remain local and uncommitted; cloud/dedicated deployment sign-off and automated authenticity verification remain separate.
+
+
+### 2026-11-14 - Owner-operated two-tenant acceptance preparation
+
+- [x] Prepare a proposed six-operator platform roster, three identities per tenant, two fictional customer document sets and an editable 40-check manual workbook. All business results remain NOT RUN.
+- [x] Render/review 12 synthetic PDFs and verify local scanner outcomes (11 Clean; one deliberately encrypted Blocked).
+- [ ] Implement protected, audited platform-staff membership/access-profile administration. Ordinary IAM delegation correctly refuses reserved platform grants; a role label cannot replace explicit staff identity.
+- [ ] Create the proposed operators through the product, then perform two real pooled onboarding runs and subsequent tenant/isolation/support/revocation checks.
+
+Guide: [owner operator checklist](docs/development/operator-acceptance-two-tenants.md). Preparing fixtures did not create live accounts, roles, grants or tenants. Application code and live configuration were unchanged.
+
+### Platform operator acceptance follow-through (2026-11-14)
+
+- Implement protected platform staff administration, conservative two-provider upgrade, invitations, mandatory MFA, audited direct grants and last-manager protection.
+- Verify through real JWT/MFA integration tests and local Docker product workflows; record actual outcomes separately from the independent Allan Run pack.
+- Onboard two synthetic customers on the same pooled stamp and exercise tenant IAM and cross-customer denials. Cloud and dedicated-runtime certification remain separate.
+
+## Local operator acceptance (2026-11-15)
+
+Protected, audited platform staff administration and nine local QA operators are implemented. Two pooled customers completed KYC, invitations, MFA and limited-member setup through real product operations. Cache execution context, permission navigation/projection, proxy identity boundaries and sanitized workspace denials were corrected during acceptance. See [results and remaining boundaries](docs/development/operator-acceptance-results-2026-11-15.md). Catalogued business settings/reset, deferred provider checks and cloud/dedicated/recovery certification remain separate.

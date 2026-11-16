@@ -55,6 +55,8 @@ internal sealed class IamAuthEndpointSettings
 {
     public string Login { get; init; } = "api/v{version}/iam/auth/login";
 
+    public string SsoExchange { get; init; } = "api/v{version}/iam/auth/sso/exchange";
+
     public string RefreshToken { get; init; } = "api/v{version}/iam/auth/refresh-token";
 
     public string AcceptInvitation { get; init; } = "api/v{version}/iam/auth/invitation/accept";

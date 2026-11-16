@@ -1,0 +1,169 @@
+@page "/control-panel/kyc/retention"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = PlatformPermissions.ViewKyc)]
+@using ST.SharedKernel.Features.ControlPlane.Kyc.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+@inject IAuthSession AuthSession
+<ControlPanelBackLink />
+<PageTitle>KYC Retention | StarterTemplate</PageTitle>
+<h1 class="platform-page-title mb-4">KYC Retention</h1>
+@if (!string.IsNullOrEmpty(_message))
+{
+    <MudAlert Severity="@_severity"
+              Class="mb-3">@_message</MudAlert>
+}
+@if (_policies.Count > 0)
+{
+    var active = _policies[0];
+    <MudPaper Class="pa-4 mb-4"
+              Outlined="true">
+        <MudText Typo="Typo.h6">Active Policy: @active.Name</MudText>
+        <MudText Class="mb-3">Processing runs automatically. Approved evidence is retained throughout the relationship, then for @active.ApprovedMonths months after its recorded end. Declined or withdrawn cases retain evidence for @active.ClosedDays days. Unfinished cases expire after @active.InactiveDays days without activity. A @active.RecoveryDays-day recovery window follows. Legal holds continue until released, with reviews every @active.HoldReviewDays days.</MudText>
+        <MudText Typo="Typo.body2">Existing cases keep their assigned version. Publishing changes the default for new cases. Use case references in reasons; do not include document contents.</MudText>
+        @if (AuthSession.HasPermission(PlatformPermissions.ManageKycRetention))
+        {
+            <MudTextField @bind-Value="_name"
+                          Label="Policy Name"
+                          MaxLength="80" />
+            <MudGrid Class="mt-2">
+                <MudItem xs="12"
+                         sm="4">
+                    <MudNumericField @bind-Value="_months"
+                                     Label="Months After Relationship Ends"
+                                     Min="1"
+                                     Max="1200" />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudNumericField @bind-Value="_closed"
+                                     Label="Days After Decline or Withdrawal"
+                                     Min="1"
+                                     Max="36500" />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudNumericField @bind-Value="_inactive"
+                                     Label="Unfinished Case Inactivity (Days)"
+                                     Min="1"
+                                     Max="3650" />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudNumericField @bind-Value="_recovery"
+                                     Label="Recovery Window (Days)"
+                                     Min="1"
+                                     Max="365" />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudNumericField @bind-Value="_orphans"
+                                     Label="Unattached Upload Grace (Days)"
+                                     Min="1"
+                                     Max="365" />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudNumericField @bind-Value="_holdReview"
+                                     Label="Legal Hold Review Interval (Days)"
+                                     Min="1"
+                                     Max="365" />
+                </MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="_policyReason"
+                          Label="Reason for New Version"
+                          MaxLength="1000" />
+            <MudButton OnClick="PublishAsync"
+                       Disabled="@(_busy || string.IsNullOrWhiteSpace(_policyReason))"
+                       Color="Color.Primary"
+                       Class="mt-3">Publish New Version</MudButton>
+        }
+    </MudPaper>
+}
+@if (_case is not null)
+{
+    <MudPaper Class="pa-4 mb-4"
+              Outlined="true">
+        <MudText Typo="Typo.h6">Case Retention</MudText>
+        <MudText>Outcome: @_case.Outcome · Evidence: @_case.Phase · Legal Hold: @(_case.Held ? "Yes" : "No")</MudText>
+        <MudText>Assigned Policy: @(_policies.FirstOrDefault(x => x.Id == _case.PolicyId)?.Name ?? _case.PolicyId.ToString())</MudText>
+        @if (AssignedPolicy is { } pinned)
+        {
+            <MudText Typo="Typo.body2">Version published @pinned.PublishedAt.ToString("u"). @ScheduleSummary(pinned)</MudText>
+        }
+        <MudText>Retention Deadline: @(_case.RetainUntil?.ToString("u") ?? "Active relationship; no end recorded")</MudText>
+        <MudText>Recovery Deadline: @(_case.RecoveryUntil?.ToString("u") ?? "—")</MudText>
+        <MudText>Hold Review Due: @(_case.HoldReviewDue?.ToString("u") ?? "—")</MudText>
+        @if (_case.FailureCode is not null)
+        {
+            <MudAlert Severity="Severity.Warning">Deletion pending: @_case.FailureCode. Next attempt: @_case.NextAttemptAt?.ToString("u").</MudAlert>
+        }
+        <MudTextField @bind-Value="_caseReason"
+                      Label="Case Reference / Reason"
+                      MaxLength="1000" />
+        <div class="d-flex flex-wrap gap-2 mt-3">
+            @if (AuthSession.HasPermission(PlatformPermissions.ManageKycHolds) && _case.Phase is not ("Deleting" or "Erased"))
+            {
+                <MudButton OnClick="ChangeHoldAsync"
+                           Disabled="@(_busy || string.IsNullOrWhiteSpace(_caseReason))">@UiLabels.TitleCase(_case.Held ? "Release Legal Hold" : "Place Legal Hold")</MudButton>
+                @if (_case.Held)
+                {
+                    <MudButton OnClick='() => ActAsync("hold")'
+                               Disabled="@(_busy || string.IsNullOrWhiteSpace(_caseReason))">Record Hold Review</MudButton>
+                }
+            }
+            @if (AuthSession.HasPermission(PlatformPermissions.ManageKycRetention))
+            {
+                @if (_case.Phase == "Retained" && _case.Outcome == "Open")
+                {
+                    @if (_case.RetainUntil.HasValue)
+                    {
+                        <MudButton OnClick='() => ActAsync("Declined")'
+                                   Disabled="@(_busy || string.IsNullOrWhiteSpace(_caseReason))">Record Decline</MudButton>
+                        <MudButton OnClick='() => ActAsync("Withdrawn")'
+                                   Disabled="@(_busy || string.IsNullOrWhiteSpace(_caseReason))">Record Withdrawal</MudButton>
+                    }
+                    else
+                    {
+                        <MudButton OnClick='() => ActAsync("Ended")'
+                                   Disabled="@(_busy || string.IsNullOrWhiteSpace(_caseReason))">Record Relationship End</MudButton>
+                    }
+                }
+                @if (_case.Phase == "Recovery")
+                {
+                    <MudButton OnClick='() => ActAsync("restore")'
+                               Disabled="@(_busy || string.IsNullOrWhiteSpace(_caseReason))">Restore Case</MudButton>
+                }
+                @if (_case.Phase == "Retained" && _policies.Count > 0 && _case.PolicyId != _policies[0].Id)
+                {
+                    <MudButton OnClick='() => ActAsync("apply-current-policy")'
+                               Disabled="@(_busy || string.IsNullOrWhiteSpace(_caseReason))">Apply Current Policy to This Case</MudButton>
+                }
+            }
+        </div>
+        <MudText Typo="Typo.body2"
+                 Class="mt-3">Ending a relationship requires a suspended workspace. Restoring evidence reopens the review case; it does not activate the workspace. Holds cannot undo committed deletion.</MudText>
+    </MudPaper>
+}
+<MudPaper Class="pa-4"
+          Outlined="true">
+    <MudText Typo="Typo.h6">Policy History</MudText>
+    <MudSimpleTable Dense="true">
+        <thead>
+            <tr>
+                <th>Published (UTC)</th><th>Policy</th><th>Schedule</th><th>Reason</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _policies)
+            {
+                <tr>
+                    <td>@item.PublishedAt.ToString("u")</td>
+                    <td>@item.Name</td>
+                    <td>@ScheduleSummary(item)</td>
+                    <td>@item.Reason</td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+</MudPaper>

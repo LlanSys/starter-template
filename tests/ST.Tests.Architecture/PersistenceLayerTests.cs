@@ -91,14 +91,14 @@ public sealed class PersistenceLayerTests
     public void Declared_DbSet_Entities_Should_Support_Soft_Delete()
     {
         var hardDeleteOnlyEntities = GetDeclaredDbSetEntityTypes()
-            .Where(t => !typeof(ISoftDeletable).IsAssignableFrom(t) && t.Name is not ("PasskeyChallenge" or "SsoAuthorizationCode") &&
+            .Where(t => !typeof(ISoftDeletable).IsAssignableFrom(t) && t.Name is not ("PasskeyChallenge" or "SsoAuthorizationCode" or "PlatformStaffChange") &&
                         !(t.Namespace?.Contains(".ControlPlane.") ?? false) &&
                         !(t.Namespace?.Contains(".Shared.") ?? false))
             .Select(t => t.FullName)
             .ToList();
 
         hardDeleteOnlyEntities.Should().BeEmpty(
-            because: "persisted bounded-context entities should support soft delete by default (excluding ControlPlane and Shared features). Missing: {0}",
+            because: "persisted bounded-context entities should support soft delete by default (excluding ControlPlane, Shared, ephemeral challenges and append-only staff audit records). Missing: {0}",
             string.Join(", ", hardDeleteOnlyEntities));
     }
 

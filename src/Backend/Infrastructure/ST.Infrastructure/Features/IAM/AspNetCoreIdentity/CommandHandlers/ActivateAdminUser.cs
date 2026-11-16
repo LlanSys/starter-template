@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -19,10 +21,21 @@ internal sealed class ActivateAdminUser(UserManager<AppUser> userManager, IIamUn
         try
         {
             var user = await userManager.FindByIdAsync(command.UserId).ConfigureAwait(false);
-            if (user is null || user.IsDeleted || tenantProvider.TenantId == Guid.Empty || user.TenantId != tenantProvider.TenantId)
+
+            if (user is null || user.Kind != AccountKind.Human || user.IsDeleted || tenantProvider.TenantId == Guid.Empty || user.TenantId != tenantProvider.TenantId)
+            {
                 return AppResponses.NotFound<bool>("User not found.");
+            }
+
+            if ((await userManager.GetClaimsAsync(user).ConfigureAwait(false)).Any(c => c.Type == PlatformAccess.StaffClaim && c.Value == "true"))
+            {
+                return AppResponses.Failure<bool>("Manage platform staff through Platform Staff in the Control Panel.");
+            }
+
             if (user.IsActive)
+            {
                 return AppResponses.Success("User is already active.", true);
+            }
 
             return await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
@@ -32,12 +45,22 @@ internal sealed class ActivateAdminUser(UserManager<AppUser> userManager, IIamUn
                 var events = user.DomainEvents.ToArray();
                 user.ClearDomainEvents();
                 var result = await userManager.UpdateSecurityStampAsync(user).ConfigureAwait(false);
+
                 if (!result.Succeeded)
+                {
                     throw new ActivationRejectedException();
+                }
+
                 await AccountAccessCleanup.StageAsync(unitOfWork, user.Id, command.ActivatedBy,
                     "Account access reactivated", now, cancellationToken).ConfigureAwait(false);
+
                 await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
-                foreach (var domainEvent in events) user.RaiseDomainEvent(domainEvent);
+
+                foreach (var domainEvent in events)
+                {
+                    user.RaiseDomainEvent(domainEvent);
+                }
+
                 return AppResponses.Success("User activated. Existing password and email verification are preserved.", true);
             }, cancellationToken).ConfigureAwait(false);
         }
@@ -53,5 +76,7 @@ internal sealed class ActivateAdminUser(UserManager<AppUser> userManager, IIamUn
         }
     }
 
-    private sealed class ActivationRejectedException : Exception { }
+    private sealed class ActivationRejectedException : Exception
+    {
+    }
 }

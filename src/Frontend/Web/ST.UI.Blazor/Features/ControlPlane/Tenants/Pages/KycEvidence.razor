@@ -1,0 +1,223 @@
+@inject IAuthSession AuthSession
+@using ST.SharedKernel.Features.ControlPlane.Kyc.Dtos
+@page "/control-panel/tenants/{TenantId:guid}/kyc"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = PlatformPermissions.ViewKyc)]
+
+<PageTitle>KYC documents | StarterTemplate</PageTitle>
+<HeadContent>
+    <meta name="referrer"
+          content="no-referrer" />
+</HeadContent>
+<MudButton Href="/control-panel?tab=kyc"
+           Size="Size.Small"
+           StartIcon="@Icons.Material.Filled.ArrowBack">KYC Cases</MudButton>
+<MudPaper Class="poc-panel mt-3"
+          Elevation="0">
+    <div class="panel-heading">
+        <h2>@(_tenant?.DisplayName ?? "KYC documents")</h2>
+        @if (_tenant is not null)
+        {
+            <MudButton Href="@($"/control-panel/kyc/retention?TenantId={TenantId}")"
+                       Size="Size.Small">Retention And Legal Holds</MudButton>
+        }
+    </div>
+
+    @if (_message is not null)
+    {
+        <MudAlert Severity="@_severity"
+                  Dense="true"
+                  Class="my-3">@_message</MudAlert>
+    }
+    @if (_tenant is not null)
+    {
+        <MudTabs Elevation="0"
+                 Rounded="false"
+                 PanelClass="pt-4"
+                 KeepPanelsAlive="true"
+                 Class="kyc-case-tabs">
+            @if (AuthSession.HasPermission(PlatformPermissions.UploadKycDocuments) || AuthSession.HasPermission(PlatformPermissions.ManageKycSubmissions))
+            {
+                <MudTabPanel Text="Upload Documents">
+                    @if (AuthSession.HasPermission(PlatformPermissions.UploadKycDocuments))
+                    {
+                        <MudPaper Outlined="true"
+                                  Elevation="0"
+                                  Class="pa-4">
+                            <KycDocumentUploads @key="TenantId"
+                                                Types="_tenant.DocumentTypes"
+                                                Root="@Root"
+                                                Disabled="_busy"
+                                                Documents="UploadHistory"
+                                                OnUploaded="LoadAsync" />
+                        </MudPaper>
+                    }
+                    <MudPaper Outlined="true"
+                              Elevation="0"
+                              Class="pa-4 mt-4">
+                        <MudText Typo="Typo.h6">Client Submission Link</MudText>
+                        @if (_tenant.KycApprovedAt.HasValue)
+                        {
+                            <MudText>KYC is approved. Client submissions are closed.</MudText>
+                        }
+                        else
+                        {
+                            <MudText Class="mb-3">Share a submission link with the client. Creating a new link closes the previous one.</MudText>
+                            @if (AuthSession.HasPermission(PlatformPermissions.ManageKycSubmissions))
+                            {
+                                <MudButton OnClick="IssueLinkAsync"
+                                           Disabled="_busy"
+                                           Variant="Variant.Outlined">Add Submission Link</MudButton>
+                                <MudButton OnClick="RevokeLinkAsync"
+                                           Disabled="_busy"
+                                           Color="Color.Error"
+                                           Class="ml-2">Revoke Submission Link</MudButton>
+                            }
+                            @if (_link is not null)
+                            {
+                                <MudTextField Value="_link"
+                                              Label="Copy this link"
+                                              ReadOnly="true"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              Class="mt-3" />
+                                <MudText Typo="Typo.caption">Expires @Presentation.Format(_expiresAt). Share only with the person submitting these documents.</MudText>
+                            }
+                        }
+                    </MudPaper>
+                </MudTabPanel>
+            }
+            <MudTabPanel Text="Documents &amp; Decision">
+                <MudPaper Outlined="true"
+                          Elevation="0"
+                          Class="pa-4">
+                    <MudStack Row="true"
+                              Justify="Justify.SpaceBetween"
+                              AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.h6">Documents</MudText>
+                        <MudButton OnClick="LoadAsync"
+                                   Disabled="_busy"
+                                   Size="Size.Small">Refresh</MudButton>
+                    </MudStack>
+                    <MudText Typo="Typo.body2"
+                             Class="mt-2">Files remain unavailable until safety checks pass. Failed checks can be retried; unsafe or encrypted files may need replacement. Safety checks do not verify identity or document authenticity.</MudText>
+                    <MudSelect T="string"
+                               @bind-Value="_documentFilter"
+                               Label="Filter by document type"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Class="my-3">
+                        <MudSelectItem T="string"
+                                       Value="@string.Empty">All document types</MudSelectItem>
+                        @foreach (var type in _tenant.DocumentTypes)
+                        {
+                            <MudSelectItem T="string"
+                                           Value="@type.Key">@type.Name</MudSelectItem>
+                        }
+                        <MudSelectItem T="string"
+                                       Value="@("other")">Other</MudSelectItem>
+                        <MudSelectItem T="string"
+                                       Value="@("legacy")">Earlier uploads</MudSelectItem>
+                    </MudSelect>
+                    <MudTable T="KycDocumentResponse"
+                              Items="FilteredDocuments"
+                              Dense="true"
+                              Elevation="0"
+                              Hover="true"
+                              HorizontalScrollbar="true">
+                        <HeaderContent>
+                            <MudTh>Document</MudTh>
+                            <MudTh>Uploaded</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Safety Check</MudTh>
+                            <MudTh Class="st-actions-column">Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Document">@context.FileName<br />
+                                <MudText Typo="Typo.caption">@context.DocumentType</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Uploaded">@Presentation.Format(context.UploadedAt)</MudTd>
+                            <MudTd DataLabel="Status">@context.Status</MudTd>
+                            <MudTd DataLabel="Safety Check">
+                                <MudChip T="string"
+                                         Color="@(context.SafetyStatus == "Clean" ? Color.Success : Color.Warning)"
+                                         Size="Size.Small">@context.SafetyStatus</MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Actions"
+                                   Class="st-actions-column">
+                                @if (AuthSession.HasPermission(PlatformPermissions.DownloadKycDocuments))
+                                {
+
+                                    <MudButton Size="Size.Small"
+                                               OnClick="@(() => DownloadAsync(context))"
+                                               Disabled="@(_busy || context.SafetyStatus != "Clean")">Download</MudButton>
+                                }
+                                @if (AuthSession.HasPermission(PlatformPermissions.ReviewKycDocuments))
+                                {
+
+                                    <MudButton Size="Size.Small"
+                                               OnClick="@(() => SelectReview(context))"
+                                               Disabled="_busy">Review</MudButton>
+                                    <MudButton Size="Size.Small"
+                                               OnClick="@(() => RetrySafetyAsync(context))"
+                                               Disabled="@(_busy || context.SafetyStatus is not ("Failed" or "Blocked" or "Unsafe"))">Retry Safety Check</MudButton>
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudText Class="pa-3">No documents have been uploaded.</MudText>
+                        </NoRecordsContent>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="@(new[] {  10,  25,  50 }  )" />
+                        </PagerContent>
+                    </MudTable>
+                </MudPaper>
+                @if (_reviewDocument is not null)
+                {
+                    <MudPaper Outlined="true"
+                              Elevation="0"
+                              Class="pa-4 mt-4">
+                        <MudText Typo="Typo.h6">Review @_reviewDocument.FileName</MudText>
+                        @foreach (var review in _reviewDocument.Reviews)
+                        {
+                            <MudText Class="my-2">@Presentation.Format(review.ReviewedAt) · @(review.Accepted ? "Accepted" : "Changes requested") · @review.ReviewedBy</MudText>
+                            <MudText>@review.Feedback</MudText>
+                        }
+                        <MudTextField @bind-Value="_feedback"
+                                      Label="Feedback visible to the submitting client"
+                                      Lines="3"
+                                      MaxLength="2000"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                        <MudButton OnClick="@(() => ReviewAsync(true))"
+                                   Disabled="@(_busy || string.IsNullOrWhiteSpace(_feedback) || _reviewDocument.SafetyStatus != "Clean")"
+                                   Color="Color.Primary"
+                                   Variant="Variant.Filled">Accept Document</MudButton>
+                        <MudButton OnClick="@(() => ReviewAsync(false))"
+                                   Disabled="@(_busy || string.IsNullOrWhiteSpace(_feedback))"
+                                   Class="ml-2">Request Changes</MudButton>
+                        <MudButton OnClick="@(() => _reviewDocument = null)"
+                                   Disabled="_busy"
+                                   Class="ml-2">Close</MudButton>
+                    </MudPaper>
+                }
+
+                @if (_tenant is not null && !_tenant.KycApprovedAt.HasValue && AuthSession.HasPermission(PlatformPermissions.ApproveKyc))
+                {
+                    <MudPaper Outlined="true"
+                              Class="pa-4 mt-4">
+                        <MudText Typo="Typo.h6">KYC Decision</MudText>
+                        <MudTextField @bind-Value="_approvalReference"
+                                      Label="Completed Review Reference"
+                                      MaxLength="500" />
+                        <MudCheckBox @bind-Value="_approvalConfirmed"
+                                     Label="I have completed the required KYC review and approve this customer." />
+                        <MudButton OnClick="ApproveKycAsync"
+                                   Color="Color.Primary"
+                                   Disabled="@(_busy || !_approvalConfirmed || string.IsNullOrWhiteSpace(_approvalReference))">Approve KYC And Continue Onboarding</MudButton>
+                    </MudPaper>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    }
+</MudPaper>

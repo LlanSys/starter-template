@@ -1,0 +1,86 @@
+@page "/control-panel/kyc"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = PlatformPermissions.ViewKyc)]
+@using ST.SharedKernel.Features.ControlPlane.Kyc.Dtos
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@inject IBackendApiClient Api
+@inject NavigationManager Navigation
+@if (!Embedded)
+{
+    <PageTitle>KYC Cases | StarterTemplate</PageTitle>
+}
+@if (!Embedded)
+{
+    <ControlPanelBackLink />
+}
+<MudPaper Outlined="true"
+          Elevation="0"
+          Class="@(Embedded ? "st-embedded-list" : "poc-panel")">
+    @if (!Embedded)
+    {
+        <div class="panel-heading">
+            <h2>KYC Cases</h2>
+        </div>
+    }
+    <MudTextField T="string"
+                  Value="@_search"
+                  ValueChanged="SearchAsync"
+                  Label="Search workspaces"
+                  Immediate="true"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense" />
+    @if (_message is not null)
+    {
+        <MudAlert Severity="Severity.Error"
+                  Dense="true">@_message</MudAlert>
+    }
+    <MudTable T="KycCaseSummaryResponse"
+              @ref="_table"
+              ServerData="LoadAsync"
+              RowsPerPage="Presentation.PageSize"
+              Dense="true"
+              Elevation="0"
+              HorizontalScrollbar="true">
+        <HeaderContent>
+            <MudTh>Workspace</MudTh>
+            <MudTh>KYC</MudTh>
+            <MudTh Class="st-actions-column">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Workspace">@context.DisplayName</MudTd>
+            <MudTd DataLabel="KYC">@(context.KycApprovedAt.HasValue ? "Approved" : "Awaiting review")</MudTd>
+            <MudTd DataLabel="Actions"
+                   Class="st-actions-column">
+                <TableRowActions CanEdit="false"
+                                 CanDelete="false"
+                                 OnView="@(() => Navigation.NavigateTo($"/control-panel/tenants/{context.Id}/kyc"))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No KYC cases.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] {  50 }  )" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+@code {
+    [Parameter] public bool Embedded { get; set; }
+    private MudTable<KycCaseSummaryResponse>? _table;
+    private string _search = string.Empty;
+    private string? _message;
+
+    private async Task SearchAsync(string search)
+    {
+        _search = search;
+        if (_table is not null) await _table.ReloadServerData();
+    }
+
+    private async Task<TableData<KycCaseSummaryResponse>> LoadAsync(TableState state, CancellationToken cancellationToken)
+    {
+        var response = await Api.SendAsync<KycCasePageResponse>(HttpMethod.Get,
+            $"api/v1/control-plane/kyc/cases?page={state.Page}&search={Uri.EscapeDataString(_search)}", cancellationToken: cancellationToken);
+        if (!response.IsSuccess) _message = UserMessageSanitizer.Normalize(response.Message, "KYC cases could not be loaded.");
+        return new TableData<KycCaseSummaryResponse> { Items = response.Data?.Items ?? [], TotalItems = response.Data?.TotalRecords ?? 0 };
+    }
+}

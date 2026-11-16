@@ -14,9 +14,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.App.Internal.Assets" Version="10.0.14" PrivateAssets="all" />
-    <PackageReference Include="MudBlazor" Version="9.8.0" />
-    <PackageReference Include="QRCoder" Version="1.8.0" />
+    <PackageReference Include="Microsoft.AspNetCore.App.Internal.Assets" PrivateAssets="all" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="QRCoder" />
   </ItemGroup>
 
 </Project>

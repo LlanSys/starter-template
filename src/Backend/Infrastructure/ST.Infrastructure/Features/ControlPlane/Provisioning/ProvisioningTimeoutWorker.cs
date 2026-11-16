@@ -15,7 +15,11 @@ internal sealed partial class ProvisioningTimeoutWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30), clock);
-        while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+        // Disposing the timer ends an idle wait without throwing during shutdown.
+        using var stopTimer = stoppingToken.Register(timer.Dispose);
+
+        while (await timer.WaitForNextTickAsync().ConfigureAwait(false)
+            && !stoppingToken.IsCancellationRequested)
         {
             try
             {
@@ -36,6 +40,10 @@ internal sealed partial class ProvisioningTimeoutWorker(
                 {
                     await unit.CompleteAsync(stoppingToken).ConfigureAwait(false);
                 }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (DbUpdateConcurrencyException)
             {

@@ -10,11 +10,15 @@
 }
 else if (_hasError)
 {
-    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="session-alert">
+    <MudAlert Severity="Severity.Warning"
+              Variant="Variant.Outlined"
+              Class="session-alert">
         @_errorMessage
-        <MudButton Href="/iam/sign-in" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" Class="ms-3">
-            Sign in again
-        </MudButton>
+        <MudButton Href="/iam/sign-in"
+                   Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   Class="ms-3">Sign In Again</MudButton>
     </MudAlert>
 }
 else if (AuthSession.IsAuthenticated)
@@ -39,6 +43,10 @@ else if (AuthSession.IsAuthenticated)
     protected override void OnInitialized()
     {
         LoadingContent ??= @<MudPaper Class="status-card" Elevation="0">Checking your session...</MudPaper>;
+        _hasResolved = AuthSession.IsInitialized
+            && AuthSession.IsAuthenticated
+            && !AuthSession.MfaEnrollmentRequired
+            && AuthSession.CurrentUser?.AdministratorSetupRequired != true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

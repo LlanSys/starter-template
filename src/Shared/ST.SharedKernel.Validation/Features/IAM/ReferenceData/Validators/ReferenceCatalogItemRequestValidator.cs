@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.IAM.Menus;
 using ST.SharedKernel.Features.IAM.ReferenceData.Dtos;
 using ST.SharedKernel.Validation.Validators.Common;
 using FluentValidation;
@@ -6,12 +7,13 @@ namespace ST.SharedKernel.Validation.Features.IAM.ReferenceData.Validators;
 
 public sealed class ReferenceCatalogItemRequestValidator : Validator<ReferenceCatalogItemRequest>
 {
-    public ReferenceCatalogItemRequestValidator()
+    public ReferenceCatalogItemRequestValidator(bool allowMaterialIconKeys = false)
     {
         RuleFor(x => x.Key)
             .NotEmpty().WithMessage("Catalog key is required.")
             .MaximumLength(120).WithMessage("Catalog key cannot exceed 120 characters.")
-            .Matches("^[a-z0-9_.:-]+$").WithMessage("Catalog key must use lowercase letters, numbers, dots, underscores, colons, or hyphens.");
+            .Matches("^[a-z0-9_.:-]+$").WithMessage("Catalog key must use lowercase letters, numbers, dots, underscores, colons, or hyphens.")
+            .When(x => !allowMaterialIconKeys || !MaterialIconKeys.Contains(x.Key), ApplyConditionTo.CurrentValidator);
 
         RuleFor(x => x.Label)
             .NotEmpty().WithMessage("Catalog label is required.")

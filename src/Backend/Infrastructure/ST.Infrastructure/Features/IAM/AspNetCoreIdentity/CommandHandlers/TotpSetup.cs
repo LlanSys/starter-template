@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Contracts;
@@ -19,7 +21,7 @@ internal sealed class InitiateTotpSetupCommandHandler(
     UserManager<AppUser> userManager,
     IIamUnitOfWork iamUnitOfWork,
     ILogger<InitiateTotpSetupCommandHandler> logger,
-    TimeProvider timeProvider) : IRequestHandler<InitiateTotpSetupCommand, AppResponse<TwoFactorSetupInfo>>
+    TimeProvider timeProvider, ICurrentActorProvider actor) : IRequestHandler<InitiateTotpSetupCommand, AppResponse<TwoFactorSetupInfo>>
 {
     private const string TotpIssuer = "StarterTemplate.API";
 
@@ -30,9 +32,16 @@ internal sealed class InitiateTotpSetupCommandHandler(
         try
         {
             var user = await userManager.FindByIdAsync(userId).ConfigureAwait(false);
-            if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
+
+            if (user == null || user.Kind != AccountKind.Human || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
             {
                 return AppResponses.Failure<TwoFactorSetupInfo>("User not found.");
+            }
+
+            if (actor.ActorId != user.Id && (await userManager.GetClaimsAsync(user).ConfigureAwait(false))
+                .Any(c => c.Type == PlatformAccess.StaffClaim && c.Value == "true"))
+            {
+                return AppResponses.Failure<TwoFactorSetupInfo>(AppError.Forbidden("Platform staff must enroll their own authenticator."));
             }
 
             await iamUnitOfWork.TempTotpSecretRepository.DeleteUserTempSecretsAsync(userId, cancellationToken).ConfigureAwait(false);

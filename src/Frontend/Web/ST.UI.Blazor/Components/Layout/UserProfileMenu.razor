@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @rendermode InteractiveServer
+@implements IDisposable
 @inject TimeProvider Clock
 @inject IAuthSession AuthSession
 @inject IAuthService AuthService
@@ -10,101 +11,44 @@
 <div class="account-menu">
     @if (AuthSession.IsAuthenticated)
     {
-        <details>
-            <summary aria-label="Account menu">
-                <MudAvatar Size="Size.Small">
-                    @if (ProfilePictureSource is not null)
-                    {
-                        <MudImage Src="@ProfilePictureSource" Alt="" />
-                    }
-                    else
-                    {
-                        @Initials
-                    }
-                </MudAvatar>
-                <span class="account-name">@DisplayName</span>
-                <MudIcon Icon="@Icons.Material.Filled.ExpandMore" Size="Size.Small" />
-            </summary>
-            <div class="account-actions">
-                <a href="/profile"><MudIcon Icon="@Icons.Material.Filled.PersonOutline" Size="Size.Small" />Profile</a>
-                <a href="/iam/security"><MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Small" />Security</a>
-                <button type="button" @onclick="LogoutAsync"><MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" />Sign out</button>
-            </div>
-        </details>
+        <MudMenu @ref="_menu"
+                 Dense="true"
+                 AnchorOrigin="Origin.BottomRight"
+                 TransformOrigin="Origin.TopRight">
+            <ActivatorContent>
+                <MudButton OnClick="@context.ToggleAsync"
+                           Variant="Variant.Text"
+                           Class="account-trigger"
+                           EndIcon="@Icons.Material.Filled.ExpandMore"
+                           aria-label="Account Menu">
+                    <MudAvatar Size="Size.Small">
+                        @if (ProfilePictureSource is not null)
+                        {
+                            <MudImage Src="@ProfilePictureSource"
+                                      Alt="" />
+                        }
+                        else
+                        {
+                            @Initials
+                        }
+                    </MudAvatar>
+                    <span class="account-name">@DisplayName</span>
+                </MudButton>
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem Href="/profile"
+                             Icon="@Icons.Material.Filled.PersonOutline"
+                             OnClick="CloseMenuAsync">Profile</MudMenuItem>
+                <MudMenuItem Href="/iam/security"
+                             Icon="@Icons.Material.Filled.Security"
+                             OnClick="CloseMenuAsync">Security</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.Logout"
+                             OnClick="LogoutAsync">Sign Out</MudMenuItem>
+            </ChildContent>
+        </MudMenu>
     }
     else
     {
-        <a href="/iam/sign-in">@(_sessionRestoreFailed ? "Sign in again" : "Sign in")</a>
+        <a href="/iam/sign-in">@(_sessionRestoreFailed ? "Sign In Again" : "Sign In")</a>
     }
 </div>
-
-@code {
-    private string DisplayName
-    {
-        get
-        {
-            var fullName = $"{AuthSession.CurrentUser?.FirstName} {AuthSession.CurrentUser?.LastName}".Trim();
-
-            return string.IsNullOrWhiteSpace(fullName)
-                ? AuthSession.CurrentUser?.Email ?? "Signed-in user"
-                : fullName;
-        }
-    }
-
-    private bool _sessionRestoreFailed;
-
-    private string Initials
-    {
-        get
-        {
-            var first = AuthSession.CurrentUser?.FirstName;
-            var last = AuthSession.CurrentUser?.LastName;
-
-            if (!string.IsNullOrWhiteSpace(first) && !string.IsNullOrWhiteSpace(last))
-            {
-                return $"{first[0]}{last[0]}".ToUpperInvariant();
-            }
-
-            var email = AuthSession.CurrentUser?.Email;
-            return string.IsNullOrWhiteSpace(email) ? "ST" : email[..1].ToUpperInvariant();
-        }
-    }
-
-    private string? ProfilePictureSource => AuthSession.ProfilePictureDataUri;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        try
-        {
-            await AuthSession.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(8), Clock);
-        }
-        catch (TimeoutException ex)
-        {
-            _sessionRestoreFailed = true;
-            UserProfileMenuLogDefinitions.LogSessionRestoreTimedOut(Logger, ex);
-        }
-        catch (Exception ex)
-        {
-            _sessionRestoreFailed = true;
-            UserProfileMenuLogDefinitions.LogSessionRestoreFailed(Logger, ex);
-        }
-        finally
-        {
-            StateHasChanged();
-        }
-    }
-
-    private async Task LogoutAsync()
-    {
-        var wasDemo = AuthSession.CurrentUser?.IsDemoWorkspace == true;
-        await AuthService.LogoutAsync();
-        if (wasDemo) await AuthService.LogoutAsync();
-        await WorkspaceStorage.DeleteAsync("workspace.platform");
-        Navigation.NavigateTo("/iam/sign-in", forceLoad: true);
-    }
-}

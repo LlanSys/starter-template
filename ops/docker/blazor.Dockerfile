@@ -9,7 +9,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["Directory.Build.props", "."]
-COPY ["Global.json", "."]
+COPY ["Directory.Packages.props", "."]
+COPY ["global.json", "."]
 COPY ["nuget.config", "."]
 COPY ["src/Shared/ST.SharedKernel/ST.SharedKernel.csproj", "src/Shared/ST.SharedKernel/"]
 COPY ["src/Shared/ST.SharedKernel.Validation/ST.SharedKernel.Validation.csproj", "src/Shared/ST.SharedKernel.Validation/"]

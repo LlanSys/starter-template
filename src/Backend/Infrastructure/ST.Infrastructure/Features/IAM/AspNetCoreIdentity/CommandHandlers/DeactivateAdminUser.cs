@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -19,24 +21,48 @@ internal sealed class DeactivateAdminUser(UserManager<AppUser> userManager, IIam
         try
         {
             var user = await userManager.FindByIdAsync(command.UserId).ConfigureAwait(false);
-            if (user is null || user.IsDeleted || tenantProvider.TenantId == Guid.Empty || user.TenantId != tenantProvider.TenantId)
+
+            if (user is null || user.Kind != AccountKind.Human || user.IsDeleted || tenantProvider.TenantId == Guid.Empty || user.TenantId != tenantProvider.TenantId)
+            {
                 return AppResponses.NotFound<bool>("User not found.");
+            }
+
+            if ((await userManager.GetClaimsAsync(user).ConfigureAwait(false)).Any(c => c.Type == PlatformAccess.StaffClaim && c.Value == "true"))
+            {
+                return AppResponses.Failure<bool>("Manage platform staff through Platform Staff in the Control Panel.");
+            }
+
             var reason = string.IsNullOrWhiteSpace(command.Request.Reason)
                 ? "Deactivated by administrator" : command.Request.Reason.Trim();
 
             return await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
                 var now = timeProvider.GetUtcNow();
-                if (user.IsActive) user.RevokeAccess(now, command.DeactivatedBy, reason);
+
+                if (user.IsActive)
+                {
+                    user.RevokeAccess(now, command.DeactivatedBy, reason);
+                }
+
                 var events = user.DomainEvents.ToArray();
                 user.ClearDomainEvents();
                 var result = await userManager.UpdateSecurityStampAsync(user).ConfigureAwait(false);
-                if (!result.Succeeded) throw new DeactivationRejectedException();
+
+                if (!result.Succeeded)
+                {
+                    throw new DeactivationRejectedException();
+                }
                 // Also clean stale access on an already-inactive account, without rewriting its lifecycle audit.
                 await AccountAccessCleanup.StageAsync(unitOfWork, user.Id, command.DeactivatedBy,
                     reason, now, cancellationToken).ConfigureAwait(false);
+
                 await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
-                foreach (var domainEvent in events) user.RaiseDomainEvent(domainEvent);
+
+                foreach (var domainEvent in events)
+                {
+                    user.RaiseDomainEvent(domainEvent);
+                }
+
                 return AppResponses.Success("User deactivated. Sessions and refresh tokens have been terminated.", true);
             }, cancellationToken).ConfigureAwait(false);
         }
@@ -52,5 +78,7 @@ internal sealed class DeactivateAdminUser(UserManager<AppUser> userManager, IIam
         }
     }
 
-    private sealed class DeactivationRejectedException : Exception { }
+    private sealed class DeactivationRejectedException : Exception
+    {
+    }
 }

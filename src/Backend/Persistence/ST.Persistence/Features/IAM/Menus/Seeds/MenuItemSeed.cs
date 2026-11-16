@@ -17,9 +17,9 @@ internal static class MenuItemSeed
         Create(OverviewId, null, "solution-overview", "Solution Overview", "Architecture and solution overview.", "/overview", "AutoStories", "Sidebar", null, "Showcase", 1),
         Create(DashboardId, null, "dashboard", "Dashboard", "Operations dashboard.", "/dashboard", "Dashboard", "Sidebar", null, "Core", 2),
         Create(AdminId, null, "admin-center", "Admin Center", "Administrative workspace.", "/admin", "AdminPanelSettings", "Sidebar", null, "Core", 3),
-        Create(ControlPanelId, null, "control-panel", "Control Panel", "Platform management.", "/control-panel", "Dns", "Sidebar", "control_plane.manage", null, 4),
-        Create("018fd81d-2c94-7ad0-a4a3-f1edb9c30101", ControlPanelId, "control-panel-tenants", "Tenants", "Manage SaaS tenants.", "/control-panel/tenants", "Business", "ControlPanel", "control_plane.manage", null, 10),
-        Create("018fd81d-2c94-7ad0-a4a3-f1edb9c30102", ControlPanelId, "control-panel-stamps", "Stamps", "Deployment stamps.", "/control-panel/stamps", "Dns", "ControlPanel", "control_plane.manage", null, 20),
+        Create(ControlPanelId, null, "control-panel", "Control Panel", "Platform management.", "/control-panel", "Dns", "Sidebar", null, null, 4),
+        Create("018fd81d-2c94-7ad0-a4a3-f1edb9c30101", ControlPanelId, "control-panel-tenants", "Tenants", "Manage SaaS tenants.", "/control-panel/tenants", "Business", "ControlPanel", "control_plane.view_tenants", null, 10),
+        Create("018fd81d-2c94-7ad0-a4a3-f1edb9c30102", ControlPanelId, "control-panel-stamps", "Stamps", "Deployment stamps.", "/control-panel/stamps", "Dns", "ControlPanel", "control_plane.view_stamps", null, 20),
 
         Create("018fd81d-2c94-7ad0-a4a3-f1edb9c10401", null, "features", "Payments", "Payment history and checkout.", "/payments", "CreditCard", "Sidebar", "payments.view", "Payments", 4),
         Create("018fd81d-2c94-7ad0-a4a3-f1edb9c10402", Guid.Parse("018fd81d-2c94-7ad0-a4a3-f1edb9c10401"), "features-payments", "Payments", "Test card and mobile-money payment flows.", "/payments", "CreditCard", "Features", "payments.view", "Payments", 10),

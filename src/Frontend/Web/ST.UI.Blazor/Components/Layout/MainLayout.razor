@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject IAuthSession AuthSession
 @using ST.UI.Blazor.Features.ControlPlane.Auditing.Contracts
 @using ST.SharedKernel.Dtos.Common
@@ -18,7 +19,9 @@
 
         <article class="content px-4">
             <RequireAuthenticated>
-                @Body
+                <PresentationHost>
+                    @Body
+                </PresentationHost>
             </RequireAuthenticated>
         </article>
     </main>
@@ -26,7 +29,27 @@
 
 <SessionLifecycle />
 
-<div id="blazor-error-ui" data-nosnippet>
+<div id="blazor-error-ui"
+     data-nosnippet>
     An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
+    <a href="."
+       class="reload">Reload</a>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthSession.AuthenticationChanged += OnAuthenticationChanged;
+    }
+
+    private void OnAuthenticationChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthSession.AuthenticationChanged -= OnAuthenticationChanged;
+    }
+
+}

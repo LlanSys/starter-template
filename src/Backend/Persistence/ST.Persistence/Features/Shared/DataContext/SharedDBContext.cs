@@ -17,7 +17,10 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
     private readonly ICurrentTenantProvider? _tenantProvider;
     private readonly ICurrentActorProvider? _actorProvider;
     private readonly ILogger<SharedDBContext>? _logger;
-    internal TimeProvider Clock { get; }
+    internal TimeProvider Clock
+    {
+        get;
+    }
 
     public SharedDBContext(
         DbContextOptions<SharedDBContext> options,
@@ -46,17 +49,40 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         _logger = logger;
         Clock = timeProvider;
     }
-    public DbSet<EmailTemplate> EmailTemplates { get; set; }
-    public DbSet<FailedMessage> FailedMessages { get; set; }
-    public DbSet<PaymentRecord> PaymentRecords { get; set; }
-    public DbSet<OrgSetting> OrgSettings { get; set; }
+    public DbSet<EmailTemplate> EmailTemplates
+    {
+        get; set;
+    }
+    public DbSet<FailedMessage> FailedMessages
+    {
+        get; set;
+    }
+    public DbSet<PaymentRecord> PaymentRecords
+    {
+        get; set;
+    }
+    public DbSet<OrgSetting> OrgSettings
+    {
+        get; set;
+    }
+    public DbSet<OrgSettingChange> OrgSettingChanges
+    {
+        get; set;
+    }
 
 
     public Guid CurrentTenantId => _tenantProvider?.TenantId ?? Guid.Empty;
 
     private List<IDomainEvent> _collectedDomainEvents = [];
-    public IReadOnlyList<IDomainEvent>? GetCollectedDomainEvents() => _collectedDomainEvents?.AsReadOnly();
-    public void ClearCollectedDomainEvents() => _collectedDomainEvents?.Clear();
+    public IReadOnlyList<IDomainEvent>? GetCollectedDomainEvents()
+    {
+        return _collectedDomainEvents?.AsReadOnly();
+    }
+
+    public void ClearCollectedDomainEvents()
+    {
+        _collectedDomainEvents?.Clear();
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -110,8 +136,12 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
             foreach (var entry in ex.Entries)
             {
                 var entityId = entry.Entity is BaseEntity b ? b.Id.ToString() : "(unknown)";
+
                 if (_logger is not null)
+                {
                     PersistenceLogDefinitions.LogConcurrencyConflict(_logger, entry.Entity.GetType().Name, entityId);
+                }
+
                 _ = await entry.GetDatabaseValuesAsync(cancellationToken).ConfigureAwait(false);
             }
             _collectedDomainEvents?.Clear();
@@ -120,15 +150,23 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         catch (DbUpdateException ex)
         {
             foreach (var entry in ex.Entries)
+            {
                 if (_logger is not null)
+                {
                     PersistenceLogDefinitions.LogDatabaseError(_logger, entry.Entity.GetType().Name, ex);
+                }
+            }
+
             _collectedDomainEvents?.Clear();
             throw;
         }
         catch (Exception ex)
         {
             if (_logger is not null)
+            {
                 PersistenceLogDefinitions.LogDBContextSaveChangesError(_logger, nameof(SharedDBContext), ex);
+            }
+
             _collectedDomainEvents?.Clear();
             throw;
         }

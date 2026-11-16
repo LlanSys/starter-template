@@ -11,6 +11,32 @@ namespace ST.UI.Blazor.Features.Shared.OrgSettings.Implementations;
 internal sealed class OrgSettingsService(IBackendApiClient apiClient, IOptions<BackendApiSettings> apiSettings) : IOrgSettingsService
 {
     private readonly BackendApiSettings _apiSettings = apiSettings.Value;
+    private string Root => EndpointFormatter.Format(_apiSettings.Endpoints.Shared.OrgSettings.Root, _apiSettings.Version);
+
+    public Task<AppResponse<IReadOnlyList<CatalogOrgSettingResponse>>> GetCatalogueAsync(CancellationToken ct = default)
+    {
+        return apiClient.SendAsync<IReadOnlyList<CatalogOrgSettingResponse>>(HttpMethod.Get, Root + "/catalogue", cancellationToken: ct);
+    }
+
+    public Task<AppResponse<PresentationSettingsResponse>> GetPresentationAsync(CancellationToken ct = default)
+    {
+        return apiClient.SendAsync<PresentationSettingsResponse>(HttpMethod.Get, Root + "/presentation", cancellationToken: ct);
+    }
+
+    public Task<AppResponse<IReadOnlyList<OrgSettingChangeResponse>>> GetHistoryAsync(CancellationToken ct = default)
+    {
+        return apiClient.SendAsync<IReadOnlyList<OrgSettingChangeResponse>>(HttpMethod.Get, Root + "/history", cancellationToken: ct);
+    }
+
+    public Task<AppResponse<bool>> SaveAsync(string key, SaveCatalogOrgSettingRequest request, CancellationToken ct = default)
+    {
+        return apiClient.SendAsync<bool>(HttpMethod.Put, Root + "/catalogue/" + Uri.EscapeDataString(key), request, cancellationToken: ct);
+    }
+
+    public Task<AppResponse<bool>> ResetAsync(string key, SaveCatalogOrgSettingRequest request, CancellationToken ct = default)
+    {
+        return apiClient.SendAsync<bool>(HttpMethod.Post, Root + "/catalogue/" + Uri.EscapeDataString(key) + "/reset", request, cancellationToken: ct);
+    }
 
     public Task<AppResponse<IEnumerable<OrgSettingResponse>>> GetOrgSettingsAsync(CancellationToken ct = default)
     {

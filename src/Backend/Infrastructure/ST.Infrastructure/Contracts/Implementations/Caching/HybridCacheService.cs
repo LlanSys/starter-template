@@ -25,6 +25,7 @@ internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheS
 
         activity?.SetTag("cache.key", key);
         activity?.SetTag("cache.operation", "GET_OR_CREATE");
+
         if (expiration.HasValue)
         {
             activity?.SetTag("cache.expiration.seconds", expiration.Value.TotalSeconds);
@@ -42,16 +43,56 @@ internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheS
                 }
                 : null;
 
-            var result = await cache.GetOrCreateAsync(
-                key,
-                async token => await factory(token).ConfigureAwait(false),
-                options,
-                cancellationToken: ct).ConfigureAwait(false);
+            // HybridCache may dispatch cancellable factories without their caller's ExecutionContext.
+            // Keep the owning request alive until its scoped factory finishes, and flow its identity.
+            using var executionContext = ExecutionContext.Capture();
+            T result = default!;
+
+            for (var attempt = 0; ; attempt++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                try
+                {
+                    result = await cache.GetOrCreateAsync(
+                        key,
+                        async _ =>
+                        {
+                            Task<T>? pending = null;
+
+                            if (executionContext is null)
+                            {
+                                pending = factory(ct);
+                            }
+                            else
+                            {
+                                using var copy = executionContext.CreateCopy();
+                                ExecutionContext.Run(copy, _ => pending = factory(ct), null);
+                            }
+                            return await pending!.ConfigureAwait(false);
+                        },
+                        options,
+                        // Caller cancellation still reaches its factory's I/O. It must not detach
+                        // that factory from the lifetime of the request services it owns.
+                        cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+                    ct.ThrowIfCancellationRequested();
+                    break;
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested && attempt < 2)
+                {
+                    // A coalesced factory's owner was canceled. Retry in this live caller's scope.
+                }
+            }
 
             var elapsedMs = timeProvider.GetElapsedTime(start).TotalMilliseconds;
             activity?.SetTag("cache.latency.ms", elapsedMs);
 
             return result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -67,7 +108,11 @@ internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheS
         using var activity = CacheActivity.StartActivity("Cache SET");
         activity?.SetTag("cache.key", key);
         activity?.SetTag("cache.operation", "SET");
-        if (expiration.HasValue) activity?.SetTag("cache.expiration.seconds", expiration.Value.TotalSeconds);
+
+        if (expiration.HasValue)
+        {
+            activity?.SetTag("cache.expiration.seconds", expiration.Value.TotalSeconds);
+        }
 
         try
         {
@@ -94,14 +139,30 @@ internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheS
 
         try
         {
-            var exists = default(T);
-            // HybridCache does not have a TryGetAsync. We can use GetOrCreateAsync with a factory that returns a recognizable not-found value if we wanted, but often we just rely on IDistributedCache if needed.
-            // Wait, actually `HybridCache` doesn't have a direct `GetAsync` without a factory in early previews, but in .NET 9 GA, you might need to use `IDistributedCache` for direct Gets, or `IHybridCache` might have it. Wait, does it have `GetAsync`? Let's check `cache.GetAsync<T?>(...)`. I'll assume `GetOrCreateAsync` or `IDistributedCache` is needed if not available.
-            // Let's see if we can just use IDistributedCache internally or just IMemoryCache if HybridCache lacks it. Actually, `cache` usually supports `GetAsync` if we pass a default value factory? No, FIDO2 options we MUST get what was set.
-            // Wait, I will use IDistributedCache injected into HybridCacheService or just `GetOrCreateAsync` with a factory that throws? No, if it's absent it shouldn't throw.
+            var flags = HybridCacheEntryFlags.DisableLocalCacheWrite | HybridCacheEntryFlags.DisableDistributedCacheWrite;
+
+            if (key.Contains(":version:", StringComparison.Ordinal))
+            {
+                // Every replica must observe the current mutation epoch from the shared store.
+                flags |= HybridCacheEntryFlags.DisableLocalCacheRead;
+            }
+            return await cache.GetOrCreateAsync<T?>(
+                key,
+                static _ => ValueTask.FromResult(default(T)),
+                new HybridCacheEntryOptions { Flags = flags },
+                cancellationToken: ct).ConfigureAwait(false);
         }
-        catch(Exception) {}
-        return default;
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error);
+            activity?.AddException(ex);
+            ServiceLogDefinitions.LogCacheOperationError(logger, "GET", key, ex);
+            throw;
+        }
     }
 
     public async Task RemoveAsync(string key, CancellationToken ct = default)
@@ -125,5 +186,7 @@ internal sealed class HybridCacheService(HybridCache cache, ILogger<HybridCacheS
     }
 
     public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
-        => throw new NotSupportedException("Use version tokens instead.");
+    {
+        throw new NotSupportedException("Use version tokens instead.");
+    }
 }

@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.Extensions.Options;
 using Asp.Versioning;
 
 using Azure.Identity;
@@ -74,8 +76,14 @@ internal static partial class DependencyInjection
                 policy.RequireClaim("roles", "Provisioner");
             });
         });
+
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionAuthorizationPolicyProvider>();
-        services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+        services.AddScoped<PermissionAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler>(provider => provider.GetRequiredService<PermissionAuthorizationHandler>());
+        services.AddScoped<IAuthorizationHandler, DashboardTaskAuthorizationHandler>();
+        services.AddAuthorization(options => options.AddPolicy(RequireTaskPermissionAttribute.PolicyName,
+            policy => policy.RequireAuthenticatedUser().AddRequirements(new DashboardTaskPermissionRequirement())));
+
         services.AddApiVersioning(config =>
         {
             config.DefaultApiVersion = new ApiVersion(1, 0);
@@ -99,6 +107,7 @@ internal static partial class DependencyInjection
     private static void ConfigureHttpResilience(IServiceCollection services, IConfiguration configuration)
     {
         var resilienceSettings = configuration.GetSection(ResilienceSettings.SectionName).Get<ResilienceSettings>() ?? new ResilienceSettings();
+
         if (!resilienceSettings.Enabled)
         {
             return;
@@ -148,6 +157,7 @@ internal static partial class DependencyInjection
             dataProtectionBuilder.PersistKeysToStackExchangeRedis(
                 () => ConnectionMultiplexer.Connect(dpSettings.RedisKeyRingConnectionString).GetDatabase(),
                 key);
+
             ConfigureDataProtectionKeyEncryption(dataProtectionBuilder, dpSettings);
             return;
         }
@@ -266,6 +276,7 @@ internal static partial class DependencyInjection
             .Find(X509FindType.FindByThumbprint, thumbprint, validOnly: false)
             .OfType<X509Certificate2>()
             .FirstOrDefault();
+
         store.Close();
 
         if (cert is null)
@@ -322,13 +333,13 @@ internal static partial class DependencyInjection
             .Validate(HasValidRateLimitSettings, "RateLimiting policies must have PermitLimit > 0, WindowSeconds > 0, and QueueLimit >= 0.")
             .ValidateOnStart();
 
-        var settings = configuration.GetSection(RateLimitSettings.SectionName).Get<RateLimitSettings>()
-            ?? new RateLimitSettings();
-
-        services.AddRateLimiter(options =>
+        services.AddRateLimiter(_ => { });
+        services.AddOptions<RateLimiterOptions>().Configure<IOptions<RateLimitSettings>>((options, configured) =>
             {
+                var settings = configured.Value;
                 AddFixedWindowPolicy(options, "LoginPolicy", settings.LoginPolicy, settings.Enabled);
                 AddFixedWindowPolicy(options, "AuthPolicy", settings.AuthPolicy, settings.Enabled);
+                AddFixedWindowPolicy(options, "WorkspaceDiscoveryPolicy", settings.WorkspaceDiscoveryPolicy, settings.Enabled);
                 AddFixedWindowPolicy(options, "ApiPolicy", settings.ApiPolicy, settings.Enabled);
                 AddFixedWindowPolicy(options, "PasswordResetPolicy", settings.PasswordResetPolicy, settings.Enabled);
                 AddFixedWindowPolicy(options, "TwoFactorPolicy", settings.TwoFactorPolicy, settings.Enabled);
@@ -353,6 +364,7 @@ internal static partial class DependencyInjection
                         Detail = $"Rate limit exceeded. Try again in {retryAfter} seconds.",
                         Instance = context.HttpContext.Request.Path
                     };
+
                     problemDetails.Extensions["retryAfter"] = retryAfter;
                     problemDetails.Extensions["error"] = "rate_limit_exceeded";
 
@@ -372,7 +384,7 @@ internal static partial class DependencyInjection
                     }
                 };
 
-        });
+            });
     }
 
     private static void AddFixedWindowPolicy(
@@ -394,6 +406,16 @@ internal static partial class DependencyInjection
                 ? $"Tenant_{tenantClaim}"
                 : context.Connection.RemoteIpAddress?.ToString() ?? "Global";
 
+            // Authenticated authenticator management belongs to one proven account. A busy
+            // operator must not consume every colleague's enrollment/status budget.
+            var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (policyName == "TwoFactorPolicy" && context.User?.Identity?.IsAuthenticated == true
+                && !string.IsNullOrEmpty(userId))
+            {
+                partitionKey += "_User_" + userId;
+            }
+
             return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ =>
                 new FixedWindowRateLimiterOptions
                 {
@@ -409,6 +431,7 @@ internal static partial class DependencyInjection
     {
         return IsValidPolicy(settings.LoginPolicy) &&
                IsValidPolicy(settings.AuthPolicy) &&
+               IsValidPolicy(settings.WorkspaceDiscoveryPolicy) &&
                IsValidPolicy(settings.ApiPolicy) &&
                IsValidPolicy(settings.PasswordResetPolicy) &&
                IsValidPolicy(settings.TwoFactorPolicy) &&
@@ -427,6 +450,7 @@ internal static partial class DependencyInjection
     public static IServiceCollection ConfigureOutBoxMessagingWithGlobalRetry(this IServiceCollection services, IConfiguration configuration)
     {
         var messagingSettings = configuration.GetSection(MessagingSettings.SectionName).Get<MessagingSettings>() ?? new MessagingSettings();
+
         if (!messagingSettings.Enabled)
         {
             return services;
@@ -446,9 +470,20 @@ internal static partial class DependencyInjection
             x.AddEntityFrameworkOutbox<SharedDBContext>(o =>
             {
                 var provider = configuration.GetValue<string>("DatabaseSettings:Provider") ?? "SqlServer";
-                if (provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase)) o.UsePostgres();
-                else if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase)) o.UseSqlServer();
-                else throw new InvalidOperationException("Unsupported database provider for the messaging outbox.");
+
+                if (provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+                {
+                    o.UsePostgres();
+                }
+                else if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+                {
+                    o.UseSqlServer();
+                }
+                else
+                {
+                    throw new InvalidOperationException("Unsupported database provider for the messaging outbox.");
+                }
+
                 o.UseBusOutbox();
                 o.DuplicateDetectionWindow = TimeSpan.FromHours(24);
                 o.QueryDelay = TimeSpan.FromSeconds(30);
@@ -460,14 +495,18 @@ internal static partial class DependencyInjection
 
             // Global retry configuration
             var messagingTransport = GetMessagingTransport(messagingSettings);
+
             switch (messagingTransport)
             {
                 case MessagingTransport.AzureServiceBus:
                     x.UsingAzureServiceBus((context, cfg) =>
                     {
                         var connectionString = messagingSettings.AzureServiceBus.ConnectionString;
+
                         if (string.IsNullOrWhiteSpace(connectionString))
+                        {
                             throw new InvalidOperationException("Messaging:AzureServiceBus:ConnectionString is required when Messaging:Transport is AzureServiceBus");
+                        }
 
                         cfg.Host(connectionString);
 
@@ -503,6 +542,7 @@ internal static partial class DependencyInjection
                     {
                         cfg.Host(
                             messagingSettings.RabbitMq.Host,
+                            messagingSettings.RabbitMq.Port,
                             messagingSettings.RabbitMq.VirtualHost,
                             h =>
                             {
@@ -589,8 +629,8 @@ internal static partial class DependencyInjection
                 context.Response.Headers.Append("X-API-Version", "1.0");
                 context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
 
-            await next().ConfigureAwait(false);
-        });
+                await next().ConfigureAwait(false);
+            });
     }
 
     private enum KeyEncryptionMode

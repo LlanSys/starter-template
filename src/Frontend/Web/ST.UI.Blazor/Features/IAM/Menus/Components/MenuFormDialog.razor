@@ -6,70 +6,150 @@
 
 <MudDialog>
     <DialogContent>
-    <EditForm FormName="iam-menu-form" Model="_model" OnValidSubmit="SaveAsync">
-        <DataAnnotationsValidator />
+        <EditForm FormName="iam-menu-form"
+                  Model="_model"
+                  OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
             <MudGrid Spacing="2">
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="_model.Title" Label="Title" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+                <MudItem xs="12"
+                         sm="6">
+                    <MudTextField @bind-Value="_model.Title"
+                                  Label="Title"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
                 </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudSelect T="string" Value="_model.Placement" ValueChanged="OnPlacementChanged" Label="Show in" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
-                        @foreach (var placement in _referenceData.MenuPlacements)
+                <MudItem xs="12"
+                         sm="6">
+                    <MudSelect T="string"
+                               Value="_model.Placement"
+                               ValueChanged="OnPlacementChanged"
+                               Label="Show in"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               Required>
+                        @foreach (var placement in _referenceData.MenuPlacements.Where(placement => !placement.Key.Equals("Features", StringComparison.OrdinalIgnoreCase)))
                         {
                             <MudSelectItem Value="@placement.Key">@placement.Label</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" @bind-Value="_model.ParentId" Label="Parent" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" ToStringFunc="ParentLabel">
-                        @foreach (var menu in ParentOptions)
+                <MudItem xs="12"
+                         sm="6">
+                    <MudSelect T="string"
+                               Value="@(_model.RequiredModule ?? string.Empty)"
+                               ValueChanged="OnModuleChanged"
+                               Label="Module"
+                               HelperText="@(ExistingMenu?.CatalogueKey is not null ? "Set by the registered page." : "Choose a module, then a page.")"
+                               Required="true"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               Disabled="@(_isSaving || _modules.Count == 0 || ExistingMenu?.CatalogueKey is not null)">
+                        @foreach (var module in _modules)
                         {
-                            <MudSelectItem T="Guid?" Value="@menu.Id">@menu.Title</MudSelectItem>
+                            <MudSelectItem Value="@module">@ModuleLabel(module)</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudAutocomplete T="string" Value="_model.Url" ValueChanged="OnPageSelected" ReadOnly="@(ExistingMenu?.CatalogueKey is not null)" Label="Page" SearchFunc="SearchPagesAsync"
-                                     ToStringFunc="PageLabel" MinCharacters="0" MaxItems="30" Clearable="true"
-                                     Strict="true" CoerceValue="false" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                <MudItem xs="12"
+                         sm="6">
+                    <MudSelect T="Guid?"
+                               @bind-Value="_model.ParentId"
+                               Label="Parent"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               Clearable="true"
+                               ToStringFunc="ParentLabel">
+                        @foreach (var menu in ParentOptions)
+                        {
+                            <MudSelectItem T="Guid?"
+                                           Value="@menu.Id">@menu.Title</MudSelectItem>
+                        }
+                    </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudAutocomplete T="string" @bind-Value="_model.Icon" Label="Search icons"
-                                     SearchFunc="MenuIconMapper.SearchAsync" Margin="Margin.Dense" Variant="Variant.Outlined"
-                                     MinCharacters="0" MaxItems="50" Strict="true" CoerceValue="false">
-                        <ItemTemplate Context="iconKey">
-                            <MudIcon Icon="@MenuIconMapper.Resolve(iconKey)" Size="Size.Small" Class="me-2" />@iconKey
-                        </ItemTemplate>
-                        <MoreItemsTemplate><MudText Typo="Typo.caption" Class="pa-2">Refine the name or style to see more icons.</MudText></MoreItemsTemplate>
-                    </MudAutocomplete>
+                <MudItem xs="12"
+                         sm="6">
+                    <MudAutocomplete T="string"
+                                     Value="_model.Url"
+                                     ValueChanged="OnPageSelected"
+                                     ReadOnly="@(ExistingMenu?.CatalogueKey is not null)"
+                                     Label="Page"
+                                     SearchFunc="SearchPagesAsync"
+                                     ToStringFunc="PageLabel"
+                                     MinCharacters="0"
+                                     MaxItems="30"
+                                     Clearable="true"
+                                     Strict="true"
+                                     CoerceValue="false"
+                                     Margin="Margin.Dense"
+                                     Variant="Variant.Outlined" />
                 </MudItem>
-                <MudItem xs="12" sm="6"><MudTextField Value="@ModuleLabel(_model.RequiredModule)" Label="Module" ReadOnly="true" Margin="Margin.Dense" Variant="Variant.Outlined" /></MudItem>
-                <MudItem xs="12" sm="6"><MudNumericField T="int" @bind-Value="_model.DisplayOrder" Label="Position" Min="0" Max="10000" Margin="Margin.Dense" Variant="Variant.Outlined" /></MudItem>
-                <MudItem xs="12"><MudText Typo="Typo.subtitle2">Visibility</MudText></MudItem>
-                <MudItem xs="12" sm="6">
-                    <MenuAccessPicker Label="Roles" Options="_roles" @bind-Values="_model.RequiredRoleNames" Disabled="_isSaving" />
+                <MudItem xs="12"
+                         sm="6">
+                    <MenuIconPicker @bind-Value="_model.Icon"
+                                    Catalog="_referenceData.MenuIcons"
+                                    Disabled="_isSaving" />
                 </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MenuAccessPicker Label="Permissions" Options="_permissionKeys" @bind-Values="_model.RequiredPermissionKeys" Disabled="_isSaving" />
+
+                <MudItem xs="12"
+                         sm="6">
+                    <MudNumericField T="int"
+                                     @bind-Value="_model.DisplayOrder"
+                                     Label="Position"
+                                     Min="0"
+                                     Max="10000"
+                                     Margin="Margin.Dense"
+                                     Variant="Variant.Outlined" />
                 </MudItem>
-                <MudItem xs="12"><MudText Typo="Typo.caption">Any selected role and all selected permissions must match.</MudText></MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle2">Visibility</MudText>
+                </MudItem>
+                <MudItem xs="12"
+                         sm="6">
+                    <MenuAccessPicker Label="Roles"
+                                      Options="_roles"
+                                      @bind-Values="_model.RequiredRoleNames"
+                                      Disabled="_isSaving" />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="6">
+                    <MenuAccessPicker Label="Permissions"
+                                      Options="_permissionKeys"
+                                      @bind-Values="_model.RequiredPermissionKeys"
+                                      Disabled="_isSaving" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption">Any selected role and all selected permissions must match.</MudText>
+                </MudItem>
                 @if (ExistingMenu is not null)
                 {
                     <MudItem xs="12">
-                        <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success" Label="Active" />
+                        <MudSwitch T="bool"
+                                   @bind-Value="_model.IsActive"
+                                   Color="Color.Success"
+                                   Label="Active" />
                     </MudItem>
                 }
             </MudGrid>
         </EditForm>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="@(_isSaving || !_cataloguesLoaded)" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.Close"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   OnClick="Cancel">Cancel</MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.Save"
+                   Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Success"
+                   Disabled="@(_isSaving || !_cataloguesLoaded)"
+                   OnClick="SaveAsync">@(_isSaving ? "Saving..." : "Save")</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     private IReadOnlyList<CatalogueEntryResponse> _pages = [];
+    private IReadOnlyList<string> _modules = [];
     private IReadOnlyList<string> _permissionKeys = [];
     private IReadOnlyList<string> _roles = [];
     private bool _cataloguesLoaded;
@@ -87,8 +167,7 @@
     [Parameter]
     public IReadOnlyList<MenuResponse> Menus { get; set; } = [];
 
-    private static string ModuleLabel(string? module) => module?.ToLowerInvariant() switch { "iam" => "Identity and access", "core" => "Core workspace", "payments" => "Payments", "showcase" => "Showcase", _ => module ?? "" };
-    private string SaveLabel => ExistingMenu is null ? "Create" : "Update";
+    private static string ModuleLabel(string? module) => module?.ToLowerInvariant() switch { "iam" => "Identity and Access", "core" => "Core Workspace", "payments" => "Payments", "showcase" => "Showcase", _ => module ?? "" };
 
 
     private IReadOnlyList<MenuResponse> ParentOptions =>
@@ -98,7 +177,9 @@
             .OrderBy(menu => menu.Title)];
 
     private IReadOnlyList<CatalogOptionResponse> RouteOptions =>
-        [.. _referenceData.MenuRoutes
+        [.. _referenceData.MenuRoutes.Where(route => !TemplateNavigation.IsRetiredKey(route.Key)
+                && _pages.Any(page => string.Equals(page.Path, route.Key, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(page.ModuleKey, _model.RequiredModule, StringComparison.OrdinalIgnoreCase)))
             .DistinctBy(route => route.Key)
             .OrderBy(static route => route.Label)];
 
@@ -121,7 +202,11 @@
 
         _referenceData = response.Data;
         var available = await Api.SendAsync<IReadOnlyList<CatalogueEntryResponse>>(HttpMethod.Get, "api/v1/modules/available");
-        _pages = available.Data?.Where(x => x.Kind == "Page" && x.IsImplemented && x.IsActive).ToArray() ?? [];
+        _pages = available.Data?.Where(x => x.Kind == "Page" && x.IsImplemented && x.IsActive && !TemplateNavigation.IsRetired(x.Path)).ToArray() ?? [];
+        _modules = available.Data?.Where(entry => entry.IsActive && entry.IsImplemented && !TemplateNavigation.IsRetiredModule(entry.ModuleKey))
+            .Select(entry => entry.ModuleKey).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
+        _model.RequiredModule = _modules.FirstOrDefault(module => string.Equals(module, _model.RequiredModule, StringComparison.OrdinalIgnoreCase))
+            ?? (ExistingMenu is null ? _modules.FirstOrDefault(module => module.Equals("core", StringComparison.OrdinalIgnoreCase)) ?? _modules.FirstOrDefault() : _model.RequiredModule);
     }
 
     private async Task LoadPermissionsAsync()
@@ -169,12 +254,31 @@
         return Task.FromResult(RouteOptions.Where(route => string.IsNullOrWhiteSpace(text) || route.Label.Contains(text, StringComparison.OrdinalIgnoreCase)).Select(route => route.Key));
     }
 
+    private void OnModuleChanged(string module)
+    {
+        if (ExistingMenu?.CatalogueKey is not null) return;
+        _model.RequiredModule = module;
+        if (!_pages.Any(page => string.Equals(page.Path, _model.Url, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(page.ModuleKey, module, StringComparison.OrdinalIgnoreCase))) _model.Url = string.Empty;
+    }
+
     private async Task SaveAsync()
     {
         if (!_cataloguesLoaded || _isSaving) return;
+        if (!_modules.Contains(_model.RequiredModule ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            Snackbar.Add("Select an available module.", Severity.Warning);
+            return;
+        }
         if (string.IsNullOrWhiteSpace(_model.Title) || string.IsNullOrWhiteSpace(_model.Placement))
         {
             Snackbar.Add("Menu title and placement are required.", Severity.Warning);
+            return;
+        }
+
+        if (!MenuIconMapper.IsSupported(_model.Icon) && !string.Equals(_model.Icon, ExistingMenu?.Icon, StringComparison.Ordinal))
+        {
+            Snackbar.Add("Select a MudBlazor icon.", Severity.Warning);
             return;
         }
 

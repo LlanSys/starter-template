@@ -1,6 +1,24 @@
 name: cg-startertemplate
 
 services:
+  clamav:
+    image: clamav/clamav:1.5.4
+    environment:
+      TZ: UTC
+      CLAMAV_NO_FRESHCLAMD: "false"
+    ports:
+      - "127.0.0.1:13315:3310"
+    volumes:
+      - clamav-definitions:/var/lib/clamav
+      - ./clamd.conf:/etc/clamav/clamd.conf:ro
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+    restart: unless-stopped
+
   rabbitmq:
     image: rabbitmq:4-management-alpine
     environment:
@@ -90,6 +108,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  clamav-definitions:
   rabbitmq-data:
     name: startertemplate_rabbitmq-data
     external: true

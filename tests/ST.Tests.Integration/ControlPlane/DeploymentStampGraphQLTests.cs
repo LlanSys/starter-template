@@ -52,7 +52,7 @@ public sealed class DeploymentStampGraphQLTests(StarterTemplateWebApplicationFac
     [InlineData(true, false)]
     public async Task GraphQLReadsAndWritesRequirePlatformStaffAndPermission(bool staff, bool permission)
     {
-        using var client = CreateClient(staff, permission);
+        using var client = CreateClient(staff, permission, staff ? await SeedPlatformActorAsync() : null);
         var query = await SendAsync(client, "{ deploymentStamps { id } }");
         AssertAuthorizationError(query);
 
@@ -64,6 +64,22 @@ public sealed class DeploymentStampGraphQLTests(StarterTemplateWebApplicationFac
     }
 
     [Fact]
+    public async Task StampReaderCanQueryButCannotMutateAcrossEitherTransport()
+    {
+        using var client = CreateClient(staff: true, permission: true, actorId: await SeedPlatformActorAsync());
+        client.DefaultRequestHeaders.Remove("X-Test-Permissions");
+        client.DefaultRequestHeaders.Add("X-Test-Permissions", PlatformPermissions.ViewStamps);
+        var query = await SendAsync(client, "{ deploymentStamps { id } }");
+        Assert.False(query.TryGetProperty("errors", out _));
+        var mutation = await SendAsync(client, CreateMutation, new { input = new { name = "denied-reader", targetResourceGroup = "example", isolationTier = "Pooled" } });
+        AssertAuthorizationError(mutation);
+        using var read = await client.GetAsync(RestPath);
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        using var write = await client.PostAsJsonAsync(RestPath, new { });
+        Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
+    }
+
+    [Fact]
     public async Task GraphQLAndRestShareDataAndGraphQLUsesTheExistingValidationPipeline()
     {
         var actorId = await SeedPlatformActorAsync();
@@ -71,7 +87,9 @@ public sealed class DeploymentStampGraphQLTests(StarterTemplateWebApplicationFac
         var name = $"graphql-{Guid.CreateVersion7():N}";
         var createInput = new
         {
-            name, targetResourceGroup = "graphql-create", isolationTier = "Pooled",
+            name,
+            targetResourceGroup = "graphql-create",
+            isolationTier = "Pooled",
             databaseConnectionString = "Server=example.invalid;Database=GraphQLTest"
         };
         var created = Payload(await SendAsync(client, CreateMutation, new { input = createInput }), "createDeploymentStamp");
@@ -108,7 +126,9 @@ public sealed class DeploymentStampGraphQLTests(StarterTemplateWebApplicationFac
 
         using var restUpdate = await client.PutAsJsonAsync($"{RestPath}/{id:D}", new
         {
-            name, targetResourceGroup = "rest-update", isolationTier = "Pooled"
+            name,
+            targetResourceGroup = "rest-update",
+            isolationTier = "Pooled"
         });
         Assert.Equal(HttpStatusCode.OK, restUpdate.StatusCode);
 
@@ -161,7 +181,7 @@ public sealed class DeploymentStampGraphQLTests(StarterTemplateWebApplicationFac
         }
         if (permission)
         {
-            client.DefaultRequestHeaders.Add("X-Test-Permissions", PlatformAccess.Permission);
+            client.DefaultRequestHeaders.Add("X-Test-Permissions", string.Join(",", PlatformPermissions.All));
         }
         if (actorId is not null)
         {

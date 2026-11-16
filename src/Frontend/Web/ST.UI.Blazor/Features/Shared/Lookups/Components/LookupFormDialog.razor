@@ -3,17 +3,40 @@
 
 <MudDialog>
     <DialogContent>
-    <EditForm FormName="shared-lookup-form" Model="_model" OnValidSubmit="SaveAsync">
-        <DataAnnotationsValidator />
+        <EditForm FormName="shared-lookup-form"
+                  Model="_model"
+                  OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
             <MudGrid Spacing="2">
-                <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.Code" Label="Code" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
-                <MudItem xs="12" sm="8"><MudTextField @bind-Value="_model.Description" Label="Description" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudTextField @bind-Value="_model.Code"
+                                  Label="Code"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="8">
+                    <MudTextField @bind-Value="_model.Description"
+                                  Label="Description"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
+                </MudItem>
             </MudGrid>
         </EditForm>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="@(ExistingLookup is null ? Color.Primary : Color.Success)" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : ExistingLookup is null ? "Create" : "Save")</MudButton>
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Success"
+                   Disabled="_isSaving"
+                   OnClick="SaveAsync"
+                   StartIcon="@Icons.Material.Filled.Save">@(_isSaving ? "Saving..." : "Save")</MudButton>
     </DialogActions>
 </MudDialog>
 

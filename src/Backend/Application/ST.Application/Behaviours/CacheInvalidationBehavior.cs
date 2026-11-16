@@ -1,3 +1,4 @@
+using ST.SharedKernel.Dtos.Common;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Utilities;
 using ST.Domain.Shared.Contracts.Common;
@@ -55,23 +56,32 @@ public sealed class CacheInvalidationBehavior<TRequest, TResponse>(
         // Execute the command first — invalidate only on success.
         var response = await next(cancellationToken).ConfigureAwait(false);
 
+        if (response is IAppResponse outcome && !outcome.IsSuccess)
+        {
+            return response;
+        }
+
         // ── 1. Direct key deletions ────────────────────────────────────────────
         foreach (var key in request.DirectInvalidationKeys)
         {
             await cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
+            await cache.RemoveAsync(CacheKeys.Request(key), cancellationToken).ConfigureAwait(false);
 
             // CachingBehavior stores entity keys under a tenant-scoped variant for
             // tenant requests: "{group}:entity:tenant:{tenantId}:{discriminator}".
             // We must also remove that variant here so mutations don't leave stale
             // tenant-scoped entries in the cache.
             var tenantId = tenantProvider.TenantId;
+
             if (tenantId != Guid.Empty && key.Contains(":entity:", StringComparison.OrdinalIgnoreCase))
             {
                 var tenantScopedKey = key.Replace(
                     ":entity:",
                     $":entity:tenant:{tenantId:D}:",
                     StringComparison.OrdinalIgnoreCase);
+
                 await cache.RemoveAsync(tenantScopedKey, cancellationToken).ConfigureAwait(false);
+                await cache.RemoveAsync(CacheKeys.Request(tenantScopedKey), cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -81,6 +91,7 @@ public sealed class CacheInvalidationBehavior<TRequest, TResponse>(
             await BumpVersionAsync(sentinelKey, cancellationToken).ConfigureAwait(false);
 
             var tenantScopedKey = ToTenantScopedVersionKey(sentinelKey, tenantProvider.TenantId);
+
             if (!string.Equals(tenantScopedKey, sentinelKey, StringComparison.OrdinalIgnoreCase))
             {
                 await BumpVersionAsync(tenantScopedKey, cancellationToken).ConfigureAwait(false);
@@ -92,21 +103,28 @@ public sealed class CacheInvalidationBehavior<TRequest, TResponse>(
 
     private async Task BumpVersionAsync(string sentinelKey, CancellationToken cancellationToken)
     {
-        await cache.RemoveAsync(sentinelKey, cancellationToken).ConfigureAwait(false);
-        CacheLogDefinitions.LogCacheBumped(logger, sentinelKey, GenerateVersion());
+        var version = GenerateVersion();
+        await cache.SetAsync(sentinelKey, version, VersionTtl, cancellationToken).ConfigureAwait(false);
+        await cache.SetAsync(CacheKeys.Request(sentinelKey), version, VersionTtl, cancellationToken).ConfigureAwait(false);
+        CacheLogDefinitions.LogCacheBumped(logger, sentinelKey, version);
     }
 
     private static string ToTenantScopedVersionKey(string sentinelKey, Guid tenantId)
     {
-        if (tenantId == Guid.Empty || !sentinelKey.EndsWith(":version:global", StringComparison.OrdinalIgnoreCase))
+        var marker = sentinelKey.LastIndexOf(":version:", StringComparison.OrdinalIgnoreCase);
+
+        if (tenantId == Guid.Empty || marker < 0)
         {
             return sentinelKey;
         }
 
-        return $"{sentinelKey[..^":global".Length]}:tenant:{tenantId:D}";
+        return $"{sentinelKey[..marker]}:version:tenant:{tenantId:D}";
     }
 
     private string GenerateVersion()
-        => timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+    {
+        return timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
+            + ":" + Guid.CreateVersion7().ToString("N");
+    }
 
 }

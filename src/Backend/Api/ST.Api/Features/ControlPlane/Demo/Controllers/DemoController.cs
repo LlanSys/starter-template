@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane;
 using Asp.Versioning;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -8,15 +9,17 @@ using ST.Application.Features.ControlPlane.Demo;
 using ST.Domain.Shared.Contracts.Common;
 namespace ST.Api.Features.ControlPlane.Demo.Controllers;
 
-[ApiController, ApiVersion("1.0"), Authorize, RequirePermission("control_plane.manage")]
+[ApiController, ApiVersion("1.0"), Authorize]
 [Route("api/v{version:apiVersion}/control-plane/demo")]
 public sealed class DemoController(ISender sender, ICurrentActorProvider actor) : BaseController
 {
     [HttpPost("reset")]
+    [RequirePermission(PlatformPermissions.ResetDemo)]
     public async Task<IActionResult> Reset(CancellationToken ct)
-        => HandleResponse(await sender.Send(new ResetDemoCommand(actor.ActorId),ct).ConfigureAwait(false));
+        => HandleResponse(await sender.Send(new ResetDemoCommand(actor.ActorId), ct).ConfigureAwait(false));
 
     [HttpPost("enter")]
+    [RequirePermission(PlatformPermissions.EnterDemo)]
     public async Task<IActionResult> Enter(CancellationToken cancellationToken, [FromQuery] bool readOnly = false)
         => HandleResponse(await sender.Send(new EnterDemoCommand(actor.ActorId, readOnly), cancellationToken).ConfigureAwait(false));
 }

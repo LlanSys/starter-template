@@ -3,4 +3,4 @@ using MediatR;
 
 namespace ST.Application.Features.IAM.Users.Commands;
 
-public sealed record InviteAdminUserCommand(string UserId) : IRequest<AppResponse<bool>>;
+public sealed record InviteAdminUserCommand(string UserId, bool PlatformStaffWorkflow = false) : IRequest<AppResponse<bool>>;

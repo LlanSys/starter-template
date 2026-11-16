@@ -9,10 +9,13 @@
 
 <MudDialog>
     <DialogContent>
-        <MudForm @ref="_form" @bind-IsValid="@_isValid" Model="@_command">
+        <MudForm @ref="_form"
+                 @bind-IsValid="@_isValid"
+                 Model="@_command">
             <div class="mb-4">
                 <MudText Typo="Typo.body2">You are about to start an impersonation session for <strong>@Tenant.DisplayName</strong>.</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Error">This action will be logged in the audit trail.</MudText>
+                <MudText Typo="Typo.body2"
+                         Color="Color.Error">This action will be logged in the audit trail.</MudText>
             </div>
 
             <MudTextField @bind-Value="_command.Reason"
@@ -27,24 +30,20 @@
             <MudNumericField @bind-Value="_command.DurationHours"
                              For="@(() => _command.DurationHours)"
                              Label="Duration (Hours)"
-                             Min="1" Max="24"
+                             Min="1"
+                             Max="24"
                              Required="true"
                              Variant="Variant.Outlined" />
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="@_isSubmitting">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitAsync" Disabled="@(!_isValid || _isSubmitting)">
-            @if (_isSubmitting)
-            {
-                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                <MudText Class="ms-2">Starting...</MudText>
-            }
-            else
-            {
-                <MudText>Start Session</MudText>
-            }
-        </MudButton>
+        <MudButton OnClick="Cancel"
+                   Disabled="@_isSubmitting">Cancel</MudButton>
+        <MudButton Color="Color.Success"
+                   Variant="Variant.Filled"
+                   OnClick="SubmitAsync"
+                   Disabled="@(!_isValid || _isSubmitting)"
+                   StartIcon="@Icons.Material.Filled.Save">Save</MudButton>
     </DialogActions>
 </MudDialog>
 

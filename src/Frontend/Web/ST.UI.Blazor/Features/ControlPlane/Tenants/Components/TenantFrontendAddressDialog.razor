@@ -1,0 +1,62 @@
+@inject IBackendApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2"
+                 Class="mb-3">Assign a unique company app address. Leave it empty to use the shared portal. Public addresses use HTTPS; local testing supports company.localhost addresses.</MudText>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        <MudTextField @bind-Value="_origin"
+                      Label="Company App Address"
+                      Placeholder="https://app.company.example"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Disabled="@(_loading || _saving)" />
+        @if (_message is not null)
+        {
+            <MudAlert Severity="Severity.Error"
+                      Class="mt-3"
+                      Dense="true">@_message</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Disabled="_saving">Cancel</MudButton>
+        <MudButton OnClick="SaveAsync"
+                   Color="Color.Success"
+                   Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   Disabled="@(_loading || _saving)">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid TenantId { get; set; }
+    private bool _loading = true;
+    private bool _saving;
+    private string? _origin;
+    private string _revision = "";
+    private string? _message;
+    private string Root => $"api/v1/control-plane/tenants/{TenantId}/frontend-address";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await Api.SendAsync<TenantFrontendAddressResponse>(HttpMethod.Get, Root);
+        _loading = false;
+        if (response.IsSuccess && response.Data is { } value) { _origin = value.Origin; _revision = value.Revision; }
+        else { _message = UserMessageSanitizer.Normalize(response.Message, "Could not load the app address."); }
+    }
+    private void Cancel() { MudDialog.Cancel(); }
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_revision)) { return; }
+        _saving = true;
+        var response = await Api.SendAsync<bool>(HttpMethod.Put, Root, new SaveTenantFrontendAddressRequest(string.IsNullOrWhiteSpace(_origin) ? null : _origin.Trim(), _revision));
+        _saving = false;
+        if (response.IsSuccess) { MudDialog.Close(DialogResult.Ok(true)); }
+        else { _message = UserMessageSanitizer.Normalize(response.Message, "Could not save the app address."); }
+    }
+}

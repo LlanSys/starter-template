@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.Users.Enums;
 using ST.Application.Features.IAM.Users.Queries;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.SharedKernel.Dtos.Common;
@@ -14,7 +15,8 @@ internal sealed class GetUserPermissions(UserManager<AppUser> userManager, IEffe
     public async Task<AppResponse<UserPermissionsResponse>> Handle(GetUserPermissionsQuery request, CancellationToken cancellationToken)
     {
         var user = await userManager.FindByIdAsync(request.UserId).ConfigureAwait(false);
-        if (user is null)
+
+        if (user is null || user.Kind != AccountKind.Human)
         {
             return AppResponses.Failure<UserPermissionsResponse>("User not found.");
         }

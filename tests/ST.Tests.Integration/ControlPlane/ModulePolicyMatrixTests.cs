@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -15,6 +16,7 @@ using ST.SharedKernel.Features.IAM.Users.Dtos;
 using ST.Tests.Integration.TestFixtures;
 using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos;
 namespace ST.Tests.Integration.ControlPlane;
+
 [Collection("Starter API")]
 public sealed class ModulePolicyMatrixTests(StarterTemplateWebApplicationFactory factory)
 {
@@ -29,7 +31,7 @@ public sealed class ModulePolicyMatrixTests(StarterTemplateWebApplicationFactory
             {
                 var tenant = new Tenant { Id = id, Identifier = $"matrix-{id:N}", DisplayName = $"Matrix {id:N}", HostName = $"{id:N}.invalid", DeploymentStampId = Guid.Parse("0194f700-0000-7000-8000-000000000001"), MaxUsers = 50, CreatedBy = "integration-vendor" };
                 tenant.Approve("integration-vendor", DateTimeOffset.UnixEpoch, "review-1"); tenant.MarkAsActive();
-                foreach(var module in id == tenantC ? new[] { "Core", "IAM" } : new[] { "Core", "IAM", "Payments" }) tenant.Modules.Add(new TenantModule { TenantId = id, ModuleKey = module, CreatedBy = "integration-vendor" });
+                foreach (var module in id == tenantC ? new[] { "Core", "IAM" } : new[] { "Core", "IAM", "Payments" }) tenant.Modules.Add(new TenantModule { TenantId = id, ModuleKey = module, CreatedBy = "integration-vendor" });
                 context.Tenants.Add(tenant);
             }
             await context.SaveChangesAsync();
@@ -102,7 +104,7 @@ public sealed class ModulePolicyMatrixTests(StarterTemplateWebApplicationFactory
     private HttpClient Client(Guid tenant, bool vendor = false, string userId = "integration-vendor")
     {
         var client = factory.CreateClient(); client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(TestAuthHandler.AuthenticationScheme); client.DefaultRequestHeaders.Add("X-Test-TenantId", tenant.ToString()); client.DefaultRequestHeaders.Add("X-Test-UserId", userId);
-        client.DefaultRequestHeaders.Add("X-Test-Permissions", vendor ? "control_plane.manage" : "menus.view,menus.create,menus.edit,menus.delete,roles.view,roles.create,roles.manage_permissions,payments.view");
-        if(vendor) client.DefaultRequestHeaders.Add("X-Test-PlatformStaff", "true"); return client;
+        client.DefaultRequestHeaders.Add("X-Test-Permissions", vendor ? string.Join(",", PlatformPermissions.All) : "menus.view,menus.create,menus.edit,menus.delete,roles.view,roles.create,roles.manage_permissions,payments.view");
+        if (vendor) client.DefaultRequestHeaders.Add("X-Test-PlatformStaff", "true"); return client;
     }
 }

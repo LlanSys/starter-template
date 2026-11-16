@@ -1,5 +1,5 @@
 @inject IDialogService DialogService
-@attribute [Authorize(Policy = "Page:/admin/iam") ]
+@attribute [Authorize(Policy = "Page:/admin/iam")]
 @page "/admin/iam"
 
 @rendermode InteractiveServer
@@ -10,90 +10,79 @@
 <RequireAuthenticated>
     <section class="dashboard-page">
         <div class="mb-4">
-            <MudButton Href="/admin" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Admin Center</MudButton>
+            <MudButton Href="/admin"
+                       Variant="Variant.Text"
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       Color="Color.Primary"
+                       Class="px-0">Back To Admin Center</MudButton>
         </div>
 
-        <MudPaper Class="poc-panel" Elevation="0">
+        <MudPaper Class="poc-panel"
+                  Elevation="0">
             <div class="panel-heading">
-                <h2 style="color: var(--st-moss); font-weight: 700;">Identity & Access</h2>
+                <h2>Identity & Access</h2>
                 <div class="d-flex align-center gap-3">
-                    @if (_activeTab == 0 && AuthSession.HasPermission("roles.create"))
+                    @if (ActiveTab == "roles" && AuthSession.HasPermission("roles.create"))
                     {
-                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddModerator" OnClick="OpenRoleCreateDialogAsync">Create role</MudButton>
-                        <MudButton OnClick="ApplyTemplateAsync" Size="Size.Small" StartIcon="@Icons.Material.Filled.Rule">Apply template</MudButton>
+                        @if (AuthSession.HasPermission("roles.manage_permissions"))
+                        {
+                            <MudButton OnClick="ApplyTemplateAsync"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Rule">Apply Template</MudButton>
+                        }
+                        <MudButton Variant="Variant.Filled"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenRoleCreateDialogAsync">Add Role</MudButton>
                     }
-                    else if (_activeTab == 1 && AuthSession.HasPermission("roles.manage_permissions"))
+                    else if (ActiveTab == "permissions" && AuthSession.HasPermission("roles.manage_permissions"))
                     {
-                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.LockPerson" OnClick="OpenPermissionCreateDialogAsync">Create permission</MudButton>
+                        <MudButton Variant="Variant.Filled"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenPermissionCreateDialogAsync">Add Permission</MudButton>
                     }
-                    else if (_activeTab == 2 && AuthSession.HasPermission("users.create"))
+                    else if (ActiveTab == "users" && AuthSession.HasPermission("users.create"))
                     {
-                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="OpenUserCreateDialogAsync">Create user</MudButton>
+                        <MudButton Variant="Variant.Filled"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenUserCreateDialogAsync">Add User</MudButton>
                     }
                 </div>
             </div>
 
-            <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="st-catalog-tabs">
-                <MudTabPanel Text="Roles" />
-                <MudTabPanel Text="Permissions" />
-                <MudTabPanel Text="Users" />
-                <MudTabPanel Text="User Devices" />
+            <MudTabs ActivePanelIndex="ActiveIndex"
+                     ActivePanelIndexChanged="OnTabChanged"
+                     Rounded="true"
+                     Elevation="0"
+                     Class="st-catalog-tabs">
+                @foreach (var tab in VisibleTabs)
+                {
+                    <MudTabPanel Text="@tab.Title" />
+                }
             </MudTabs>
 
-            @if (_activeTab == 0)
+            @if (ActiveTab == "roles")
             {
-                <AdminRoles @key="_roleRevision" @ref="_rolesTab" />
+                <AdminRoles @key="_roleRevision"
+                            @ref="_rolesTab" />
             }
-            else if (_activeTab == 1)
+            else if (ActiveTab == "permissions")
             {
                 <AdminPermissions @ref="_permissionsTab" />
             }
-            else if (_activeTab == 2)
+            else if (ActiveTab == "users")
             {
                 <AdminUsers @ref="_usersTab" />
             }
-            else if (_activeTab == 3)
+            else if (ActiveTab == "devices")
             {
                 <AdminUserDevices />
             }
         </MudPaper>
     </section>
 </RequireAuthenticated>
-
-@code {
-    private int _roleRevision;
-    private async Task ApplyTemplateAsync()
-    {
-        var dialog = await DialogService.ShowAsync<RoleTemplateDialog>("Apply role template", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
-        var result = await dialog.Result;
-        if (result?.Canceled == false) _roleRevision++;
-    }
-    private int _activeTab;
-    private AdminRoles? _rolesTab;
-    private AdminPermissions? _permissionsTab;
-    private AdminUsers? _usersTab;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await AuthSession.InitializeAsync();
-            StateHasChanged();
-        }
-    }
-
-    private void OnTabChanged(int index)
-    {
-        _activeTab = index;
-    }
-
-    private Task OpenRoleCreateDialogAsync() =>
-        _rolesTab?.OpenCreateDialogAsync() ?? Task.CompletedTask;
-
-    private Task OpenPermissionCreateDialogAsync() =>
-        _permissionsTab?.OpenCreateDialogAsync() ?? Task.CompletedTask;
-
-    private Task OpenUserCreateDialogAsync() =>
-        _usersTab?.OpenCreateDialogAsync() ?? Task.CompletedTask;
-
-}

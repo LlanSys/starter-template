@@ -1,0 +1,146 @@
+@page "/tasks"
+@attribute [Authorize(Policy = "Page:/tasks")]
+@using ST.SharedKernel.Features.Shared.Dashboard
+@using ST.UI.Blazor.Features.Shared.WorkTasks.Components
+
+<PageTitle>Tasks | StarterTemplate</PageTitle>
+<MudButton Href="/dashboard"
+           StartIcon="@Icons.Material.Filled.ArrowBack"
+           Size="Size.Small"
+           Class="mb-3">Back To Dashboard</MudButton>
+<MudPaper Class="poc-panel work-tasks"
+          Elevation="0">
+    <div class="panel-heading">
+        <h1 class="platform-page-title">Tasks</h1>
+        <MudButton OnClick="ReloadAsync"
+                   Disabled="_loading || _busy"
+                   Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Refresh">Refresh</MudButton>
+    </div>
+    @if (_message is not null)
+    {
+        <MudAlert Severity="_severity"
+                  Dense="true"
+                  Class="mb-3">@_message</MudAlert>
+    }
+    @if (!_ready)
+    {
+        <MudProgressLinear Indeterminate="true"
+                           aria-label="Preparing task queues" />
+    }
+    else if (AllowedDefinitions.Length == 0)
+    {
+        <MudText>No task queues are available for your current access.</MudText>
+    }
+    else
+    {
+        <MudTabs ActivePanelIndex="_tab"
+                 ActivePanelIndexChanged="ChangeTabAsync"
+                 Class="mb-3">
+            <MudTabPanel Text="My Tasks" />
+            <MudTabPanel Text="Unassigned" />
+            @if (CanManageCategory)
+            {
+                <MudTabPanel Text="All Team Tasks" />
+            }
+        </MudTabs>
+        <MudSelect T="string"
+                   Value="_kind"
+                   ValueChanged="ChangeKindAsync"
+                   Label="Task Category"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Class="task-category mb-3"
+                   Disabled="_busy">
+            @foreach (var definition in AllowedDefinitions)
+            {
+                <MudSelectItem Value="@definition.Kind">@definition.Title</MudSelectItem>
+            }
+        </MudSelect>
+        @if (Definition is { } selected)
+        {
+            <MudText Typo="Typo.body2"
+                     Class="mb-3">@selected.Reason</MudText>
+        }
+        <MudTable T="DashboardTaskResponse"
+                  Items="_items"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  Elevation="0"
+                  Loading="_loading"
+                  Class="task-table">
+            <HeaderContent>
+                <MudTh>Workspace</MudTh>
+                <MudTh>Assigned To</MudTh>
+                <MudTh Class="task-actions-heading">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Workspace">@context.SubjectLabel</MudTd>
+                <MudTd DataLabel="Assigned To">
+                    @(context.AssigneeName ?? "Unassigned")
+                    @if (context.AssigneeEligible == false)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Warning"
+                                 Size="Size.Small"
+                                 Variant="Variant.Text">Needs Reassignment</MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Actions">
+                    <div class="table-actions task-row-actions">
+                        <MudButton OnClick="@(() => UpdateAsync(context, AuthSession.CurrentUser!.AppUserId))"
+                                   Size="Size.Small"
+                                   Disabled="@(_busy || _loading || !context.CanClaim)">Claim</MudButton>
+                        <MudTooltip Text="Assign Or Reassign">
+                            <span>
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonAdd"
+                                               OnClick="@(() => AssignAsync(context))"
+                                               Size="Size.Small"
+                                               Class="table-action-button"
+                                               Disabled="@(_busy || _loading || !_canAssignOthers)"
+                                               aria-label="Assign Task" />
+                            </span>
+                        </MudTooltip>
+                        <MudTooltip Text="Return To Team Queue">
+                            <span>
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                               OnClick="@(() => UpdateAsync(context, null))"
+                                               Size="Size.Small"
+                                               Class="table-action-button"
+                                               Disabled="@(_busy || _loading || !context.CanRelease)"
+                                               aria-label="Unassign Task" />
+                            </span>
+                        </MudTooltip>
+                        <MudTooltip Text="Recent Assignment History">
+                            <MudIconButton Icon="@Icons.Material.Filled.History"
+                                           OnClick="@(() => HistoryAsync(context))"
+                                           Size="Size.Small"
+                                           Class="table-action-button"
+                                           Disabled="_busy || _loading"
+                                           aria-label="Task Assignment History" />
+                        </MudTooltip>
+                        <MudTooltip Text="@(Definition?.ActionLabel ?? "Open Task")">
+                            <MudIconButton Href="@context.Href"
+                                           Icon="@Icons.Material.Filled.OpenInNew"
+                                           Size="Size.Small"
+                                           Class="table-action-button"
+                                           aria-label="Open Task" />
+                        </MudTooltip>
+                    </div>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>No tasks in this queue.</NoRecordsContent>
+        </MudTable>
+        <div class="task-pager">
+            <MudText Typo="Typo.caption">@(_total == 0 ? "0 tasks" : $"Showing {(_page - 1) * PageSize + 1}–{Math.Min(_page * PageSize, _total)} of {_total} tasks")</MudText>
+            <MudPagination Count="@Math.Max(1, (int)Math.Ceiling((double)_total / PageSize))"
+                           Selected="_page"
+                           SelectedChanged="ChangePageAsync"
+                           Size="Size.Small"
+                           Disabled="_busy || _loading" />
+        </div>
+        <MudText Typo="Typo.caption"
+                 Class="mt-3">Complete the task in its workflow. Assignment never grants access. Accounts that lose required access must be reassigned or returned to the team queue.</MudText>
+    }
+</MudPaper>

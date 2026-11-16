@@ -429,3 +429,6 @@ api_logs.txt
 
 # Local environment diagnostics may contain credentials
 ef_env.txt
+
+# Local tenant-host routing verification artifacts
+/output/frontend-routing/

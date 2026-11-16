@@ -5,7 +5,8 @@
     <DialogContent>
         @if (_isLoading)
         {
-            <MudProgressLinear Color="Color.Success" Indeterminate="true" />
+            <MudProgressLinear Color="Color.Success"
+                               Indeterminate="true" />
         }
         else
         {
@@ -14,8 +15,14 @@
                 <MudGrid Spacing="1">
                     @foreach (var role in _availableRoles)
                     {
-                        <MudItem xs="12" sm="6">
-                            <MudCheckBox T="bool" Value="@IsSelected(role)" ValueChanged="@((selected) => ToggleRole(role, selected))" Color="Color.Success" Dense="true" Label="@role" />
+                        <MudItem xs="12"
+                                 sm="6">
+                            <MudCheckBox T="bool"
+                                         Value="@IsSelected(role)"
+                                         ValueChanged="@((selected) => ToggleRole(role, selected))"
+                                         Color="Color.Success"
+                                         Dense="true"
+                                         Label="@role" />
                         </MudItem>
                     }
                 </MudGrid>
@@ -23,8 +30,15 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="@(_isLoading || _isSaving)" OnClick="SaveAsync">@(_isSaving ? "Saving..." : "Update")</MudButton>
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Success"
+                   Disabled="@(_isLoading || _isSaving)"
+                   OnClick="SaveAsync"
+                   StartIcon="@Icons.Material.Filled.Save">@(_isSaving ? "Saving..." : "Save")</MudButton>
     </DialogActions>
 </MudDialog>
 

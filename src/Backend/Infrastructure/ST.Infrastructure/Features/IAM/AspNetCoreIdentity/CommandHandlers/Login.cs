@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
@@ -54,7 +56,7 @@ internal sealed class Login(
         try
         {
             user = await userManager.Users
-                .FirstOrDefaultAsync(u => u.UserName == loginRequest.UserName, cancellationToken)
+                .FirstOrDefaultAsync(u => u.Kind == AccountKind.Human && u.UserName == loginRequest.UserName, cancellationToken)
                 .ConfigureAwait(false);
 
             if (user == null)
@@ -70,6 +72,7 @@ internal sealed class Login(
             }
 
             var emailConfirmed = await userManager.IsEmailConfirmedAsync(user).ConfigureAwait(false);
+
             if (!emailConfirmed)
             {
                 ServiceLogDefinitions.LogLoginError(logger, user.UserName ?? string.Empty, new AuthenticationException("Unconfirmed email"));
@@ -100,6 +103,7 @@ internal sealed class Login(
             }
 
             var twoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(user).ConfigureAwait(false);
+
             if (!twoFactorEnabled)
             {
                 ServiceLogDefinitions.LogUsingTempSecret(logger, user.Id);
@@ -109,6 +113,7 @@ internal sealed class Login(
 
             var rememberedTwoFactorClient = twoFactorEnabled
                 && await signInManager.IsTwoFactorClientRememberedAsync(user).ConfigureAwait(false);
+
             var requiresTwoFactorChallenge = signInResult.RequiresTwoFactor || (twoFactorEnabled && (!rememberedTwoFactorClient || user.RequiresAdministratorSetup));
 
             if (requiresTwoFactorChallenge)
@@ -132,6 +137,7 @@ internal sealed class Login(
             }
 
             var activeSessionId = sessionCreationResult.Data;
+
             if (activeSessionId == Guid.Empty)
             {
                 ServiceLogDefinitions.LogFailedToCreateUserSession(logger, user.Id);
@@ -139,14 +145,20 @@ internal sealed class Login(
             }
 
             var userClaims = await claimsService.GetUserClaimsAsync(user, activeSessionId).ConfigureAwait(false);
+
             if (!userClaims.Any())
             {
                 ServiceLogDefinitions.LogFailedToGetUserClaims(logger, user.Id);
                 return AppResponses.Failure<LoginResponse>("Could not retrieve user claims");
             }
 
-            if (twoFactorEnabled && rememberedTwoFactorClient) userClaims.Add(new Claim("amr", "mfa"));
+            if (twoFactorEnabled && rememberedTwoFactorClient)
+            {
+                userClaims.Add(new Claim("amr", "mfa"));
+            }
+
             var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
+
             if (string.IsNullOrWhiteSpace(tokenResponse))
             {
                 ServiceLogDefinitions.LogFailedToGenerateAccessToken(logger, user.Id);
@@ -154,6 +166,7 @@ internal sealed class Login(
             }
 
             var refreshToken = jwtService.CreateRefreshToken();
+
             if (string.IsNullOrWhiteSpace(refreshToken))
             {
                 ServiceLogDefinitions.LogFailedToGenerateRefreshToken(logger, user.Id);
@@ -182,10 +195,12 @@ internal sealed class Login(
 
             var rolesResponse = await userManager.GetRolesAsync(user).ConfigureAwait(false);
             var userRoles = new Collection<string>(rolesResponse.ToList());
-            var mfaEnrollmentRequired = (!twoFactorEnabled && user.RequiresAdministratorSetup)
+            var platformStaff = PlatformAccess.IsStaff(new ClaimsPrincipal(new ClaimsIdentity(userClaims, "Password")));
+            var mfaEnrollmentRequired = (!twoFactorEnabled && (user.RequiresAdministratorSetup || platformStaff))
                 || IsMfaEnrollmentRequired(twoFactorEnabled, rolesResponse);
             // Reload the user via UserManager to ensure we operate on the EF-tracked instance
             var trackedUser = await userManager.FindByIdAsync(user.Id).ConfigureAwait(false);
+
             if (trackedUser == null)
             {
                 ServiceLogDefinitions.LogLoginError(logger, user.UserName ?? string.Empty, new InvalidOperationException("User disappeared from store before update"));
@@ -193,9 +208,14 @@ internal sealed class Login(
             }
 
             trackedUser.RecordSuccessfulLogin(now);
-            var finalAppUserResponse = appUserResponse with { Roles = userRoles, LastLoginAt = trackedUser.LastLoginAt };
+            var finalAppUserResponse = appUserResponse with
+            {
+                Roles = userRoles,
+                LastLoginAt = trackedUser.LastLoginAt
+            };
 
             var userUpdateResult = await userManager.UpdateAsync(trackedUser).ConfigureAwait(false);
+
             if (!userUpdateResult.Succeeded)
             {
                 var updateError = string.Join("; ", userUpdateResult.Errors.Select(e => e.Description));

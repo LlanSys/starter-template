@@ -1,0 +1,74 @@
+@using ST.SharedKernel.Features.IAM.Menus
+
+<MudAutocomplete T="string"
+                 Value="@Value"
+                 ValueChanged="ValueChanged"
+                 SearchFunc="SearchAsync"
+                 ToStringFunc="IconLabel"
+                 Label="@Label"
+                 Placeholder="Search icons by name or style"
+                 Adornment="Adornment.Start"
+                 AdornmentIcon="@MenuIconMapper.Resolve(Value)"
+                 Margin="Margin.Dense"
+                 Variant="Variant.Outlined"
+                 Dense="true"
+                 Strict="false"
+                 CoerceValue="false"
+                 MaxItems="30"
+                 Required="true"
+                 Disabled="Disabled"
+                 Validation="@(new Func<string, string?>(ValidateIcon))">
+    <ItemTemplate Context="iconKey">
+        <span class="d-flex align-center gap-2">
+            <MudIcon Icon="@MenuIconMapper.Resolve(iconKey)" Size="Size.Small" />
+            <span>@IconLabel(iconKey)</span>
+        </span>
+    </ItemTemplate>
+    <NoItemsTemplate><MudText Typo="Typo.caption" Class="pa-2">No matching icons.</MudText></NoItemsTemplate>
+    <MoreItemsTemplate><MudText Typo="Typo.caption" Class="pa-2">Refine the name or style to see more icons.</MudText></MoreItemsTemplate>
+</MudAutocomplete>
+
+@code {
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Icon";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public IReadOnlyList<CatalogOptionResponse> Catalog { get; set; } = [];
+
+    private ILookup<string, CatalogOptionResponse> _labels = Array.Empty<CatalogOptionResponse>()
+        .ToLookup(option => option.Key, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        _labels = Catalog.ToLookup(option => MaterialIconKeys.Normalize(option.Key), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private string IconLabel(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return string.Empty;
+        }
+
+        var label = _labels[MaterialIconKeys.Normalize(key)].FirstOrDefault()?.Label;
+        return string.IsNullOrWhiteSpace(label) || label.Equals(key, StringComparison.OrdinalIgnoreCase)
+            ? key : $"{label} ({key})";
+    }
+
+    private static string? ValidateIcon(string? key)
+    {
+        return MenuIconMapper.IsSupported(key) ? null : "Select a MudBlazor icon.";
+    }
+
+    private Task<IEnumerable<string>> SearchAsync(string? search, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var terms = (search ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var results = MenuIconMapper.Keys
+            .Where(key => terms.All(term => key.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || IconLabel(key).Contains(term, StringComparison.OrdinalIgnoreCase)))
+            .Take(31)
+            .ToArray();
+        return Task.FromResult<IEnumerable<string>>(results);
+    }
+}

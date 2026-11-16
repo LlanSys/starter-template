@@ -137,6 +137,9 @@ dotnet user-secrets set 'ProfileImageStorage:Provider' 'Azurite' --project $apiP
 $storageConnection = "DefaultEndpointsProtocol=http;AccountName=$($environment.AZURITE_ACCOUNT_NAME);AccountKey=$($environment.AZURITE_ACCOUNT_KEY);BlobEndpoint=http://127.0.0.1:10020/$($environment.AZURITE_ACCOUNT_NAME);QueueEndpoint=http://127.0.0.1:10021/$($environment.AZURITE_ACCOUNT_NAME);TableEndpoint=http://127.0.0.1:10022/$($environment.AZURITE_ACCOUNT_NAME);"
 dotnet user-secrets set 'ProfileImageStorage:Azurite:ConnectionString' $storageConnection --project $apiProject
 dotnet user-secrets set 'ProfileImageStorage:Azurite:ContainerName' 'profile-images' --project $apiProject
+dotnet user-secrets set 'KycDocuments:Provider' 'Azurite' --project $apiProject
+dotnet user-secrets set 'KycDocuments:ConnectionString' $storageConnection --project $apiProject
+dotnet user-secrets set 'KycDocuments:ContainerName' 'kyc-documents' --project $apiProject
 
 $profiles = @()
 if ($IncludeSqlServer) {
@@ -188,4 +191,5 @@ Write-Host "  Redis:      localhost:$($environment.REDIS_HOST_PORT)"
 Write-Host '  Mailpit:    http://localhost:8030'
 if ($IncludeSeq) { Write-Host '  Seq:        http://localhost:5344' }
 Write-Host '  Azurite:    http://localhost:10020'
+Write-Host '  KYC scanner: localhost:13315 (private ClamAV; first signature load can take several minutes)'
 if ($IncludeSqlServer) { Write-Host '  SQL Server: localhost,14335' }

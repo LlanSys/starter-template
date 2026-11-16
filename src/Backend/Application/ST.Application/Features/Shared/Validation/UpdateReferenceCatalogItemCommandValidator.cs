@@ -10,7 +10,8 @@ public sealed class UpdateReferenceCatalogItemCommandValidator : AbstractValidat
     {
         RuleFor(x => x.CatalogType).NotEmpty().WithMessage("Catalog type is required.");
         RuleFor(x => x.Id).NotEmpty().WithMessage("Catalog item ID is required.");
-        RuleFor(x => x.Request).SetValidator(new ReferenceCatalogItemRequestValidator());
+        RuleFor(x => x.Request).SetValidator(command => new ReferenceCatalogItemRequestValidator(
+            string.Equals(command.CatalogType, "menu-icons", StringComparison.OrdinalIgnoreCase)));
         RuleFor(x => x.UserId).NotEmpty().WithMessage("Current user is required.");
     }
 }

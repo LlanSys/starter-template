@@ -20,6 +20,9 @@ Use a fresh copy of this checklist for every application, environment and deploy
 - [ ] Keep `.env`, user-secrets, certificates, local key rings and generated logs out of Git and Docker build contexts. Start from empty provider credentials rather than another application's secrets.
 - [ ] Choose a stable `DataProtection:ApplicationName` before creating accounts or issuing protected data. Keep it unchanged after first use; later renaming requires a deliberate migration or security reset.
 
+- [ ] Preserve the stable .NET 10 policy, central Directory.Packages.props and lowercase global.json. Run scripts/check-package-policy.ps1 after renaming and after dependency changes. Keep project package references unversioned.
+- [ ] After the first successful hosted Dependency Policy run, require its `.NET 10 and dependency policy` check in the downstream branch ruleset and confirm Dependabot alerts/security updates. Review the grouped update PRs; see [package management](package-management.md).
+
 ## 2. Workstation and container isolation
 
 - [ ] Allocate native HTTP/HTTPS ports for both hosts in `Properties/launchSettings.json`. Update the UI's API addresses and integration callback registrations accordingly.
@@ -109,3 +112,59 @@ For the current server-side sign-in flow, provider redirects terminate on the **
 - [ ] Suspend a customer with an active session; verify access/refresh denial and no bypass through another host/selector. Reactivate and verify old sessions stay invalid and fresh sign-in succeeds. Confirm the second customer remains unaffected.
 - [ ] Record real Google/Microsoft and physical-passkey acceptance separately when enabled. Keep user credential/device steps with the account owner when required.
 - [ ] Record exactly which checks used a browser, normal HTTP APIs, simulated providers or deployed services. Record pending cloud/recovery checks explicitly before customer onboarding.
+
+- [ ] Configure KycDocuments for the environment: private container, API managed identity in Azure, reviewer permissions, link lifetime and upload limits. Verify client submission, platform upload/review, wrong-workspace denial, expiry/revocation and closure after KYC approval. Confirm document retention and processing policy. Follow [KYC documents](kyc-documents.md).
+
+- [ ] Repeat the [platform IAM matrix](platform-iam-acceptance.md) for downstream roles/grants and verify browser navigation plus direct API denial. Do not assume control_plane.manage provides a read-only or KYC-only role.
+
+## KYC retention
+
+- Enabled general-business default: active relationship +24 months after explicitly recorded end; unsuccessful closure 90 days; unfinished inactivity 30 days; recovery 30 days; orphan grace 7 days; hold review 90 days.
+- Use Control Panel → KYC Retention Policy to publish a downstream-specific version. Existing cases remain pinned until explicitly changed. Regulated products must choose the policy appropriate to their activity.
+- Confirm separate private `KycDocuments:ContainerName` and `KycDocuments:ErasureLedgerContainerName`, list/read/write/delete access for originals, and read/create access for the independent erasure ledger.
+- Set the cloud backup/export maximum to 35 days for this deployment profile, preserve the erasure ledger beyond every recoverable backup, and verify restore reconciliation before exposing restored data. Cloud certification remains pending.
+- Use independent `control_plane.*` operation grants; retired `control_plane.manage` is never a wildcard. See [platform IAM acceptance](platform-iam-acceptance.md) and [retention operations](kyc-retention-policy.md).
+
+## Document-specific KYC collection
+
+- [ ] Confirm `KycDocuments:DocumentTypes` matches the product's requested evidence and avoid collecting unnecessary documents.
+- [ ] Keep catalogue keys stable; add future types through API configuration and restart/redeploy.
+- [ ] Apply the provider-specific `ClassifyKycDocuments` migration and deploy API/UI together.
+- [ ] Verify a standard-type upload, named Other upload, duplicate retry and client/platform visibility in the deployment.
+- [ ] Review earlier `legacy` uploads explicitly; classification is never guessed during migration.
+
+See [KYC documents](kyc-documents.md#document-specific-collection) for the contract, configuration and upgrade behavior.
+
+## Shared administration UI
+
+- [ ] Confirm branding and the shared MudProviderHost palette, including neutral table headers, consistent primary actions and semantic status colors.
+- [ ] Use the Access Catalog header/tab/filter/table/pager pattern for new administration slices; omit repeated headings in embedded tabs.
+- [ ] Set wide table data using `--st-table-min-width`, keeping paging controls inside the viewport.
+- [ ] Check platform and tenant permission-limited views, desktop, tablet and phone layouts.
+- [ ] Keep template-only routes out of product navigation; legacy redirects preserve old links without shipping example screens.
+
+The detailed contract and local acceptance evidence are in [UI conventions](ui-conventions.md).
+
+## Operational task ownership
+
+- [ ] Apply the provider-specific ControlPlane task-assignment/history and IAM assignment-permission and managed-role upgrade migrations through the normal upgrade workflow.
+- [ ] Confirm Core / Tasks page availability and IAM availability for customer support approvals.
+- [ ] Select platform team leads for `control_plane.manage_tasks` and customer team leads for `tasks.assign`; ensure each also has the underlying task action permissions. Review existing custom roles explicitly.
+- [ ] Confirm assignees' workspace, active/email/setup/MFA state and effective permissions. Verify an assignment is rejected after removing a target permission, including after the dropdown has loaded.
+- [ ] Verify claim/assignment moves one item out of Unassigned into the selected account's My Tasks; verify release, manager reassignment, concurrent-claim rejection, source completion/history and new-attempt isolation.
+- [ ] Confirm the completion reconciler is healthy and All Team Tasks highlights an assignee who loses eligibility. Preserve history and the existing customer IAM database routing; assignment does not grant or exclusively lock workflow authority.
+
+## Account admission and evidence safety
+
+- [ ] Confirm MaxUsers policy: non-deleted humans include inactive/setup accounts; zero is unlimited. Keep proxy kind server-owned and preserve the tenant-scoped identity indexes and transactional admission store.
+- [ ] Allocate a distinct ClamAV host port, signature volume and private endpoint. Configure `KycDocumentSafety` in each runtime; preserve UTC, encrypted/limit alerts, freshness checks and fail-closed gates.
+- [ ] Verify synthetic clean/unsafe/encrypted uploads, scanner outage/recovery, reviewer permissions and legacy evidence scan backlog. Confirm no public originals and no manual clean bypass.
+- [ ] Use the guarded upgrade workflow with writers paused. Resolve same-workspace duplicate emails explicitly before the new unique index. See [upgrade and safety runbook](account-admission-and-kyc-safety.md).
+
+## Platform staff and shared request cache
+
+- [ ] Apply both-provider staff/tenant-settings permission upgrade migrations using the normal guarded database workflow. Confirm a usable existing staff manager before upgrade; limited roles and label-only administrators are not promoted.
+- [ ] Establish at least two verified platform administrators with independent owned authenticators. Create real operators through Platform Staff, select least-privilege profiles and inspect saved grants/audit reasons. Keep local `qa.*` accounts and their DPAPI handoff out of deployed databases.
+- [ ] Check invitation provider delivery, MFA enrollment, live revocation, last-manager protection and ordinary-IAM denial for staff targets.
+- [ ] Deploy the request-v2 cache correction to every API replica together and drain old instances. Keep the shared Redis provider for multi-replica invalidation; never clear Data Protection keys as a cache maintenance action.
+- [ ] Repeat cold/warm two-tenant reads and read-after-update/deletion through each replica. Verify no platform decoy or other customer value appears. See [tenant cache isolation](tenant-cache-isolation.md).

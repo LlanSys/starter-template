@@ -18,8 +18,12 @@ public sealed class ApiAuthorizationTests
     private static readonly string[] ActionsAllowedWithoutPermissionRequirement =
     [
         "IamAdminController.GetNavigationMenus",
+        "OrgSettingsController.GetPresentation", // Authenticated tenant-scoped allowlisted display projection; no arbitrary values or secrets.
+        "DashboardController.Attention", // Authenticated, module/page guarded actor-scoped snapshot; each category uses native operation authorization before its query.
         "TenantSupportController.Exit", // Live support grant must match the current proxy; self-exit grants no customer authority.
         "StampProvisioningController.Complete", // Dedicated GitHub OIDC policy; ordinary IAM bearer permissions cannot authenticate this endpoint.
+        "KycSubmissionController.Inspect", // Expiring, hashed workspace submission capability; returns only that issuance's document status.
+        "KycSubmissionController.Upload", // Same scoped capability; accepts evidence without granting IAM or download access.
         "AdministratorInvitationController.Inspect",
         "AdministratorInvitationController.Accept",
         "AdministratorInvitationController.Complete",
@@ -143,7 +147,8 @@ public sealed class ApiAuthorizationTests
 
     private static bool HasPermissionRequirement(Type controller, MethodInfo method)
     {
-        return HasAttribute<RequirePermissionAttribute>(controller, method);
+        return HasAttribute<RequirePermissionAttribute>(controller, method)
+            || HasAttribute<RequireTaskPermissionAttribute>(controller, method);
     }
 
     private static bool HasAttribute<TAttribute>(Type controller, MethodInfo method)

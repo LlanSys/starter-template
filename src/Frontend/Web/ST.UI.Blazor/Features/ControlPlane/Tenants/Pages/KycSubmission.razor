@@ -1,0 +1,57 @@
+@page "/onboarding/kyc/{TenantId:guid}"
+@layout AuthLayout
+
+<PageTitle>Submit documents | StarterTemplate</PageTitle>
+<HeadContent>
+    <meta name="referrer"
+          content="no-referrer" />
+</HeadContent>
+<section class="auth-shell kyc-submission-shell">
+    <div class="auth-card">
+        <AuthBrand OrganizationName="@_status?.WorkspaceName"
+                   TenantId="TenantId"
+                   UseSelectedOrganization="false"
+                   Loading="@(_status is null && _message is null)" />
+        <div class="auth-heading">
+            <h1>Submit documents</h1>
+        </div>
+        @if (_message is not null)
+        {
+            <MudAlert Severity="@_severity"
+                      Dense="true"
+                      Class="mb-3">@_message</MudAlert>
+        }
+        @if (_status is not null)
+        {
+            <MudText Typo="Typo.caption"
+                     Class="d-block mb-3">Link expires @_status.ExpiresAt.UtcDateTime.ToString("dd MMM yyyy HH:mm") UTC.</MudText>
+            <KycDocumentUploads @key="TenantId"
+                                Types="_status.DocumentTypes"
+                                Root="@Root"
+                                Token="@_token"
+                                MaxFileBytes="_status.MaxFileBytes"
+                                RequiresAuthentication="false"
+                                Disabled="@(_busy || _status.RemainingUploads == 0)"
+                                Documents="_status.Documents"
+                                OnUploaded="InspectAsync" />
+            @if (_status.RemainingUploads == 0)
+            {
+                <MudText Class="mt-2">This link has reached its upload limit. Contact your onboarding team.</MudText>
+            }
+            @foreach (var document in _status.Documents.Where(document => !_status.DocumentTypes.Any(type => type.Key == document.DocumentTypeKey)))
+            {
+                <MudDivider Class="my-3" />
+                <MudText>@document.FileName</MudText>
+                <MudText Typo="Typo.caption">@document.DocumentType · @document.Status</MudText>
+                @if (!string.IsNullOrWhiteSpace(document.Feedback))
+                {
+                    <MudText Class="mt-1">@document.Feedback</MudText>
+                }
+            }
+            <MudButton OnClick="InspectAsync"
+                       Disabled="_busy"
+                       Size="Size.Small"
+                       Class="mt-3">Refresh Review Status</MudButton>
+        }
+    </div>
+</section>

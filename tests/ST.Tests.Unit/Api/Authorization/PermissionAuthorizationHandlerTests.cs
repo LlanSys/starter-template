@@ -53,8 +53,8 @@ public sealed class PermissionAuthorizationHandlerTests
     {
         var claims = new List<Claim> { new(ClaimTypes.Role, "System Administrator") };
         if (staff) claims.Add(new Claim("platform_staff", "true"));
-        if (permission) claims.Add(new Claim("permission", "control_plane.manage"));
-        var requirement = new PermissionRequirement("control_plane.manage");
+        if (permission) claims.Add(new Claim("permission", PlatformPermissions.ViewTenants));
+        var requirement = new PermissionRequirement(PlatformPermissions.ViewTenants);
         var context = new AuthorizationHandlerContext([requirement], CreatePrincipal(claims.ToArray()), null);
         await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
         Assert.Equal(expected, context.HasSucceeded);
@@ -68,7 +68,7 @@ public sealed class PermissionAuthorizationHandlerTests
         var claims = new List<Claim>
         {
             new("platform_staff", "true"),
-            new("permission", PlatformAccess.Permission)
+            new("permission", PlatformPermissions.ViewTenants)
         };
         if (approvalGranted)
         {
@@ -80,6 +80,19 @@ public sealed class PermissionAuthorizationHandlerTests
         await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
 
         Assert.Equal(approvalGranted, context.HasSucceeded);
+    }
+
+    [Fact]
+    public async Task RetiredBlanketPermissionNeverAuthorizesAnOperation()
+    {
+        var user = CreatePrincipal(new Claim("platform_staff", "true"), new Claim("permission", PlatformPermissions.LegacyManage));
+        foreach (var key in new[] { PlatformPermissions.LegacyManage, PlatformPermissions.ViewTenants, PlatformPermissions.ManageKycRetention })
+        {
+            var requirement = new PermissionRequirement(key);
+            var context = new AuthorizationHandlerContext([requirement], user, null);
+            await new PermissionAuthorizationHandler(new TestModulePolicy()).HandleAsync(context);
+            Assert.False(context.HasSucceeded);
+        }
     }
 
     private static ClaimsPrincipal CreatePrincipal(params Claim[] claims)

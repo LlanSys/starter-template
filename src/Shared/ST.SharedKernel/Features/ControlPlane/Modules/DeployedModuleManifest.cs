@@ -4,10 +4,22 @@ namespace ST.SharedKernel.Features.ControlPlane.Modules;
 public static class DeployedModuleManifest
 {
     public static IReadOnlySet<string> Modules { get; } = new[] { "core", "iam", "payments", "showcase" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-    public static IReadOnlyDictionary<string, string> Pages { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    public static IReadOnlyDictionary<string, string> Pages
     {
-        ["/dashboard"] = "core", ["/admin"] = "core", ["/admin/menus"] = "iam", ["/admin/org-settings"] = "core",
-        ["/admin/support"] = "iam", ["/admin/iam"] = "iam", ["/admin/access-catalog"] = "iam", ["/admin/settings"] = "iam",
-        ["/payments"] = "payments", ["/features/payments"] = "payments", ["/overview"] = "showcase"
+        get;
+    } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["/tasks"] = "core",
+        ["/dashboard"] = "core",
+        ["/admin"] = "core",
+        ["/admin/menus"] = "iam",
+        ["/admin/org-settings"] = "core",
+        ["/admin/support"] = "iam",
+        ["/admin/iam"] = "iam",
+        ["/admin/access-catalog"] = "iam",
+        ["/admin/settings"] = "iam",
+        ["/payments"] = "payments",
+        ["/features/payments"] = "payments",
+        ["/overview"] = "showcase"
     }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 }

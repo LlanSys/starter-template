@@ -19,3 +19,7 @@ With the Visual Studio HTTPS profiles, the API origin is `https://localhost:7229
 The app binds validated issuer and subject together and binds the sign-in to the selected workspace. It never links by email. Local accounts can connect a provider from Account security using current-password confirmation and a short-lived one-use ticket. Older Microsoft mappings may contain only the subject. Reconnect those accounts or perform an issuer-verified migration. External sign-in challenges the app authenticator for enrolled accounts. A Google invitation additionally requires a verified email matching the invited address.
 
 Apply the StarterTemplate IAM and Control Plane onboarding migrations and the Shared outbox compatibility migration for your database provider. The Shared migration adds the indexes expected by MassTransit 8 and retains queued state and legacy bus metadata. Use fresh and upgrade databases. Live Microsoft and Google consent require registered provider applications and their actual callbacks.
+
+Private evidence uploads, client submission links, reviewer feedback and provider configuration are described in [KYC documents](../development/kyc-documents.md).
+
+Business journey and automation priorities: [tenant onboarding journey](tenant-onboarding-journey.md). Proposed structured forms and flags: [paperless KYC](kyc-paperless-and-automation.md).

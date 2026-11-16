@@ -77,25 +77,15 @@ Core modules should cover:
 
 Optional add-on modules should be conditional, for example AI Search, extra storage, per-tenant broker, or a different database provider for a specific client.
 
-## Stamp Authentication Policy
+## Stamp authentication and database acceptance
 
-- **Pooled stamps** stay single-app, meaning the Control Plane and Data Plane share the same overarching identity provider configuration (e.g., a shared Entra ID app registration).
-- **Isolated and regulated stamps** MUST get a separate ControlPlane auth realm. This requires a distinct Entra ID app registration (or equivalent IdP configuration) per isolated stamp, with a distinct JWT audience.
-- Platform staff must structurally never receive a `tenant_id` claim within the isolated realm, ensuring complete structural isolation of identity and preventing token reuse across boundaries.
+Pooled hosts use their configured shared runtime realm. Dedicated runtimes use stamp-specific signing keys, issuers/audiences and runtime tenant binding. Configure external identity registrations, callbacks and approved origins for the actual deployment; a deployed realm must not accept an unrelated stamp's tokens.
 
-## Database Strategy
+Current bearer sessions carry a signed tenant and session identity, including platform sessions. Platform staff status is explicit and independent of role display names. Approved support and Demo sessions retain the vendor audit actor while removing platform authority. Do not remove tenant claims from platform tokens or reuse central platform authority as a customer session to implement isolation.
 
-StarterTemplate currently supports the pooled-database model through tenant-scoped entities and global query filters.
+Tenant catalog resolution, provider-specific contexts/migrations, local physical-routing tests and operational runbooks exist. Production certification still requires the actual deployed runtime, ingress, database ownership, key access, identity flows, backup/restore and recovery evidence. Provisioning a resource or passing local database tests alone does not certify a dedicated stamp.
 
-Before marking database-per-tenant or PostgreSQL support as production-certified, we must add:
-
-- A tenant catalog and connection resolver.
-- Provider-specific EF Core registration.
-- Provider-specific migration bundle strategy.
-- Automated tests for tenant isolation and migration execution.
-- Operational runbooks for backup, restore, and tenant movement.
-
-Do not claim a provider is supported just because infrastructure can provision it. The code, migrations, tests, and deployment workflow must be certified together.
+See the [customer onboarding journey](tenant-onboarding-journey.md), [technical provisioning workflow](tenant-onboarding-workflow.md), and [platform IAM acceptance](../development/platform-iam-acceptance.md) for current gates and verification scope.
 
 ## Deployment Flows
 

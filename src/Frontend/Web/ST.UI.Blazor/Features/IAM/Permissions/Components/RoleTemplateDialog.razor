@@ -1,12 +1,47 @@
 @using ST.SharedKernel.Features.ControlPlane.Modules.Dtos
 @using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
 @inject IBackendApiClient Api
-<MudDialog><DialogContent>
-    @if (_message is not null) { <MudAlert Dense="true" Severity="Severity.Warning">@_message</MudAlert> }
-    <MudSelect T="string" Value="_key" ValueChanged="SelectTemplate" Label="Role template" Variant="Variant.Outlined" Margin="Margin.Dense">@foreach(var template in _templates) { <MudSelectItem Value="@template.Key">@template.Title</MudSelectItem> }</MudSelect>
-    <MudTextField @bind-Value="_name" Label="Role name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="my-3" />
-    @if (Selected is { } selected) { <MudText Typo="Typo.subtitle2">Permissions</MudText><MudChipSet T="string">@foreach(var permission in selected.PermissionKeys) { <MudChip Size="Size.Small">@permission</MudChip> }</MudChipSet> }
-</DialogContent><DialogActions><MudButton OnClick="@(() => Dialog.Cancel())">Cancel</MudButton><MudButton OnClick="ApplyAsync" Disabled="_busy || Selected is null" Variant="Variant.Filled" Color="Color.Primary">Apply template</MudButton></DialogActions></MudDialog>
+<MudDialog>
+    <DialogContent>
+        @if (_message is not null)
+        {
+            <MudAlert Dense="true"
+                      Severity="Severity.Warning">@_message</MudAlert>
+        }
+        <MudSelect T="string"
+                   Value="_key"
+                   ValueChanged="SelectTemplate"
+                   Label="Role template"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense">@foreach (var template in _templates)
+            {
+                <MudSelectItem Value="@template.Key">@template.Title</MudSelectItem>
+            }
+        </MudSelect>
+        <MudTextField @bind-Value="_name"
+                      Label="Role name"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Class="my-3" />
+        @if (Selected is { } selected)
+        {
+            <MudText Typo="Typo.subtitle2">Permissions</MudText>
+            <MudChipSet T="string">@foreach (var permission in selected.PermissionKeys)
+                {
+                    <MudChip Size="Size.Small"
+                             Variant="Variant.Text">@permission</MudChip>
+                }
+            </MudChipSet>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Cancel())">Cancel</MudButton>
+        <MudButton OnClick="ApplyAsync"
+                   Disabled="_busy || Selected is null"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary">Apply Template</MudButton>
+    </DialogActions>
+</MudDialog>
 @code {
     [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
     private IReadOnlyList<CatalogueEntryResponse> _templates = [];

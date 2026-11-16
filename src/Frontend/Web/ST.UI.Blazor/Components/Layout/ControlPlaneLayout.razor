@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
-@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@implements IDisposable
+@attribute [Authorize(Policy = "ControlPlane.Access")]
 @inject IAuthSession AuthSession
 @inject IAuditService AuditService
 @using ST.UI.Blazor.Features.ControlPlane.Auditing.Contracts
@@ -20,14 +21,20 @@
 
         @if (_isImpersonating && _impersonationTarget != null)
         {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Square="true" Class="px-4 py-2 m-0" Style="border-radius: 0;">
+            <MudAlert Severity="Severity.Warning"
+                      Variant="Variant.Filled"
+                      Square="true"
+                      Class="px-4 py-2 m-0"
+                      Style="border-radius: 0;">
                 <strong>Impersonation Active:</strong> You are currently impersonating tenant <strong>@_impersonationTarget</strong>. Actions are logged.
             </MudAlert>
         }
 
         <article class="content px-4">
             <RequireAuthenticated>
-                @Body
+                <PresentationHost>
+                    @Body
+                </PresentationHost>
             </RequireAuthenticated>
         </article>
     </main>
@@ -35,13 +42,30 @@
 
 <SessionLifecycle />
 
-<div id="blazor-error-ui" data-nosnippet>
+<div id="blazor-error-ui"
+     data-nosnippet>
     An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
+    <a href="."
+       class="reload">Reload</a>
     <span class="dismiss">x</span>
 </div>
 
 @code {
+    protected override void OnInitialized()
+    {
+        AuthSession.AuthenticationChanged += OnAuthenticationChanged;
+    }
+
+    private void OnAuthenticationChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthSession.AuthenticationChanged -= OnAuthenticationChanged;
+    }
+
     private bool _isImpersonating;
     private string? _impersonationTarget;
 
@@ -50,7 +74,7 @@
         if (firstRender)
         {
             await AuthSession.InitializeAsync();
-            if (AuthSession.IsAuthenticated && AuthSession.HasPermission("control_plane.manage"))
+            if (AuthSession.IsAuthenticated && AuthSession.HasPermission(PlatformPermissions.ViewAudit))
             {
                 var response = await AuditService.GetImpersonationRecordsAsync(activeOnly: true);
                 if (response.IsSuccess && response.Data != null)

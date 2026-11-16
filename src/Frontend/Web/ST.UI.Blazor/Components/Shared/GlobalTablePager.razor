@@ -1,10 +1,22 @@
 <div class="table-footer">
     <span>@FooterText</span>
     <div class="pagination-actions">
-        <MudIconButton Icon="@Icons.Material.Filled.FirstPage" Size="Size.Small" Disabled="@(IsFirstPage || IsLoading)" OnClick="OnFirstPage" />
-        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" Disabled="@(IsFirstPage || IsLoading)" OnClick="OnPreviousPage" />
-        <MudChip T="string" Size="Size.Small" Color="Color.Primary">Page @CurrentPage</MudChip>
-        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Disabled="@(IsLastPage || IsLoading)" OnClick="OnNextPage" />
+        <MudIconButton Icon="@Icons.Material.Filled.FirstPage"
+                       Size="Size.Small"
+                       Disabled="@(IsFirstPage || IsLoading)"
+                       OnClick="OnFirstPage" />
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft"
+                       Size="Size.Small"
+                       Disabled="@(IsFirstPage || IsLoading)"
+                       OnClick="OnPreviousPage" />
+        <MudChip T="string"
+                 Size="Size.Small"
+                 Color="Color.Primary"
+                 Variant="Variant.Text">Page @CurrentPage</MudChip>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight"
+                       Size="Size.Small"
+                       Disabled="@(IsLastPage || IsLoading)"
+                       OnClick="OnNextPage" />
     </div>
 </div>
 

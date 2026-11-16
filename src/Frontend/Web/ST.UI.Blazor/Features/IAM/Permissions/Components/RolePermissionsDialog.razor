@@ -5,14 +5,22 @@
     <DialogContent>
         @if (_isLoading)
         {
-            <MudProgressLinear Color="Color.Success" Indeterminate="true" />
+            <MudProgressLinear Color="Color.Success"
+                               Indeterminate="true" />
         }
         else
         {
             <MudStack Spacing="2">
                 <MudText Typo="Typo.body2">Manage permission keys assigned to <strong>@Role.Name</strong>.</MudText>
                 <div class="st-table-scroll">
-                    <MudTable Items="_permissions" Dense="true" Hover="true" Elevation="0" FixedHeader="true" Height="28rem" Style="min-width: 760px;" Breakpoint="Breakpoint.None">
+                    <MudTable Items="_permissions"
+                              Dense="true"
+                              Hover="true"
+                              Elevation="0"
+                              FixedHeader="true"
+                              Height="28rem"
+                              Style="--st-table-min-width: 760px;"
+                              Breakpoint="Breakpoint.None">
                         <HeaderContent>
                             <MudTh Style="width: 4rem;">Grant</MudTh>
                             <MudTh>Key</MudTh>
@@ -22,7 +30,11 @@
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Grant">
-                                <MudCheckBox T="bool" Value="@IsSelected(context.Key)" ValueChanged="@((selected) => TogglePermission(context.Key, selected))" Color="Color.Success" Dense="true" />
+                                <MudCheckBox T="bool"
+                                             Value="@IsSelected(context.Key)"
+                                             ValueChanged="@((selected) => TogglePermission(context.Key, selected))"
+                                             Color="Color.Success"
+                                             Dense="true" />
                             </MudTd>
                             <MudTd DataLabel="Key">@context.Key</MudTd>
                             <MudTd DataLabel="Context">@context.Context</MudTd>
@@ -30,7 +42,9 @@
                             <MudTd DataLabel="Description">@context.Description</MudTd>
                         </RowTemplate>
                         <NoRecordsContent>
-                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No active permissions found.</MudAlert>
+                            <MudAlert Severity="Severity.Info"
+                                      Variant="Variant.Outlined"
+                                      Dense="true">No active permissions found.</MudAlert>
                         </NoRecordsContent>
                     </MudTable>
                 </div>
@@ -38,8 +52,15 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="@(_isLoading || _isSaving)" OnClick="SaveAsync">@(_isSaving ? "Saving..." : "Update")</MudButton>
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Success"
+                   Disabled="@(_isLoading || _isSaving)"
+                   OnClick="SaveAsync"
+                   StartIcon="@Icons.Material.Filled.Save">@(_isSaving ? "Saving..." : "Save")</MudButton>
     </DialogActions>
 </MudDialog>
 

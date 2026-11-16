@@ -10,6 +10,12 @@ on:
       - "tests/ST.Tests.Unit/**"
       - "tests/ST.Tests.Integration/**"
       - ".github/workflows/backend-ci.yml"
+      - "Directory.*.props"
+      - "global.json"
+      - "Global.json"
+      - "nuget.config"
+      - ".config/dotnet-tools.json"
+      - "scripts/check-package-policy.ps1"
   push:
     branches: [main]
     paths:
@@ -18,6 +24,12 @@ on:
       - "tests/ST.Tests.Unit/**"
       - "tests/ST.Tests.Integration/**"
       - ".github/workflows/backend-ci.yml"
+      - "Directory.*.props"
+      - "global.json"
+      - "Global.json"
+      - "nuget.config"
+      - ".config/dotnet-tools.json"
+      - "scripts/check-package-policy.ps1"
 
 permissions:
   contents: read
@@ -37,6 +49,10 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
+      - name: Check package policy
+        shell: pwsh
+        run: ./scripts/check-package-policy.ps1
 
       - name: Restore API
         run: dotnet restore src/Backend/Api/ST.Api/ST.Api.csproj

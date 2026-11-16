@@ -3,39 +3,56 @@
     <DialogContent>
         <div class="user-detail-dialog">
             <div class="user-detail-header">
-                <MudAvatar Size="Size.Large" Class="profile-avatar">@Initials</MudAvatar>
+                <MudAvatar Size="Size.Large"
+                           Class="profile-avatar">@Initials</MudAvatar>
                 <div>
                     <MudText Typo="Typo.h6">@DisplayName</MudText>
-                    <MudText Typo="Typo.body2" Class="text-muted">@User.Email</MudText>
+                    <MudText Typo="Typo.body2"
+                             Class="text-muted">@User.Email</MudText>
                 </div>
             </div>
 
             <MudGrid Spacing="2">
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.caption" Class="detail-label">Username</MudText>
+                <MudItem xs="12"
+                         sm="6">
+                    <MudText Typo="Typo.caption"
+                             Class="detail-label">Username</MudText>
                     <MudText Typo="Typo.body2">@User.UserName</MudText>
                 </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.caption" Class="detail-label">Email</MudText>
+                <MudItem xs="12"
+                         sm="6">
+                    <MudText Typo="Typo.caption"
+                             Class="detail-label">Email</MudText>
                     <MudText Typo="Typo.body2">@User.Email</MudText>
                 </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudText Typo="Typo.caption" Class="detail-label">Status</MudText>
-                    <MudChip T="string" Size="Size.Small" Color="@(User.IsActive ? Color.Success : Color.Warning)">@(User.IsActive ? "Active" : "Inactive")</MudChip>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudText Typo="Typo.caption"
+                             Class="detail-label">Status</MudText>
+                    <MudChip T="string"
+                             Size="Size.Small"
+                             Color="@(User.IsActive ? Color.Success : Color.Warning)"
+                             Variant="Variant.Text">@(User.IsActive ? "Active" : "Inactive")</MudChip>
                 </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudText Typo="Typo.caption" Class="detail-label">Two-factor</MudText>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudText Typo="Typo.caption"
+                             Class="detail-label">Two-factor</MudText>
                     <MudText Typo="Typo.body2">@(User.TwoFactorEnabled ? "Enabled" : "Recommended")</MudText>
                 </MudItem>
                 <MudItem xs="12">
-                    <MudText Typo="Typo.caption" Class="detail-label">Roles</MudText>
+                    <MudText Typo="Typo.caption"
+                             Class="detail-label">Roles</MudText>
                     <MudText Typo="Typo.body2">@RoleText</MudText>
                 </MudItem>
             </MudGrid>
         </div>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Close">Close</MudButton>
+        <MudButton Variant="Variant.Outlined"
+                   Size="Size.Small"
+                   Color="Color.Default"
+                   OnClick="Close">Close</MudButton>
     </DialogActions>
 </MudDialog>
 

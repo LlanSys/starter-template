@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.IAM.Users.Authorization;
 using System.Security.Claims;
 using ST.UI.Blazor.Features.IAM.Users.Contracts.Interfaces;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -21,7 +22,11 @@ internal sealed class CustomAuthenticationStateProvider : AuthenticationStatePro
         this.authSession = authSession;
         authSession.AuthenticationChanged += NotifyAuthenticationStateChanged;
     }
-    public void Dispose() => authSession.AuthenticationChanged -= NotifyAuthenticationStateChanged;
+    public void Dispose()
+    {
+        authSession.AuthenticationChanged -= NotifyAuthenticationStateChanged;
+    }
+
     public override Task<AuthenticationState> GetAuthenticationStateAsync()
     {
 
@@ -52,7 +57,7 @@ internal sealed class CustomAuthenticationStateProvider : AuthenticationStatePro
 
         if (user.Permissions is not null)
         {
-            foreach (var permission in user.Permissions)
+            foreach (var permission in CurrentUserPermissions.EffectiveKeys(user))
             {
                 claims.Add(new Claim("permission", permission));
             }
@@ -60,7 +65,16 @@ internal sealed class CustomAuthenticationStateProvider : AuthenticationStatePro
 
         claims.AddRange(user.EnabledModules.Select(module => new Claim("module", module.ToLowerInvariant())));
         claims.AddRange(user.AvailablePages.Select(path => new Claim("page", path.ToLowerInvariant())));
-        if (user.IsPlatformStaff) claims.Add(new Claim("platform_staff", "true"));
+
+        if (user.HasMfaProof)
+        {
+            claims.Add(new Claim("amr", "mfa"));
+        }
+
+        if (user.IsPlatformStaff)
+        {
+            claims.Add(new Claim("platform_staff", "true"));
+        }
 
         var identity = new ClaimsIdentity(claims, authenticationType: "StarterTemplate.Session");
         return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(identity)));

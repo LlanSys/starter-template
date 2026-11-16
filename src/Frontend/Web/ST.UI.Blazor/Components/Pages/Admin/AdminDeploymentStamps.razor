@@ -1,6 +1,6 @@
 @page "/control-panel/stamps"
 @layout ControlPlaneLayout
-@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@attribute [Authorize(Policy = PlatformPermissions.ViewStamps)]
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject IDeploymentStampService StampService
@@ -8,61 +8,105 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!Embedded) { <PageTitle>Deployment Stamps | StarterTemplate</PageTitle> }
+@if (!Embedded)
+{
+    <PageTitle>Deployment Stamps | StarterTemplate</PageTitle>
+}
 
+@if (!Embedded)
+{
+    <ControlPanelBackLink />
+}
 <section class="dashboard-page">
-    <MudPaper Class="platform-list" Elevation="0">
-        <div class="panel-heading">
-            <h2 style="color: var(--st-moss); font-weight: 700;">Deployment Stamps</h2>
-            <div class="d-flex align-center gap-3">
-                @if (AuthSession.HasPermission("control_plane.manage"))
-                {
-                    <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Dns" OnClick="@(() => OpenFormDialogAsync(null))">Create stamp</MudButton>
-                }
+    <MudPaper Class="@(Embedded ? "st-embedded-list" : "platform-list")"
+              Elevation="0">
+        @if (!Embedded)
+        {
+            <div class="panel-heading">
+                <h2>Deployment Stamps</h2>
+                <div class="d-flex align-center gap-3">
+                    @if (AuthSession.HasPermission(PlatformPermissions.ManageStamps))
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => OpenFormDialogAsync(null))">Add Stamp</MudButton>
+                    }
+                </div>
             </div>
+
+        }
+        <div class="list-toolbar">
+            <MudTextField @bind-Value="_search"
+                          Placeholder="Search stamps..."
+                          Immediate="true"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense" />
         </div>
 
         @if (_isLoading)
         {
-            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+            <MudProgressLinear Color="Color.Success"
+                               Indeterminate="true"
+                               Class="my-2" />
         }
 
         @if (!string.IsNullOrWhiteSpace(_message))
         {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+            <MudAlert Severity="Severity.Error"
+                      Variant="Variant.Outlined"
+                      Dense="true"
+                      Class="my-2">@_message</MudAlert>
         }
 
         <div class="st-table-scroll">
-            <MudTable @ref="_table" Items="_stamps" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="100" Height="calc(100vh - 25rem)" Style="min-width: 760px;" Breakpoint="Breakpoint.None">
+            <MudTable @ref="_table"
+                      Items="FilteredStamps"
+                      Dense="true"
+                      Hover="true"
+                      Elevation="0"
+                      FixedHeader="true"
+                      RowsPerPage="Presentation.PageSize"
+                      Height="calc(100vh - 25rem)"
+                      Style="--st-table-min-width: 760px;"
+                      Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh Style="width: 15rem;">Name</MudTh>
                     <MudTh>Resource Group</MudTh>
                     <MudTh Style="width: 10rem;">Tier</MudTh>
-                    <MudTh Style="width: 8rem;">Actions</MudTh>
+                    <MudTh Class="st-actions-column">Actions</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Name">@context.Name</MudTd>
                     <MudTd DataLabel="Resource Group">@context.TargetResourceGroup</MudTd>
                     <MudTd DataLabel="Tier">
-                        <MudChip T="string" Size="Size.Small" Color="Color.Primary">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="Color.Primary"
+                                 Variant="Variant.Text">
                             @context.IsolationTier
                         </MudChip>
                     </MudTd>
-                    <MudTd DataLabel="Actions">
+                    <MudTd DataLabel="Actions"
+                           Class="st-actions-column">
                         <TableRowActions OnEdit="@(() => OpenFormDialogAsync(context))"
-                                         CanEdit="@AuthSession.HasPermission("control_plane.manage")"
+                                         CanEdit="@AuthSession.HasPermission(PlatformPermissions.ManageStamps)"
                                          CanView="true"
                                          OnView="@(() => Snackbar.Add($"Stamp: {context.Name} ({context.IsolationTier})", Severity.Info))"
                                          CanDelete="false" />
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent>
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                    <MudText Typo="Typo.body2"
+                             Class="pa-3">No records found.</MudText>
                 </NoRecordsContent>
                 <PagerContent>
                     <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
                                       TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
-                                      PageSize="_table?.RowsPerPage ?? 100"
+                                      PageSize="_table?.RowsPerPage ?? Presentation.PageSize"
                                       OnFirstPage="@(() => _table?.NavigateTo(0))"
                                       OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
                                       OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
@@ -74,6 +118,14 @@
 
 @code {
     [Parameter] public bool Embedded { get; set; }
+    private string _search = string.Empty;
+    private IEnumerable<DeploymentStampResponse> FilteredStamps => _stamps.Where(item => item.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) || item.TargetResourceGroup.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    public Task CreateAsync()
+    {
+        return OpenFormDialogAsync(null);
+    }
+
     private readonly List<DeploymentStampResponse> _stamps = [];
     private bool _isLoading = true;
     private string? _message;
@@ -118,7 +170,7 @@
             { nameof(StampDialog.ExistingStamp), stamp }
         };
 
-        var title = stamp is null ? "Create Deployment Stamp" : $"Edit - {stamp.Name}";
+        var title = stamp is null ? "Add Deployment Stamp" : $"Edit - {stamp.Name}";
         var dialog = await DialogService.ShowAsync<StampDialog>(
             title,
             parameters,

@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane;
 using Asp.Versioning;
 using ST.Api.Common.Authorization;
 using ST.Api.Common.Controllers;
@@ -22,8 +23,8 @@ namespace ST.Api.Features.ControlPlane.Auditing.Controllers;
 public class AuditController(ISender sender) : BaseController
 {
     [HttpPost("impersonate/start")]
-    [RequirePermission("control_plane.manage")]
     [ProducesResponseType(typeof(AppResponse<ImpersonationRecordResponse>), StatusCodes.Status200OK)]
+    [RequirePermission(PlatformPermissions.ManageSupport)]
     public async Task<IActionResult> StartImpersonation(
         [FromBody] StartImpersonationRequest request,
         CancellationToken cancellationToken)
@@ -33,8 +34,8 @@ public class AuditController(ISender sender) : BaseController
     }
 
     [HttpPost("impersonate/end")]
-    [RequirePermission("control_plane.manage")]
     [ProducesResponseType(typeof(AppResponse<bool>), StatusCodes.Status200OK)]
+    [RequirePermission(PlatformPermissions.ManageSupport)]
     public async Task<IActionResult> EndImpersonation(
         [FromBody] EndImpersonationRequest request,
         CancellationToken cancellationToken)
@@ -44,8 +45,8 @@ public class AuditController(ISender sender) : BaseController
     }
 
     [HttpGet("impersonate/records")]
-    [RequirePermission("control_plane.manage")]
     [ProducesResponseType(typeof(AppResponse<IReadOnlyList<ImpersonationRecordDto>>), StatusCodes.Status200OK)]
+    [RequirePermission(PlatformPermissions.ViewAudit)]
     public async Task<IActionResult> GetImpersonationRecords(
         [FromQuery] bool activeOnly,
         CancellationToken cancellationToken)

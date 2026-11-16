@@ -49,6 +49,8 @@ Container service ports remain unchanged. Compose project cg-startertemplate and
 
 ## Restore and verify
 
+NuGet restore uses public nuget.org only; GitHub NuGet credentials are not required. See [package management](package-management.md) for compatible updates and dependency-conflict recovery.
+
 After renaming, run restore on the renamed solution, then build its API and Web projects and run unit/architecture tests using the new project names. The current StarterTemplate names are:
 
 ```powershell

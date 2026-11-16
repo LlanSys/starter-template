@@ -1,3 +1,4 @@
+using ST.Application.Features.ControlPlane.Kyc.Contracts;
 using ST.Domain.Features.ControlPlane.Tenants.Enums;
 using System;
 using System.Threading;
@@ -21,17 +22,20 @@ public class ActivateTenantCommandHandler : IRequestHandler<ActivateTenantComman
     private readonly ILogger<ActivateTenantCommandHandler> _logger;
     private readonly ICurrentActorProvider _actorProvider;
     private readonly TimeProvider _timeProvider;
+    private readonly IKycRetentionService _retention;
 
     public ActivateTenantCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<ActivateTenantCommandHandler> logger,
         ICurrentActorProvider actorProvider,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IKycRetentionService retention)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _actorProvider = actorProvider;
         _timeProvider = timeProvider;
+        _retention = retention;
     }
 
     public async Task<AppResponse<TenantResponse>> Handle(ActivateTenantCommand request, CancellationToken cancellationToken)
@@ -48,6 +52,26 @@ public class ActivateTenantCommandHandler : IRequestHandler<ActivateTenantComman
         if (tenant.Status != TenantStatus.Suspended || !tenant.CanProvision)
         {
             return AppResponses.Failure<TenantResponse>("Only a suspended tenant can be reactivated. New tenants require approval and provisioning.");
+        }
+
+        if (tenant.IsCustomerWorkspace)
+        {
+            var erased = await _retention.CheckErasureAsync(tenant.Id, cancellationToken).ConfigureAwait(false);
+
+            if (!erased.IsSuccess)
+            {
+                return AppResponses.Failure<TenantResponse>(erased.Error!);
+            }
+
+            if (erased.Data)
+            {
+                return AppResponses.Failure<TenantResponse>("This KYC case has been erased. A new onboarding review is required.");
+            }
+        }
+
+        if (await _unitOfWork.KycRetentionCases.AnyAsync(x => x.TenantId == tenant.Id && (x.Outcome != "Open" || x.Phase != "Retained"), cancellationToken).ConfigureAwait(false))
+        {
+            return AppResponses.Failure<TenantResponse>("The KYC case is closed; resolve it before reactivation.");
         }
 
         var now = _timeProvider.GetUtcNow();
@@ -72,8 +96,10 @@ public class ActivateTenantCommandHandler : IRequestHandler<ActivateTenantComman
             Status = tenant.Status.ToDisplayString(),
             DeploymentStampId = tenant.DeploymentStampId,
             CreatedAt = tenant.CreatedAt,
+            KycApprovedAt = tenant.KycApprovedAt,
             UpdatedAt = tenant.UpdatedAt
         };
+
         return AppResponses.Success(dto);
     }
 }

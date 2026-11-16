@@ -27,7 +27,7 @@ public sealed class PaymentReconciliationWorker(
         {
             try
             {
-                await ReconcilePendingPaymentsAsync(stoppingToken);
+                await ReconcilePendingPaymentsAsync(stoppingToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -35,7 +35,7 @@ public sealed class PaymentReconciliationWorker(
             }
 
             // Wait 5 minutes before sweeping again
-            await Task.Delay(TimeSpan.FromMinutes(5), timeProvider, stoppingToken);
+            await Task.Delay(TimeSpan.FromMinutes(5), timeProvider, stoppingToken).ConfigureAwait(false);
         }
 
         PaymentLogDefinitions.LogPaymentReconciliationWorkerStopping(logger);
@@ -53,7 +53,7 @@ public sealed class PaymentReconciliationWorker(
         // Sweeping pending records
         var pendingRecords = await sharedUnitOfWork.PaymentRecordRepository.ListAsync(
             q => q.Where(p => p.Status == PaymentStatus.Initiated && p.CreatedAt <= threshold).Take(50),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         if (pendingRecords.Count == 0)
         {
@@ -72,7 +72,7 @@ public sealed class PaymentReconciliationWorker(
 
             try
             {
-                var gatewayResponse = await paymentGateway.GetStatusAsync(record.ProviderReference, record.Provider, cancellationToken);
+                var gatewayResponse = await paymentGateway.GetStatusAsync(record.ProviderReference, record.Provider, cancellationToken).ConfigureAwait(false);
 
                 if (gatewayResponse.IsSuccess && gatewayResponse.Data != null && !string.IsNullOrWhiteSpace(gatewayResponse.Data.Status))
                 {
@@ -120,6 +120,6 @@ public sealed class PaymentReconciliationWorker(
         }
 
         // Commit the transaction to save all state transitions and dispatch domain events
-        await sharedUnitOfWork.CompleteAsync(cancellationToken);
+        await sharedUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
     }
 }

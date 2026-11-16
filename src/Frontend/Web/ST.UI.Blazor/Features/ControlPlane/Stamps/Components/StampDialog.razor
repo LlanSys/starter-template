@@ -3,17 +3,31 @@
 
 <MudDialog>
     <DialogContent>
-    <EditForm FormName="control-plane-stamp-form" Model="_model" OnValidSubmit="SaveAsync">
-        <DataAnnotationsValidator />
+        <EditForm FormName="control-plane-stamp-form"
+                  Model="_model"
+                  OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
             <MudGrid Spacing="2">
                 <MudItem xs="12">
-                    <MudTextField @bind-Value="_model.Name" Label="Stamp Name" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+                    <MudTextField @bind-Value="_model.Name"
+                                  Label="Stamp Name"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField @bind-Value="_model.TargetResourceGroup" Label="Resource Group" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+                    <MudTextField @bind-Value="_model.TargetResourceGroup"
+                                  Label="Resource Group"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudSelect @bind-Value="_model.IsolationTier" Label="Isolation Tier" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                    <MudSelect @bind-Value="_model.IsolationTier"
+                               Label="Isolation Tier"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               Required>
                         <MudSelectItem Value="@("Pooled")">Pooled</MudSelectItem>
                         <MudSelectItem Value="@("Isolated")">Isolated</MudSelectItem>
                     </MudSelect>
@@ -22,15 +36,26 @@
                 {
 
                     <MudItem xs="12">
-                        <MudTextField @bind-Value="_model.KeyVaultUri" Label="Key Vault URI" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                        <MudTextField @bind-Value="_model.KeyVaultUri"
+                                      Label="Key Vault URI"
+                                      Margin="Margin.Dense"
+                                      Variant="Variant.Outlined" />
                     </MudItem>
                 }
             </MudGrid>
         </EditForm>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
+        <MudButton Variant="Variant.Outlined"
+                   Size="Size.Small"
+                   Color="Color.Default"
+                   OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Success"
+                   Disabled="_isSaving"
+                   OnClick="SaveAsync"
+                   StartIcon="@Icons.Material.Filled.Save">@(_isSaving ? "Saving..." : "Save")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -44,7 +69,6 @@
     [Parameter]
     public DeploymentStampResponse? ExistingStamp { get; set; }
 
-    private string SaveLabel => ExistingStamp is null ? "Create" : "Update";
 
     protected override void OnInitialized()
     {

@@ -1,3 +1,4 @@
+@using ST.SharedKernel.Features.ControlPlane
 @using ST.SharedKernel.Features.ControlPlane.Stamps.Dtos
 @using ST.SharedKernel.Features.ControlPlane.Tenants.Dtos
 @using ST.SharedKernel.Features.IAM.Menus.Dtos
@@ -50,3 +51,8 @@
 @using System.Diagnostics
 @using System.Net.Http
 @using System.Net.Http.Json
+
+@using ST.UI.Blazor.Features.Shared.OrgSettings
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using ST.SharedKernel.Features.Shared.OrgSettings
+@inject PresentationPreferences Presentation

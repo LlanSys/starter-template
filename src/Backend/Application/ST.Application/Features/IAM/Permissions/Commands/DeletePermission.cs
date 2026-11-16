@@ -23,6 +23,11 @@ internal sealed class DeletePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             {
                 return AppResponses.Failure<bool>($"Permission {command.Id} not found.");
             }
+            if (permission.Key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase))
+            {
+                return AppResponses.Failure<bool>("Platform operation definitions are vendor-managed.");
+            }
+
 
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
             if (EffectiveModuleAccess.TenantSettingsPermissions.Contains(permission.Key, StringComparer.OrdinalIgnoreCase)

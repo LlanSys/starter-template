@@ -1,0 +1,43 @@
+@using ST.SharedKernel.Features.ControlPlane.Staff
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using ST.UI.Blazor.Features.Shared.Messaging
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle1"
+                 Class="mb-3">@Account.FullName</MudText>
+        @if (_message is not null)
+        {
+            <MudAlert Severity="Severity.Warning">@_message</MudAlert>
+        }
+        <MudTable Items="_records"
+                  Dense="true"
+                  Hover="true"
+                  Elevation="0"
+                  Loading="_loading">
+            <HeaderContent>
+                <MudTh>When (@Presentation.TimeZoneLabel)</MudTh>
+                <MudTh>Action / Actor</MudTh>
+                <MudTh>Reason</MudTh>
+                <MudTh>Changes</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@Presentation.Format(context.OccurredAt)</MudTd>
+                <MudTd>@context.Action<br />
+                    <MudText Typo="Typo.caption">@context.ActorId</MudText>
+                </MudTd>
+                <MudTd>@context.Reason</MudTd>
+                <MudTd>Staff: @context.PreviousStaff → @context.CurrentStaff<br />Active: @context.PreviousActive → @context.CurrentActive<br />
+                    <MudText Typo="Typo.caption">Grants: @string.Join(", ", context.CurrentPermissions)</MudText>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText>No staff changes recorded. Historical bootstrap grants predate this audit.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+        <MudText Typo="Typo.caption">Most recent 100 changes. Actor identifiers are stable account identities.</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close"
+                   Size="Size.Small">Close</MudButton>
+    </DialogActions>
+</MudDialog>

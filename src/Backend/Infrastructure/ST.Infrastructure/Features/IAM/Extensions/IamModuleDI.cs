@@ -1,4 +1,8 @@
+using ST.Application.Features.ControlPlane.Staff;
+using ST.Infrastructure.Features.ControlPlane.Staff;
 using ST.Domain.Features.IAM.Users.Entities;
+using ST.Domain.Features.IAM.Contracts;
+using ST.Persistence.Features.IAM.Users.Stores;
 using ST.Infrastructure.Configuration;
 using ST.Infrastructure.Features.IAM.Users.Contracts.Implementations.Services;
 using ST.Infrastructure.Features.Shared.Notifications.Contracts.Implementations.Services;
@@ -31,6 +35,7 @@ public static class IamModuleDI
 
         services.AddIdentity<AppUser, AppRole>(DependencyInjection.ConfigureIdentityOptions)
             .AddEntityFrameworkStores<IamDBContext>()
+            .AddUserStore<TenantUserStore>()
             .AddDefaultTokenProviders();
 
         DependencyInjection.ConfigureAuthentication(services, configuration);
@@ -40,6 +45,8 @@ public static class IamModuleDI
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IClaimsService, ClaimsService>();
         services.AddScoped<IamDelegation>();
+        services.AddScoped<IPlatformStaffService, PlatformStaffService>();
+        services.AddScoped<ITenantAccountLimitProvider, TenantAccountLimitProvider>();
         services.AddScoped<IAppUserService, AppUserService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<ISmsComposer, SmsComposer>();

@@ -1,80 +1,9 @@
 @page "/features"
-
-@rendermode InteractiveServer
-@inject IAuthSession AuthSession
-@inject IIamAdminService IamAdminService
 @inject NavigationManager Navigation
-@inject ISnackbar Snackbar
-
-<PageTitle>Features | StarterTemplate</PageTitle>
-
-<RequireAuthenticated>
-    <section class="dashboard-page">
-        @if (!_isReady)
-        {
-            <MudPaper Class="status-card" Elevation="0">Loading features...</MudPaper>
-        }
-        else
-        {
-            <h1 class="platform-page-title mb-4">Features</h1>
-
-            <MudTable Items="_modules" Dense="true" Elevation="0" Breakpoint="Breakpoint.None">
-                <HeaderContent><MudTh>Name</MudTh><MudTh Style="width: 5rem">Actions</MudTh></HeaderContent>
-                <RowTemplate><MudTd>@context.Title</MudTd><MudTd><MudTooltip Text="Open"><MudIconButton Href="@context.Url" Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" aria-label="@($"Open {context.Title}")" /></MudTooltip></MudTd></RowTemplate>
-            </MudTable>
-        }
-    </section>
-</RequireAuthenticated>
 
 @code {
-    private readonly List<MenuResponse> _modules = [];
-    private bool _isReady;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnInitialized()
     {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        await AuthSession.InitializeAsync();
-        if (AuthSession.IsAuthenticated)
-        {
-            await LoadModulesAsync();
-            StateHasChanged();
-        }
-    }
-
-    private async Task LoadModulesAsync()
-    {
-        var response = await IamAdminService.GetNavigationMenusAsync("Features");
-        if (!response.IsSuccess || response.Data is null)
-        {
-            Snackbar.Add(response.Message ?? "We could not load feature menus.", Severity.Error);
-            _isReady = true;
-            return;
-        }
-
-        _modules.Clear();
-        var allMenus = Flatten(response.Data);
-        _modules.AddRange(allMenus);
-        _isReady = true;
-    }
-
-    private static IEnumerable<MenuResponse> Flatten(IEnumerable<MenuResponse>? menus)
-    {
-        if (menus is null)
-        {
-            yield break;
-        }
-
-        foreach (var menu in menus)
-        {
-            yield return menu;
-            foreach (var child in Flatten(menu.Children))
-            {
-                yield return child;
-            }
-        }
+        Navigation.NavigateTo("/dashboard", replace: true);
     }
 }

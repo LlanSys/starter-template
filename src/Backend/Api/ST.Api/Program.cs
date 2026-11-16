@@ -84,6 +84,7 @@ try
             .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName);
 
         var otlpEndpoint = context.Configuration["Observability:Otlp:Endpoint"];
+
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
             var headerString = context.Configuration["Observability:Otlp:Headers"];
@@ -92,9 +93,11 @@ try
             if (!string.IsNullOrWhiteSpace(headerString))
             {
                 var pairs = headerString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
                 foreach (var pair in pairs)
                 {
                     var parts = pair.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+
                     if (parts.Length == 2)
                     {
                         headers[parts[0].Trim()] = parts[1].Trim();
@@ -184,14 +187,18 @@ try
             foreach (var param in operation.Parameters?.ToList() ?? [])
             {
                 if (param.Schema == null)
+                {
                     operation.Parameters?.Remove(param);
+                }
             }
 
             // Remove parameter descriptions with null metadata
             for (int i = context.Description.ParameterDescriptions.Count - 1; i >= 0; i--)
             {
                 if (context.Description.ParameterDescriptions[i].ModelMetadata == null)
+                {
                     context.Description.ParameterDescriptions.RemoveAt(i);
+                }
             }
 
             return Task.CompletedTask;
@@ -287,13 +294,12 @@ try
 
     await app.SeedDevelopmentIdentityAsync().ConfigureAwait(false);
 
-    if (app.Environment.IsDevelopment())
+    // API clients receive the same sanitized problem contract in every environment.
+    // Full diagnostics remain in server-side logs.
+    app.UseExceptionHandler();
+
+    if (!app.Environment.IsDevelopment())
     {
-        app.UseDeveloperExceptionPage();
-    }
-    else
-    {
-        app.UseExceptionHandler();
         app.UseHsts();
     }
 
@@ -327,11 +333,11 @@ try
 
     app.UseCors(corsPolicy);
 
-    app.UseRateLimiter();
 
     //app.UsePreAuthMiddleware();
 
     app.UseAuthentication();
+    app.UseRateLimiter();
     app.UseMiddleware<TenantClaimBoundaryMiddleware>();
     app.UseMiddleware<LiveAuthorityMiddleware>();
     app.UseMiddleware<DemoWorkspaceMiddleware>();
@@ -384,6 +390,7 @@ try
 
                 totalDuration = report.TotalDuration.TotalMilliseconds
             };
+
             await context.Response.WriteAsJsonAsync(response).ConfigureAwait(false);
         }
     });
@@ -440,4 +447,6 @@ static void ConfigurePlatformAssignedPort(ConfigureWebHostBuilder webHost)
     webHost.UseUrls($"http://+:{parsedPort}");
 }
 
-public partial class Program { }
+public partial class Program
+{
+}

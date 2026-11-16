@@ -44,6 +44,11 @@ This file is the canonical source of truth and working contract for AI coding to
 - Keep feature-owned code inside `Features/{Context}/{Feature}` in every layer where that code exists.
 - Keep cross-cutting concerns outside feature folders: logging, middleware, generic caching, generic repositories, JSON helpers, base entities, and shared abstractions.
 
+## Source Formatting
+
+- Follow the BT-derived [readability conventions](docs/development/code-readability.md): four spaces, Allman braces, one statement per line, block-bodied procedural methods, logical blank lines and a soft 120-column target.
+- Use adjacent partial classes for substantial Razor logic. Apply/check focused scopes with `scripts/Format-Code.ps1 -Include`. The build-only `ST.SourceFormatting` tool protects C# syntax and Razor literals; exclude migrations and generated files. Keep runtime packages free of formatter runtime dependencies.
+
 ## Backend Conventions
 
 - Use MediatR request/handler flows already established in the repo.
@@ -60,7 +65,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - When a capability supports multiple runtime providers per operation, use a router/factory over isolated provider adapters. Do not make one provider adapter understand another provider's DTOs, credentials, or callbacks.
 - Application-layer command/query handlers must use bounded-context Unit of Work interfaces (`ISharedUnitOfWork`, `IIamUnitOfWork`, etc.) for persistence orchestration, not raw `IRepository<T>`. Always call `CompleteAsync` with a `CancellationToken` after write operations.
 - Pass `CancellationToken` to all async I/O calls (`ReadAsStringAsync`, `CompleteAsync`, `SaveChangesAsync`, etc.) where the parameter is available.
-- Use `StringComparison.OrdinalIgnoreCase` for case-insensitive comparisons. Reserve `ToUpperInvariant()`/`ToLowerInvariant()` for value normalization (stored keys, wire formats, display strings) — never for equality checks. C# `switch` on normalized strings is acceptable when `StringComparison` is not supported by the expression.
+- Use `StringComparison.OrdinalIgnoreCase` for case-insensitive comparisons. Reserve `ToUpperInvariant()`/`ToLowerInvariant()` for value normalization (stored keys, wire formats, display strings) â€” never for equality checks. C# `switch` on normalized strings is acceptable when `StringComparison` is not supported by the expression.
 - Always use `Guid.CreateVersion7()` instead of `Guid.NewGuid()` to ensure time-ordered identifiers.
 
 ## Persistence Rules
@@ -78,7 +83,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - Cursor pagination must fetch `pageSize + 1` before trimming.
 - **StarterTemplate supports multiple database providers (PostgreSQL and SQL Server).** When adding EF Core migrations, you MUST generate separate migrations for each provider's DbContext and specify the correct output directory. For example, for the IAM bounded context: `dotnet ef migrations add <Name> -c IamSqlServerDBContext -o Features/IAM/Migrations/SqlServer` and `dotnet ef migrations add <Name> -c IamPostgreSqlDBContext -o Features/IAM/Migrations/PostgreSql`. Do not rely on default output directories.
 - **Database Context Factories:** When creating `IDesignTimeDbContextFactory<T>` implementations, always specify a provider-specific fallback connection string using `DesignTimeConfigurationFactory.GetConnectionString(..., fallbackConnectionName: "DefaultPostgreSqlConnection")` (or `"DefaultSqlConnection"`) to prevent parsing crashes from incompatible connection string parameters.
-- **Idempotent Migrations:** EF Core index creations are globally intercepted by custom SQL generators (`IdempotentSqlServerMigrationsSqlGenerator` and `IdempotentNpgsqlMigrationsSqlGenerator`) to inject `IF NOT EXISTS` logic. Do not write manual raw SQL for idempotency on index creation—the generator handles this automatically.
+- **Idempotent Migrations:** EF Core index creations are globally intercepted by custom SQL generators (`IdempotentSqlServerMigrationsSqlGenerator` and `IdempotentNpgsqlMigrationsSqlGenerator`) to inject `IF NOT EXISTS` logic. Do not write manual raw SQL for idempotency on index creationâ€”the generator handles this automatically.
 
 - The six InitialStarter migrations target fresh databases only. Never apply them as upgrades to an existing application database. Shared baselines include the provider-specific Quartz tables.
 - PostgreSQL uses application-stamped byte concurrency tokens; SQL Server uses native rowversion.
@@ -90,15 +95,20 @@ This file is the canonical source of truth and working contract for AI coding to
 - Use source-generated `LoggerMessage` methods; do not add free-form logging in new code paths.
 - Every `catch` block must log or deliberately translate the error into an expected result.
 - Use `ICachableRequest` for cacheable queries and `ICacheInvalidatorRequest` for commands that invalidate cache.
-- Keep cache keys tenant-aware where data is tenant-scoped.
+- Keep cache keys tenant-aware where data is tenant-scoped. Cache factories must preserve request execution context and finish within the owning request scope, including cancellation cleanup. Tenant-wide mutation epochs invalidate optional user-scoped responses; read epochs from the shared cache across replicas. See docs/development/tenant-cache-isolation.md.
 
 ## IAM And Security
 
 - IAM is a core platform capability, not an application-specific feature.
+- Identity uniqueness is tenant-scoped, including deleted-account reservations. Use Identity through TenantUserStore for account admission/restoration; preserve transaction-owned per-tenant locks, MaxUsers human-seat accounting and explicit trusted proxy kinds. See docs/development/account-admission-and-kyc-safety.md.
+- KYC originals remain quarantined until a real safety scan clears their exact checksum. Preserve durable scan leases/retries, definition freshness, clean-only download/acceptance and erasure-ledger gates. Rescanning never grants a manual clean override.
 - Customer workspaces require KYC approval with a stable reviewer, a captured UTC instant, and an evidence reference before activation, provisioning retries, or first-administrator onboarding. Use `control_plane.approve_kyc` for approval. Preserve existing accounts during upgrades and obtain real review evidence for existing customer workspaces.
+- KYC retention processing is enabled. Use versioned platform policies, explicit relationship-end events, indefinite legal holds with review dates, recoverable expiry, storage deletion receipts and a separate private erasure ledger. Never serve an erased object after restoring an older database; preserve that ledger independently.
+- KYC evidence uses a private container and permission-protected API downloads. Client submission links are workspace-scoped, hashed at rest, expiring and revocable; they create no IAM identity. Preserve append-only review history and keep upload bodies and submission tokens out of logs.
+- KYC uploads use the server-owned `KycDocuments:DocumentTypes` catalogue and an explicit named Other option. Preserve stable type keys, per-document upload controls on both collection channels, legacy classifications, private storage and classification-scoped deduplication.
 - Persist first-administrator invitation intent separately from accounts. Use durable delivery leases, expiring hashed tokens, explicit acceptance and current-session authenticator proof before granting administrator access. Existing accounts authenticate using their established credentials. Ordinary IAM account invitation and recovery stay separate.
 - Microsoft and Google sign-in bind a validated issuer and subject to the resolved workspace. Validate callback origins and protect workspace and intent in OIDC state. Consume hashed codes once in IAM and keep bearer/refresh tokens out of distributed cache.
-- Keep MassTransit on the approved shared 8.x pin defined in `Directory.Build.props` with exact package ranges.
+- Keep MassTransit on the approved shared 8.x pin defined in `Directory.Packages.props` with exact central package ranges.
 - Account responses and token claims are domain-neutral. Use AppUserMapping for backend account DTOs and LoginResponseMapping for UI login fallbacks; preserve tenant, session, permission and MFA state.
 - Administrative endpoints require permission-based authorization in addition to `[Authorize]`.
 - Resolve API authority from the live account, role memberships, direct grants, active permission definitions and module entitlements. Display role names never grant permissions. Tenant delegation is bounded by the actor's active grants, and protected administrator roles are maintained by trusted setup.
@@ -115,11 +125,11 @@ This file is the canonical source of truth and working contract for AI coding to
 
 ## Frontend Conventions
 
-- Menu administration selects registered pages and searchable role/permission collections. Keep generated keys, module keys and descriptions out of the form. Preserve existing hidden values on edits. Menu visibility narrows navigation; it never grants route/API access.
+- Menu administration selects registered pages and searchable role/permission collections. Keep generated keys and descriptions out of the form. Select Module from available, implemented modules before selecting a registered Page; a catalog-owned page fixes its module. Preserve existing hidden values on edits. Menu visibility narrows navigation; it never grants route/API access.
 
-- Menu icons use searchable installed MudBlazor Material styles. Persist icon keys, never user-supplied SVG. Regenerate the shared backend allowlist with scripts/update-material-icon-keys.ps1 when upgrading MudBlazor.
+- Menu icons use the shared MenuIconPicker for searchable installed MudBlazor Material styles, with result and selection previews. Access Catalog lists the full allowlist plus persisted custom labels; library-only definitions are not database records. Persist icon keys, never user-supplied SVG. Regenerate the shared backend allowlist with scripts/update-material-icon-keys.ps1 when upgrading MudBlazor.
 
-- Authentication pages share AuthLayout and the compact centred auth-card composition. Keep instructions task-specific; do not expose implementation explanations in product copy.
+- Authentication pages share AuthLayout and the compact centred auth-card composition, with AuthBrand inside the card. Publish sign-in controls only after workspace/provider initialization; preserve protected prerendering restrictions and avoid same-origin initialization reloads. Keep instructions task-specific; do not expose implementation explanations in product copy.
 - Account actions live in the top-right header, with the user name and no role label. Sidebar navigation uses inset spacing and plain branding.
 
 - The supported frontend is ST.UI.Blazor, a Blazor Web App with global Interactive Server rendering with prerendering disabled so protected browser tokens can be restored after the circuit starts.
@@ -128,12 +138,16 @@ This file is the canonical source of truth and working contract for AI coding to
 
 - Blazor UI talks to the backend API boundary for app flows.
 - Use MudBlazor components where practical and keep UI compact, responsive, and consistent.
+- Dashboard action items require relevant operation authority as well as destination access. Distinguish personal actions, shared team queues and informational readiness; include the reason and next step without implying personal assignment.
+- Operational tasks use persisted assignment/history with source occurrence keys and optimistic concurrency. Recheck an assignee's current workspace/account/MFA/effective permissions on every assignment; assignment never grants access. Claiming cannot steal another owner's task. Resolve through the underlying workflow. See docs/architecture/operational-task-assignment.md.
 - Use `wwwroot/css` for app CSS.
 - Avoid JavaScript unless Blazor cannot access the browser capability directly.
 - Tables should support compact layout, horizontal overflow, pagination/search/filter patterns, and consistent actions.
-- Listing pages follow the shared compact layout: create actions occupy a separate top-right page action row, shown-count badges occupy the list heading's right edge, and search/filter controls occupy a full-width row below the heading.
+- Administration listings follow the Access Catalog composition: one white card, a shared header with a neutral title and right-aligned Add action, optional Title Case tabs, filters below tabs and record counts in the pager. Embedded tab pages omit repeated titles and creation actions; their host owns the action. Keep tables white with subtle neutral header shading, and take action/status colors from MudProviderHost. See docs/development/ui-conventions.md.
+- Keep View, Edit, Delete and More in fixed TableRowActions slots; unavailable actions remain disabled and empty More menus stay grey. Delete actions/confirmations use Error. Form submissions use green Success Save buttons with the Save icon; entry actions use Add. Button labels use Title Case. Dialog headers use neutral shading and status chips use subdued semantic tints with readable text.
+- The account menu dismisses on navigation, click-away and Escape. Header context reflects the current account/workspace page, preserving support/Demo notices. Provider connection buttons have brand icons, spacing and responsive wrapping.
 - New route guards must use native Blazor authorization: `@attribute [Authorize]`, `@layout` with a policy-protected layout, or `<AuthorizeView>`. Do not add new ad-hoc `HasPermission()` checks for route-level gating; leave existing `HasPermission()` calls for inline UI visibility unchanged.
-- Control Plane pages must use `ControlPlaneLayout` and declare `@attribute [Authorize(Policy = "ControlPlane.Manage")]` on the page. AuthorizeRouteView enforces the page policy before page initialization. Layout attributes alone are not route authorization.
+- Control Plane pages must use `ControlPlaneLayout` and a native `[Authorize]` policy for their specific `PlatformPermissions` operation. The shared shell uses `ControlPlane.Access`; retired `control_plane.manage` grants no authority. AuthorizeRouteView enforces the page policy before page initialization. Layout attributes alone are not route authorization.
 
 ## Azure And Configuration
 
@@ -152,6 +166,7 @@ This file is the canonical source of truth and working contract for AI coding to
 ## Workflow Rules
 
 - Preserve user changes. Do not revert unrelated work.
+- Restore from the public-only repository nuget.config; no GitHub NuGet feed or token is required. GHCR container publishing is separate. Keep versions in Directory.Packages.props and project PackageReference items unversioned; per-project VersionOverride is disabled. Keep the SDK, target frameworks, ASP.NET/EF and approved Microsoft package families on stable 10.x. Run scripts/check-package-policy.ps1 for dependency changes and preserve the CI audit failures. Dependabot proposes reviewed patch/minor groups; MassTransit, Quartz and RazorStyle updates remain deliberate. See docs/development/package-management.md.
 - Prefer small, focused commits with clear messages.
 - When adding or modifying constructor dependencies for core abstractions (like `DbContext`), ensure the dependency injection configurations in the integration tests are also updated to provide those services.
 - Before opening or updating a PR, run:
@@ -185,6 +200,7 @@ Keep these files short and aligned with this file. Do not let them become indepe
 ## Vendor and demo boundaries
 
 - Reserved control_plane permissions require explicit platform_staff identity membership and the permission; tenant role names never grant platform authority.
+- Reserved platform operation permissions are direct identity grants; tenant role claims cannot confer them. Keep issued claims, live API authority and current-user responses aligned. MFA enrollment guidance must include platform staff using custom role names.
 - DevelopmentSeed:GrantPlatformAccess is opt-in for only the configured bootstrap identity and defaults false. Keep the local opt-in in user-secrets.
 - IAM roles and catalogue uniqueness are tenant-scoped. Provider migrations must preserve ownership and reject ambiguous shared-role backfills.
 - Module definitions may be admin-created, but activation depends on a deployed implementation registration. Tenant assignment uses the active, implemented catalogue.
@@ -194,5 +210,15 @@ Keep these files short and aligned with this file. Do not let them become indepe
 - Module catalogue defaults are global; customer navigation and access customizations remain tenant-owned. Availability is the intersection of implementation, global lifecycle, dependencies, tenant entitlement and flags. Never copy a vendor catalogue to provision a customer.
 - New module assignments with application-generated identifiers must be explicitly added through the ControlPlane Unit of Work repository; do not rely on EF attaching them through an already tracked tenant navigation collection.
 
-- Control Panel uses tabbed reusable table listings; keep direct routes working. Sidebar order is Dashboard, workspace modules, administration, then bottom-pinned demo/overview above the inset.
+- Control Panel is a permission-filtered navigation tile hub; its destination listings keep the shared table-card composition. Preserve former ?tab= bookmarks through redirects. Dashboard metrics come from authorized API data, exclude platform/Demo workspaces from customer counts and never imply unsupported lifecycle states. Sidebar order is Dashboard, workspace modules and Control Panel, with Admin Center at the bottom. Demo is a permission-protected Control Panel tool; retired overview/sample pages stay out of product navigation.
 - Payments is a distinct module entitlement. Disabling or retiring a module must deny its APIs as well as hide navigation. Retire retains data and is terminal; Core/IAM are essential.
+
+Ordinary people administration and credential entry require Human account kind; internal support/Demo proxies stay in their dedicated workflows. Interactive permission projection must preserve explicit supported platform grants independently of tenant-module unavailability.
+
+Organization settings use OrganizationSettingCatalog: supported keys/defaults/options only, real consumers, audited revision-checked save/reset and tenant-aware cache invalidation. Presentation time zones never change TimeProvider UTC instants or security decisions. Use circuit-scoped PresentationPreferences for display; do not mutate process-wide culture for pooled tenants. See docs/development/organization-settings.md.
+
+Tenant branding uses the existing tenant display name plus OrganizationBranding initials in auth and sidebar brand areas. Keep the initial shell neutral, fence explicit tenant-target branding, and use Organization Code/Change Organization for manual sign-in fallback. Public IsPlatformWorkspace is display metadata, never authorization. See docs/development/tenant-branding-and-sign-in.md.
+
+## Company frontend routing
+
+Company app origins are explicitly registered, canonical, unique and tenant-bound before restoring UI sessions. Shared frontend origins use `Tenant:CentralFrontendOrigins`. Preserve `X-Frontend-Origin` propagation for JSON/uploads/downloads, fail-closed mismatches and JWT tenant enforcement. This header and public branding flags never grant authority. SSO return targets must match the requested active tenant or an approved shared origin; keep the exact callback route. See `docs/development/tenant-branding-and-sign-in.md`.

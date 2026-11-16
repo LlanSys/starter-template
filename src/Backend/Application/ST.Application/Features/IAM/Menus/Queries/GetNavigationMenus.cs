@@ -1,9 +1,12 @@
+using ST.SharedKernel.Features.ControlPlane;
+using ST.SharedKernel.Features.IAM.Menus;
 using MediatR;
 using ST.Application.Features.ControlPlane.Modules;
 using ST.Application.Features.IAM.Menus.Mappings;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.IAM.Menus.Dtos;
 namespace ST.Application.Features.IAM.Menus.Queries;
+
 internal sealed class GetNavigationMenusQueryHandler(IEffectiveNavigation navigation, IEffectiveModulePolicy policy) : IRequestHandler<GetNavigationMenusQuery, AppResponse<IReadOnlyList<MenuResponse>>>
 {
     public async Task<AppResponse<IReadOnlyList<MenuResponse>>> Handle(GetNavigationMenusQuery query, CancellationToken cancellationToken)
@@ -12,11 +15,14 @@ internal sealed class GetNavigationMenusQueryHandler(IEffectiveNavigation naviga
         var rows = await navigation.GetAsync(cancellationToken).ConfigureAwait(false);
         var permissions = query.PermissionKeys.Where(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || access.PermissionAvailable(key)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var roles = (query.RoleNames ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var visible = rows.ToDictionary(x => x.Menu.Id, x => x.Available && x.Menu.IsActive && x.Menu.IsVisibleTo(roles, permissions)
+        var visible = rows.ToDictionary(x => x.Menu.Id, x => x.Available && x.Menu.IsActive && x.Menu.IsVisibleTo(roles, permissions) && AdministrationPageAccess.CanOpen(x.Menu.Url, permissions)
+            && (x.Menu.Url != "/control-panel" || PlatformPermissions.OpensControlPanel(permissions))
             && x.Menu.RequiredPermissionKeys.All(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) ? permissions.Contains(key) : access.PermissionAvailable(key))
             && (x.Definition is null || x.Definition.RoleNames.Length == 0 || x.Definition.RoleNames.Any(roles.Contains)));
+
         var tree = NavigationHierarchy.Visible(rows.Select(x => x.Menu), menu => visible[menu.Id])
             .Where(menu => string.Equals(menu.Placement, query.Placement, StringComparison.OrdinalIgnoreCase)).ToList().ToTree();
+
         return AppResponses.Success<IReadOnlyList<MenuResponse>>(tree);
     }
 }

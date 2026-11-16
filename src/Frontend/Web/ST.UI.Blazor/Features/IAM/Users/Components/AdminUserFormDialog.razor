@@ -3,25 +3,60 @@
 
 <MudDialog>
     <DialogContent>
-    <EditForm FormName="iam-admin-user-form" Model="_model" OnValidSubmit="SaveAsync">
-        <DataAnnotationsValidator />
+        <EditForm FormName="iam-admin-user-form"
+                  Model="_model"
+                  OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
             <MudGrid Spacing="2">
-                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.FirstName" Label="First Name" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
-                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.LastName" Label="Last Name" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
-                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Username" Label="Username" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
-                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Email" Label="Email" Margin="Margin.Dense" Variant="Variant.Outlined" Required /></MudItem>
-                <MudItem xs="12" sm="12">
-                    <PhoneNumberInput @bind-CountryCode="_model.CountryCode"
-                                                                                    @bind-NationalNumber="_model.PhoneNationalNumber"
-                                                                                    @bind-E164="_model.PhoneNumber"
-                                                                                    Required="false"
-                                                                                    CountryColumns="6"
-                                                                                    PhoneColumns="6" />
+                <MudItem xs="12"
+                         sm="6">
+                    <MudTextField @bind-Value="_model.FirstName"
+                                  Label="First Name"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
                 </MudItem>
-                <MudItem xs="12" sm="4">
+                <MudItem xs="12"
+                         sm="6">
+                    <MudTextField @bind-Value="_model.LastName"
+                                  Label="Last Name"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="6">
+                    <MudTextField @bind-Value="_model.Username"
+                                  Label="Username"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="6">
+                    <MudTextField @bind-Value="_model.Email"
+                                  Label="Email"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Required />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="12">
+                    <PhoneNumberInput @bind-CountryCode="_model.CountryCode"
+                                      @bind-NationalNumber="_model.PhoneNationalNumber"
+                                      @bind-E164="_model.PhoneNumber"
+                                      Required="false"
+                                      CountryColumns="6"
+                                      PhoneColumns="6" />
+                </MudItem>
+                <MudItem xs="12"
+                         sm="4">
                     @if (ExistingUser is null)
                     {
-                        <MudSelect @bind-Value="_model.Role" Label="Role" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelect @bind-Value="_model.Role"
+                                   Label="Role"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
                             @foreach (var role in Roles)
                             {
                                 <MudSelectItem Value="@role">@role</MudSelectItem>
@@ -30,19 +65,38 @@
                     }
                     else
                     {
-                        <MudTextField Value="@RoleText" Label="Role" Margin="Margin.Dense" Variant="Variant.Outlined" ReadOnly="true" />
+                        <MudTextField Value="@RoleText"
+                                      Label="Role"
+                                      Margin="Margin.Dense"
+                                      Variant="Variant.Outlined"
+                                      ReadOnly="true" />
                     }
                 </MudItem>
                 @if (ExistingUser is null)
                 {
-                    <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.Password" Label="Initial Password" Margin="Margin.Dense" Variant="Variant.Outlined" Required InputType="InputType.Password" /></MudItem>
+                    <MudItem xs="12"
+                             sm="4">
+                        <MudTextField @bind-Value="_model.Password"
+                                      Label="Initial Password"
+                                      Margin="Margin.Dense"
+                                      Variant="Variant.Outlined"
+                                      Required
+                                      InputType="InputType.Password" />
+                    </MudItem>
                 }
             </MudGrid>
         </EditForm>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="_isSaving" OnClick="SaveAsync">@SaveButtonText</MudButton>
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Success"
+                   Disabled="_isSaving"
+                   OnClick="SaveAsync"
+                   StartIcon="@Icons.Material.Filled.Save">@(_isSaving ? "Saving..." : "Save")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -59,7 +113,6 @@
     [Parameter]
     public AdminUserListResponse? ExistingUser { get; set; }
 
-    private string SaveButtonText => _isSaving ? "Saving..." : ExistingUser is null ? "Create" : "Update";
 
     private string RoleText => ExistingUser is null
         ? _model.Role

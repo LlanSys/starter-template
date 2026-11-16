@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "Directory.*.props"
+      - "global.json"
+      - "nuget.config"
+      - "ops/docker/**"
+      - ".dockerignore"
       - ".github/workflows/non-azure-deploy.yml"
   workflow_dispatch:
     inputs:

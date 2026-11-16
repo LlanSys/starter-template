@@ -20,7 +20,8 @@ Run in Docker:
 - Redis for distributed cache and HybridCache L2
 - Mailpit for safe local email capture
 - Seq when a locally installed Seq instance is not already available
-- Azurite for local Azure Blob-compatible profile-image storage
+- Azurite for local Azure Blob-compatible private profile images and KYC evidence
+- ClamAV for mandatory KYC original-file safety checks (native localhost:13315, private Docker clamav:3310)
 - SQL Server when a developer does not want to use an installed SQL Server instance
 - API and Blazor app containers when testing local deployability instead of Visual Studio debugging
 

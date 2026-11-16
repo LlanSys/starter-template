@@ -15,8 +15,7 @@ internal sealed class PermissionAuthorizationHandler(IEffectiveModulePolicy poli
 
         if (requirement.Permission.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase))
         {
-            if (PlatformAccess.IsStaff(context.User)
-                && context.User.HasClaim(PermissionAuthorizationConstants.ClaimType, requirement.Permission))
+            if (PlatformAccess.Can(context.User, requirement.Permission))
             {
                 context.Succeed(requirement);
             }

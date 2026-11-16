@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts.Common;
@@ -25,14 +27,22 @@ internal sealed class UpdateAdminUser(
         try
         {
             var user = await userManager.FindByIdAsync(command.UserId).ConfigureAwait(false);
-            if (user is null || user.IsDeleted || tenantProvider.TenantId == Guid.Empty || user.TenantId != tenantProvider.TenantId)
+
+            if (user is null || user.Kind != AccountKind.Human || user.IsDeleted || tenantProvider.TenantId == Guid.Empty || user.TenantId != tenantProvider.TenantId)
             {
                 return AppResponses.NotFound<AdminUserListResponse>("User not found.");
             }
 
+            if ((await userManager.GetClaimsAsync(user).ConfigureAwait(false)).Any(c => c.Type == PlatformAccess.StaffClaim && c.Value == "true"))
+            {
+                return AppResponses.Failure<AdminUserListResponse>("Manage platform staff through Platform Staff in the Control Panel.");
+            }
+
             var requestedRoles = command.Request.Roles.Where(static role => !string.IsNullOrWhiteSpace(role))
                 .Select(static role => role.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
             var normalizedRoles = requestedRoles.Select(roleManager.NormalizeKey).ToArray();
+
             if (normalizedRoles.Length > 0 && await roleManager.Roles
                 .CountAsync(role => normalizedRoles.Contains(role.NormalizedName), cancellationToken).ConfigureAwait(false) != normalizedRoles.Length)
             {
@@ -40,6 +50,7 @@ internal sealed class UpdateAdminUser(
             }
 
             var currentRoles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
+
             if (!await delegation.CanChangeRolesAsync(currentRoles, requestedRoles, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Failure<AdminUserListResponse>("You cannot change one or more of these role assignments.");
@@ -51,15 +62,18 @@ internal sealed class UpdateAdminUser(
                 var now = timeProvider.GetUtcNow();
                 user.UpdateAdminProfile(now, request.UserName, request.Email, request.FirstName, request.LastName,
                     request.PhoneNumber, command.UpdatedBy);
+
                 EnsureSucceeded(await userManager.UpdateAsync(user).ConfigureAwait(false), "The user profile could not be updated. Check the account details.");
 
                 var desiredRoles = requestedRoles;
                 var rolesToRemove = currentRoles.Except(desiredRoles, StringComparer.OrdinalIgnoreCase).ToArray();
                 var rolesToAdd = desiredRoles.Except(currentRoles, StringComparer.OrdinalIgnoreCase).ToArray();
+
                 if (rolesToRemove.Length > 0)
                 {
                     EnsureSucceeded(await userManager.RemoveFromRolesAsync(user, rolesToRemove).ConfigureAwait(false), "The requested role changes could not be saved.");
                 }
+
                 if (rolesToAdd.Length > 0)
                 {
                     EnsureSucceeded(await userManager.AddToRolesAsync(user, rolesToAdd).ConfigureAwait(false), "The requested role changes could not be saved.");
@@ -96,5 +110,7 @@ internal sealed class UpdateAdminUser(
         }
     }
 
-    private sealed class AccountUpdateRejectedException(string message) : Exception(message) { }
+    private sealed class AccountUpdateRejectedException(string message) : Exception(message)
+    {
+    }
 }

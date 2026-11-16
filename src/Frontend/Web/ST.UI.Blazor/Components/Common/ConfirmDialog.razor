@@ -3,9 +3,17 @@
         <MudText Typo="Typo.body2">@Message</MudText>
     </DialogContent>
     <DialogActions>
-        <div class="d-flex justify-end w-100" style="gap: 1rem;">
-            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Default" OnClick="Cancel">Cancel</MudButton>
-            <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" OnClick="Confirm">@ConfirmText</MudButton>
+        <div class="d-flex justify-end w-100"
+             style="gap: 1rem;">
+            <MudButton Variant="Variant.Outlined"
+                       Size="Size.Small"
+                       Color="Color.Default"
+                       OnClick="Cancel">Cancel</MudButton>
+            <MudButton Variant="Variant.Filled"
+                       Size="Size.Small"
+                       Color="@(IsDestructive ? Color.Error : IsSave ? Color.Success : Color.Primary)"
+                       StartIcon="@(IsDelete ? Icons.Material.Filled.Delete : IsSave ? Icons.Material.Filled.Save : IsDestructive ? Icons.Material.Filled.Block : Icons.Material.Filled.Check)"
+                       OnClick="Confirm">@UiLabels.TitleCase(ConfirmText)</MudButton>
         </div>
     </DialogActions>
 </MudDialog>
@@ -19,6 +27,15 @@
 
     [Parameter]
     public string ConfirmText { get; set; } = "Confirm";
+
+    private bool IsSave => ConfirmText.StartsWith("Save", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsDestructive => IsDelete
+        || ConfirmText.StartsWith("Deactivate", StringComparison.OrdinalIgnoreCase)
+        || ConfirmText.StartsWith("Revoke", StringComparison.OrdinalIgnoreCase)
+        || ConfirmText.StartsWith("Retire", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsDelete => ConfirmText.StartsWith("Delete", StringComparison.OrdinalIgnoreCase);
 
     private void Confirm() => MudDialog.Close(DialogResult.Ok(true));
 

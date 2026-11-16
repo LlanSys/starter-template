@@ -1,3 +1,5 @@
+using ST.Application.Features.ControlPlane.Kyc.Contracts;
+using ST.SharedKernel.Dtos.Common;
 using System.Reflection;
 using ST.Api.Common.Authorization;
 using ST.Api.Features.ControlPlane.Tenants.Controllers;
@@ -63,7 +65,7 @@ public sealed class TenantApprovalTests
         uow.Tenants.FindByIdAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(tenant);
         var actor = Substitute.For<ICurrentActorProvider>();
         actor.ActorId.Returns("administrator-id");
-        var handler = new ActivateTenantCommandHandler(uow, NullLogger<ActivateTenantCommandHandler>.Instance, actor, TimeProvider.System);
+        var handler = new ActivateTenantCommandHandler(uow, NullLogger<ActivateTenantCommandHandler>.Instance, actor, TimeProvider.System, Retention());
         var result = await handler.Handle(new ActivateTenantCommand(tenant.Id), CancellationToken.None);
         Assert.False(result.IsSuccess);
         Assert.Equal(status, tenant.Status);
@@ -101,7 +103,7 @@ public sealed class TenantApprovalTests
         uow.Tenants.FindByIdAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(tenant);
         var actor = Substitute.For<ICurrentActorProvider>();
         actor.ActorId.Returns("administrator-id");
-        var handler = new ActivateTenantCommandHandler(uow, NullLogger<ActivateTenantCommandHandler>.Instance, actor, TimeProvider.System);
+        var handler = new ActivateTenantCommandHandler(uow, NullLogger<ActivateTenantCommandHandler>.Instance, actor, TimeProvider.System, Retention());
         using var cancellation = new CancellationTokenSource();
         var result = await handler.Handle(new ActivateTenantCommand(tenant.Id), cancellation.Token);
         Assert.True(result.IsSuccess);
@@ -121,8 +123,38 @@ public sealed class TenantApprovalTests
         var method = typeof(TenantsController).GetMethod(methodName)!;
         Assert.Null(method.GetCustomAttribute<AllowAnonymousAttribute>());
         Assert.Equal(PermissionAuthorizationConstants.BuildPolicyName(methodName == nameof(TenantsController.Approve)
-            ? "control_plane.approve_kyc" : "control_plane.manage"),
+            ? "control_plane.approve_kyc" : "control_plane.manage_tenant_lifecycle"),
             method.GetCustomAttribute<RequirePermissionAttribute>()!.Policy);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RestoredOrUnavailableEvidenceCannotReactivateTheWorkspace(bool unavailable)
+    {
+        var tenant = CreateTenant();
+        tenant.Approve("reviewer", DateTimeOffset.UnixEpoch, "Synthetic old review");
+        tenant.MarkAsActive();
+        tenant.Suspend();
+        var unit = Substitute.For<IControlPlaneUnitOfWork>();
+        unit.Tenants.FindByIdAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(tenant);
+        var retention = Retention();
+        retention.CheckErasureAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(unavailable
+            ? AppResponses.Failure<bool>(AppError.DependencyUnavailable("Synthetic ledger outage"))
+            : AppResponses.Success(true));
+        var handler = new ActivateTenantCommandHandler(unit, NullLogger<ActivateTenantCommandHandler>.Instance,
+            Substitute.For<ICurrentActorProvider>(), TimeProvider.System, retention);
+        var result = await handler.Handle(new ActivateTenantCommand(tenant.Id), CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TenantStatus.Suspended, tenant.Status);
+        await unit.DidNotReceiveWithAnyArgs().CompleteAsync(default);
+    }
+
+    private static IKycRetentionService Retention()
+    {
+        var service = Substitute.For<IKycRetentionService>();
+        service.CheckErasureAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(AppResponses.Success(false));
+        return service;
     }
 
     private static Tenant CreateTenant() => new()

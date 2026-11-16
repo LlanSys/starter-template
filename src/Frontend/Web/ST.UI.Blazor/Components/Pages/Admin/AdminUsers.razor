@@ -1,3 +1,4 @@
+@using ST.SharedKernel.Features.Shared.Common.Enums
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject IIamAdminService IamAdminService
@@ -16,106 +17,160 @@
                   DebounceInterval="400"
                   OnDebounceIntervalElapsed="ApplyFiltersAsync"
                   OnKeyDown="HandleSearchKeyDown" />
-    <MudIconButton Icon="@Icons.Material.Filled.FilterList" Size="Size.Small" Color="@(_showFilters ? Color.Success : Color.Default)" OnClick="ToggleFilters" title="Advanced filters" />
+    <MudIconButton Icon="@Icons.Material.Filled.FilterList"
+                   Size="Size.Small"
+                   Color="@(_showFilters ? Color.Success : Color.Default)"
+                   OnClick="ToggleFilters"
+                   title="Advanced filters" />
     @if (HasActiveFilters)
     {
-        <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Small" Color="Color.Error" OnClick="ClearFiltersAsync" title="Clear filters" />
+        <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff"
+                       Size="Size.Small"
+                       Color="Color.Error"
+                       OnClick="ClearFiltersAsync"
+                       title="Clear filters" />
     }
 </div>
 
-        @if (_showFilters)
-        {
-            <MudDivider Class="my-2" />
-            <MudGrid Spacing="2" Class="mb-2">
-                <MudItem xs="12" sm="6" lg="3">
-                    <MudSelect T="string" Value="_statusFilter" ValueChanged="@(async (string? val) => { _statusFilter = val; await ApplyFiltersAsync(); })" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                        @foreach (var item in StatusOptions)
-                        {
-                            <MudSelectItem Value="@item">@item</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="6" lg="3">
-                    <MudSelect T="string" Value="_roleFilter" ValueChanged="@(async (string? val) => { _roleFilter = val; await ApplyFiltersAsync(); })" Label="Role" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                        @foreach (var item in AvailableRoles)
-                        {
-                            <MudSelectItem Value="@item">@item</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="6" lg="3">
-                    <MudSelect T="string" Value="_twoFactorFilter" ValueChanged="@(async (string? val) => { _twoFactorFilter = val; await ApplyFiltersAsync(); })" Label="Two-factor" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                        @foreach (var item in TwoFactorOptions)
-                        {
-                            <MudSelectItem Value="@item">@item</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-            </MudGrid>
-        }
+@if (_showFilters)
+{
+    <MudDivider Class="my-2" />
+    <MudGrid Spacing="2"
+             Class="mb-2">
+        <MudItem xs="12"
+                 sm="6"
+                 lg="3">
+            <MudSelect T="string"
+                       Value="_statusFilter"
+                       ValueChanged="@(async (string? val) => { _statusFilter = val; await ApplyFiltersAsync(); })"
+                       Label="Status"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true">
+                @foreach (var item in StatusOptions)
+                {
+                    <MudSelectItem Value="@item">@item</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12"
+                 sm="6"
+                 lg="3">
+            <MudSelect T="string"
+                       Value="_roleFilter"
+                       ValueChanged="@(async (string? val) => { _roleFilter = val; await ApplyFiltersAsync(); })"
+                       Label="Role"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true">
+                @foreach (var item in AvailableRoles)
+                {
+                    <MudSelectItem Value="@item">@item</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12"
+                 sm="6"
+                 lg="3">
+            <MudSelect T="string"
+                       Value="_twoFactorFilter"
+                       ValueChanged="@(async (string? val) => { _twoFactorFilter = val; await ApplyFiltersAsync(); })"
+                       Label="Two-factor"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true">
+                @foreach (var item in TwoFactorOptions)
+                {
+                    <MudSelectItem Value="@item">@item</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+}
 
-        @if (_isLoading)
-        {
-            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
-        }
+@if (_isLoading)
+{
+    <MudProgressLinear Color="Color.Success"
+                       Indeterminate="true"
+                       Class="my-2" />
+}
 
-        @if (!string.IsNullOrWhiteSpace(_message))
-        {
-            <MudAlert Severity="@_messageSeverity" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
-        }
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <MudAlert Severity="@_messageSeverity"
+              Variant="Variant.Outlined"
+              Dense="true"
+              Class="my-2">@_message</MudAlert>
+}
 
-        <div class="st-table-scroll">
-            <MudTable Items="_users" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="PageSize" Height="calc(100vh - 25rem)" Style="min-width: 980px;" Breakpoint="Breakpoint.None">
-                <HeaderContent>
-                    <MudTh Style="width: 15rem;">Name</MudTh>
-                    <MudTh Style="width: 18rem;">Email</MudTh>
-                    <MudTh Style="width: 14rem;">Roles</MudTh>
-                    <MudTh Style="width: 8rem;">Status</MudTh>
-                    <MudTh Style="width: 8rem;">2FA</MudTh>
-                    <MudTh Style="width: 8rem;">Actions</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Name">@DisplayName(context)</MudTd>
-                    <MudTd DataLabel="Email">@context.Email</MudTd>
-                    <MudTd DataLabel="Roles">@RoleText(context)</MudTd>
-                    <MudTd DataLabel="Status">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Warning)">@(context.IsActive ? "Active" : "Inactive")</MudChip>
-                    </MudTd>
-                    <MudTd DataLabel="2FA">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.TwoFactorEnabled ? Color.Success : Color.Info)">@(context.TwoFactorEnabled ? "Enabled" : "Recommended")</MudChip>
-                    </MudTd>
-                    <MudTd DataLabel="Actions">
-                        <TableRowActions OnView="@(() => ShowUserDetailsAsync(context))"
-                                         OnEdit="@(() => OpenUserDialogAsync(context))"
-                                         OnDelete="@(() => ConfirmDeactivateAsync(context))"
-                                         CanView="@AuthSession.HasPermission("users.view")"
-                                         CanEdit="@AuthSession.HasPermission("users.edit")"
-                                         CanDelete="@(context.IsActive && AuthSession.HasPermission("users.deactivate"))"
-                                         ExtraActions="@UserExtraActions(context)"
-                                         OnExtraAction="@((action) => HandleExtraActionAsync(context, action))" />
-                    </MudTd>
-                </RowTemplate>
-                <NoRecordsContent>
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
-                </NoRecordsContent>
-                <PagerContent>
-                    <GlobalTablePager CurrentPage="_currentPage"
-                                      TotalRecords="_totalRecords"
-                                      PageSize="PageSize"
-                                      IsLoading="_isLoading"
-                                      OnFirstPage="GoToFirstPageAsync"
-                                      OnPreviousPage="GoToPreviousPageAsync"
-                                      OnNextPage="GoToNextPageAsync" />
-                </PagerContent>
-            </MudTable>
-        </div>
+<div class="st-table-scroll">
+    <MudTable Items="_users"
+              Dense="true"
+              Hover="true"
+              Elevation="0"
+              FixedHeader="true"
+              RowsPerPage="PageSize"
+              Height="calc(100vh - 25rem)"
+              Style="--st-table-min-width: 980px;"
+              Breakpoint="Breakpoint.None">
+        <HeaderContent>
+            <MudTh Style="width: 15rem;">Name</MudTh>
+            <MudTh Style="width: 18rem;">Email</MudTh>
+            <MudTh Style="width: 14rem;">Roles</MudTh>
+            <MudTh Style="width: 8rem;">Status</MudTh>
+            <MudTh Style="width: 8rem;">2FA</MudTh>
+            <MudTh Class="st-actions-column">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@DisplayName(context)</MudTd>
+            <MudTd DataLabel="Email">@context.Email</MudTd>
+            <MudTd DataLabel="Roles">@RoleText(context)</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string"
+                         Size="Size.Small"
+                         Color="@(context.IsActive ? Color.Success : Color.Warning)"
+                         Variant="Variant.Text">@(context.IsActive ? "Active" : "Inactive")</MudChip>
+            </MudTd>
+            <MudTd DataLabel="2FA">
+                <MudChip T="string"
+                         Size="Size.Small"
+                         Color="@(context.TwoFactorEnabled ? Color.Success : Color.Info)"
+                         Variant="Variant.Text">@(context.TwoFactorEnabled ? "Enabled" : "Recommended")</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions"
+                   Class="st-actions-column">
+                <TableRowActions OnView="@(() => ShowUserDetailsAsync(context))"
+                                 OnEdit="@(() => OpenUserDialogAsync(context))"
+                                 OnDelete="@(() => ConfirmDeactivateAsync(context))"
+                                 CanView="@AuthSession.HasPermission("users.view")"
+                                 CanEdit="@AuthSession.HasPermission("users.edit")"
+                                 CanDelete="@(context.IsActive && AuthSession.HasPermission("users.deactivate"))"
+                                 ExtraActions="@UserExtraActions(context)"
+                                 OnExtraAction="@((action) => HandleExtraActionAsync(context, action))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2"
+                     Class="pa-3">No records found.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <GlobalTablePager CurrentPage="_currentPage"
+                              TotalRecords="_totalRecords"
+                              PageSize="PageSize"
+                              IsLoading="_isLoading"
+                              OnFirstPage="GoToFirstPageAsync"
+                              OnPreviousPage="GoToPreviousPageAsync"
+                              OnNextPage="GoToNextPageAsync" />
+        </PagerContent>
+    </MudTable>
+</div>
 
 @code {
     public Task OpenCreateDialogAsync() => OpenUserDialogAsync(null);
 
     private static readonly string[] StatusOptions = ["Active", "Inactive"];
     private static readonly string[] TwoFactorOptions = ["Enabled", "Recommended"];
-    private const int PageSize = 50;
+    private int PageSize => Presentation.PageSize;
 
     private readonly List<AdminUserListResponse> _users = [];
     private readonly Stack<string?> _cursorHistory = new();
@@ -215,6 +270,11 @@
 
     private async Task LoadRolesAsync()
     {
+        _availableRoles.Clear();
+        if (!AuthSession.HasPermission("roles.view"))
+        {
+            return;
+        }
         var response = await IamAdminService.GetRolesAsync();
         if (response.IsSuccess && response.Data is not null)
         {
@@ -240,11 +300,18 @@
         var response = await IamAdminService.SearchUsersAsync(request);
         if (!response.IsSuccess || response.Data is null)
         {
+            _users.Clear();
+            _totalRecords = 0;
+            ResetPagination();
             _messageSeverity = Severity.Error;
             _message = response.Message ?? "We could not load users.";
             Snackbar.Add(_message, Severity.Error);
             _isLoading = false;
             StateHasChanged();
+            if (response.Error?.Type is ErrorType.Forbidden or ErrorType.Unauthorized)
+            {
+                await AuthSession.RefreshAsync();
+            }
             return;
         }
 
@@ -280,7 +347,7 @@
         };
 
         var dialog = await DialogService.ShowAsync<AdminUserFormDialog>(
-            user is null ? "Create User" : $"Edit - {DisplayName(user)}",
+            user is null ? "Add User" : $"Edit - {DisplayName(user)}",
             parameters,
             new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
 

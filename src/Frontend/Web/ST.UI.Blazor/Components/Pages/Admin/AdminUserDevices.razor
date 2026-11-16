@@ -15,56 +15,77 @@
                   Immediate="true" />
 </div>
 
-        @if (_isLoading)
-        {
-            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
-        }
+@if (_isLoading)
+{
+    <MudProgressLinear Color="Color.Success"
+                       Indeterminate="true"
+                       Class="my-2" />
+}
 
-        @if (!string.IsNullOrWhiteSpace(_message))
-        {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
-        }
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <MudAlert Severity="Severity.Error"
+              Variant="Variant.Outlined"
+              Dense="true"
+              Class="my-2">@_message</MudAlert>
+}
 
-        <div class="st-table-scroll">
-            <MudTable @ref="_table" Items="FilteredDevices" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 24rem)" Style="min-width: 920px;" Breakpoint="Breakpoint.None">
-                <HeaderContent>
-                    <MudTh>User</MudTh>
-                    <MudTh>Email</MudTh>
-                    <MudTh>Device</MudTh>
-                    <MudTh>IP Address</MudTh>
-                    <MudTh>Trusted</MudTh>
-                    <MudTh>Last Used</MudTh>
-                    <MudTh>Actions</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="User">@context.UserName</MudTd>
-                    <MudTd DataLabel="Email">@context.Email</MudTd>
-                    <MudTd DataLabel="Device">@context.DeviceName</MudTd>
-                    <MudTd DataLabel="IP Address">@context.IpAddress</MudTd>
-                    <MudTd DataLabel="Trusted">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsTrusted ? Color.Success : Color.Warning)">@(context.IsTrusted ? "Trusted" : "Untrusted")</MudChip>
-                    </MudTd>
-                    <MudTd DataLabel="Last Used">@context.LastUsedAt?.ToString("dd/MM/yyyy HH:mm")</MudTd>
-                    <MudTd DataLabel="Actions">
-                        <TableRowActions OnView="@(() => ShowDeviceSummary(context))"
-                                         OnDelete="@(() => ConfirmRevokeAsync(context))"
-                                         ExtraActions="@DeviceExtraActions(context)"
-                                         OnExtraAction="@((action) => HandleDeviceActionAsync(context, action))" />
-                    </MudTd>
-                </RowTemplate>
-                <NoRecordsContent>
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
-                </NoRecordsContent>
-                <PagerContent>
-                    <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
-                                      TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
-                                      PageSize="_table?.RowsPerPage ?? 50"
-                                      OnFirstPage="@(() => _table?.NavigateTo(0))"
-                                      OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
-                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
-                </PagerContent>
-            </MudTable>
-        </div>
+<div class="st-table-scroll">
+    <MudTable @ref="_table"
+              Items="FilteredDevices"
+              Dense="true"
+              Hover="true"
+              Elevation="0"
+              FixedHeader="true"
+              RowsPerPage="Presentation.PageSize"
+              Height="calc(100vh - 24rem)"
+              Style="--st-table-min-width: 920px;"
+              Breakpoint="Breakpoint.None">
+        <HeaderContent>
+            <MudTh>User</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Device</MudTh>
+            <MudTh>IP Address</MudTh>
+            <MudTh>Trusted</MudTh>
+            <MudTh>Last Used</MudTh>
+            <MudTh Class="st-actions-column">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="User">@context.UserName</MudTd>
+            <MudTd DataLabel="Email">@context.Email</MudTd>
+            <MudTd DataLabel="Device">@context.DeviceName</MudTd>
+            <MudTd DataLabel="IP Address">@context.IpAddress</MudTd>
+            <MudTd DataLabel="Trusted">
+                <MudChip T="string"
+                         Size="Size.Small"
+                         Color="@(context.IsTrusted ? Color.Success : Color.Warning)"
+                         Variant="Variant.Text">@(context.IsTrusted ? "Trusted" : "Untrusted")</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Last Used">@Presentation.Format(context.LastUsedAt)</MudTd>
+            <MudTd DataLabel="Actions"
+                   Class="st-actions-column">
+                <TableRowActions CanEdit="false"
+                                 CanDelete="@(context.IsTrusted && AuthSession.HasPermission("users.deactivate"))"
+                                 OnView="@(() => ShowDeviceSummary(context))"
+                                 OnDelete="@(() => ConfirmRevokeAsync(context))"
+                                 ExtraActions="@DeviceExtraActions(context)"
+                                 OnExtraAction="@((action) => HandleDeviceActionAsync(context, action))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2"
+                     Class="pa-3">No records found.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
+                              TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
+                              PageSize="_table?.RowsPerPage ?? Presentation.PageSize"
+                              OnFirstPage="@(() => _table?.NavigateTo(0))"
+                              OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
+                              OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+        </PagerContent>
+    </MudTable>
+</div>
 
 @code {
     private readonly List<AdminUserDeviceResponse> _devices = [];
@@ -126,10 +147,15 @@
         => Snackbar.Add($"Device: {device.DeviceName}. User: {device.Email}. Trusted: {(device.IsTrusted ? "Yes" : "No")}", Severity.Info);
 
     private Task HandleDeviceActionAsync(AdminUserDeviceResponse device, string action)
-        => action == "Revoke trust" ? ConfirmRevokeAsync(device) : Task.CompletedTask;
+    {
+        return string.Equals(action, "Revoke Trust", StringComparison.OrdinalIgnoreCase)
+            ? ConfirmRevokeAsync(device) : Task.CompletedTask;
+    }
 
-    private static IReadOnlyList<string> DeviceExtraActions(AdminUserDeviceResponse device)
-        => device.IsTrusted ? ["Revoke trust", "Review sessions"] : ["Review sessions"];
+    private IReadOnlyList<string> DeviceExtraActions(AdminUserDeviceResponse device)
+    {
+        return device.IsTrusted && AuthSession.HasPermission("users.deactivate") ? ["Revoke Trust"] : [];
+    }
 
     private async Task ConfirmRevokeAsync(AdminUserDeviceResponse device)
     {

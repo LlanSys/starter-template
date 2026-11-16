@@ -21,7 +21,7 @@ internal sealed class DemoWorkspaceMiddleware(RequestDelegate next, IOptions<Org
         var actor = actorId is null ? null : await iam.Users.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(user => user.Id == actorId && user.IsActive && !user.IsDeleted, context.RequestAborted).ConfigureAwait(false);
         var active = await controlPlane.Tenants.AnyAsync(tenant => tenant.Id == DemoWorkspace.TenantId && tenant.IsDemo && tenant.Status == TenantStatus.Active, context.RequestAborted).ConfigureAwait(false);
         var staff = actor is not null && await iam.UserClaims.AnyAsync(claim => claim.UserId == actor.Id && claim.ClaimType == PlatformAccess.StaffClaim && claim.ClaimValue == "true", context.RequestAborted).ConfigureAwait(false);
-        staff = staff && actor!.TwoFactorEnabled && await iam.UserClaims.AnyAsync(claim => claim.UserId == actor.Id && claim.ClaimType == "permission" && claim.ClaimValue == PlatformAccess.Permission, context.RequestAborted).ConfigureAwait(false);
+        staff = staff && actor!.TwoFactorEnabled && await iam.UserClaims.AnyAsync(claim => claim.UserId == actor.Id && claim.ClaimType == "permission" && claim.ClaimValue == PlatformPermissions.EnterDemo, context.RequestAborted).ConfigureAwait(false);
         if (!isDemo || !active || !staff)
         { context.Response.StatusCode = 403; await context.Response.WriteAsJsonAsync(new { message = "The demo session is no longer available." }, context.RequestAborted).ConfigureAwait(false); return; }
         var requestPath = context.Request.Path.Value ?? string.Empty;

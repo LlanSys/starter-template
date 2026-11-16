@@ -28,6 +28,7 @@ public sealed record CurrentUserResponse(
     public IReadOnlyList<string> AvailablePages { get; init; } = [];
     public IReadOnlyList<string> EnabledModules { get; init; } = [];
     public bool IsPlatformStaff { get; init; }
+    public bool HasMfaProof { get; init; }
     public bool IsReadOnlyDemo { get; init; }
     public bool IsDemoWorkspace { get; init; }
 }

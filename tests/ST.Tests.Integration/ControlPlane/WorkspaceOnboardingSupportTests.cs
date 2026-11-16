@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -157,6 +158,10 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
             new RefreshTokenRequest(beforeComplete.Token, beforeComplete.RefreshToken));
         tenant.DefaultRequestHeaders.Authorization = new("Bearer", refreshed.Token);
         using (var roles = await tenant.GetAsync("/api/v1/iam/admin/roles")) Assert.Equal(HttpStatusCode.OK, roles.StatusCode);
+        using (var settings = await tenant.GetAsync("/api/v1/shared/tenant-settings"))
+        {
+            Assert.Equal(HttpStatusCode.OK, settings.StatusCode);
+        }
         var status = await vendor.GetFromJsonAsync<AppResponse<WorkspaceSetupResponse>>($"/api/v1/control-plane/tenants/{a}/workspace");
         Assert.Equal("Accepted", status!.Data!.InvitationState);
         Assert.True(status.Data.MfaEnabled);
@@ -200,7 +205,7 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
         using (var scope = factory.Services.CreateScope()) { scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = a; var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); Assert.Equal(vendorIdentity.UserId, (await db.NavigationOverrides.SingleAsync(x => x.Title == "Supported workspace")).CreatedBy); }
         var saved = await writer.GetFromJsonAsync<AppResponse<MenuResponse>>($"/api/v1/iam/admin/menus/{home.Id}");
         using (var changed = await writer.PutAsJsonAsync($"/api/v1/iam/admin/menus/{home.Id}", new UpdateMenuRequest { Id = home.Id, Title = "Supported again", Url = home.Url, Icon = home.Icon, Placement = home.Placement, IsActive = true, ExpectedVersion = saved!.Data!.OverrideVersion })) Assert.True(changed.IsSuccessStatusCode);
-        using (var scope = factory.Services.CreateScope()) { scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = a; var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); Assert.Equal(vendorIdentity.UserId,(await db.NavigationOverrides.SingleAsync(x=>x.Title=="Supported again")).UpdatedBy); }
+        using (var scope = factory.Services.CreateScope()) { scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = a; var db = scope.ServiceProvider.GetRequiredService<IamDBContext>(); Assert.Equal(vendorIdentity.UserId, (await db.NavigationOverrides.SingleAsync(x => x.Title == "Supported again")).UpdatedBy); }
         await Post<SupportResult>(writer, $"/api/v1.0/iam/support/{writable.Id}/exit", null);
         using (var ended = await writer.GetAsync("/api/v1/iam/admin/menus")) Assert.Equal(HttpStatusCode.Forbidden, ended.StatusCode);
         var sourceGrant = (await Post<SupportResult>(vendor, "/api/v1/control-plane/support", supportRequest)).Grant; await Post<SupportResult>(tenant, $"/api/v1/iam/support/{sourceGrant.Id}/approve", supportRequest);
@@ -275,24 +280,24 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
     [Fact]
     public async Task TenantCreationApprovalAndModuleEditsAreVisibleImmediately()
     {
-        var identity=await IdentityAsync(Platform,true);using var vendor=Bearer(identity.Token);
+        var identity = await IdentityAsync(Platform, true); using var vendor = Bearer(identity.Token);
         await vendor.GetFromJsonAsync<AppResponse<List<TenantResponse>>>("/api/v1/control-plane/tenants");
-        var key=$"visible-{Guid.CreateVersion7():N}";
-        var created=await Post<TenantResponse>(vendor,"/api/v1/control-plane/tenants",new CreateTenantRequest { Identifier=key,DisplayName="Visible customer",HostName=key+".invalid",SubscriptionTier="Free",DeploymentStampId=Platform });
-        var listed=await vendor.GetFromJsonAsync<AppResponse<List<TenantResponse>>>("/api/v1/control-plane/tenants");Assert.Contains(listed!.Data!,x=>x.Id==created.Id && x.Status=="PendingApproval");
+        var key = $"visible-{Guid.CreateVersion7():N}";
+        var created = await Post<TenantResponse>(vendor, "/api/v1/control-plane/tenants", new CreateTenantRequest { Identifier = key, DisplayName = "Visible customer", HostName = key + ".invalid", SubscriptionTier = "Free", DeploymentStampId = Platform });
+        var listed = await vendor.GetFromJsonAsync<AppResponse<List<TenantResponse>>>("/api/v1/control-plane/tenants"); Assert.Contains(listed!.Data!, x => x.Id == created.Id && x.Status == "PendingApproval");
         await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}");
-        await Post<TenantResponse>(vendor,$"/api/v1/control-plane/tenants/{created.Id}/approve", new ApproveTenantRequest("review-created"));
-        var active=await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}");Assert.Equal("Active",active!.Data!.Status);
-        foreach(var module in new[]{"Core","IAM","Payments"})await Post<TenantResponse>(vendor,$"/api/v1/control-plane/tenants/{created.Id}/modules",new{ModuleKey=module});
-        var assigned=await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}");Assert.Contains("Payments",assigned!.Data!.EnabledModules);
-        using(var remove=await vendor.DeleteAsync($"/api/v1/control-plane/tenants/{created.Id}/modules/Payments"))Assert.True(remove.IsSuccessStatusCode);
-        var removed=await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}");Assert.DoesNotContain("Payments",removed!.Data!.EnabledModules);
+        await Post<TenantResponse>(vendor, $"/api/v1/control-plane/tenants/{created.Id}/approve", new ApproveTenantRequest("review-created"));
+        var active = await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}"); Assert.Equal("Active", active!.Data!.Status);
+        foreach (var module in new[] { "Core", "IAM", "Payments" }) await Post<TenantResponse>(vendor, $"/api/v1/control-plane/tenants/{created.Id}/modules", new { ModuleKey = module });
+        var assigned = await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}"); Assert.Contains("Payments", assigned!.Data!.EnabledModules);
+        using (var remove = await vendor.DeleteAsync($"/api/v1/control-plane/tenants/{created.Id}/modules/Payments")) Assert.True(remove.IsSuccessStatusCode);
+        var removed = await vendor.GetFromJsonAsync<AppResponse<TenantResponse>>($"/api/v1/control-plane/tenants/{created.Id}"); Assert.DoesNotContain("Payments", removed!.Data!.EnabledModules);
     }
     private async Task<(string Token, string UserId)> IdentityAsync(Guid tenant, bool staff)
     {
         await using var scope = factory.Services.CreateAsyncScope(); scope.ServiceProvider.GetRequiredService<IWorkspaceTenantOverride>().TenantId = tenant;
         var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(); var name = $"support-{Guid.CreateVersion7():N}"; var user = AppUser.CreateSystemUser(DateTimeOffset.UnixEpoch, tenant, name, name + "@example.test", "test"); user.IsActive = true; user.EmailConfirmed = true; user.TwoFactorEnabled = true; Assert.True((await users.CreateAsync(user)).Succeeded);
-        Assert.True((await users.AddClaimsAsync(user, staff ? [new("platform_staff", "true"), new("permission", "control_plane.manage"), new("permission", "control_plane.approve_kyc")] : [new("permission", "support.approve")])).Succeeded);
+        Assert.True((await users.AddClaimsAsync(user, staff ? PlatformPermissions.All.Select(key => new Claim("permission", key)).Append(new Claim("platform_staff", "true")) : [new("permission", "support.approve")])).Succeeded);
         var sessions = scope.ServiceProvider.GetRequiredService<ISessionService>(); var session = await sessions.CreateSessionAsync(user.Id, Guid.CreateVersion7(), "127.0.0.1", "test"); Assert.True(session.IsSuccess);
         var claims = await scope.ServiceProvider.GetRequiredService<IClaimsService>().GetUserClaimsAsync(user, session.Data); claims.Add(new Claim("amr", "mfa")); return (await scope.ServiceProvider.GetRequiredService<IJwtService>().CreateTokenAsync(claims), user.Id);
     }

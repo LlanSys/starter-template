@@ -31,6 +31,9 @@ internal sealed class LoggingMiddleware(RequestDelegate next, ILogger<LoggingMid
         "consumerKey",
         "consumerSecret",
         "databaseConnectionString",
+        "evidenceReference",
+        "feedback",
+        "reason",
         "jwt",
         "passKey",
         "password",
@@ -50,6 +53,8 @@ internal sealed class LoggingMiddleware(RequestDelegate next, ILogger<LoggingMid
         context.Response.Headers.TryAdd("X-Correlation-ID", context.TraceIdentifier);
 
         if (logger.IsEnabled(LogLevel.Debug)
+            && context.Request.Path.Value?.Contains("/kyc", StringComparison.OrdinalIgnoreCase) != true
+            && !(context.Request.ContentType?.StartsWith("multipart/", StringComparison.OrdinalIgnoreCase) ?? false)
             && (!excludedRequestBodyPath.HasValue || !context.Request.Path.StartsWithSegments(excludedRequestBodyPath)))
         {
             // EnableBuffering allows the body to be read multiple times.

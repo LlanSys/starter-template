@@ -1,0 +1,30 @@
+@using ST.SharedKernel.Features.ControlPlane.Staff
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using ST.UI.Blazor.Features.Shared.Messaging
+<MudDialog>
+    <DialogContent>
+        <MudText Class="mb-3">Send an expiring setup link to @Account.Email. Sending another invitation invalidates the previous link.</MudText>
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Warning"
+                      Dense="true">@_error</MudAlert>
+        }
+        <MudTextField @bind-Value="_reason"
+                      Label="Reason"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Required="true"
+                      MaxLength="500" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Disabled="_busy"
+                   Size="Size.Small">Cancel</MudButton>
+        <MudButton OnClick="SendAsync"
+                   Disabled="_busy"
+                   Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Send"
+                   Size="Size.Small">Send Invitation</MudButton>
+    </DialogActions>
+</MudDialog>

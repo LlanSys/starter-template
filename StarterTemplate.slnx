@@ -5,7 +5,8 @@
   </Configurations>
   <Folder Name="/Solution Items/">
     <File Path="Directory.Build.props" />
-    <File Path="Global.json" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
     <File Path="nuget.config" />
   </Folder>
   <Folder Name="/src/" />
@@ -40,6 +41,9 @@
     </Project>
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/ST.SourceFormatting/ST.SourceFormatting.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+    </Project>
     <Project Path="tools/ST.DatabaseTools/ST.DatabaseTools.csproj">
       <Platform Solution="*|x64" Project="x64" />
     </Project>

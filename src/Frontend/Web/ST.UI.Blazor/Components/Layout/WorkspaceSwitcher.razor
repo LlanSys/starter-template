@@ -1,3 +1,5 @@
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @using ST.UI.Blazor.Features.ControlPlane.Demo
 @using ST.SharedKernel.Features.ControlPlane.Support
@@ -12,18 +14,87 @@
 @inject IBackendApiClient Api
 @if (AuthSession.CurrentUser?.SupportGrantId is not null)
 {
-    <div class="workspace-context"><strong>Support · @AuthSession.CurrentUser.WorkspaceName · @(AuthSession.CurrentUser.IsReadOnlySupport ? "Read-only" : "Scoped writes") · until @AuthSession.CurrentUser.SupportExpiresAt?.ToLocalTime().ToString("t")</strong><MudButton OnClick="ReturnAsync" Disabled="_busy" Size="Size.Small">End support and return</MudButton></div>
+    <div class="workspace-context">
+        <strong>Support · @AuthSession.CurrentUser.WorkspaceName · @(AuthSession.CurrentUser.IsReadOnlySupport ? "Read-only" : "Scoped writes") · until @Presentation.Format(AuthSession.CurrentUser.SupportExpiresAt)</strong>
+        <MudButton OnClick="ReturnAsync"
+                   Disabled="_busy"
+                   Size="Size.Small">End Support And Return</MudButton>
+    </div>
 }
 else if (AuthSession.CurrentUser?.IsDemoWorkspace == true)
 {
-    <div class="workspace-context"><span class="workspace-demo-label">@(AuthSession.CurrentUser.IsReadOnlyDemo ? "Demo · Read-only" : "Demo · Tenant administration")</span><MudButton OnClick="ReturnAsync" Disabled="_busy" Size="Size.Small">Return to platform</MudButton></div>
+    <div class="workspace-context">
+        <span class="workspace-demo-label">@(AuthSession.CurrentUser.IsReadOnlyDemo ? "Demo · Read-only" : "Demo · Tenant administration")</span>
+        <MudButton OnClick="ReturnAsync"
+                   Disabled="_busy"
+                   Size="Size.Small">Return To Platform</MudButton>
+    </div>
+}
+else if (IsAccountPage)
+{
+    <div class="workspace-heading">
+        <span class="workspace-kicker">Account</span><strong>@CurrentHeading</strong>
+    </div>
 }
 else if (AuthSession.CurrentUser?.IsPlatformStaff == true)
 {
-    <div class="workspace-context"><a href="/control-panel">Platform administration</a></div>
+    <AuthorizeView Policy="ControlPlane.Access">
+        <div class="workspace-heading">
+            <span class="workspace-kicker">Platform</span><strong>@CurrentHeading</strong>
+        </div>
+    </AuthorizeView>
 }
-@if (_error is not null) { <span role="alert">@_error</span> }
+else if (AuthSession.IsAuthenticated)
+{
+    <div class="workspace-heading">
+        <span class="workspace-kicker">Organization</span><strong>@CurrentHeading</strong>
+    </div>
+}
+@if (_error is not null)
+{
+    <span role="alert">@_error</span>
+}
 @code {
+    private bool _disposed;
+
+    private string CurrentPath => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').ToLowerInvariant();
+    private bool IsAccountPage => CurrentPath is "/profile" or "/iam/security";
+    private string CurrentHeading => CurrentPath switch
+    {
+        "/profile" => "Profile",
+        "/iam/security" => "Security",
+        "/dashboard" or "" => "Dashboard",
+        "/tasks" => "Tasks",
+        _ when CurrentPath.StartsWith("/admin", StringComparison.OrdinalIgnoreCase) => "Admin Center",
+        _ when CurrentPath.StartsWith("/control-panel", StringComparison.OrdinalIgnoreCase) => "Control Panel",
+        _ => "Application"
+    };
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        AuthSession.AuthenticationChanged += OnAuthenticationChanged;
+        Presentation.Changed += OnAuthenticationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnAuthenticationChanged()
+    {
+        if (!_disposed) { _ = InvokeAsync(StateHasChanged); }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Navigation.LocationChanged -= OnLocationChanged;
+        AuthSession.AuthenticationChanged -= OnAuthenticationChanged;
+        Presentation.Changed -= OnAuthenticationChanged;
+    }
+
     private bool _busy;
     private string? _error;
     private async Task ReturnAsync()
