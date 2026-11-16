@@ -292,6 +292,7 @@ PasswordRecovery__Mode=EmailOtp
 PasswordRecovery__ResetPath=/iam/reset-password
 Messaging__Transport=RabbitMq
 Messaging__RabbitMq__Host=<rabbitmq-host>
+Messaging__RabbitMq__Port=5672
 Messaging__RabbitMq__Username=<rabbitmq-user>
 Messaging__RabbitMq__Password=<rabbitmq-password>
 CacheSettings__Provider=Redis
@@ -368,3 +369,11 @@ Follow [Azure CI/CD Configuration](azure-cicd-configuration.md) for the complete
 - If profile upload succeeds visually but no blob appears, confirm the backend response succeeded, `ProfileImageStorage:Provider=AzureBlob`, and the current user has completed required MFA enrollment.
 - If old package errors mention `FluentEmail.MailKit`, clean stale build output and rebuild; source code should no longer reference FluentEmail.
 - If migration bundles report `DefaultAzureCredential failed`, GitHub OIDC is missing or its federated subject does not match the `production` environment. App Service managed identity is not available to a GitHub-hosted runner.
+
+## KYC file-safety dependency
+
+Configure `KycDocumentSafety` for the central API host. Local native defaults are `localhost:13315`; Compose supplies private `clamav:3310`. Keep the host port loopback-only, persistent current signatures, UTC, encrypted/limit alerts and fail-closed outcomes. The platform-owning runtime processes the queue; dedicated customer runtimes cannot claim it. A deployed storage container alone does not provide scanning. Review [configuration, upgrade and failure handling](account-admission-and-kyc-safety.md) before deploying or renaming a downstream application.
+
+## Tenant frontend addresses
+
+Configure `Tenant:CentralFrontendOrigins` for shared frontend entry points, register each unique company app address in Control Panel > Tenants > App Address, and apply both-provider ControlPlane migration parity. DNS/TLS/ingress must serve the mapped origin. Validate frontend metadata against the signed tenant; it grants no authority. Follow the [company address checklist](tenant-branding-and-sign-in.md#company-app-addresses).

@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.IAM.Menus;
 using MudBlazor;
 using System.Collections.Frozen;
 using System.Reflection;
@@ -11,17 +12,23 @@ internal static class MenuIconMapper
             .Where(field => field.FieldType == typeof(string))
             .Select(field => KeyValuePair.Create($"{style.Name}.{field.Name}", (string)field.GetValue(null)!)))
         .ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
-    private static readonly string[] Keys = IconsByKey.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+    private static readonly string[] SortedKeys = IconsByKey.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+    public static IReadOnlyList<string> Keys => SortedKeys;
+
+    public static bool IsSupported(string? key)
+    {
+        return !string.IsNullOrWhiteSpace(key) && IconsByKey.ContainsKey(MaterialIconKeys.Normalize(key));
+    }
+
     public static string Resolve(string? icon)
     {
-        var key = icon?.Trim() ?? string.Empty;
-        if (!key.Contains('.', StringComparison.Ordinal)) key = $"Filled.{key}";
+        var key = MaterialIconKeys.Normalize(icon ?? string.Empty);
         return IconsByKey.GetValueOrDefault(key, Icons.Material.Filled.Menu);
     }
     public static Task<IEnumerable<string>> SearchAsync(string? text, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var terms = (text ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return Task.FromResult<IEnumerable<string>>(Keys.Where(key => terms.All(term => key.Contains(term, StringComparison.OrdinalIgnoreCase))).ToArray());
+        return Task.FromResult<IEnumerable<string>>(SortedKeys.Where(key => terms.All(term => key.Contains(term, StringComparison.OrdinalIgnoreCase))).ToArray());
     }
 }

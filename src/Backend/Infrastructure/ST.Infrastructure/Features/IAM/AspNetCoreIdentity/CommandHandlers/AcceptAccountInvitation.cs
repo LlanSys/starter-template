@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.Users.Enums;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.ControlPlane.Contracts;
@@ -18,12 +19,17 @@ internal sealed class AcceptAccountInvitation(UserManager<AppUser> users, IIamUn
     public async Task<AppResponse<bool>> Handle(AcceptAccountInvitationCommand command, CancellationToken cancellationToken)
     {
         var request = command.Request;
+
         try
         {
             var user = await users.FindByIdAsync(request.UserId).ConfigureAwait(false);
-            if (user is null || !user.IsActive || user.IsDeleted || user.EmailConfirmed || user.TenantId == Guid.Empty
+
+            if (user is null || user.Kind != AccountKind.Human || !user.IsActive || user.IsDeleted || user.EmailConfirmed || user.TenantId == Guid.Empty
                 || user.TenantId != tenantProvider.TenantId || !string.Equals(request.Password, request.ConfirmPassword, StringComparison.Ordinal))
+            {
                 return Rejected();
+            }
+
             if (await controlPlane.Tenants.AnyAsync(
                 tenant => tenant.Id == user.TenantId && tenant.AdministratorUserId == user.Id, cancellationToken).ConfigureAwait(false))
             {
@@ -31,7 +37,9 @@ internal sealed class AcceptAccountInvitation(UserManager<AppUser> users, IIamUn
             }
 
             if (!await users.VerifyUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user), request.Token).ConfigureAwait(false))
+            {
                 return Rejected();
+            }
 
             return await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
@@ -41,7 +49,12 @@ internal sealed class AcceptAccountInvitation(UserManager<AppUser> users, IIamUn
                 user.CompletePasswordReset(now, user.Id);
                 var resetToken = await users.GeneratePasswordResetTokenAsync(user).ConfigureAwait(false);
                 var result = await users.ResetPasswordAsync(user, resetToken, request.Password).ConfigureAwait(false);
-                if (!result.Succeeded) throw new InvitationRejectedException();
+
+                if (!result.Succeeded)
+                {
+                    throw new InvitationRejectedException();
+                }
+
                 await AccountAccessCleanup.StageAsync(unitOfWork, user.Id, user.Id, "Account invitation accepted", now, cancellationToken).ConfigureAwait(false);
                 await unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 return AppResponses.Success("Account setup complete. Sign in with your new password.", true);
@@ -59,6 +72,12 @@ internal sealed class AcceptAccountInvitation(UserManager<AppUser> users, IIamUn
         }
     }
 
-    private static AppResponse<bool> Rejected() => AppResponses.Failure<bool>("The invitation is invalid or expired, or the password does not meet the account policy.");
-    private sealed class InvitationRejectedException : Exception { }
+    private static AppResponse<bool> Rejected()
+    {
+        return AppResponses.Failure<bool>("The invitation is invalid or expired, or the password does not meet the account policy.");
+    }
+
+    private sealed class InvitationRejectedException : Exception
+    {
+    }
 }

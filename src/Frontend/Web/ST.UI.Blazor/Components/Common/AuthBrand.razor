@@ -1,0 +1,52 @@
+@implements IDisposable
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@inject WorkspaceSelection Selection
+
+<div class="auth-brand-header">
+    @if (Loading)
+    {
+        <div class="auth-brand auth-brand-placeholder"
+             aria-hidden="true">
+            <span class="auth-brand-mark"></span><span class="auth-brand-name-placeholder"></span>
+        </div>
+    }
+    else
+    {
+        <a class="auth-brand"
+           href="@SignInHref"
+           aria-label="@($"{DisplayName} sign-in")">
+            <span class="auth-brand-mark"
+                  aria-hidden="true">@OrganizationBranding.Initials(DisplayName)</span>
+            <span class="auth-brand-name">@DisplayName</span>
+        </a>
+    }
+</div>
+
+@code {
+    [Parameter] public string? OrganizationName { get; set; }
+    [Parameter] public Guid? TenantId { get; set; }
+    [Parameter] public bool IsPlatformWorkspace { get; set; }
+    [Parameter] public bool UseSelectedOrganization { get; set; } = true;
+    [Parameter] public bool Loading { get; set; }
+    private bool _disposed;
+    private string SignInHref => TenantId.HasValue ? $"/iam/sign-in?tenantId={TenantId}" : "/iam/sign-in";
+
+    private string DisplayName
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(OrganizationName) || !UseSelectedOrganization)
+            {
+                return OrganizationBranding.DisplayName(OrganizationName, IsPlatformWorkspace);
+            }
+            var selected = Selection.Current;
+            return selected is not null && (!TenantId.HasValue || selected.TenantId == TenantId)
+                ? OrganizationBranding.DisplayName(selected.Name, selected.IsPlatformWorkspace)
+                : OrganizationBranding.ProductName;
+        }
+    }
+
+    protected override void OnInitialized() { Selection.Changed += OnSelectionChanged; }
+    private void OnSelectionChanged() { if (!_disposed) { _ = InvokeAsync(StateHasChanged); } }
+    public void Dispose() { _disposed = true; Selection.Changed -= OnSelectionChanged; }
+}

@@ -10,17 +10,26 @@
 
 @if (_warningVisible)
 {
-    <div class="session-lifecycle-host" role="alert" aria-live="assertive">
+    <div class="session-lifecycle-host"
+         role="alert"
+         aria-live="assertive">
         <div class="session-lifecycle-dialog">
-            <MudPaper Class="session-lifecycle-warning" Elevation="10">
+            <MudPaper Class="session-lifecycle-warning"
+                      Elevation="10">
                 <MudStack Spacing="3">
-                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="session-lifecycle-header">
+                    <MudStack Row="true"
+                              Spacing="2"
+                              AlignItems="AlignItems.Center"
+                              Class="session-lifecycle-header">
                         <div class="session-lifecycle-icon">
-                            <MudIcon Icon="@Icons.Material.Filled.Timer" Size="Size.Medium" />
+                            <MudIcon Icon="@Icons.Material.Filled.Timer"
+                                     Size="Size.Medium" />
                         </div>
                         <div class="session-lifecycle-heading">
-                            <MudText Typo="Typo.h6" Class="session-lifecycle-title">Session timeout</MudText>
-                            <MudText Typo="Typo.caption" Class="session-lifecycle-kicker">Account security</MudText>
+                            <MudText Typo="Typo.h6"
+                                     Class="session-lifecycle-title">Session timeout</MudText>
+                            <MudText Typo="Typo.caption"
+                                     Class="session-lifecycle-kicker">Account security</MudText>
                         </div>
                         <div class="session-lifecycle-countdown">
                             <small>Signing out in</small>
@@ -28,19 +37,26 @@
                         </div>
                     </MudStack>
 
-                    <MudText Typo="Typo.body2" Class="session-lifecycle-copy">
+                    <MudText Typo="Typo.body2"
+                             Class="session-lifecycle-copy">
                         You have been inactive. Continue your session or we will sign you out to protect your account.
                     </MudText>
 
                     <MudDivider />
 
-                    <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd" Class="session-lifecycle-actions">
-                        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ExpireAsync" Class="session-lifecycle-secondary">
-                            Sign out
-                        </MudButton>
-                        <MudButton Variant="Variant.Filled" Size="Size.Small" StartIcon="@Icons.Material.Filled.TouchApp" OnClick="ContinueSessionAsync" Class="session-lifecycle-primary">
-                            I'm still here
-                        </MudButton>
+                    <MudStack Row="true"
+                              Spacing="1"
+                              Justify="Justify.FlexEnd"
+                              Class="session-lifecycle-actions">
+                        <MudButton Variant="Variant.Text"
+                                   Size="Size.Small"
+                                   OnClick="ExpireAsync"
+                                   Class="session-lifecycle-secondary">Sign Out</MudButton>
+                        <MudButton Variant="Variant.Filled"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.TouchApp"
+                                   OnClick="ContinueSessionAsync"
+                                   Class="session-lifecycle-primary">I'm Still Here</MudButton>
                     </MudStack>
                 </MudStack>
             </MudPaper>

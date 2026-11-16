@@ -7,11 +7,17 @@
 @inject ISnackbar Snackbar
 
 <PageTitle>External sign-in | StarterTemplate</PageTitle>
-<HeadContent><meta name="referrer" content="no-referrer" /></HeadContent>
+<HeadContent>
+    <meta name="referrer"
+          content="no-referrer" />
+</HeadContent>
 
 <section class="auth-shell">
     <div class="auth-card">
-        <div class="auth-heading"><h1>Signing in</h1></div>
+        <AuthBrand />
+        <div class="auth-heading">
+            <h1>Signing in</h1>
+        </div>
         @if (Connected == "1")
         {
             <p role="status">The sign-in provider is connected.</p>
@@ -19,12 +25,16 @@
         }
         else if (_isError)
         {
-            <div class="alert alert-danger" role="alert">@_message</div>
-            <a class="btn btn-outline-secondary mt-3" href="/iam/sign-in">Back to Sign In</a>
+            <div class="alert alert-danger"
+                 role="alert">@_message</div>
+            <a class="btn btn-outline-secondary mt-3"
+               href="/iam/sign-in">Back to Sign In</a>
         }
         else
         {
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            <MudProgressCircular Color="Color.Primary"
+                                 Indeterminate="true"
+                                 Size="Size.Large" />
             <p class="mt-3 text-muted">@_message</p>
         }
     </div>

@@ -24,7 +24,7 @@
             <MudItem xs="12" Class="mt-4">
                 <div class="d-flex gap-2">
                     <MudSelect T="string" @bind-Value="_newModuleKey" Label="Module" Margin="Margin.Dense" Variant="Variant.Outlined" Disabled="_isBusy">
-                        @foreach (var option in _modules.Where(module => module.IsActive && module.IsImplemented && !_enabledModules.Contains(module.Key, StringComparer.OrdinalIgnoreCase)))
+                        @foreach (var option in _modules.Where(module => module.IsActive && module.IsImplemented && !TemplateNavigation.IsRetiredModule(module.Key) && !_enabledModules.Contains(module.Key, StringComparer.OrdinalIgnoreCase)))
                         { <MudSelectItem Value="@option.Key">@option.Name</MudSelectItem> }
                     </MudSelect>
                     <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" Class="mt-1" OnClick="AddModuleAsync" Disabled="@(string.IsNullOrWhiteSpace(_newModuleKey) || _isBusy)">Add</MudButton>

@@ -1,22 +1,57 @@
 @page "/control-panel"
 @layout ControlPlaneLayout
-@attribute [Authorize(Policy = "ControlPlane.Manage")]
-@using ST.UI.Blazor.Features.ControlPlane.Modules.Pages
+@attribute [Authorize(Policy = "ControlPlane.Access")]
 @inject NavigationManager Navigation
+@inject IAuthSession AuthSession
+
 <PageTitle>Control Panel | StarterTemplate</PageTitle>
-<h1 class="platform-page-title mb-4">Control Panel</h1>
-<MudTabs ActivePanelIndex="_index" ActivePanelIndexChanged="SelectTab" Elevation="0" Rounded="false" PanelClass="pt-4" KeepPanelsAlive="false">
-    <MudTabPanel Text="Deployment Stamps"><AdminDeploymentStamps Embedded="true" /></MudTabPanel>
-    <MudTabPanel Text="Tenants"><AdminTenants Embedded="true" /></MudTabPanel>
-    <MudTabPanel Text="Modules"><Modules Embedded="true" /></MudTabPanel>
-</MudTabs>
+<section class="dashboard-page">
+    <div class="panel-heading"><h1 class="platform-page-title">Control Panel</h1></div>
+    <MudText Class="mb-4">Manage customer onboarding, deployment stamps, modules, and platform operations.</MudText>
+    <div class="control-panel-grid">
+        @foreach (var tile in Tiles.Where(tile => AuthSession.HasPermission(tile.Permission)))
+        {
+            <a class="control-panel-tile" href="@tile.Url">
+                <MudIcon Icon="@tile.Icon" Size="Size.Small" />
+                <span>@tile.Title</span>
+            </a>
+        }
+    </div>
+</section>
+
 @code {
     [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
-    private int _index;
-    protected override void OnParametersSet() => _index = Tab switch { "tenants" => 1, "modules" => 2, _ => 0 };
-    private void SelectTab(int index)
+
+    private static readonly (string Title, string Url, string Icon, string Permission)[] Tiles =
+    [
+        ("Platform Staff", "/control-panel/staff", Icons.Material.Filled.Badge, PlatformPermissions.ViewPlatformStaff),
+        ("Deployment Stamps", "/control-panel/stamps", Icons.Material.Filled.Dns, PlatformPermissions.ViewStamps),
+        ("Tenants", "/control-panel/tenants", Icons.Material.Filled.Business, PlatformPermissions.ViewTenants),
+        ("Modules", "/control-panel/modules", Icons.Material.Filled.Apps, PlatformPermissions.ViewModules),
+        ("KYC Cases", "/control-panel/kyc", Icons.Material.Filled.FactCheck, PlatformPermissions.ViewKyc),
+        ("Navigation", "/admin/menus", Icons.Material.Filled.Menu, "menus.view"),
+        ("Identity & Access", "/admin/iam", Icons.Material.Filled.Security, "roles.view"),
+        ("Access Catalog", "/admin/access-catalog", Icons.Material.Filled.List, "menus.view"),
+        ("KYC Retention Policy", "/control-panel/kyc/retention", Icons.Material.Filled.Policy, PlatformPermissions.ViewKyc),
+        ("Managed Support", "/control-panel/support", Icons.Material.Filled.SupportAgent, PlatformPermissions.ViewSupport),
+        ("Audit History", "/control-panel/impersonation", Icons.Material.Filled.History, PlatformPermissions.ViewAudit),
+        ("Demo Workspace", "/control-panel/demo", Icons.Material.Filled.Preview, PlatformPermissions.EnterDemo)
+    ];
+
+    protected override void OnParametersSet()
     {
-        _index = index;
-        Navigation.NavigateTo("/control-panel?tab=" + (index switch { 1 => "tenants", 2 => "modules", _ => "stamps" }), replace: true);
+        // Preserve shared bookmarks from the former tabbed landing page.
+        var destination = Tab?.ToLowerInvariant() switch
+        {
+            "stamps" => "/control-panel/stamps",
+            "tenants" => "/control-panel/tenants",
+            "modules" => "/control-panel/modules",
+            "kyc" => "/control-panel/kyc",
+            _ => null
+        };
+        if (destination is not null)
+        {
+            Navigation.NavigateTo(destination, replace: true);
+        }
     }
 }

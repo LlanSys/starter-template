@@ -20,38 +20,80 @@ namespace ST.Api.Features.ControlPlane.Tenants.Controllers;
 [Authorize]
 public sealed class TenantsController(ISender sender) : BaseController
 {
+    [HttpGet("{id:guid}/frontend-address")]
+    [RequirePermission(PlatformPermissions.ViewTenants)]
+    public async Task<IActionResult> GetFrontendAddress(Guid id, CancellationToken ct)
+    {
+        return HandleResponse(await sender.Send(new GetTenantFrontendAddressQuery(id), ct).ConfigureAwait(false));
+    }
+
+    [HttpPut("{id:guid}/frontend-address")]
+    [RequirePermission(PlatformPermissions.EditTenants)]
+    public async Task<IActionResult> SaveFrontendAddress(Guid id, SaveTenantFrontendAddressRequest request, CancellationToken ct)
+    {
+        return HandleResponse(await sender.Send(new SaveTenantFrontendAddressCommand(id, request), ct).ConfigureAwait(false));
+    }
+
     [HttpGet]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.ViewTenants)]
     public async Task<IActionResult> GetAllTenants()
-        => HandleResponse(await sender.Send(new GetAllTenantsQuery()).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new GetAllTenantsQuery()).ConfigureAwait(false));
+    }
+
+    [HttpGet("dashboard")]
+    [RequirePermission(PlatformPermissions.ViewTenants)]
+    public async Task<IActionResult> Dashboard(CancellationToken cancellationToken)
+    {
+        return HandleResponse(await sender.Send(
+            new GetPlatformDashboardQuery(PlatformAccess.Can(User, PlatformPermissions.ManageTenantAdministrators)),
+            cancellationToken).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/workspace")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.ManageTenantAdministrators)]
     public async Task<IActionResult> InitializeWorkspace(Guid id, InitializeWorkspaceRequest request, [FromServices] ICurrentActorProvider actor, CancellationToken ct)
-        => HandleResponse(await sender.Send(new InitializeWorkspaceCommand(id, request, actor.ActorId),ct).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new InitializeWorkspaceCommand(id, request, actor.ActorId), ct).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/workspace/invitation/resend")]
-    [RequirePermission(PlatformAccess.Permission)]
+    [RequirePermission(PlatformPermissions.ManageTenantAdministrators)]
     public async Task<IActionResult> ResendInvitation(Guid id, [FromServices] IAdministratorInvitationService invitations, CancellationToken cancellationToken)
-        => HandleResponse(await invitations.ChangeDeliveryAsync(id, false, cancellationToken).ConfigureAwait(false));
+    {
+        return HandleResponse(await invitations.ChangeDeliveryAsync(id, false, cancellationToken).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/workspace/invitation/revoke")]
-    [RequirePermission(PlatformAccess.Permission)]
+    [RequirePermission(PlatformPermissions.ManageTenantAdministrators)]
     public async Task<IActionResult> RevokeInvitation(Guid id, [FromServices] IAdministratorInvitationService invitations, CancellationToken cancellationToken)
-        => HandleResponse(await invitations.ChangeDeliveryAsync(id, true, cancellationToken).ConfigureAwait(false));
+    {
+        return HandleResponse(await invitations.ChangeDeliveryAsync(id, true, cancellationToken).ConfigureAwait(false));
+    }
 
     [HttpGet("{id:guid}/workspace")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.ManageTenantAdministrators)]
     public async Task<IActionResult> WorkspaceStatus(Guid id, [FromServices] ITenantWorkspaceProvisioner provisioner, CancellationToken ct)
-        => HandleResponse(await provisioner.GetStatusAsync(id,ct).ConfigureAwait(false));
+    {
+        return HandleResponse(await provisioner.GetStatusAsync(id, ct).ConfigureAwait(false));
+    }
+
+    [HttpGet("{id:guid}/workspace/tenant")]
+    [RequirePermission(PlatformPermissions.ManageTenantAdministrators)]
+    public async Task<IActionResult> WorkspaceTenant(Guid id, CancellationToken cancellationToken)
+    {
+        return HandleResponse(await sender.Send(new GetTenantByIdQuery(id), cancellationToken).ConfigureAwait(false));
+    }
 
     [HttpGet("{id:guid}")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.ViewTenants)]
     public async Task<IActionResult> GetTenantById(Guid id)
-        => HandleResponse(await sender.Send(new GetTenantByIdQuery(id)).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new GetTenantByIdQuery(id)).ConfigureAwait(false));
+    }
 
     [HttpPost]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.CreateTenants)]
     public async Task<IActionResult> CreateTenant(CreateTenantRequest request)
     {
         var response = await sender.Send(new CreateTenantCommand(request)).ConfigureAwait(false);
@@ -67,42 +109,58 @@ public sealed class TenantsController(ISender sender) : BaseController
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.EditTenants)]
     public async Task<IActionResult> UpdateTenant(Guid id, UpdateTenantRequest request)
-        => HandleResponse(await sender.Send(new UpdateTenantCommand(id, request)).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new UpdateTenantCommand(id, request)).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/activate")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.ManageTenantLifecycle)]
     public async Task<IActionResult> ActivateTenant(Guid id)
-        => HandleResponse(await sender.Send(new ActivateTenantCommand(id)).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new ActivateTenantCommand(id)).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/suspend")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.ManageTenantLifecycle)]
     public async Task<IActionResult> SuspendTenant(Guid id)
-        => HandleResponse(await sender.Send(new SuspendTenantCommand(id)).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new SuspendTenantCommand(id)).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/approve")]
-    [RequirePermission(PlatformAccess.ApproveKycPermission)]
+    [RequirePermission(PlatformPermissions.ApproveKyc)]
     public async Task<IActionResult> Approve(Guid id, ApproveTenantRequest request, CancellationToken cancellationToken)
-        => HandleResponse(await sender.Send(new ApproveTenantCommand(id, request.EvidenceReference), cancellationToken).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new ApproveTenantCommand(id, request.EvidenceReference), cancellationToken).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/provisioning/retry")]
-    [RequirePermission(PlatformAccess.Permission)]
+    [RequirePermission(PlatformPermissions.ManageTenantLifecycle)]
     public async Task<IActionResult> RetryProvisioning(Guid id, CancellationToken cancellationToken)
-        => HandleResponse(await sender.Send(new ApproveTenantCommand(id, null, Retry: true), cancellationToken).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new ApproveTenantCommand(id, null, Retry: true), cancellationToken).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/modules")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.ManageTenantModules)]
     public async Task<IActionResult> AddModule(Guid id, AddTenantModuleRequest request)
-        => HandleResponse(await sender.Send(new AddTenantModuleCommand(id, request)).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new AddTenantModuleCommand(id, request)).ConfigureAwait(false));
+    }
 
     [HttpDelete("{id:guid}/modules/{moduleKey}")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.ManageTenantModules)]
     public async Task<IActionResult> RemoveModule(Guid id, string moduleKey)
-        => HandleResponse(await sender.Send(new RemoveTenantModuleCommand(id, new RemoveTenantModuleRequest { ModuleKey = moduleKey })).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new RemoveTenantModuleCommand(id, new RemoveTenantModuleRequest { ModuleKey = moduleKey })).ConfigureAwait(false));
+    }
 
     [HttpPost("{id:guid}/stamp-migration")]
-    [RequirePermission("control_plane.manage")]
+    [RequirePermission(PlatformPermissions.MigrateTenants)]
     public async Task<IActionResult> MigrateStamp(Guid id, MigrateTenantStampRequest request)
-        => HandleResponse(await sender.Send(new MigrateTenantStampCommand(id, request.NewDeploymentStampId, request.NewDatabaseConnectionString, request.NewClientOrigin)).ConfigureAwait(false));
+    {
+        return HandleResponse(await sender.Send(new MigrateTenantStampCommand(id, request.NewDeploymentStampId, request.NewDatabaseConnectionString, request.NewClientOrigin)).ConfigureAwait(false));
+    }
 }

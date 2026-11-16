@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane.Tenants;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -42,6 +43,7 @@ public sealed class ExternalSignInController(
             .Where(scheme => IsProvider(scheme.Name))
             .Select(scheme => new SsoProviderResponse(scheme.Name, scheme.Name == "Google" ? "Google" : "Microsoft"))
             .ToArray();
+
         return HandleResponse(AppResponses.Success(enabled));
     }
 
@@ -92,6 +94,7 @@ public sealed class ExternalSignInController(
     {
         var external = await HttpContext.AuthenticateAsync(IdentityConstants.ExternalScheme).ConfigureAwait(false);
         await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme).ConfigureAwait(false);
+
         if (!external.Succeeded || external.Principal is null || external.Properties is null)
         {
             return BadRequest("External sign-in could not be verified.");
@@ -99,8 +102,9 @@ public sealed class ExternalSignInController(
 
         var items = external.Properties.Items;
         string? ReadState(string key) => items.TryGetValue(key, out var value) ? value : null;
+
         if (!Guid.TryParse(ReadState("st_tenant"), out var tenantId)
-            || !TryReturnUrl(ReadState("st_return"), out var returnUrl)
+            || (await ValidateReturnUrlAsync(ReadState("st_return"), tenantId, cancellationToken).ConfigureAwait(false)) is not { } returnUrl
             || !await IsWorkspaceActiveAsync(tenantId, cancellationToken).ConfigureAwait(false)
             || ReadState("st_provider") is not { } provider
             || !await IsEnabledAsync(provider).ConfigureAwait(false))
@@ -111,12 +115,14 @@ public sealed class ExternalSignInController(
         workspace.TenantId = tenantId;
         var issuer = external.Principal.FindFirstValue("st_validated_issuer");
         var subject = external.Principal.FindFirstValue("sub");
+
         if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject))
         {
             return Redirect(QueryHelpers.AddQueryString(returnUrl, "error", "identity"));
         }
 
         var providerKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{issuer}\n{subject}")));
+
         if (ReadState("st_connection") is { } ticket)
         {
             var linked = await connections.ConnectAsync(ticket, provider, providerKey, cancellationToken).ConfigureAwait(false);
@@ -127,8 +133,10 @@ public sealed class ExternalSignInController(
         var invitationId = Guid.TryParse(ReadState("st_invitation"), out var parsed) ? (Guid?)parsed : null;
         var verifiedEmail = provider == "Google" && !string.Equals(external.Principal.FindFirstValue("email_verified"), "true", StringComparison.OrdinalIgnoreCase)
             ? null : external.Principal.FindFirstValue("email");
+
         var result = await sender.Send(new ProcessSsoLoginCommand(provider, providerKey,
             invitationId, ReadState("st_invitation_token"), verifiedEmail), cancellationToken).ConfigureAwait(false);
+
         return Redirect(result.IsSuccess && result.Data is not null
             ? QueryHelpers.AddQueryString(returnUrl, "code", result.Data)
             : QueryHelpers.AddQueryString(returnUrl, "error", "identity"));
@@ -137,7 +145,7 @@ public sealed class ExternalSignInController(
     private async Task<IActionResult> StartAsync(Guid tenantId, string returnUrl, string provider,
         Guid? invitationId, string? invitationToken, string? ticket, CancellationToken cancellationToken)
     {
-        if (!TryReturnUrl(returnUrl, out var destination)
+        if ((await ValidateReturnUrlAsync(returnUrl, tenantId, cancellationToken).ConfigureAwait(false)) is not { } destination
             || !await IsEnabledAsync(provider).ConfigureAwait(false)
             || !await IsWorkspaceActiveAsync(tenantId, cancellationToken).ConfigureAwait(false))
         {
@@ -145,6 +153,7 @@ public sealed class ExternalSignInController(
         }
 
         workspace.TenantId = tenantId;
+
         if (invitationId.HasValue && (string.IsNullOrWhiteSpace(invitationToken)
             || !(await invitations.InspectAsync(new InspectAdministratorInvitationRequest(invitationId.Value, invitationToken),
                 cancellationToken).ConfigureAwait(false)).IsSuccess))
@@ -152,7 +161,11 @@ public sealed class ExternalSignInController(
             return BadRequest("The invitation is unavailable.");
         }
 
-        var callback = Url.Action(nameof(SsoCallback), values: new { version = "1" });
+        var callback = Url.Action(nameof(SsoCallback), values: new
+        {
+            version = "1"
+        });
+
         if (string.IsNullOrWhiteSpace(callback))
         {
             return BadRequest("External sign-in is unavailable.");
@@ -162,11 +175,13 @@ public sealed class ExternalSignInController(
         properties.Items["st_tenant"] = tenantId.ToString();
         properties.Items["st_return"] = destination;
         properties.Items["st_provider"] = provider;
+
         if (invitationId.HasValue)
         {
             properties.Items["st_invitation"] = invitationId.Value.ToString();
             properties.Items["st_invitation_token"] = invitationToken;
         }
+
         if (!string.IsNullOrEmpty(ticket))
         {
             properties.Items["st_connection"] = ticket;
@@ -174,32 +189,43 @@ public sealed class ExternalSignInController(
         return Challenge(properties, provider);
     }
 
-    private bool TryReturnUrl(string? candidate, out string returnUrl)
+    private async Task<string?> ValidateReturnUrlAsync(string? candidate, Guid tenantId, CancellationToken cancellationToken)
     {
-        returnUrl = string.Empty;
         if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri) || uri.AbsolutePath != "/iam/sso-callback"
-            || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+            || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment)
+            || !FrontendOrigin.TryNormalize(uri.GetLeftPart(UriPartial.Authority), out var origin))
         {
-            return false;
+            return null;
         }
 
-        var origin = uri.GetLeftPart(UriPartial.Authority);
-        if (!configuration.Value.ClientOrigins.Any(allowed => string.Equals(allowed.TrimEnd('/'), origin, StringComparison.OrdinalIgnoreCase)))
+        var registered = await plane.Tenants.ListAsync(query => query
+            .Where(tenant => tenant.DedicatedFrontendOrigin == origin)
+            .Select(tenant => new { tenant.Id, tenant.Status }).Take(2), cancellationToken).ConfigureAwait(false);
+
+        if (registered.Count > 0)
         {
-            return false;
+            return registered.Count == 1 && registered[0].Id == tenantId && registered[0].Status == TenantStatus.Active
+                ? uri.AbsoluteUri : null;
         }
 
-        returnUrl = uri.AbsoluteUri;
-        return true;
+        return configuration.Value.ClientOrigins.Any(allowed => FrontendOrigin.TryNormalize(allowed, out var canonical)
+            && string.Equals(canonical, origin, StringComparison.Ordinal)) ? uri.AbsoluteUri : null;
     }
 
-    private Task<bool> IsWorkspaceActiveAsync(Guid tenantId, CancellationToken cancellationToken) =>
-        plane.Tenants.AnyAsync(tenant => tenant.Id == tenantId && tenant.Status == TenantStatus.Active && !tenant.IsDemo
+    private Task<bool> IsWorkspaceActiveAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        return plane.Tenants.AnyAsync(tenant => tenant.Id == tenantId && tenant.Status == TenantStatus.Active && !tenant.IsDemo
             && (!hostSettings.Value.DeploymentStampId.HasValue
                 || tenant.DeploymentStampId == hostSettings.Value.DeploymentStampId), cancellationToken);
+    }
 
-    private async Task<bool> IsEnabledAsync(string provider) =>
-        IsProvider(provider) && await schemes.GetSchemeAsync(provider).ConfigureAwait(false) is not null;
+    private async Task<bool> IsEnabledAsync(string provider)
+    {
+        return IsProvider(provider) && await schemes.GetSchemeAsync(provider).ConfigureAwait(false) is not null;
+    }
 
-    private static bool IsProvider(string name) => name is "EntraId" or "Google";
+    private static bool IsProvider(string name)
+    {
+        return name is "EntraId" or "Google";
+    }
 }

@@ -73,13 +73,14 @@ internal sealed class RefreshToken(
                 if (source is null || !await controlPlane.Tenants.AnyAsync(tenant => tenant.Id == DemoWorkspace.TenantId && tenant.IsDemo && tenant.Status == TenantStatus.Active, cancellationToken).ConfigureAwait(false))
                     return AppResponses.Failure<RefreshTokenResponse>("The demo session is no longer available.");
                 var authority = await userManager.GetClaimsAsync(source).ConfigureAwait(false);
-                if (!authority.Any(claim => claim.Type == "platform_staff" && claim.Value == "true") || !authority.Any(claim => claim.Type == "permission" && claim.Value == "control_plane.manage"))
+                if (!authority.Any(claim => claim.Type == "platform_staff" && claim.Value == "true") || !authority.Any(claim => claim.Type == "permission" && claim.Value == PlatformPermissions.EnterDemo))
                     return AppResponses.Failure<RefreshTokenResponse>("The demo session is no longer available.");
             }
 
             SupportGrant? supportGrant = null;
-            if (principal.HasClaim(x => x.Type == "support_grant_id")) {
-                supportGrant = supportGuard is null ? null : await supportGuard.ValidateAsync(principal,cancellationToken).ConfigureAwait(false);
+            if (principal.HasClaim(x => x.Type == "support_grant_id"))
+            {
+                supportGrant = supportGuard is null ? null : await supportGuard.ValidateAsync(principal, cancellationToken).ConfigureAwait(false);
                 if (supportGrant is null) return AppResponses.Failure<RefreshTokenResponse>("The support session expired or was revoked.");
             }
             var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
@@ -162,7 +163,7 @@ internal sealed class RefreshToken(
             }
 
             var userClaims = await claimsService.GetUserClaimsAsync(user, activeSessionId).ConfigureAwait(false);
-            if (supportGrant is not null) userClaims = userClaims.Where(x => x.Type != ClaimTypes.Role && x.Type != "platform_staff" && (x.Type != "permission" || supportGrant.PermissionKeys.Contains(x.Value,StringComparer.OrdinalIgnoreCase))).ToList();
+            if (supportGrant is not null) userClaims = userClaims.Where(x => x.Type != ClaimTypes.Role && x.Type != "platform_staff" && (x.Type != "permission" || supportGrant.PermissionKeys.Contains(x.Value, StringComparer.OrdinalIgnoreCase))).ToList();
             if (PlatformAccess.HasMfa(principal)) userClaims.Add(new Claim("amr", "mfa"));
             if (principal.HasClaim("administrator_mfa", "true"))
                 userClaims.Add(new Claim("administrator_mfa", "true"));

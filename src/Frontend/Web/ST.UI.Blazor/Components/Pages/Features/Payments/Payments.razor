@@ -1,4 +1,4 @@
-@attribute [Authorize(Policy = "Page:/payments") ]
+@attribute [Authorize(Policy = "Page:/payments")]
 @page "/features/payments"
 @page "/payments"
 
@@ -8,13 +8,14 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
-<PageTitle>Payment Showcase | StarterTemplate</PageTitle>
+<PageTitle>Payments | StarterTemplate</PageTitle>
 
 <RequireAuthenticated>
     <section class="dashboard-page">
         @if (!_isReady)
         {
-            <MudPaper Class="status-card" Elevation="0">Loading capabilities...</MudPaper>
+            <MudPaper Class="status-card"
+                      Elevation="0">Loading capabilities...</MudPaper>
         }
         else if (!AuthSession.HasPermission("payments.view"))
         {
@@ -22,17 +23,26 @@
         }
         else
         {
-            <MudPaper Class="poc-panel" Elevation="0">
+            <MudPaper Class="poc-panel"
+                      Elevation="0">
                 <div class="panel-heading">
-                    <h2 style="color: var(--st-moss); font-weight: 700;">Payments</h2>
+                    <h2>Payments</h2>
                     <div class="d-flex align-center gap-3">
                         @if (_capabilities.Any(c => c.Environment?.Equals("Sandbox", StringComparison.OrdinalIgnoreCase) == true))
                         {
-                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Class="mb-0">Sandbox Mode</MudChip>
+                            <MudChip T="string"
+                                     Color="Color.Warning"
+                                     Size="Size.Small"
+                                     Class="mb-0"
+                                     Variant="Variant.Text">Sandbox Mode</MudChip>
                         }
                     </div>
                 </div>
-                <MudTabs ActivePanelIndex="_activeTab" ActivePanelIndexChanged="OnTabChanged" Rounded="true" Elevation="0" Class="st-catalog-tabs">
+                <MudTabs ActivePanelIndex="_activeTab"
+                         ActivePanelIndexChanged="OnTabChanged"
+                         Rounded="true"
+                         Elevation="0"
+                         Class="st-catalog-tabs">
                     <MudTabPanel Text="Checkout" />
                     <MudTabPanel Text="History" />
                     <MudTabPanel Text="Status Lookup" />
@@ -48,7 +58,8 @@
                         @if (AuthSession.HasPermission("payments.create"))
                         {
                             <MudGrid Spacing="3">
-                                <MudItem xs="12" md="6">
+                                <MudItem xs="12"
+                                         md="6">
                                     <div class="panel-heading">
                                         <div>
                                             <span class="eyebrow">Secure checkout</span>
@@ -61,12 +72,20 @@
                                             @if (_capabilities.Count > 0)
                                             {
                                                 <MudItem xs="12">
-                                                    <MudRadioGroup T="string" Value="@_selectedProvider" ValueChanged="OnProviderChanged" Required="true">
+                                                    <MudRadioGroup T="string"
+                                                                   Value="@_selectedProvider"
+                                                                   ValueChanged="OnProviderChanged"
+                                                                   Required="true">
                                                         @foreach (var cap in _capabilities)
                                                         {
-                                                            <MudRadio Value="@cap.Provider" Disabled="!cap.IsEnabled" Color="Color.Primary">
+                                                            <MudRadio Value="@cap.Provider"
+                                                                      Disabled="!cap.IsEnabled"
+                                                                      Color="Color.Primary">
                                                                 @cap.DisplayName
-                                                                @if (!cap.IsEnabled) { <span class="text-muted text-sm">(Disabled)</span> }
+                                                                @if (!cap.IsEnabled)
+                                                                {
+                                                                    <span class="text-muted text-sm">(Disabled)</span>
+                                                                }
                                                             </MudRadio>
                                                         }
                                                     </MudRadioGroup>
@@ -89,7 +108,8 @@
                                                 </MudItem>
                                             }
 
-                                            <MudItem xs="12" sm="8">
+                                            <MudItem xs="12"
+                                                     sm="8">
                                                 <MudNumericField T="decimal"
                                                                  Label="Amount"
                                                                  Min="1"
@@ -100,7 +120,8 @@
                                                                  @bind-Value="_amount"
                                                                  Required="true" />
                                             </MudItem>
-                                            <MudItem xs="12" sm="4">
+                                            <MudItem xs="12"
+                                                     sm="4">
                                                 <MudSelect T="string"
                                                            Label="Currency"
                                                            Variant="Variant.Outlined"
@@ -129,23 +150,28 @@
                                         <MudButton Variant="Variant.Filled"
                                                    Disabled="@(_isSubmitting || _selectedCapability == null || !_selectedCapability.IsEnabled)"
                                                    Color="Color.Primary"
-                                                   OnClick="StartCheckoutAsync">
-                                            @(_isSubmitting ? "Processing..." : "Initiate Checkout")
-                                        </MudButton>
+                                                   OnClick="StartCheckoutAsync">@UiLabels.TitleCase(_isSubmitting ? "Processing..." : "Initiate Checkout")</MudButton>
                                     </div>
                                 </MudItem>
-                                <MudItem xs="12" md="6">
-                                    <MudPaper Class="poc-panel bg-light" Elevation="0">
+                                <MudItem xs="12"
+                                         md="6">
+                                    <MudPaper Class="poc-panel bg-light"
+                                              Elevation="0">
                                         <span class="eyebrow">Provider Capabilities</span>
                                         @if (_selectedCapability != null)
                                         {
                                             <h3 class="mb-2">@_selectedCapability.DisplayName</h3>
                                             <ul class="mb-4">
-                                                <li><strong>Environment:</strong> @_selectedCapability.Environment</li>
-                                                <li><strong>Configured:</strong> @(_selectedCapability.IsConfigured ? "Yes" : "No")</li>
-                                                <li><strong>Enabled:</strong> @(_selectedCapability.IsEnabled ? "Yes" : "No")</li>
-                                                <li><strong>Redirect Flow:</strong> @(_selectedCapability.SupportsRedirectCheckout ? "Yes" : "No")</li>
-                                                <li><strong>Requires Phone:</strong> @(_selectedCapability.RequiresPayerPhoneNumber ? "Yes" : "No")</li>
+                                                <li>
+                                                    <strong>Environment:</strong> @_selectedCapability.Environment</li>
+                                                <li>
+                                                    <strong>Configured:</strong> @(_selectedCapability.IsConfigured ? "Yes" : "No")</li>
+                                                <li>
+                                                    <strong>Enabled:</strong> @(_selectedCapability.IsEnabled ? "Yes" : "No")</li>
+                                                <li>
+                                                    <strong>Redirect Flow:</strong> @(_selectedCapability.SupportsRedirectCheckout ? "Yes" : "No")</li>
+                                                <li>
+                                                    <strong>Requires Phone:</strong> @(_selectedCapability.RequiresPayerPhoneNumber ? "Yes" : "No")</li>
                                             </ul>
                                         }
                                         else
@@ -165,11 +191,26 @@
                     {
                         <div class="d-flex gap-2 align-center mb-2 flex-wrap">
                             <div style="width: 220px;">
-                                <MudTextField T="string" @bind-Value="_historySearchTerm" Placeholder="Cust or Prov Ref..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Margin="Margin.Dense" Variant="Variant.Outlined" Immediate="false" DebounceInterval="400" OnDebounceIntervalElapsed="LoadHistoryAsync" />
+                                <MudTextField T="string"
+                                              @bind-Value="_historySearchTerm"
+                                              Placeholder="Cust or Prov Ref..."
+                                              Adornment="Adornment.Start"
+                                              AdornmentIcon="@Icons.Material.Filled.Search"
+                                              Margin="Margin.Dense"
+                                              Variant="Variant.Outlined"
+                                              Immediate="false"
+                                              DebounceInterval="400"
+                                              OnDebounceIntervalElapsed="LoadHistoryAsync" />
                             </div>
 
                             <div style="width: 200px;">
-                                <MudSelect T="string" Value="_historyProvider" ValueChanged="@(async v => { _historyProvider = v; await LoadHistoryAsync(); })" Placeholder="Provider" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                                <MudSelect T="string"
+                                           Value="_historyProvider"
+                                           ValueChanged="@(async v => { _historyProvider = v; await LoadHistoryAsync(); })"
+                                           Placeholder="Provider"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           Clearable="true">
                                     @foreach (var cap in _capabilities)
                                     {
                                         <MudSelectItem Value="@cap.Provider">@(cap.DisplayName.Contains("M-Pesa") ? "M-Pesa" : cap.DisplayName.Contains("Stripe") ? "Stripe" : cap.DisplayName)</MudSelectItem>
@@ -178,8 +219,14 @@
                             </div>
 
                             <div style="width: 160px;">
-                                <MudSelect T="string" Value="_historyStatus" ValueChanged="@(async v => { _historyStatus = v; await LoadHistoryAsync(); })" Placeholder="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                                    @foreach (var status in new[] { "Initiated", "Processing", "Success", "Failed", "Cancelled" })
+                                <MudSelect T="string"
+                                           Value="_historyStatus"
+                                           ValueChanged="@(async v => { _historyStatus = v; await LoadHistoryAsync(); })"
+                                           Placeholder="Status"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           Clearable="true">
+                                    @foreach (var status in new[] {  "Initiated",  "Processing",  "Success",  "Failed",  "Cancelled" }  )
                                     {
                                         <MudSelectItem Value="@status">@status</MudSelectItem>
                                     }
@@ -187,33 +234,83 @@
                             </div>
 
                             <div style="width: 100px;">
-                                <MudNumericField T="decimal?" @bind-Value="_historyExactAmount" Placeholder="Exact Amt" Margin="Margin.Dense" Variant="Variant.Outlined" HideSpinButtons="true" Immediate="false" DebounceInterval="400" OnDebounceIntervalElapsed="LoadHistoryAsync" />
+                                <MudNumericField T="decimal?"
+                                                 @bind-Value="_historyExactAmount"
+                                                 Placeholder="Exact Amt"
+                                                 Margin="Margin.Dense"
+                                                 Variant="Variant.Outlined"
+                                                 HideSpinButtons="true"
+                                                 Immediate="false"
+                                                 DebounceInterval="400"
+                                                 OnDebounceIntervalElapsed="LoadHistoryAsync" />
                             </div>
                             <div style="width: 100px;">
-                                <MudNumericField T="decimal?" @bind-Value="_historyMinAmount" Placeholder="Min Amt" Margin="Margin.Dense" Variant="Variant.Outlined" HideSpinButtons="true" Immediate="false" DebounceInterval="400" OnDebounceIntervalElapsed="LoadHistoryAsync" />
+                                <MudNumericField T="decimal?"
+                                                 @bind-Value="_historyMinAmount"
+                                                 Placeholder="Min Amt"
+                                                 Margin="Margin.Dense"
+                                                 Variant="Variant.Outlined"
+                                                 HideSpinButtons="true"
+                                                 Immediate="false"
+                                                 DebounceInterval="400"
+                                                 OnDebounceIntervalElapsed="LoadHistoryAsync" />
                             </div>
                             <div style="width: 100px;">
-                                <MudNumericField T="decimal?" @bind-Value="_historyMaxAmount" Placeholder="Max Amt" Margin="Margin.Dense" Variant="Variant.Outlined" HideSpinButtons="true" Immediate="false" DebounceInterval="400" OnDebounceIntervalElapsed="LoadHistoryAsync" />
+                                <MudNumericField T="decimal?"
+                                                 @bind-Value="_historyMaxAmount"
+                                                 Placeholder="Max Amt"
+                                                 Margin="Margin.Dense"
+                                                 Variant="Variant.Outlined"
+                                                 HideSpinButtons="true"
+                                                 Immediate="false"
+                                                 DebounceInterval="400"
+                                                 OnDebounceIntervalElapsed="LoadHistoryAsync" />
                             </div>
 
                             <div style="width: 190px;">
-                                <MudDatePicker Date="_historyStartDate" DateChanged="@(async d => { _historyStartDate = d; await LoadHistoryAsync(); })" Placeholder="Start Date" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" />
+                                <MudDatePicker Date="_historyStartDate"
+                                               DateChanged="@(async d => { _historyStartDate = d; await LoadHistoryAsync(); })"
+                                               Placeholder="Start Date"
+                                               Margin="Margin.Dense"
+                                               Variant="Variant.Outlined"
+                                               Clearable="true" />
                             </div>
                             <div style="width: 190px;">
-                                <MudDatePicker Date="_historyEndDate" DateChanged="@(async d => { _historyEndDate = d; await LoadHistoryAsync(); })" Placeholder="End Date" Margin="Margin.Dense" Variant="Variant.Outlined" Clearable="true" />
+                                <MudDatePicker Date="_historyEndDate"
+                                               DateChanged="@(async d => { _historyEndDate = d; await LoadHistoryAsync(); })"
+                                               Placeholder="End Date"
+                                               Margin="Margin.Dense"
+                                               Variant="Variant.Outlined"
+                                               Clearable="true" />
                             </div>
 
                             <div class="ms-auto d-flex gap-2 align-center">
                                 @if (HasActiveFilters)
                                 {
-                                    <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff" Size="Size.Small" Color="Color.Error" OnClick="ClearFiltersAsync" title="Clear filters" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff"
+                                                   Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   OnClick="ClearFiltersAsync"
+                                                   title="Clear filters" />
                                 }
-                                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadHistoryAsync">Refresh</MudButton>
+                                <MudButton Variant="Variant.Outlined"
+                                           Size="Size.Small"
+                                           StartIcon="@Icons.Material.Filled.Refresh"
+                                           OnClick="LoadHistoryAsync">Refresh</MudButton>
                             </div>
                         </div>
 
                         <div class="st-table-scroll">
-                            <MudTable @ref="_table" Items="_historyItems" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="_isLoadingHistory" RowsPerPage="50" FixedHeader="true" Height="calc(100vh - 25rem)" Class="mt-3">
+                            <MudTable @ref="_table"
+                                      Items="_historyItems"
+                                      Dense="true"
+                                      Hover="true"
+                                      Breakpoint="Breakpoint.Sm"
+                                      Loading="_isLoadingHistory"
+                                      RowsPerPage="Presentation.PageSize"
+                                      FixedHeader="true"
+                                      Height="calc(100vh - 25rem)"
+                                      Class="mt-3">
                                 <HeaderContent>
                                     <MudTh>Date</MudTh>
                                     <MudTh>Reference</MudTh>
@@ -222,21 +319,26 @@
                                     <MudTh>Status</MudTh>
                                 </HeaderContent>
                                 <RowTemplate>
-                                    <MudTd DataLabel="Date">@context.CreatedAt.ToString("g")</MudTd>
+                                    <MudTd DataLabel="Date">@Presentation.Format(context.CreatedAt)</MudTd>
                                     <MudTd DataLabel="Reference">@context.PaymentReference</MudTd>
                                     <MudTd DataLabel="Provider">@context.Provider</MudTd>
-                                    <MudTd DataLabel="Amount">@context.Amount.ToString("N2") @context.Currency</MudTd>
+                                    <MudTd DataLabel="Amount">@Presentation.Number(context.Amount) @context.Currency</MudTd>
                                     <MudTd DataLabel="Status">
-                                        <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)">@context.Status</MudChip>
+                                        <MudChip T="string"
+                                                 Size="Size.Small"
+                                                 Color="@GetStatusColor(context.Status)"
+                                                 Variant="Variant.Text">@context.Status</MudChip>
                                     </MudTd>
                                 </RowTemplate>
                                 <NoRecordsContent>
-                                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                                    <MudAlert Severity="Severity.Info"
+                                              Variant="Variant.Outlined"
+                                              Dense="true">No records found.</MudAlert>
                                 </NoRecordsContent>
                                 <PagerContent>
                                     <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
                                                       TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
-                                                      PageSize="_table?.RowsPerPage ?? 50"
+                                                      PageSize="_table?.RowsPerPage ?? Presentation.PageSize"
                                                       OnFirstPage="@(() => _table?.NavigateTo(0))"
                                                       OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
                                                       OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
@@ -247,12 +349,18 @@
                     else if (_activeTab == 2)
                     {
                         <MudGrid Spacing="3">
-                            <MudItem xs="12" md="6">
+                            <MudItem xs="12"
+                                     md="6">
                                 <h3>Check Payment Status</h3>
                                 <MudForm @ref="_statusForm">
                                     <MudGrid Spacing="2">
                                         <MudItem xs="12">
-                                            <MudSelect T="string" Label="Provider" Variant="Variant.Outlined" Margin="Margin.Dense" @bind-Value="_statusProvider" Required="true">
+                                            <MudSelect T="string"
+                                                       Label="Provider"
+                                                       Variant="Variant.Outlined"
+                                                       Margin="Margin.Dense"
+                                                       @bind-Value="_statusProvider"
+                                                       Required="true">
                                                 @foreach (var cap in _capabilities)
                                                 {
                                                     <MudSelectItem Value="@cap.Provider">@cap.DisplayName</MudSelectItem>
@@ -260,28 +368,42 @@
                                             </MudSelect>
                                         </MudItem>
                                         <MudItem xs="12">
-                                            <MudTextField Label="Provider Reference" HelperText="Use the Provider's Session ID or Request ID, not the internal Customer Reference." Variant="Variant.Outlined" Margin="Margin.Dense" @bind-Value="_statusReference" Required="true" />
+                                            <MudTextField Label="Provider Reference"
+                                                          HelperText="Use the Provider's Session ID or Request ID, not the internal Customer Reference."
+                                                          Variant="Variant.Outlined"
+                                                          Margin="Margin.Dense"
+                                                          @bind-Value="_statusReference"
+                                                          Required="true" />
                                         </MudItem>
                                     </MudGrid>
                                     <div class="mt-3">
-                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LookupStatusAsync" Disabled="_isSubmittingStatus">
-                                            @(_isSubmittingStatus ? "Checking..." : "Check Status")
-                                        </MudButton>
+                                        <MudButton Variant="Variant.Filled"
+                                                   Color="Color.Primary"
+                                                   OnClick="LookupStatusAsync"
+                                                   Disabled="_isSubmittingStatus">@UiLabels.TitleCase(_isSubmittingStatus ? "Checking..." : "Check Status")</MudButton>
                                     </div>
                                 </MudForm>
                             </MudItem>
-                            <MudItem xs="12" md="6">
+                            <MudItem xs="12"
+                                     md="6">
                                 @if (_statusResult != null)
                                 {
-                                    <MudPaper Class="poc-panel bg-light" Elevation="0">
+                                    <MudPaper Class="poc-panel bg-light"
+                                              Elevation="0">
                                         <h4 class="mb-2">Status Result</h4>
                                         <ul>
-                                            <li><strong>Reference:</strong> @_statusResult.PaymentReference</li>
-                                            <li><strong>Provider:</strong> @_statusResult.Provider</li>
-                                            <li><strong>Amount:</strong> @_statusResult.Amount.ToString("N2") @_statusResult.Currency</li>
+                                            <li>
+                                                <strong>Reference:</strong> @_statusResult.PaymentReference</li>
+                                            <li>
+                                                <strong>Provider:</strong> @_statusResult.Provider</li>
+                                            <li>
+                                                <strong>Amount:</strong> @Presentation.Number(_statusResult.Amount) @_statusResult.Currency</li>
                                             <li>
                                                 <strong>Status:</strong>
-                                                <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(_statusResult.Status)">@_statusResult.Status</MudChip>
+                                                <MudChip T="string"
+                                                         Size="Size.Small"
+                                                         Color="@GetStatusColor(_statusResult.Status)"
+                                                         Variant="Variant.Text">@_statusResult.Status</MudChip>
                                             </li>
                                         </ul>
                                     </MudPaper>
@@ -292,8 +414,10 @@
                     else if (_activeTab == 3 && AuthSession.HasPermission("payments.admin"))
                     {
                         <MudGrid Spacing="3">
-                            <MudItem xs="12" md="6">
-                                <MudPaper Class="poc-panel" Elevation="0">
+                            <MudItem xs="12"
+                                     md="6">
+                                <MudPaper Class="poc-panel"
+                                          Elevation="0">
                                     <div class="panel-heading mb-3">
                                         <div>
                                             <span class="eyebrow">Setup</span>
@@ -301,14 +425,17 @@
                                         </div>
                                     </div>
                                     <p class="text-muted mb-3">Registers the validation and confirmation URLs with Safaricom. This only works if your M-Pesa sandbox credentials and callback URLs are configured correctly.</p>
-                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RegisterUrlsAsync" Disabled="_isSubmittingAdmin">
-                                        Register URLs
-                                    </MudButton>
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Primary"
+                                               OnClick="RegisterUrlsAsync"
+                                               Disabled="_isSubmittingAdmin">Register URLs</MudButton>
                                 </MudPaper>
                             </MudItem>
 
-                            <MudItem xs="12" md="6">
-                                <MudPaper Class="poc-panel" Elevation="0">
+                            <MudItem xs="12"
+                                     md="6">
+                                <MudPaper Class="poc-panel"
+                                          Elevation="0">
                                     <div class="panel-heading mb-3">
                                         <div>
                                             <span class="eyebrow">Testing</span>
@@ -318,19 +445,37 @@
                                     <MudForm @ref="_simulateForm">
                                         <MudGrid Spacing="2">
                                             <MudItem xs="12">
-                                                <MudNumericField T="decimal" Label="Amount" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N2" HideSpinButtons="true" @bind-Value="_simAmount" Required="true" />
+                                                <MudNumericField T="decimal"
+                                                                 Label="Amount"
+                                                                 Min="1"
+                                                                 Variant="Variant.Outlined"
+                                                                 Margin="Margin.Dense"
+                                                                 Format="N2"
+                                                                 HideSpinButtons="true"
+                                                                 @bind-Value="_simAmount"
+                                                                 Required="true" />
                                             </MudItem>
                                             <MudItem xs="12">
-                                                <MudTextField Label="Phone Number" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="2547XXXXXXXX" @bind-Value="_simPhone" Required="true" />
+                                                <MudTextField Label="Phone Number"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              Placeholder="2547XXXXXXXX"
+                                                              @bind-Value="_simPhone"
+                                                              Required="true" />
                                             </MudItem>
                                             <MudItem xs="12">
-                                                <MudTextField Label="Bill Reference Number" Variant="Variant.Outlined" Margin="Margin.Dense" @bind-Value="_simRef" Required="true" />
+                                                <MudTextField Label="Bill Reference Number"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              @bind-Value="_simRef"
+                                                              Required="true" />
                                             </MudItem>
                                         </MudGrid>
                                         <div class="mt-3">
-                                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SimulateC2BAsync" Disabled="_isSubmittingAdmin">
-                                                Simulate Payment
-                                            </MudButton>
+                                            <MudButton Variant="Variant.Filled"
+                                                       Color="Color.Primary"
+                                                       OnClick="SimulateC2BAsync"
+                                                       Disabled="_isSubmittingAdmin">Simulate Payment</MudButton>
                                         </div>
                                     </MudForm>
                                 </MudPaper>

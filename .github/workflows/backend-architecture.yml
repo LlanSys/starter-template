@@ -22,6 +22,10 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Check package policy
+        shell: pwsh
+        run: ./scripts/check-package-policy.ps1
+
       - name: Restore API
         run: dotnet restore src/Backend/Api/ST.Api/ST.Api.csproj
 

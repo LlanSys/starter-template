@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Infrastructure.Configuration;
 using ST.Domain.Features.IAM.Contracts;
@@ -26,18 +28,26 @@ internal sealed class DisableTotp(
         try
         {
             var user = await userManager.FindByIdAsync(command.UserId).ConfigureAwait(false);
-            if (user is null)
+
+            if (user is null || user.Kind != AccountKind.Human)
             {
                 return AppResponses.Failure<bool>("User not found.");
             }
 
+            if ((await userManager.GetClaimsAsync(user).ConfigureAwait(false)).Any(c => c.Type == PlatformAccess.StaffClaim && c.Value == "true"))
+            {
+                return AppResponses.Failure<bool>("Authenticator MFA is required for platform staff. Contact a platform staff administrator for account recovery.");
+            }
+
             var isEnabled = await userManager.GetTwoFactorEnabledAsync(user).ConfigureAwait(false);
+
             if (!isEnabled)
             {
                 return AppResponses.Success("Authenticator app is already disabled.", true);
             }
 
             var identityResult = await userManager.SetTwoFactorEnabledAsync(user, false).ConfigureAwait(false);
+
             if (!identityResult.Succeeded)
             {
                 var errors = string.Join("; ", identityResult.Errors.Select(static error => error.Description));
@@ -45,6 +55,7 @@ internal sealed class DisableTotp(
             }
 
             var secretsDeactivated = await iamUnitOfWork.AppUserTotpSecretRepository.DeactivateUserSecretsAsync(user.Id).ConfigureAwait(false);
+
             if (!secretsDeactivated)
             {
                 await userManager.SetTwoFactorEnabledAsync(user, true).ConfigureAwait(false);

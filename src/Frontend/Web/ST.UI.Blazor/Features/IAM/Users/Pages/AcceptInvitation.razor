@@ -12,10 +12,16 @@
 @inject IOptions<BackendApiSettings> ApiSettings
 
 <PageTitle>Account setup | StarterTemplate</PageTitle>
-<HeadContent><meta name="referrer" content="no-referrer" /></HeadContent>
+<HeadContent>
+    <meta name="referrer"
+          content="no-referrer" />
+</HeadContent>
 <section class="auth-shell">
     <div class="auth-card">
-        <div class="auth-heading"><h1>Set up your account</h1><p>Choose your password.</p></div>
+        <AuthBrand TenantId="TenantId" />
+        <div class="auth-heading">
+            <h1>Set up your account</h1><p>Choose your password.</p>
+        </div>
         @if (_completed)
         {
             <p role="status">Account setup complete. Sign in with the invited account's username or email and the password you just chose.</p>
@@ -24,19 +30,37 @@
                 <p>You are currently signed in as <strong>@AuthSession.CurrentUser?.Email</strong>. Completing this invitation does not switch the signed-in account.</p>
                 <p>Use a private browser window to keep that session, or sign out here to use the invited account.</p>
             }
-            <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="ContinueToSignInAsync">
-                @(AuthSession.IsAuthenticated ? "Sign out and sign in" : "Sign in")
-            </button>
+            <button type="button"
+                    class="btn btn-st-primary"
+                    disabled="@_busy"
+                    @onclick="ContinueToSignInAsync">@UiLabels.TitleCase(AuthSession.IsAuthenticated ? "Sign out and sign in" : "Sign in")</button>
         }
         else
         {
             <div class="form-stack">
                 <label for="invitation-password">Password</label>
-                <input id="invitation-password" type="password" class="form-control" @bind="_password" autocomplete="new-password" maxlength="128" />
+                <input id="invitation-password"
+                       type="password"
+                       class="form-control"
+                       @bind="_password"
+                       autocomplete="new-password"
+                       maxlength="128" />
                 <label for="invitation-confirm">Confirm password</label>
-                <input id="invitation-confirm" type="password" class="form-control" @bind="_confirmPassword" autocomplete="new-password" maxlength="128" />
-                @if (!string.IsNullOrWhiteSpace(_message)) { <div role="alert" class="alert alert-danger">@_message</div> }
-                <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="AcceptAsync">@(_busy ? "Completing..." : "Complete setup")</button>
+                <input id="invitation-confirm"
+                       type="password"
+                       class="form-control"
+                       @bind="_confirmPassword"
+                       autocomplete="new-password"
+                       maxlength="128" />
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <div role="alert"
+                         class="alert alert-danger">@_message</div>
+                }
+                <button type="button"
+                        class="btn btn-st-primary"
+                        disabled="@_busy"
+                        @onclick="AcceptAsync">@UiLabels.TitleCase(_busy ? "Completing..." : "Complete setup")</button>
             </div>
         }
     </div>
@@ -51,7 +75,7 @@
         if (selected?.TenantId == TenantId) return;
         var response = await ApiClient.SendAsync<WorkspaceInfoResponse>(HttpMethod.Get, $"api/v1/workspaces/resolve?tenantId={TenantId}", requiresAuthentication: false);
         if (!response.IsSuccess || response.Data is null) { _message = "This workspace is not available."; StateHasChanged(); return; }
-        await WorkspaceSelection.SetAsync(new(response.Data.TenantId, response.Data.Identifier, response.Data.Name));
+        await WorkspaceSelection.SetAsync(WorkspaceSelectionInfo.From(response.Data));
         Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
     }
     [SupplyParameterFromQuery(Name = "userId")] public string? UserId { get; set; }

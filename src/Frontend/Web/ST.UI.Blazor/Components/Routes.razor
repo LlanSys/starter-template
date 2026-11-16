@@ -1,36 +1,89 @@
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@inject FrontendTenantContext Frontend
+@inject WorkspaceSelection Selection
+@inject IBackendApiClient Api
+@inject IOptions<BackendApiSettings> ApiSettings
 @inject IAuthSession AuthSession
-@if (!_sessionReady)
-{
-    <p role="status" class="pa-4">Checking your session…</p>
-}
-else
-{
-<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
-            <NotAuthorized>
-                @if (AuthSession.IsAuthenticated)
-                {
-                    <h1 class="platform-page-title">Page unavailable</h1>
-                    <p>This page is not available in your workspace.</p>
-                    <MudButton Href="/dashboard" Color="Color.Primary">Dashboard</MudButton>
-                }
-                else
-                {
-                    Navigation.NavigateTo("/iam/sign-in", forceLoad: true);
-                }
-            </NotAuthorized>
-        </AuthorizeRouteView>
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-</Router>
+<div data-app-interactive>
+    @if (_hostError is not null)
+    {
+        <main class="auth-page">
+            <section class="auth-shell">
+                <div class="auth-card">
+                    <AuthBrand UseSelectedOrganization="false" />
+                    <h1>Organization Address Unavailable</h1>
+                    <p role="alert">@_hostError</p>
+                    <MudButton OnClick="InitializeFrontendAsync"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary">Try Again</MudButton>
+                </div>
+            </section>
+        </main>
+    }
+    else if (!_sessionReady)
+    {
+        <AuthLoadingScreen />
+    }
+    else
+    {
+        <Router AppAssembly="typeof(Program).Assembly"
+                NotFoundPage="typeof(Pages.NotFound)">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="routeData"
+                                    DefaultLayout="typeof(Layout.MainLayout)">
+                    <NotAuthorized>
+                        @if (AuthSession.IsAuthenticated)
+                        {
+                            <h1 class="platform-page-title">Page unavailable</h1>
+                            <p>This page is not available in your workspace.</p>
+                            <MudButton Href="/dashboard"
+                                       Color="Color.Primary">Dashboard</MudButton>
+                        }
+                        else
+                        {
+                            Navigation.NavigateTo("/iam/sign-in");
+                        }
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="routeData"
+                                 Selector="h1" />
+            </Found>
+        </Router>
 
-}
+    }
+</div>
 @code {
     private bool _sessionReady;
+    private string? _hostError;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (firstRender) { await InitializeFrontendAsync(); }
+    }
+
+    private async Task InitializeFrontendAsync()
+    {
+        _hostError = null;
+        _sessionReady = false;
+        if (!Frontend.Initialize(Navigation.BaseUri))
+        {
+            _hostError = "This application address is invalid. Use your organization's app link.";
+            StateHasChanged();
+            return;
+        }
+        var response = await Api.SendAsync<WorkspaceInfoResponse>(HttpMethod.Get,
+            $"api/v{ApiSettings.Value.Version}/workspaces/resolve", requiresAuthentication: false, includeWorkspaceSelector: false);
+        if (!response.IsSuccess || response.Data is null)
+        {
+            _hostError = "This organization address is unavailable. Check your company link or contact your administrator.";
+            StateHasChanged();
+            return;
+        }
+        Frontend.Apply(response.Data);
+        if (Frontend.IsBound)
+        {
+            await Selection.SetAsync(WorkspaceSelectionInfo.From(response.Data));
+        }
         await AuthSession.InitializeAsync();
         _sessionReady = true;
         StateHasChanged();

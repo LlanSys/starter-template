@@ -1,3 +1,5 @@
+@using ST.UI.Blazor.Features.IAM.Users.Implementations
+@inject WorkspaceSelection Selection
 @implements IAsyncDisposable
 @inject TimeProvider Clock
 @inject ILogger<NavMenu> Logger
@@ -6,37 +8,51 @@
 
 <div class="side-shell">
     <div class="brand-row">
-        <a class="brand-lockup" href="/dashboard" aria-label="StarterTemplate dashboard">
-            <span class="brand-mark" aria-hidden="true">ST</span>
-            <span class="brand-name">StarterTemplate</span>
+        <a class="brand-lockup"
+           href="/dashboard"
+           aria-label="@($"{BrandName} dashboard")">
+            <span class="brand-mark"
+                  aria-hidden="true">@OrganizationBranding.Initials(BrandName)</span>
+            <span class="brand-name"
+                  title="@BrandName">@BrandName</span>
         </a>
     </div>
 
-    <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+    <input type="checkbox"
+           title="Navigation menu"
+           class="navbar-toggler" />
 
     <div class="nav-scrollable">
         <nav class="nav flex-column">
             @if (_isLoading)
             {
                 <div class="nav-loading">
-                    <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" Style="opacity: 0.4;" />
+                    <MudProgressLinear Color="Color.Success"
+                                       Indeterminate="true"
+                                       Class="my-2"
+                                       Style="opacity: 0.4;" />
                 </div>
             }
             else if (_loadError is not null)
             {
-                <div class="nav-error" style="padding: 0.75rem 1rem; color: var(--st-muted); font-size: 0.8rem;">
-                    <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Small" Class="me-1" />
+                <div class="nav-error"
+                     style="padding: 0.75rem 1rem; color: var(--st-muted); font-size: 0.8rem;">
+                    <MudIcon Icon="@Icons.Material.Filled.ErrorOutline"
+                             Size="Size.Small"
+                             Class="me-1" />
                     @_loadError
                 </div>
             }
             else
             {
                 var previousSection = -1;
-                @foreach (var menu in _menus.Where(menu => menu.Url != "/overview" && !IsPlatformChild(menu)).OrderBy(Section))
+                @foreach (var menu in _menus.Where(menu => !IsRetiredPage(menu) && menu.Url != "/admin" && !IsPlatformChild(menu) && IsCurrentWorkspaceMenu(menu)).OrderBy(Section))
                 {
-                    @if (previousSection >= 0 && previousSection != Section(menu))
+                    @if (AuthSession.CurrentUser?.IsPlatformStaff != true && previousSection >= 0 && previousSection != Section(menu))
                     {
-                        <div class="nav-separator" aria-hidden="true"></div>
+                        <div class="nav-separator"
+                             aria-hidden="true">
+                        </div>
                     }
                     previousSection = Section(menu);
                     <section class="nav-group">
@@ -46,19 +62,55 @@
             }
         </nav>
     </div>
-    <nav class="nav-bottom" aria-label="Resources">
-        <AuthorizeView Policy="ControlPlane.Manage">
-            <NavLink class="nav-link" href="/control-panel/demo"><MudIcon Icon="@Icons.Material.Filled.Science" Size="Size.Small" /><span>Demo workspace</span></NavLink>
-        </AuthorizeView>
-        @foreach (var menu in _menus.Where(menu => menu.Url == "/overview"))
+    <nav class="nav-bottom"
+         aria-label="Administration">
+        @foreach (var menu in _menus.Where(menu => menu.Url == "/admin"))
         {
             @RenderMenu(menu)
         }
     </nav>
-    <div class="nav-bottom-inset" aria-hidden="true"></div>
+    <div class="nav-bottom-inset"
+         aria-hidden="true">
+    </div>
 </div>
 
 @code {
+    private string BrandName
+    {
+        get
+        {
+            var user = AuthSession.CurrentUser;
+            var selected = Selection.Current;
+            var vendorContext = user?.IsPlatformStaff == true && user.SupportGrantId is null && !user.IsDemoWorkspace;
+            return user is not null && selected is not null && selected.TenantId == user.TenantId
+                ? OrganizationBranding.DisplayName(user.WorkspaceName ?? selected.Name, vendorContext || selected.IsPlatformWorkspace)
+                : OrganizationBranding.ProductName;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Selection.Changed += OnBrandChanged;
+        AuthSession.AuthenticationChanged += OnBrandChanged;
+    }
+
+    private void OnBrandChanged()
+    {
+        if (!_lifetime.IsCancellationRequested) { _ = InvokeAsync(StateHasChanged); }
+    }
+
+    private static bool IsRetiredPage(MenuResponse menu)
+    {
+        return TemplateNavigation.IsRetired(menu.Url);
+    }
+
+    private bool IsCurrentWorkspaceMenu(MenuResponse menu)
+    {
+        return AuthSession.CurrentUser?.IsPlatformStaff != true
+            || menu.Url.Equals("/dashboard", StringComparison.OrdinalIgnoreCase)
+            || menu.Url.Equals("/control-panel", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static int Section(MenuResponse menu) => menu.Url.Equals("/dashboard", StringComparison.OrdinalIgnoreCase) ? 0
         : menu.Url.StartsWith("/admin", StringComparison.OrdinalIgnoreCase) || menu.Url.Equals("/control-panel", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
     private static bool IsPlatformChild(MenuResponse menu) => menu.Url.StartsWith("/control-panel/", StringComparison.OrdinalIgnoreCase);
@@ -111,6 +163,8 @@
     }
     public async ValueTask DisposeAsync()
     {
+        Selection.Changed -= OnBrandChanged;
+        AuthSession.AuthenticationChanged -= OnBrandChanged;
         await _lifetime.CancelAsync();
         if (_pollTask is not null) await _pollTask;
         _lifetime.Dispose();
@@ -147,7 +201,7 @@
 
         builder.OpenElement(sequence++, "div");
         builder.AddAttribute(sequence++, "class", "nav-children");
-        foreach (var child in menu.Children.Where(child => !IsPlatformChild(child)))
+        foreach (var child in menu.Children.Where(child => !IsPlatformChild(child) && !IsRetiredPage(child)))
         {
             builder.AddContent(sequence++, RenderMenu(child));
         }

@@ -1,0 +1,38 @@
+@using ST.SharedKernel.Features.Shared.Dashboard
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle1">@Item.SubjectLabel</MudText>
+        <MudText Typo="Typo.body2"
+                 Class="mb-3">Only active workspace accounts with the required permissions and authenticator MFA can be assigned. Assignment does not change their access.</MudText>
+        @if (_message is not null)
+        {
+            <MudAlert Severity="Severity.Warning"
+                      Dense="true"
+                      Class="mb-3">@_message</MudAlert>
+        }
+        <MudAutocomplete T="DashboardTaskAssigneeResponse"
+                         @bind-Value="_selected"
+                         SearchFunc="SearchAsync"
+                         ToStringFunc="@(user => user?.Name ?? string.Empty)"
+                         Label="Assignee"
+                         Placeholder="Search username or email"
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         MinCharacters="0"
+                         Clearable="true"
+                         Strict="true"
+                         Disabled="_busy" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Size="Size.Small"
+                   Disabled="_busy">Cancel</MudButton>
+        <MudButton OnClick="SaveAsync"
+                   Size="Size.Small"
+                   Variant="Variant.Filled"
+                   Color="Color.Success"
+                   Disabled="_busy || _selected is null"
+                   StartIcon="@Icons.Material.Filled.Save">@(_busy ? "Saving..." : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>

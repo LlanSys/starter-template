@@ -6,9 +6,7 @@
 }
 
 .sidebar {
-    background:
-        radial-gradient(circle at 20% 0%, rgba(79, 70, 229, 0.15), transparent 16rem),
-        linear-gradient(180deg, #0f172a 0%, #1e293b 55%, #020617 100%);
+    background: #1F2933;
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     color: #fff;
     flex: 0 0 15rem;
@@ -137,6 +135,6 @@
 
 /* Quiet shared application shell. */
 .sidebar { background: #172033; }
-.app-top-row { background: #fff; height: 3.75rem; justify-content: flex-end; backdrop-filter: none; }
+.app-top-row { background: #fff; height: 3.75rem; justify-content: space-between; backdrop-filter: none; }
 
-.app-top-row { gap: 1rem; }
+.app-top-row { gap: 1rem; min-height: 4.25rem; height: auto; padding-block: .5rem; }

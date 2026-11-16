@@ -16,6 +16,9 @@ on:
       - "src/Frontend/Web/**"
       - "src/Shared/**"
       - ".dockerignore"
+      - "Directory.*.props"
+      - "global.json"
+      - "nuget.config"
       - ".github/workflows/container-publish.yml"
   push:
     branches: [main]
@@ -25,6 +28,9 @@ on:
       - "src/Frontend/Web/**"
       - "src/Shared/**"
       - ".dockerignore"
+      - "Directory.*.props"
+      - "global.json"
+      - "nuget.config"
       - ".github/workflows/container-publish.yml"
 
 permissions:

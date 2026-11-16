@@ -1,6 +1,6 @@
 @page "/control-panel/impersonation"
 @layout ControlPlaneLayout
-@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@attribute [Authorize(Policy = PlatformPermissions.ViewAudit)]
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject IAuditService AuditService
@@ -15,30 +15,54 @@
 
 <section class="dashboard-page">
     <div class="mb-4">
-        <MudButton Href="/control-panel" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Primary" Class="px-0">Back to Control Panel</MudButton>
+        <MudButton Href="/control-panel"
+                   Variant="Variant.Text"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Color="Color.Primary"
+                   Class="px-0">Back To Control Panel</MudButton>
     </div>
 
-    <MudPaper Class="poc-panel" Elevation="0">
+    <MudPaper Class="poc-panel"
+              Elevation="0">
         <div class="panel-heading">
-            <h2 style="color: var(--st-moss); font-weight: 700;">Impersonation History</h2>
+            <h2>Impersonation History</h2>
             <div class="d-flex align-center gap-3">
-                <MudSwitch @bind-Value="_activeOnly" Color="Color.Primary" Label="Active only" />
-                <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadRecordsAsync">Refresh</MudButton>
+                <MudSwitch @bind-Value="_activeOnly"
+                           Color="Color.Primary"
+                           Label="Active only" />
+                <MudButton Variant="Variant.Filled"
+                           Size="Size.Small"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadRecordsAsync">Refresh</MudButton>
             </div>
         </div>
 
         @if (_isLoading)
         {
-            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+            <MudProgressLinear Color="Color.Success"
+                               Indeterminate="true"
+                               Class="my-2" />
         }
 
         @if (!string.IsNullOrWhiteSpace(_message))
         {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+            <MudAlert Severity="Severity.Error"
+                      Variant="Variant.Outlined"
+                      Dense="true"
+                      Class="my-2">@_message</MudAlert>
         }
 
         <div class="st-table-scroll">
-            <MudTable Items="_records" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 25rem)" Style="min-width: 900px;" Breakpoint="Breakpoint.None">
+            <MudTable Items="_records"
+                      Dense="true"
+                      Hover="true"
+                      Elevation="0"
+                      FixedHeader="true"
+                      RowsPerPage="Presentation.PageSize"
+                      Height="calc(100vh - 25rem)"
+                      Style="--st-table-min-width: 900px;"
+                      Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh>Started</MudTh>
                     <MudTh>Actor</MudTh>
@@ -46,28 +70,36 @@
                     <MudTh>Reason</MudTh>
                     <MudTh>Expiry</MudTh>
                     <MudTh Style="width: 10rem;">Status</MudTh>
-                    <MudTh Style="width: 10rem;">Actions</MudTh>
+                    <MudTh Class="st-actions-column">Actions</MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Started">@context.StartTime.ToLocalTime().ToString("g")</MudTd>
+                    <MudTd DataLabel="Started">@Presentation.Format(context.StartTime)</MudTd>
                     <MudTd DataLabel="Actor">@context.ActorId</MudTd>
                     <MudTd DataLabel="Target Tenant">@context.TargetTenantName (@context.TargetTenantId)</MudTd>
                     <MudTd DataLabel="Reason">@context.Reason</MudTd>
-                    <MudTd DataLabel="Expiry">@context.ExpiryTime.ToLocalTime().ToString("g")</MudTd>
+                    <MudTd DataLabel="Expiry">@Presentation.Format(context.ExpiryTime)</MudTd>
                     <MudTd DataLabel="Status">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Active" ? Color.Success : Color.Default)">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@(context.Status == "Active" ? Color.Success : Color.Default)"
+                                 Variant="Variant.Text">
                             @context.Status
                         </MudChip>
                     </MudTd>
-                    <MudTd DataLabel="Actions">
+                    <MudTd DataLabel="Actions"
+                           Class="st-actions-column">
                         @if (context.Status == "Active" && context.ActorId == AuthSession.CurrentUser?.AppUserId)
                         {
-                            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="@(() => ConfirmEndAsync(context))">End</MudButton>
+                            <MudButton Variant="Variant.Text"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       OnClick="@(() => ConfirmEndAsync(context))">End</MudButton>
                         }
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent>
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                    <MudText Typo="Typo.body2"
+                             Class="pa-3">No records found.</MudText>
                 </NoRecordsContent>
                 <PagerContent>
                     <MudTablePager />

@@ -45,7 +45,7 @@ public sealed class CachingBehavior<TRequest, TResponse>(
         ArgumentNullException.ThrowIfNull(next);
 
         // ── 1. Bypass check ────────────────────────────────────────────────────
-        if (request.BypassCache)
+        if (request.BypassCache || tenantProvider.TenantId == Guid.Empty)
         {
             return await next(cancellationToken).ConfigureAwait(false);
         }
@@ -56,7 +56,9 @@ public sealed class CachingBehavior<TRequest, TResponse>(
         if (request.IsVersioned)
         {
             var scope = BuildTenantScope(tenantProvider.TenantId, request.CacheUserId);
-            var sentinelKey = CacheKeys.GroupVersion(request.CacheGroup, scope);
+            var sentinelKey = CacheKeys.Request(CacheKeys.GroupVersion(
+                request.CacheGroup, BuildTenantScope(tenantProvider.TenantId, null)));
+
             var versionToken = await ResolveOrCreateVersionAsync(sentinelKey, cancellationToken).ConfigureAwait(false);
 
             cacheKey = CacheKeys.VersionedList(
@@ -67,16 +69,11 @@ public sealed class CachingBehavior<TRequest, TResponse>(
         }
         else
         {
-            // Entity (non-versioned) lookups are scoped per-tenant to prevent cross-tenant
-            // cache leakage.  Platform admins (empty TenantId) get the bare global key.
-            //
-            // Key format for tenant requests: "{group}:entity:tenant:{tenantId}:{discriminator}"
-            // Key format for platform admins:  "{group}:entity:{discriminator}"
             var tenantId = tenantProvider.TenantId;
-            cacheKey = tenantId == Guid.Empty
-                ? CacheKeys.Entity(request.CacheGroup, request.Discriminator)
-                : CacheKeys.Entity(request.CacheGroup, $"tenant:{tenantId:D}:{request.Discriminator}");
+            cacheKey = CacheKeys.Entity(request.CacheGroup, $"tenant:{tenantId:D}:{request.Discriminator}");
         }
+
+        cacheKey = CacheKeys.Request(cacheKey);
 
         // ── 3. Stampede-Protected Cache Lookup & Execution ─────────────────────
         var ttl = request.Expiration ?? TimeSpan.FromMinutes(30);
@@ -104,20 +101,25 @@ public sealed class CachingBehavior<TRequest, TResponse>(
 
     private async Task<string> ResolveOrCreateVersionAsync(string sentinelKey, CancellationToken ct)
     {
-        return await cache.GetOrCreateAsync(
-            sentinelKey,
-            async token =>
-            {
-                var version = GenerateVersion();
-                CacheLogDefinitions.LogCacheSet(logger, sentinelKey, VersionTtl);
-                return version;
-            },
-            VersionTtl,
-            ct).ConfigureAwait(false);
+        var existing = await cache.GetAsync<string>(sentinelKey, ct).ConfigureAwait(false);
+
+        if (!string.IsNullOrEmpty(existing))
+        {
+            return existing;
+        }
+        // Await initialization before reading data. A late cold initializer can only label
+        // a fresh read; it cannot overwrite an epoch with an already-cached stale payload.
+        var version = GenerateVersion();
+        await cache.SetAsync(sentinelKey, version, VersionTtl, ct).ConfigureAwait(false);
+        CacheLogDefinitions.LogCacheSet(logger, sentinelKey, VersionTtl);
+        return version;
     }
 
     private string GenerateVersion()
-        => timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+    {
+        return timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
+            + ":" + Guid.CreateVersion7().ToString("N");
+    }
 
     private static string BuildTenantScope(Guid tenantId, string? userId)
     {

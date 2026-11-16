@@ -1,3 +1,5 @@
+using ST.Domain.Features.ControlPlane.Kyc.Entities;
+using ST.Domain.Features.ControlPlane.WorkTasks.Entities;
 using ST.Domain.Features.ControlPlane.Auditing.Contracts.Repositories;
 using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Domain.Features.ControlPlane.Tenants.Contracts.Repositories;
@@ -17,6 +19,16 @@ public class ControlPlaneUnitOfWork : IControlPlaneUnitOfWork
 {
     private readonly ControlPlaneDBContext _context;
 
+    public IRepository<OperationalTaskAssignment> TaskAssignments => new Repository<OperationalTaskAssignment>(_context);
+    public IRepository<OperationalTaskAssignmentEvent> TaskAssignmentEvents => new Repository<OperationalTaskAssignmentEvent>(_context);
+    public IRepository<KycRetentionPolicy> KycRetentionPolicies => new Repository<KycRetentionPolicy>(_context);
+    public IRepository<KycRetentionPolicySelection> KycRetentionPolicySelection => new Repository<KycRetentionPolicySelection>(_context);
+    public IRepository<KycRetentionCase> KycRetentionCases => new Repository<KycRetentionCase>(_context);
+    public IRepository<KycRetentionAudit> KycRetentionAudit => new Repository<KycRetentionAudit>(_context);
+    public IRepository<KycUploadReservation> KycUploadReservations => new Repository<KycUploadReservation>(_context);
+    public IRepository<KycDocument> KycDocuments => new Repository<KycDocument>(_context);
+    public IRepository<KycDocumentReview> KycDocumentReviews => new Repository<KycDocumentReview>(_context);
+    public IRepository<KycSubmissionLink> KycSubmissionLinks => new Repository<KycSubmissionLink>(_context);
     public IRepository<SupportGrant> SupportGrants => new Repository<SupportGrant>(_context);
     public IRepository<SupportAudit> SupportAudit => new Repository<SupportAudit>(_context);
     public IRepository<ModuleDefinition> Modules => new Repository<ModuleDefinition>(_context);
@@ -24,9 +36,18 @@ public class ControlPlaneUnitOfWork : IControlPlaneUnitOfWork
     public IRepository<ModuleFeatureFlag> FeatureFlags => new Repository<ModuleFeatureFlag>(_context);
     public IRepository<TenantModule> TenantModules => new Repository<TenantModule>(_context);
     public IRepository<TenantAdministratorInvitation> AdministratorInvitations => new Repository<TenantAdministratorInvitation>(_context);
-    public ITenantRepository Tenants { get; }
-    public IDeploymentStampRepository DeploymentStamps { get; }
-    public IImpersonationRecordRepository ImpersonationRecords { get; }
+    public ITenantRepository Tenants
+    {
+        get;
+    }
+    public IDeploymentStampRepository DeploymentStamps
+    {
+        get;
+    }
+    public IImpersonationRecordRepository ImpersonationRecords
+    {
+        get;
+    }
 
     public ControlPlaneUnitOfWork(
         ControlPlaneDBContext context,

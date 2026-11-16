@@ -1,0 +1,19 @@
+<main class="auth-page">
+    <section class="auth-shell">
+        <div class="auth-card auth-loading-card">
+            <AuthBrand Loading="true"
+                       UseSelectedOrganization="false" />
+            <div class="auth-loading"
+                 role="status"
+                 aria-live="polite">
+                <span class="auth-loading-spinner"
+                      aria-hidden="true"></span>
+                <p>@Message</p>
+            </div>
+        </div>
+    </section>
+</main>
+
+@code {
+    [Parameter] public string Message { get; set; } = "Opening the application…";
+}

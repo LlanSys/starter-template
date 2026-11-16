@@ -1,3 +1,14 @@
+using ST.Application.Features.ControlPlane.Tenants.Contracts;
+using ST.Infrastructure.Features.ControlPlane.Tenants.Services;
+using ST.SharedKernel.Features.ControlPlane.Tenants;
+using ST.Application.Features.Shared.WorkTasks;
+using ST.Infrastructure.Features.Shared.WorkTasks;
+using ST.Application.Features.ControlPlane.Kyc.Contracts;
+using ST.Application.Features.ControlPlane.Kyc.Validators;
+using ST.Infrastructure.Features.ControlPlane.Kyc;
+using ST.Infrastructure.Features.ControlPlane.Kyc.Storage;
+using ST.SharedKernel.Features.ControlPlane.Kyc.Dtos;
+using FluentValidation;
 using System.Security.Claims;
 using ST.Persistence.Common.Configuration;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
@@ -97,12 +108,48 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(AdministratorInvitationSettings.SectionName))
             .Validate(settings => settings.ValidityHours is >= 1 and <= 72, "Invitation validity must be between 1 and 72 hours.")
             .ValidateOnStart();
+
+        services.AddOptions<KycDocumentStorageSettings>()
+            .Bind(configuration.GetSection(KycDocumentStorageSettings.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(settings => settings.HasValidDocumentTypes(), "KycDocuments:DocumentTypes requires unique stable keys and valid names.")
+            .Validate(settings => Enum.TryParse<KycDocumentStorageProvider>(settings.Provider, true, out var provider)
+                && Enum.IsDefined(provider), "KycDocuments:Provider must be Azurite or AzureBlob.")
+            .Validate(settings => !string.IsNullOrWhiteSpace(settings.ErasureLedgerContainerName)
+                && !settings.ContainerName.Equals(settings.ErasureLedgerContainerName, StringComparison.OrdinalIgnoreCase),
+                "KYC originals and the erasure ledger require different container names.")
+            .ValidateOnStart();
+
+        services.AddScoped<BlobKycDocumentStorage>();
+        services.AddScoped<IKycDocumentStorage>(provider => provider.GetRequiredService<BlobKycDocumentStorage>());
+        services.AddScoped<IKycEvidenceLifecycleStorage>(provider => provider.GetRequiredService<BlobKycDocumentStorage>());
+        services.AddSingleton<KycOrphanScanProgress>();
+        services.AddScoped<IKycRetentionService, KycRetentionService>();
+        services.AddOptions<KycDocumentSafetySettings>()
+            .Bind(configuration.GetSection(KycDocumentSafetySettings.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(settings => string.Equals(settings.Provider, "ClamAv", StringComparison.OrdinalIgnoreCase), "KYC safety provider must be ClamAv.")
+            .ValidateOnStart();
+
+        services.AddScoped<IKycDocumentScanner, ClamAvKycDocumentScanner>();
+        services.AddSingleton<IKycDocumentSafetyProcessor, KycDocumentSafetyProcessor>();
+        services.AddHostedService<KycDocumentSafetyWorker>();
+        services.AddHostedService<KycRetentionWorker>();
+        services.AddScoped<IWorkTaskService, WorkTaskService>();
+        services.AddScoped<WorkTaskSourceQuery>();
+        services.AddScoped<TaskAssigneeEligibility>();
+        services.AddHostedService<WorkTaskReconciliationWorker>();
+        services.AddScoped<IKycEvidenceService, KycEvidenceService>();
+        services.AddScoped<IValidator<ReviewKycDocumentRequest>, ReviewKycDocumentRequestValidator>();
+        services.AddScoped<IValidator<PublishKycRetentionPolicyRequest>, PublishKycRetentionPolicyRequestValidator>();
+        services.AddScoped<IValidator<KycRetentionActionRequest>, KycRetentionActionRequestValidator>();
         services.AddScoped<SignInChallengeFactory>();
         services.AddScoped<SsoCodeStore>();
         services.AddScoped<IExternalIdentityConnection, ExternalIdentityConnection>();
         services.AddScoped<IAdministratorInvitationService, AdministratorInvitationService>();
         services.AddScoped<AdministratorInvitationDelivery>();
         services.AddHostedService<AdministratorInvitationWorker>();
+
         if (configuration.GetValue<bool>("ControlPlane:Provisioning:Enabled"))
         {
             services.AddHostedService<ProvisioningTimeoutWorker>();
@@ -122,21 +169,25 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(PasswordRecoverySettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
         services
             .AddOptions<FeatureFlagSettings>()
             .Bind(configuration.GetSection(FeatureFlagSettings.SectionName))
             .Validate(IsValidFeatureFlagProvider, "FeatureFlags:Provider must be Configuration.")
             .ValidateOnStart();
+
         services
             .AddOptions<ReportingSettings>()
             .Bind(configuration.GetSection(ReportingSettings.SectionName))
             .Validate(IsValidReportingSettings, "Reporting:QuestPdf:License must be Community, Professional, or Enterprise.")
             .ValidateOnStart();
+
         services
             .AddOptions<PaymentSettings>()
             .Bind(configuration.GetSection(PaymentSettings.SectionName))
             .Validate(IsValidPaymentProvider, "Payments:Provider must be NoOp, Stripe, or Mpesa.")
             .ValidateOnStart();
+
         ConfigurePaymentGateways(services, configuration);
         ConfigureQuestPdf(configuration);
         services
@@ -147,11 +198,15 @@ public static class DependencyInjection
                 IsValidProfileImageStorageProvider,
                 "ProfileImageStorage:Provider must be Local, Azurite, AzureBlob, or S3. Blob providers require ContainerUri or ConnectionString plus ContainerName. S3 requires ServiceUrl, BucketName, AccessKey, and SecretKey.")
             .ValidateOnStart();
+
+        services.AddScoped<IFrontendTenantBinding, FrontendTenantBinding>();
         services.AddOptions<OrgSettings>()
             .Bind(configuration.GetSection(OrgSettings.SectionName))
             .ValidateDataAnnotations()
             .Validate(settings => settings.DefaultTenantId != Guid.Empty, "Tenant:DefaultTenantId must be configured.")
+            .Validate(settings => settings.CentralFrontendOrigins.All(origin => FrontendOrigin.TryNormalize(origin, out _)), "Tenant:CentralFrontendOrigins must contain valid HTTPS or local HTTP origins.")
             .ValidateOnStart();
+
         services.AddOptions<PasskeySettings>()
             .Bind(configuration.GetSection(PasskeySettings.SectionName))
             .ValidateDataAnnotations()
@@ -171,6 +226,7 @@ public static class DependencyInjection
         var backgroundJobSettings = configuration.GetSection(BackgroundJobSettings.SectionName).Get<BackgroundJobSettings>() ?? new BackgroundJobSettings();
         services.AddSingleton(backgroundJobSettings);
         ConfigureObservability(services, configuration, environment, observabilitySettings);
+
         if (backgroundJobSettings.Enabled)
         {
             ConfigureQuartz(services, configuration);
@@ -257,6 +313,7 @@ public static class DependencyInjection
                     _.GetRequiredService<ILogger<BackgroundJobService>>(),
                     _.GetRequiredService<ICurrentTenantProvider>())
                 : new NoOpBackgroundJobService());
+
         services.AddScoped<IEncryptionService, EncryptionService>();
         services.AddScoped<IOrgSettingsProvider, CachedOrgSettingsProvider>();
 
@@ -287,7 +344,9 @@ public static class DependencyInjection
         services.AddSingleton(jwtSettings);
 
         if (jwtSettings == null)
+        {
             throw new InvalidOperationException("JwtSettings not found in configuration");
+        }
 
         services.AddSingleton(sp =>
         {
@@ -321,6 +380,7 @@ public static class DependencyInjection
             options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
         })
         .AddJwtBearer();
+
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
             .Configure<TimeProvider>((options, timeProvider) => ConfigureJwtBearer(options, jwtSettings, timeProvider));
 
@@ -451,6 +511,7 @@ public static class DependencyInjection
             OnTokenValidated = context =>
             {
                 var principal = context.Principal;
+
                 if (principal is null || principal.HasClaim("temp_auth", "true")
                     || string.IsNullOrWhiteSpace(principal.FindFirstValue(ClaimTypes.NameIdentifier))
                     || !Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) || tenantId == Guid.Empty
@@ -545,6 +606,7 @@ public static class DependencyInjection
             {
                 Expiration = TimeSpan.FromHours(1)
             };
+
             options.MaximumPayloadBytes = 1024 * 1024; // 1MB limit for L2
         });
 
@@ -557,11 +619,13 @@ public static class DependencyInjection
         });
     }
 
-    private static bool IsExternalOrigin(string origin) =>
-        Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+    private static bool IsExternalOrigin(string origin)
+    {
+        return Uri.TryCreate(origin, UriKind.Absolute, out var uri)
         && (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
         && uri.AbsolutePath == "/" && string.IsNullOrEmpty(uri.UserInfo)
         && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment);
+    }
 
     private static void ConfigureExternalProvider(OpenIdConnectOptions options, string authority, string clientId,
         string clientSecret, string callbackPath, string publicApiOrigin)
@@ -584,6 +648,7 @@ public static class DependencyInjection
             context.ProtocolMessage.RedirectUri = new Uri(new Uri(publicApiOrigin), callbackPath).AbsoluteUri;
             return Task.CompletedTask;
         };
+
         options.Events.OnTokenValidated = context =>
         {
             if (context.Principal?.Identity is not ClaimsIdentity identity
@@ -629,6 +694,7 @@ public static class DependencyInjection
             configOptions.Password = null;
 
             var credentialOptions = new DefaultAzureCredentialOptions();
+
             if (!string.IsNullOrWhiteSpace(settings.PrincipalId))
             {
                 credentialOptions.ManagedIdentityClientId = settings.PrincipalId;
@@ -664,6 +730,7 @@ public static class DependencyInjection
     private static CacheProvider GetCacheProvider(CacheSettings settings)
     {
         var configuredProvider = settings.Provider?.Trim() ?? "Auto";
+
         if (configuredProvider.Equals("Auto", StringComparison.OrdinalIgnoreCase))
         {
             if (IsConfiguredConnectionString(settings.Azure?.ConnectionString))
@@ -802,12 +869,14 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(observabilitySettings, nameof(observabilitySettings));
+
         if (!observabilitySettings.Enabled)
         {
             return services;
         }
 
         var connectionString = observabilitySettings.AzureMonitor.ConnectionString;
+
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             connectionString =
@@ -822,6 +891,7 @@ public static class DependencyInjection
             Console.WriteLine(
                 "[WARN] Observability is enabled but no exporter (AzureMonitor or Otlp) is configured. " +
                 "OpenTelemetry export is disabled.");
+
             return services;
         }
 
@@ -857,6 +927,7 @@ public static class DependencyInjection
                 tracing.AddOtlpExporter(options =>
                 {
                     options.Endpoint = new Uri(observabilitySettings.Otlp!.Endpoint);
+
                     if (!string.IsNullOrWhiteSpace(observabilitySettings.Otlp.Headers))
                     {
                         options.Headers = observabilitySettings.Otlp.Headers;
@@ -879,6 +950,7 @@ public static class DependencyInjection
                 metrics.AddOtlpExporter(options =>
                 {
                     options.Endpoint = new Uri(observabilitySettings.Otlp!.Endpoint);
+
                     if (!string.IsNullOrWhiteSpace(observabilitySettings.Otlp.Headers))
                     {
                         options.Headers = observabilitySettings.Otlp.Headers;
@@ -987,9 +1059,11 @@ public static class DependencyInjection
             GetQuestPdfLicense(settings.QuestPdf) is not QuestPdfLicense.Invalid;
     }
 
-    private static bool IsValidPaymentProvider(PaymentSettings settings) =>
-        settings is not null &&
+    private static bool IsValidPaymentProvider(PaymentSettings settings)
+    {
+        return settings is not null &&
         PaymentProviderParser.Parse(settings.Provider) is not PaymentProviderKind.Invalid;
+    }
 
     private static bool IsValidEntraIdSettings(EntraIdSettings settings)
     {

@@ -38,6 +38,11 @@ internal sealed class UpdatePermissionCommandHandler(IIamUnitOfWork unitOfWork, 
             {
                 return AppResponses.Failure<PermissionResponse>($"Permission {command.Id} not found.");
             }
+            if (permission.Key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase))
+            {
+                return AppResponses.Failure<PermissionResponse>("Platform operation definitions are vendor-managed.");
+            }
+
 
             var draft = Permission.Create(
 

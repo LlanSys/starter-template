@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.PlatformStaff.Entities;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
@@ -49,6 +50,7 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
         _logger = logger;
         Clock = timeProvider;
     }
+    public DbSet<PlatformStaffChange> PlatformStaffChanges { get; set; }
     public DbSet<AppUserProfile> AppUserProfiles { get; set; }
     public DbSet<AppUserTotpSecret> AppUserTotpSecrets { get; set; }
     public DbSet<AppUserSession> AppUserSessions { get; set; }
@@ -122,6 +124,12 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
     {
         try
         {
+            if (ChangeTracker.Entries<PlatformStaffChange>().Any(entry =>
+                entry.State is EntityState.Modified or EntityState.Deleted))
+            {
+                throw new InvalidOperationException("Platform staff audit records are append-only.");
+            }
+
             if (_tenantProvider is not null)
             {
                 var tenantId = CurrentTenantId;

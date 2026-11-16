@@ -5,12 +5,19 @@ namespace ST.SharedKernel.Features.IAM.Menus;
 public static class MaterialIconKeys
 {
     private static readonly FrozenSet<string> Keys = Load();
+    public static IReadOnlySet<string> All => Keys;
+
+    public static string Normalize(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        var normalized = key.Trim();
+        return normalized.Contains('.', StringComparison.Ordinal) ? normalized : $"Filled.{normalized}";
+    }
+
     public static bool Contains(string? key)
     {
         if (string.IsNullOrWhiteSpace(key)) return false;
-        var normalized = key.Trim();
-        if (!normalized.Contains('.', StringComparison.Ordinal)) normalized = $"Filled.{normalized}";
-        return Keys.Contains(normalized);
+        return Keys.Contains(Normalize(key));
     }
     private static FrozenSet<string> Load()
     {

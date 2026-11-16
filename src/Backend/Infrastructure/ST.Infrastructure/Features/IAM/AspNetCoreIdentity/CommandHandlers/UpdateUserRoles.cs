@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Features.IAM.Contracts;
@@ -23,9 +25,15 @@ internal sealed class UpdateUserRoles(
         try
         {
             var user = await userManager.FindByIdAsync(command.UserId).ConfigureAwait(false);
-            if (user is null)
+
+            if (user is null || user.Kind != AccountKind.Human)
             {
                 return AppResponses.Failure<UserRolesResponse>("User not found.");
+            }
+
+            if ((await userManager.GetClaimsAsync(user).ConfigureAwait(false)).Any(c => c.Type == PlatformAccess.StaffClaim && c.Value == "true"))
+            {
+                return AppResponses.Failure<UserRolesResponse>("Manage platform staff through Platform Staff in the Control Panel.");
             }
 
             var requestedRoles = command.Request.Roles
@@ -36,9 +44,11 @@ internal sealed class UpdateUserRoles(
                 .ToList();
 
             var allowed = await availability.AvailableIdsAsync(cancellationToken).ConfigureAwait(false);
+
             foreach (var role in requestedRoles)
             {
                 var registered = await roleManager.FindByNameAsync(role).ConfigureAwait(false);
+
                 if (registered is null || !allowed.Contains(registered.Id))
                 {
                     return AppResponses.Failure<UserRolesResponse>($"Role {role} does not exist.");
@@ -47,14 +57,20 @@ internal sealed class UpdateUserRoles(
 
             var existingRoles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
             var rolesToRemove = new List<string>();
+
             foreach (var existing in existingRoles.Except(requestedRoles, StringComparer.OrdinalIgnoreCase))
             {
                 var registered = await roleManager.FindByNameAsync(existing).ConfigureAwait(false);
-                if (registered is not null && allowed.Contains(registered.Id)) rolesToRemove.Add(existing);
+
+                if (registered is not null && allowed.Contains(registered.Id))
+                {
+                    rolesToRemove.Add(existing);
+                }
             }
             var rolesToAdd = requestedRoles.Except(existingRoles, StringComparer.OrdinalIgnoreCase).ToList();
 
             var effectiveRoles = existingRoles.Except(rolesToRemove, StringComparer.OrdinalIgnoreCase).Concat(rolesToAdd);
+
             if (!await delegation.CanChangeRolesAsync(existingRoles, effectiveRoles, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Failure<UserRolesResponse>("You cannot change one or more of these role assignments.");

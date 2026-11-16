@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="10.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" />
     <ProjectReference Include="../../src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj" />
   </ItemGroup>
 </Project>

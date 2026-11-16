@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.PlatformStaff.Entities;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Features.IAM.Menus.Contracts.Repositories;
 using ST.Domain.Features.IAM.Permissions.Contracts.Repositories;
@@ -11,6 +12,7 @@ namespace ST.Domain.Features.IAM.Contracts;
 
 public interface IIamUnitOfWork : ITransactionalUnitOfWork
 {
+    IRepository<PlatformStaffChange> PlatformStaffChanges { get; }
     IRepository<AppRole> RoleRepository { get; }
     IRepository<NavigationOverride> NavigationOverrides { get; }
     IUserRepository UserRepository { get; }

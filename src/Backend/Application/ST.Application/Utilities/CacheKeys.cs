@@ -24,6 +24,13 @@ namespace ST.Application.Utilities;
 /// </summary>
 public static class CacheKeys
 {
+    // Retire query results produced before execution-context-safe cache factories were shipped.
+    public static string Request(string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        return "request-v2:" + key;
+    }
+
     // ── Public key builders ────────────────────────────────────────────────────
 
     /// <summary>
@@ -33,9 +40,11 @@ public static class CacheKeys
     /// <param name="group">e.g. "customers"</param>
     /// <param name="userId">Null for a global (cross-user) version token.</param>
     public static string GroupVersion(string group, string? userId = null)
-        => userId is null
-            ? $"{NormalizeRequired(group, nameof(group))}:version:global"
-            : $"{NormalizeRequired(group, nameof(group))}:version:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return userId is null
+                ? $"{NormalizeRequired(group, nameof(group))}:version:global"
+                : $"{NormalizeRequired(group, nameof(group))}:version:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     /// <summary>
     /// Non-versioned key for a single entity lookup.
@@ -44,43 +53,63 @@ public static class CacheKeys
     /// <param name="group">e.g. "customers"</param>
     /// <param name="id">String form of the entity identifier.</param>
     public static string Entity(string group, string id)
-        => $"{NormalizeRequired(group, nameof(group))}:entity:{NormalizeRequired(id, nameof(id))}";
+    {
+        return $"{NormalizeRequired(group, nameof(group))}:entity:{NormalizeRequired(id, nameof(id))}";
+    }
 
     /// <summary>
     /// Non-versioned key for email template content.
     /// </summary>
     /// <param name="templateName">Logical email template name.</param>
     public static string EmailTemplate(string templateName)
-        => $"email-templates:entity:{NormalizeRequired(templateName, nameof(templateName))}";
+    {
+        return $"email-templates:entity:{NormalizeRequired(templateName, nameof(templateName))}";
+    }
 
     public static string TotpAttempts(string userId)
-        => $"auth:totp-attempts:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return $"auth:totp-attempts:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     public static string PasswordResetCode(string userId)
-        => $"auth:password-reset-code:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return $"auth:password-reset-code:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     public static string PasswordResetAttempts(string userId)
-        => $"auth:password-reset-attempts:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return $"auth:password-reset-attempts:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     public static string PasswordReset(string userId)
-        => $"auth:password-reset:{NormalizeRequired(userId, nameof(userId))}";
-
-
+    {
+        return $"auth:password-reset:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     public static string EmailOtp(string userId)
-        => $"otp:email:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return $"otp:email:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     public static string EmailOtpCooldown(string userId)
-        => $"otp:email:cooldown:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return $"otp:email:cooldown:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     public static string EmailOtpAttempts(string userId)
-        => $"otp:email:attempts:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return $"otp:email:attempts:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     public static string PasswordResetOtp(string userId)
-        => $"pwdreset:otp:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return $"pwdreset:otp:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     public static string PasswordResetRateLimit(string userId)
-        => $"pwdreset:ratelimit:{NormalizeRequired(userId, nameof(userId))}";
+    {
+        return $"pwdreset:ratelimit:{NormalizeRequired(userId, nameof(userId))}";
+    }
 
     /// <summary>
     /// Assembles the full versioned list key.
@@ -92,7 +121,9 @@ public static class CacheKeys
         string scope,
         string versionToken,
         string discriminator)
-        => $"{NormalizeRequired(group, nameof(group))}:list:{NormalizeRequired(scope, nameof(scope))}:{NormalizeRequired(versionToken, nameof(versionToken))}:{NormalizeRequired(discriminator, nameof(discriminator))}";
+    {
+        return $"{NormalizeRequired(group, nameof(group))}:list:{NormalizeRequired(scope, nameof(scope))}:{NormalizeRequired(versionToken, nameof(versionToken))}:{NormalizeRequired(discriminator, nameof(discriminator))}";
+    }
 
 
     // ── Discriminator helpers ──────────────────────────────────────────────────

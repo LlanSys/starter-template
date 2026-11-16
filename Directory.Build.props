@@ -9,7 +9,8 @@
     Rules:
       - Properties set here are defaults; individual .csproj files CAN override.
       - Keep this file focused on UNIVERSAL concerns only.
-      - Do not add package references here — that belongs in Directory.Packages.props.
+      - Runtime dependencies belong in projects; versions belong in Directory.Packages.props.
+      Only the repository-wide private analyzer reference is declared below.
   ══════════════════════════════════════════════════════════════════════════════
   -->
 
@@ -62,17 +63,23 @@
     <NoWarn>$(NoWarn);CA1860</NoWarn>
   </PropertyGroup>
 
+  <ItemGroup Label="Repository formatting analyzers">
+    <PackageReference Include="Roslynator.Formatting.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+
   <PropertyGroup Label="NuGet and Packaging">
-    <MassTransitVersion>8.5.12</MassTransitVersion>
-    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <IsPackable>false</IsPackable>
     <NuGetAudit>true</NuGetAudit>
 
-    <!-- Audit severity level: fail the build on moderate or higher vulnerabilities. -->
-    <NuGetAuditLevel>moderate</NuGetAuditLevel>
+    <!-- Report all known severities; CI promotes audit diagnostics to errors. -->
+    <NuGetAuditLevel>low</NuGetAuditLevel>
 
     <!-- Audit scope: all dependencies, not just direct references. -->
     <NuGetAuditMode>all</NuGetAuditMode>
+  </PropertyGroup>
+
+  <PropertyGroup Label="CI package guardrails" Condition="'$(CI)' == 'true'">
+    <WarningsAsErrors>$(WarningsAsErrors);NU1510;NU1605;NU1608;NU1900;NU1901;NU1902;NU1903;NU1904;NU1905</WarningsAsErrors>
   </PropertyGroup>
 
   <PropertyGroup Label="Test Projects" Condition="$(MSBuildProjectName.EndsWith('.Tests'))">

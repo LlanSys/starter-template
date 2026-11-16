@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.Users.Enums;
 using System.Net;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
@@ -34,7 +35,8 @@ internal sealed class ForgotPassword(
             _recoverySettings.Mode == PasswordRecoveryMode.EmailOtp);
 
         var user = await userManager.FindByEmailAsync(command.Request.Email).ConfigureAwait(false);
-        if (user is null || !user.IsActive || user.IsDeleted || string.IsNullOrWhiteSpace(user.Email))
+
+        if (user is null || user.Kind != AccountKind.Human || !user.IsActive || user.IsDeleted || string.IsNullOrWhiteSpace(user.Email))
         {
             return AppResponses.Success(GenericMessage, response);
         }

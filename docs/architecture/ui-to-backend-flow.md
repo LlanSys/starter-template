@@ -61,7 +61,7 @@ PATCH iam/admin/users/{userId}/deactivate (users.deactivate permission) disables
 Session validation treats the signed JWT session_id claim as authoritative over a request header or cookie. Revoked API sessions return 401 directly; web requests retain cookie sign-out. Existing public/temporary-token routing is unchanged.
 ## UI presentation
 
-Authentication pages use one centred AuthLayout card with restrained headings. Alternate sign-in actions share one row with icons. Google remains disabled until a backend provider is implemented and configured; Microsoft uses the existing EntraId challenge and passkeys retain the existing WebAuthn flow. Account actions belong in the top-right header and show the name without a role. Sidebar branding is plain and menu items retain inset spacing. Preserve actionable validation, MFA and impersonation notices.
+Authentication pages use one centred AuthLayout card with restrained headings. Alternate sign-in actions share one row with icons. Google and Microsoft sign-in are shown when the configured backend providers are available for the selected workspace; passkeys retain the existing WebAuthn flow. Account actions belong in the top-right header and show the name without a role. Sidebar branding is plain and menu items retain inset spacing. Preserve actionable validation, MFA and impersonation notices.
 
 ## Menu icons and destinations
 
@@ -69,7 +69,7 @@ MenuRoutes are database records initially seeded by IamReferenceDataSeed.MenuRou
 
 ## Menu visibility administration
 
-Create/Edit Menu uses title, placement, optional parent, a searchable registered Page, an icon picker, and searchable Roles/Permissions selections shown as removable chips. The technical key is generated internally. Module and description inputs are not presented; existing stored values are retained on edits.
+Add/Edit Navigation Item uses title, placement, an available Module selector, optional parent, a searchable registered Page, an icon picker, and searchable Roles/Permissions selections shown as removable chips. Module choices come from active, implemented, non-retired available modules and filter Page choices. A catalog-owned page retains its registered module. The technical key is generated internally; description metadata remains hidden and retained on edits.
 
 Visibility requires any selected role and all selected permissions. Empty selections impose no additional restriction. Existing System Administrator permission bypass remains, except control_plane.manage always requires its explicit permission; role restrictions still apply. Legacy RequiredPermissionKey is still enforced and appears in the editable selection. Role names are taken from authenticated claims and are included in the navigation cache discriminator. Page/API authorization continues to enforce actual access. Option loading uses the existing roles.view and roles.manage_permissions endpoints; Save remains disabled if either lookup fails.
 
@@ -77,4 +77,6 @@ RequiredRoleNames and RequiredPermissionKeys are EF primitive collections: SQL S
 
 ## Platform navigation and module availability
 
-Control Panel owns the Deployment Stamps/Tenants/Modules table tabs. Payments has its own /payments page and module gate, with /features/payments retained as an alias. Module lifecycle changes pass through the control-plane API and Unit of Work. Disable retains tenant assignments for re-enabling; Retire permanently withdraws access without deleting domain data. Core and IAM remain essential.
+Control Panel is a permission-filtered tile hub leading to the standalone Deployment Stamps, Tenants, Modules and KYC listings. Former ?tab= bookmarks redirect to those routes. Payments has its own /payments page and module gate, with /features/payments retained as an alias. Module lifecycle changes pass through the control-plane API and Unit of Work. Disable retains tenant assignments for re-enabling; Retire permanently withdraws access without deleting domain data. Core and IAM remain essential.
+
+Administration presentation follows the shared [UI conventions](../development/ui-conventions.md): one card header/action, optional tabs, filters, contained table and pager. Embedded pages do not repeat their tab title or creation controls.

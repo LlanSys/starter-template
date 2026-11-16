@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using System.Net;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
@@ -24,21 +26,40 @@ internal sealed class InviteAdminUser(UserManager<AppUser> users, ICurrentTenant
         try
         {
             var user = await users.FindByIdAsync(command.UserId).ConfigureAwait(false);
-            if (user is null || user.IsDeleted || user.TenantId != tenantProvider.TenantId || user.TenantId == Guid.Empty)
+
+            if (user is null || user.Kind != AccountKind.Human || user.IsDeleted || user.TenantId != tenantProvider.TenantId || user.TenantId == Guid.Empty)
+            {
                 return AppResponses.NotFound<bool>("User not found.");
+            }
+
+            if (!command.PlatformStaffWorkflow && (await users.GetClaimsAsync(user).ConfigureAwait(false))
+                .Any(c => c.Type == PlatformAccess.StaffClaim && c.Value == "true"))
+            {
+                return AppResponses.Failure<bool>("Send platform staff invitations through Platform Staff in the Control Panel.");
+            }
+
             if (!user.IsActive || user.EmailConfirmed || string.IsNullOrWhiteSpace(user.Email))
+            {
                 return AppResponses.Failure<bool>("Activate an account with an unverified email before sending an invitation.");
+            }
+
             if (await controlPlane.Tenants.AnyAsync(
                 tenant => tenant.Id == user.TenantId && tenant.AdministratorUserId == user.Id, cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Failure<bool>("Use workspace setup to invite the initial administrator.");
             }
+
             if (string.IsNullOrWhiteSpace(settings.Value.Provider) || string.Equals(settings.Value.Provider, "NoOp", StringComparison.OrdinalIgnoreCase))
+            {
                 return AppResponses.Failure<bool>("Account invitation delivery requires an email provider.");
+            }
+
             if (!Uri.TryCreate(settings.Value.ClientBaseUrl, UriKind.Absolute, out var baseUri)
                 || (baseUri.Scheme != Uri.UriSchemeHttps && baseUri.Scheme != Uri.UriSchemeHttp)
                 || !string.IsNullOrEmpty(baseUri.UserInfo) || !string.IsNullOrEmpty(baseUri.Query) || !string.IsNullOrEmpty(baseUri.Fragment))
+            {
                 return AppResponses.Failure<bool>("Account invitation delivery is not configured.");
+            }
 
             var token = await users.GenerateUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user)).ConfigureAwait(false);
             var link = new Uri(baseUri, $"/iam/accept-invitation?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}&tenantId={user.TenantId:D}");
@@ -48,6 +69,7 @@ internal sealed class InviteAdminUser(UserManager<AppUser> users, ICurrentTenant
                 Subject = "Your account invitation",
                 Body = $"<p>Hi {WebUtility.HtmlEncode(user.FirstName)},</p><p>Choose your password and confirm your email to complete account setup.</p><p><a href=\"{WebUtility.HtmlEncode(link.AbsoluteUri)}\">Accept invitation</a></p><p>If the link has expired, ask your administrator for another invitation.</p>"
             }, cancellationToken).ConfigureAwait(false);
+
             return result.IsSuccess
                 ? AppResponses.Success("Account invitation sent.", true)
                 : AppResponses.Failure<bool>("The invitation could not be delivered. Please try again.");

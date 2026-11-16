@@ -1,32 +1,107 @@
-@attribute [Authorize(Policy = "Page:/dashboard") ]
 @page "/dashboard"
-@attribute [Authorize]
+@attribute [Authorize(Policy = "Page:/dashboard")]
 @rendermode InteractiveServer
-@inject IAuthSession AuthSession
 
 <PageTitle>Dashboard | StarterTemplate</PageTitle>
 <section class="dashboard-page">
-    <div class="dashboard-hero compact-hero">
-        <h1>Dashboard</h1>
+    <div class="panel-heading dashboard-heading">
+        <h1 class="platform-page-title">Dashboard</h1>
+        <MudText Typo="Typo.body2">Welcome, @AuthSession.CurrentUser?.FirstName</MudText>
     </div>
-    <MudGrid Spacing="2">
-        <MudItem xs="12" md="6">
-            <MudPaper Class="poc-panel" Elevation="0">
-                <h2>Account</h2>
-                <p>@AuthSession.CurrentUser?.Email</p>
-                <p>Authenticator MFA: @(AuthSession.CurrentUser?.TwoFactorEnabled == true ? "Enabled" : "Not enrolled")</p>
-                <MudButton Href="/profile" Variant="Variant.Text">Manage profile</MudButton>
-            </MudPaper>
-        </MudItem>
-
-    </MudGrid>
-</section>
-
-@code {
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    <MudPaper Class="poc-panel attention-panel mb-4"
+              Elevation="0">
+        <div class="panel-heading">
+            <h2>Needs Your Attention</h2>
+            <div>
+                <MudButton Href="/tasks"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Assignment">Tasks</MudButton>
+                <MudButton OnClick="ReloadAsync"
+                           Disabled="_loading"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Refresh">Refresh</MudButton>
+            </div>
+        </div>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true"
+                               aria-label="Loading dashboard" />
+        }
+        else
+        {
+            @if (_attentionMessage is not null)
+            {
+                <MudAlert Severity="Severity.Warning"
+                          Dense="true">@_attentionMessage</MudAlert>
+            }
+            @if (AssignedActions.Length > 0)
+            {
+                <h3 class="attention-section-title">My Tasks</h3>
+                <DashboardAttentionList Items="AssignedActions" />
+            }
+            @if (PersonalActions.Length > 0)
+            {
+                <h3 class="attention-section-title">Your Actions</h3>
+                <DashboardAttentionList Items="PersonalActions" />
+            }
+            @if (TeamActions.Length > 0)
+            {
+                <h3 class="attention-section-title">Team Queue</h3>
+                <MudText Typo="Typo.body2"
+                         Class="attention-explanation">Unassigned work you are authorized to handle. Open a queue to claim or assign an individual task.</MudText>
+                <DashboardAttentionList Items="TeamActions" />
+            }
+            @if (PersonalActions.Length == 0 && AssignedActions.Length == 0 && TeamActions.Length == 0 && _attentionMessage is null)
+            {
+                <MudText Typo="Typo.body2">No action items to show.</MudText>
+            }
+        }
+    </MudPaper>
+    @if (!_loading && Information.Length > 0)
     {
-        if (!firstRender) return;
-        await AuthSession.InitializeAsync();
-        StateHasChanged();
+        <MudPaper Class="poc-panel attention-panel mb-4"
+                  Elevation="0">
+            <div class="panel-heading">
+                <h2>Available Support Access</h2>
+            </div>
+            <DashboardAttentionList Items="Information" />
+        </MudPaper>
     }
-}
+    @if (_message is not null)
+    {
+        <MudAlert Severity="Severity.Warning"
+                  Dense="true"
+                  Class="mb-3">@_message</MudAlert>
+    }
+    @if (AuthSession.CurrentUser?.IsPlatformStaff == true)
+    {
+        <div class="dashboard-metrics">
+            @foreach (var metric in _metrics)
+            {
+                <MudPaper Class="@($"dashboard-accent-card dashboard-accent-{metric.Accent}")"
+                          Elevation="0">
+                    <MudText Typo="Typo.body2">@metric.Label</MudText>
+                    <MudText Typo="Typo.h5">@metric.Value</MudText>
+                </MudPaper>
+            }
+        </div>
+        <div class="dashboard-shortcuts">
+            <AuthorizeView Policy="ControlPlane.Access">
+                <MudButton Href="/control-panel"
+                           StartIcon="@Icons.Material.Filled.AdminPanelSettings">Control Panel</MudButton>
+            </AuthorizeView>
+        </div>
+    }
+    else if (AuthSession.CurrentUser is { } user)
+    {
+        <MudPaper Class="dashboard-accent-card"
+                  Elevation="0">
+            <MudText Typo="Typo.h6">@(user.WorkspaceName ?? "Your Account")</MudText>
+            <MudText Typo="Typo.body2">@user.Email</MudText>
+            <MudText Typo="Typo.body2">Authenticator MFA: @(user.TwoFactorEnabled ? "Enabled" : "Not enrolled")</MudText>
+            <MudButton Href="/profile"
+                       Variant="Variant.Text"
+                       Class="mt-2">Manage Profile</MudButton>
+        </MudPaper>
+    }
+</section>

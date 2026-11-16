@@ -68,7 +68,7 @@ internal sealed class LiveAuthorityMiddleware(RequestDelegate next)
             claims.AddRange(roleNames.Select(name => new Claim(ClaimTypes.Role, name)));
             claims.AddRange(permissions.Where(key => !string.IsNullOrWhiteSpace(key))
                 .Where(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase)
-                    ? !proxy : access.PermissionRegistered(key) && access.PermissionAvailable(key))
+                    ? !proxy && PlatformPermissions.IsDefined(key) : access.PermissionRegistered(key) && access.PermissionAvailable(key))
                 .Select(key => new Claim("permission", key)));
 
             if (!proxy && directClaims.Any(claim => claim.ClaimType == PlatformAccess.StaffClaim && claim.ClaimValue == "true"))

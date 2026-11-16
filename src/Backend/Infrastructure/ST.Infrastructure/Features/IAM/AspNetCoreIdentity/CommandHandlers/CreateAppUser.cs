@@ -24,6 +24,7 @@ internal sealed class CreateAppUser(
     public async Task<AppResponse<AppUserResponse>> Handle(CreateAppUserCommand command, CancellationToken ct)
     {
         var request = command.Request;
+
         try
         {
             if (tenantProvider.TenantId == Guid.Empty)
@@ -35,19 +36,22 @@ internal sealed class CreateAppUser(
             var email = request.Email.Trim();
             var normalizedName = userManager.NormalizeName(userName);
             var normalizedEmail = userManager.NormalizeEmail(email);
-            // Identity uniqueness spans all tenants and includes soft-deleted accounts.
+            // Identity reservations include deleted accounts within the owning workspace.
             var exists = await userManager.Users.IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(user => user.NormalizedUserName == normalizedName || user.NormalizedEmail == normalizedEmail, ct)
+                .AnyAsync(user => user.TenantId == tenantProvider.TenantId
+                    && (user.NormalizedUserName == normalizedName || user.NormalizedEmail == normalizedEmail), ct)
                 .ConfigureAwait(false);
+
             if (exists)
             {
-                return AppResponses.Failure<AppUserResponse>("An account with this username or email already exists.");
+                return AppResponses.Failure<AppUserResponse>("An account with this username or email already exists in this workspace.");
             }
 
             var roles = request.Roles?.Where(static role => !string.IsNullOrWhiteSpace(role))
                 .Select(static role => role.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
 
             var normalizedRoles = roles.Select(roleManager.NormalizeKey).ToArray();
+
             if (normalizedRoles.Length > 0 && await roleManager.Roles
                 .CountAsync(role => normalizedRoles.Contains(role.NormalizedName), ct).ConfigureAwait(false) != normalizedRoles.Length)
             {
@@ -65,15 +69,20 @@ internal sealed class CreateAppUser(
                 var now = timeProvider.GetUtcNow();
                 var user = AppUser.CreateAccount(now, tenantProvider.TenantId, userName,
                     request.FirstName, request.LastName, email, request.PhoneNumber, command.UserId);
+
                 var createResult = await userManager.CreateAsync(user, request.Password).ConfigureAwait(false);
+
                 if (!createResult.Succeeded)
                 {
-                    throw new AccountCreationRejectedException("The account could not be created. Check the account details and password requirements.");
+                    throw new AccountCreationRejectedException(createResult.Errors.Any(error => error.Code == "TenantAccountLimitReached")
+                        ? "This workspace has reached its user limit."
+                        : "The account could not be created. Check the account details and password requirements.");
                 }
 
                 if (roles.Length > 0)
                 {
                     var roleResult = await userManager.AddToRolesAsync(user, roles).ConfigureAwait(false);
+
                     if (!roleResult.Succeeded)
                     {
                         throw new AccountCreationRejectedException("The requested roles could not be assigned.");
@@ -104,5 +113,7 @@ internal sealed class CreateAppUser(
         }
     }
 
-    private sealed class AccountCreationRejectedException(string message) : Exception(message) { }
+    private sealed class AccountCreationRejectedException(string message) : Exception(message)
+    {
+    }
 }

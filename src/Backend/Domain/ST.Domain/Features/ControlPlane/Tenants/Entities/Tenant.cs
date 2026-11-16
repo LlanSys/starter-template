@@ -10,33 +10,107 @@ namespace ST.Domain.Features.ControlPlane.Tenants.Entities;
 public class Tenant : IAuditable, IHasDomainEvents
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
-    public required string Identifier { get; set; } // URL-safe slug
-    public required string DisplayName { get; set; }
-    public required string HostName { get; set; }
-    public string? ContactEmail { get; set; }
-    public string? ClientOrigin { get; set; }
-    public bool IsDemo { get; set; }
-    public int DemoFixtureVersion { get; set; }
-    public DateTimeOffset? DemoResetAt { get; set; }
-    public int WorkspaceVersion { get; set; }
-    public DateTimeOffset? WorkspaceInitializedAt { get; set; }
-    public string? AdministratorUserId { get; set; }
-    public string? AdministratorEmail { get; set; }
-    public DateTimeOffset? InvitationSentAt { get; set; }
-    public int MaxUsers { get; set; }
-    public SubscriptionTier SubscriptionTier { get; set; }
+    public required string Identifier
+    {
+        get; set;
+    } // URL-safe slug
+    public required string DisplayName
+    {
+        get; set;
+    }
+    public required string HostName
+    {
+        get; set;
+    }
+    public string? ContactEmail
+    {
+        get; set;
+    }
+    public string? ClientOrigin
+    {
+        get; set;
+    }
+    public string? DedicatedFrontendOrigin
+    {
+        get; set;
+    }
+    public string? EffectiveClientOrigin => DedicatedFrontendOrigin ?? ClientOrigin;
+    public bool IsDemo
+    {
+        get; set;
+    }
+    public int DemoFixtureVersion
+    {
+        get; set;
+    }
+    public DateTimeOffset? DemoResetAt
+    {
+        get; set;
+    }
+    public int WorkspaceVersion
+    {
+        get; set;
+    }
+    public DateTimeOffset? WorkspaceInitializedAt
+    {
+        get; set;
+    }
+    public string? AdministratorUserId
+    {
+        get; set;
+    }
+    public string? AdministratorEmail
+    {
+        get; set;
+    }
+    public DateTimeOffset? InvitationSentAt
+    {
+        get; set;
+    }
+    public int MaxUsers
+    {
+        get; set;
+    }
+    public SubscriptionTier SubscriptionTier
+    {
+        get; set;
+    }
     public TenantStatus Status { get; set; } = TenantStatus.PendingApproval;
 
     public static readonly Guid PlatformTenantId = Guid.Parse("0194f700-0000-7000-8000-000000000001");
 
-    public DateTimeOffset? SessionsInvalidBefore { get; private set; }
-    public Guid? ProvisioningOperationId { get; private set; }
-    public DateTimeOffset? ProvisioningDeadline { get; private set; }
-    public Guid? WorkspaceSetupLeaseId { get; private set; }
-    public DateTimeOffset? WorkspaceSetupLeaseUntil { get; private set; }
-    public DateTimeOffset? KycApprovedAt { get; private set; }
-    public string? KycApprovedBy { get; private set; }
-    public string? KycEvidenceReference { get; private set; }
+    public DateTimeOffset? SessionsInvalidBefore
+    {
+        get; private set;
+    }
+    public Guid? ProvisioningOperationId
+    {
+        get; private set;
+    }
+    public DateTimeOffset? ProvisioningDeadline
+    {
+        get; private set;
+    }
+    public Guid? WorkspaceSetupLeaseId
+    {
+        get; private set;
+    }
+    public DateTimeOffset? WorkspaceSetupLeaseUntil
+    {
+        get; private set;
+    }
+    public DateTimeOffset? KycApprovedAt
+    {
+        get; private set;
+    }
+    public string? KycApprovedBy
+    {
+        get; private set;
+    }
+    public string? KycEvidenceReference
+    {
+        get; private set;
+    }
 
     public bool IsCustomerWorkspace => !IsDemo && Id != PlatformTenantId;
     public bool CanProvision => !IsCustomerWorkspace || KycApprovedAt.HasValue;
@@ -45,9 +119,11 @@ public class Tenant : IAuditable, IHasDomainEvents
     public void Approve(string actorId, DateTimeOffset now, string? evidenceReference)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
+
         if (IsCustomerWorkspace)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(evidenceReference);
+
             if (evidenceReference.Trim().Length > 256)
             {
                 throw new ArgumentException("The evidence reference must be at most 256 characters.", nameof(evidenceReference));
@@ -109,7 +185,9 @@ public class Tenant : IAuditable, IHasDomainEvents
     public void MarkAsProvisioning()
     {
         if (!CanProvision || Status != TenantStatus.PendingProvisioning)
+        {
             throw new InvalidOperationException($"Cannot start provisioning from status {Status}");
+        }
 
         Status = TenantStatus.Provisioning;
     }
@@ -117,7 +195,9 @@ public class Tenant : IAuditable, IHasDomainEvents
     public void MarkAsActive()
     {
         if (!CanProvision || Status is not (TenantStatus.PendingProvisioning or TenantStatus.Provisioning))
+        {
             throw new InvalidOperationException($"Cannot activate tenant from status {Status}");
+        }
 
         Status = TenantStatus.Active;
     }
@@ -163,7 +243,9 @@ public class Tenant : IAuditable, IHasDomainEvents
     public void Suspend()
     {
         if (Status != TenantStatus.Active)
+        {
             throw new InvalidOperationException($"Cannot suspend tenant from status {Status}");
+        }
 
         Status = TenantStatus.Suspended;
     }
@@ -185,19 +267,46 @@ public class Tenant : IAuditable, IHasDomainEvents
         _domainEvents.Clear();
     }
 
-    public Guid DeploymentStampId { get; set; }
-    public Guid? ExclusiveStampId { get; set; }
-    public DeploymentStamp? DeploymentStamp { get; set; }
+    public Guid DeploymentStampId
+    {
+        get; set;
+    }
+    public Guid? ExclusiveStampId
+    {
+        get; set;
+    }
+    public DeploymentStamp? DeploymentStamp
+    {
+        get; set;
+    }
 
-    public string? DatabaseProvider { get; set; }
-    public string? DatabaseConnectionString { get; set; }
+    public string? DatabaseProvider
+    {
+        get; set;
+    }
+    public string? DatabaseConnectionString
+    {
+        get; set;
+    }
 
     public ICollection<TenantModule> Modules { get; set; } = [];
 
-    public DateTimeOffset CreatedAt { get; set; }
-    public required string CreatedBy { get; set; }
-    public DateTimeOffset? UpdatedAt { get; set; }
-    public string? UpdatedBy { get; set; }
+    public DateTimeOffset CreatedAt
+    {
+        get; set;
+    }
+    public required string CreatedBy
+    {
+        get; set;
+    }
+    public DateTimeOffset? UpdatedAt
+    {
+        get; set;
+    }
+    public string? UpdatedBy
+    {
+        get; set;
+    }
 
     [Timestamp]
     [SuppressMessage("Performance", "CA1819:Properties should not return arrays",

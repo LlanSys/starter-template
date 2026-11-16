@@ -3,6 +3,7 @@ using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Utilities;
 using ST.Domain.Shared.Contracts.Common;
 using MediatR;
+using ST.SharedKernel.Dtos.Common;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ST.Tests.Unit.Application.Behaviours;
@@ -26,9 +27,36 @@ public sealed class CacheInvalidationBehaviorTests
         var result = await behavior.Handle(request, _ => Task.FromResult("ok"), CancellationToken.None);
 
         Assert.Equal("ok", result);
-        Assert.Contains("lookups:version:global", cache.RemovedKeys);
-        Assert.Contains($"lookups:version:tenant:{TenantId:D}", cache.RemovedKeys);
-        Assert.DoesNotContain($"lookups:versiontenant:{TenantId:D}", cache.RemovedKeys);
+        Assert.Contains("lookups:version:global", cache.SetKeys);
+        Assert.Contains($"lookups:version:tenant:{TenantId:D}", cache.SetKeys);
+        Assert.DoesNotContain($"lookups:versiontenant:{TenantId:D}", cache.SetKeys);
+        Assert.Contains(CacheKeys.Request($"lookups:version:tenant:{TenantId:D}"), cache.SetKeys);
+        var first = cache.Values[CacheKeys.Request($"lookups:version:tenant:{TenantId:D}")];
+        await behavior.Handle(request, _ => Task.FromResult("ok"), CancellationToken.None);
+        Assert.NotEqual(first, cache.Values[CacheKeys.Request($"lookups:version:tenant:{TenantId:D}")]);
+    }
+
+    [Fact]
+    public async Task ExpectedBusinessFailureDoesNotInvalidatePreviouslySuccessfulReads()
+    {
+        var cache = new RecordingCacheService();
+        var behavior = new CacheInvalidationBehavior<RejectedMutation, AppResponse<bool>>(
+            cache,
+            new FixedTenantProvider(TenantId),
+            NullLogger<CacheInvalidationBehavior<RejectedMutation, AppResponse<bool>>>.Instance,
+            TimeProvider.System);
+
+        var rejected = new AppResponse<bool> { IsSuccess = false, Message = "Rejected" };
+        var result = await behavior.Handle(new RejectedMutation(), _ => Task.FromResult(rejected), CancellationToken.None);
+        Assert.Same(rejected, result);
+        Assert.Empty(cache.SetKeys);
+        Assert.Empty(cache.RemovedKeys);
+    }
+
+    private sealed record RejectedMutation : IRequest<AppResponse<bool>>, ICacheInvalidatorRequest
+    {
+        public IReadOnlyList<string> GroupVersionKeysToInvalidate => [CacheKeys.GroupVersion("lookups")];
+        public IReadOnlyList<string> DirectInvalidationKeys => [CacheKeys.Entity("lookups", "one")];
     }
 
     private sealed record TestInvalidationRequest(IReadOnlyList<string> GroupVersionKeysToInvalidate)
@@ -43,16 +71,22 @@ public sealed class CacheInvalidationBehaviorTests
     {
         public List<string> SetKeys { get; } = [];
         public List<string> RemovedKeys { get; } = [];
+        public Dictionary<string, object?> Values { get; } = [];
 
         public Task<T?> GetAsync<T>(string key, CancellationToken ct = default)
-            => Task.FromResult(default(T));
+        {
+            return Task.FromResult(default(T));
+        }
 
         public Task<bool> ExistsAsync(string key, CancellationToken ct = default)
-            => Task.FromResult(false);
+        {
+            return Task.FromResult(false);
+        }
 
         public Task SetAsync<T>(string key, T value, TimeSpan? expiration = null, CancellationToken ct = default)
         {
             SetKeys.Add(key);
+            Values[key] = value;
             return Task.CompletedTask;
         }
 
@@ -63,13 +97,17 @@ public sealed class CacheInvalidationBehaviorTests
         }
 
         public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
-            => Task.CompletedTask;
+        {
+            return Task.CompletedTask;
+        }
 
         public async Task<T> GetOrCreateAsync<T>(
             string key,
             Func<CancellationToken, Task<T>> factory,
             TimeSpan? expiration = null,
             CancellationToken ct = default)
-            => await factory(ct);
+        {
+            return await factory(ct);
+        }
     }
 }

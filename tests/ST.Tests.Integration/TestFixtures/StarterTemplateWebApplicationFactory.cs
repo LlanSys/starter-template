@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Hosting;
+using ST.Infrastructure.Features.ControlPlane.Kyc;
+using System.Security.Cryptography;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using ST.Infrastructure.Configuration;
@@ -41,6 +44,8 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
 {
     private readonly MsSqlContainer _dbContainer;
     private readonly IContainer _mailpit;
+    private readonly IContainer _kycStorage;
+    private readonly string _kycKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
     internal Uri MailpitApi => new($"http://{_mailpit.Hostname}:{_mailpit.GetMappedPublicPort(8025)}");
     private string _containerConnectionString = string.Empty;
 
@@ -58,6 +63,10 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         Environment.SetEnvironmentVariable("DevelopmentSeed__Enabled", "false");
         Environment.SetEnvironmentVariable("JwtSettings__SecretKey", "StarterCertificationOnlySigningKey012345678901234567890123456789");
 
+        _kycStorage = new ContainerBuilder().WithImage("mcr.microsoft.com/azure-storage/azurite:3.35.0")
+            .WithEnvironment("AZURITE_ACCOUNTS", $"sttest:{_kycKey}").WithPortBinding(10000, true)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(10000)).Build();
+
         _mailpit = new ContainerBuilder().WithImage("axllent/mailpit:v1.27")
             .WithPortBinding(1025, true).WithPortBinding(8025, true)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(1025)).Build();
@@ -72,11 +81,23 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>();
-        if (await db.Tenants.AnyAsync(x=>x.Id==id)) return;
-        var tenant = new Tenant { Id=id,Identifier=$"test-{id:N}",DisplayName="Test workspace",HostName=$"{id:N}.invalid",DeploymentStampId=Guid.Parse("0194f700-0000-7000-8000-000000000001"),CreatedBy="test-fixture",MaxUsers=100 };
-        tenant.Approve("test-fixture", DateTimeOffset.UnixEpoch, "review-1");tenant.MarkAsActive();
-        foreach(var module in new[]{"Core","IAM"}) tenant.Modules.Add(new TenantModule { TenantId=id,ModuleKey=module,CreatedBy="test-fixture" });
-        db.Tenants.Add(tenant);await db.SaveChangesAsync();
+
+        if (await db.Tenants.AnyAsync(x => x.Id == id))
+        {
+            return;
+        }
+
+        var tenant = new Tenant { Id = id, Identifier = $"test-{id:N}", DisplayName = "Test workspace", HostName = $"{id:N}.invalid", DeploymentStampId = Guid.Parse("0194f700-0000-7000-8000-000000000001"), CreatedBy = "test-fixture", MaxUsers = 100 };
+        tenant.Approve("test-fixture", DateTimeOffset.UnixEpoch, "review-1");
+        tenant.MarkAsActive();
+
+        foreach (var module in new[] { "Core", "IAM" })
+        {
+            tenant.Modules.Add(new TenantModule { TenantId = id, ModuleKey = module, CreatedBy = "test-fixture" });
+        }
+
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -97,8 +118,26 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         // even if the CI pipeline sets ASPNETCORE_ENVIRONMENT=Production.
         builder.UseEnvironment("Development");
 
+        // Derived storage tests opt into their own disposable Azurite; never inherit workstation KYC credentials.
+        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["KycDocuments:Provider"] = "Azurite",
+            ["KycDocuments:ConnectionString"] = $"DefaultEndpointsProtocol=http;AccountName=sttest;AccountKey={_kycKey};BlobEndpoint=http://{_kycStorage.Hostname}:{_kycStorage.GetMappedPublicPort(10000)}/sttest;",
+            ["KycDocuments:ContainerName"] = "test-kyc-evidence",
+            ["KycDocuments:ErasureLedgerContainerName"] = "test-kyc-ledger",
+            ["KycDocuments:ContainerUri"] = ""
+        }));
+
         builder.ConfigureTestServices(services =>
         {
+            // Storage tests explicitly drain the durable processor with their own isolated scanner/storage.
+            // A second factory sharing the SQL fixture must not race using a different blob account.
+            foreach (var hosted in services.Where(item => item.ServiceType == typeof(IHostedService)
+                && item.ImplementationType == typeof(KycDocumentSafetyWorker)).ToArray())
+            {
+                services.Remove(hosted);
+            }
+
             // ── 1. Auth: replace real JWT/Cookie stack with test-header-based handler ──
             services.AddAuthentication(options =>
             {
@@ -111,6 +150,7 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             .AddPolicyScheme("Certification", null, options => options.ForwardDefaultSelector = context =>
                 context.Request.Headers.Authorization.ToString().StartsWith(TestAuthHandler.AuthenticationScheme, StringComparison.Ordinal)
                     ? TestAuthHandler.AuthenticationScheme : JwtBearerDefaults.AuthenticationScheme);
+
             services.Configure<EmailSettings>(options =>
             {
                 options.Provider = "LocalMailpit";
@@ -153,8 +193,11 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
              || d.ServiceType == typeof(DbContextOptions<TContext>)
              || d.ServiceType == typeof(DbContextOptions<TSqlServerContext>))
             .ToList();
+
         foreach (var d in descriptorsToRemove)
+        {
             services.Remove(d);
+        }
 
         // Remove existing concrete context registrations
         var concreteToRemove = services
@@ -162,8 +205,11 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
                 (d.ServiceType == typeof(TContext) && d.ImplementationType == typeof(TSqlServerContext))
              || d.ServiceType == typeof(TSqlServerContext))
             .ToList();
+
         foreach (var d in concreteToRemove)
+        {
             services.Remove(d);
+        }
 
         // Re-register pointing at the Testcontainer. No migration settings needed
         // because we use EnsureCreated / CreateTablesAsync for test schema setup.
@@ -176,6 +222,7 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         // Step 1: Start the container — must happen before anything else.
         await _dbContainer.StartAsync();
         await _mailpit.StartAsync();
+        await _kycStorage.StartAsync();
         var rawCs = _dbContainer.GetConnectionString();
         _containerConnectionString = rawCs.TrimEnd(';') + ";TrustServerCertificate=True;Encrypt=False;";
 
@@ -204,6 +251,8 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
 
     new public async Task DisposeAsync()
     {
+        await base.DisposeAsync();
+        await _kycStorage.DisposeAsync();
         await _mailpit.DisposeAsync();
         await _dbContainer.StopAsync();
         await _dbContainer.DisposeAsync();

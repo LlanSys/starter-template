@@ -3,11 +3,22 @@
 
 <MudDialog>
     <DialogContent>
-        <MudTextField @bind-Value="_name" Label="Role name" Margin="Margin.Dense" Variant="Variant.Outlined" Required />
+        <MudTextField @bind-Value="_name"
+                      Label="Role name"
+                      Margin="Margin.Dense"
+                      Variant="Variant.Outlined"
+                      Required />
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="@(ExistingRole is null ? Color.Primary : Color.Success)" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : ExistingRole is null ? "Create" : "Save")</MudButton>
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Success"
+                   Disabled="_isSaving"
+                   OnClick="SaveAsync"
+                   StartIcon="@Icons.Material.Filled.Save">@(_isSaving ? "Saving..." : "Save")</MudButton>
     </DialogActions>
 </MudDialog>
 

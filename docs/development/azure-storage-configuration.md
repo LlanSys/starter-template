@@ -272,3 +272,5 @@ Admins are in the MFA-required role list. Enable MFA for admin before testing ad
 4. Confirm the blob exists in the `profile-images` container.
 5. Confirm the UI image source is `/api/v1/iam/users/me/profile-picture/content`.
 6. Restart the API twice and confirm login/session/MFA flows still work when `DataProtection:BlobKeyUri` is configured.
+
+KYC originals use a separate private kyc-documents container with KycDocuments settings. Grant the API managed identity container access. See [KYC documents](kyc-documents.md).

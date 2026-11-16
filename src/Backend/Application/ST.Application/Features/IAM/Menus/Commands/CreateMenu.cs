@@ -15,7 +15,10 @@ namespace ST.Application.Features.IAM.Menus.Commands;
 
 
 
-internal sealed class CreateMenuCommandHandler(IIamUnitOfWork unitOfWork, ILogger<CreateMenuCommandHandler> logger, IEffectiveModulePolicy policy, IEffectiveNavigation navigation)
+internal sealed class CreateMenuCommandHandler(
+    IIamUnitOfWork unitOfWork,
+    ILogger<CreateMenuCommandHandler> logger,
+    IEffectiveModulePolicy policy, IEffectiveNavigation navigation)
     : IRequestHandler<CreateMenuCommand, AppResponse<MenuResponse>>
 {
     public async Task<AppResponse<MenuResponse>> Handle(CreateMenuCommand command, CancellationToken cancellationToken)

@@ -39,6 +39,11 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
 
         builder.HasIndex(u => u.NormalizedUserName).IsUnique(false).HasDatabaseName("IX_AppUsers_NormalizedUserName");
         builder.HasIndex(u => new { u.TenantId, u.NormalizedUserName }).IsUnique().HasDatabaseName("UX_AppUsers_Tenant_UserName");
+        builder.HasIndex(u => new { u.TenantId, u.NormalizedEmail }).IsUnique()
+            .HasDatabaseName("UX_AppUsers_Tenant_Email");
+
+        builder.Property(u => u.Kind).HasConversion<string>().HasMaxLength(100);
+
         builder.HasIndex(u => u.TenantId)
             .HasDatabaseName("IX_AppUsers_TenantId");
 

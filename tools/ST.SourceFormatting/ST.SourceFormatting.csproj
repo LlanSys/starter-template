@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <Platforms>AnyCPU;x64</Platforms>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageDownload Include="PinguApps.RazorStyle.Cli" Version="[$(RazorStyleVersion)]" />
+    <Reference Include="PinguApps.RazorStyle.Core">
+      <HintPath>$(NuGetPackageRoot)/pinguapps.razorstyle.cli/$(RazorStyleVersion)/tools/net10.0/any/PinguApps.RazorStyle.Core.dll</HintPath>
+    </Reference>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

@@ -13,6 +13,7 @@ services:
       Messaging__Enabled: "true"
       Messaging__Transport: RabbitMq
       Messaging__RabbitMq__Host: rabbitmq
+      Messaging__RabbitMq__Port: "5672"
       Messaging__RabbitMq__VirtualHost: /
       Messaging__RabbitMq__Username: ${RABBITMQ_USER:?Set RABBITMQ_USER in ops/local/.env}
       Messaging__RabbitMq__Password: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in ops/local/.env}
@@ -39,12 +40,19 @@ services:
       DataProtection__RedisKeyRingConnectionString: redis:6379,password=${REDIS_PASSWORD:?Set REDIS_PASSWORD in ops/local/.env},abortConnect=false
       DataProtection__RedisKeyRingKey: StarterTemplate-DataProtection-Keys
       DataProtection__KeyEncryptionMode: None
+      KycDocumentSafety__Host: clamav
+      KycDocumentSafety__Port: "3310"
+      KycDocuments__Provider: Azurite
+      KycDocuments__ContainerName: kyc-documents
+      KycDocuments__ConnectionString: DefaultEndpointsProtocol=http;AccountName=${AZURITE_ACCOUNT_NAME:?Set AZURITE_ACCOUNT_NAME in ops/local/.env};AccountKey=${AZURITE_ACCOUNT_KEY:?Set AZURITE_ACCOUNT_KEY in ops/local/.env};BlobEndpoint=http://azurite:10000/${AZURITE_ACCOUNT_NAME};
       ProfileImageStorage__Provider: Azurite
       ProfileImageStorage__Azurite__ConnectionString: DefaultEndpointsProtocol=http;AccountName=${AZURITE_ACCOUNT_NAME:?Set AZURITE_ACCOUNT_NAME in ops/local/.env};AccountKey=${AZURITE_ACCOUNT_KEY:?Set AZURITE_ACCOUNT_KEY in ops/local/.env};BlobEndpoint=http://azurite:10000/${AZURITE_ACCOUNT_NAME};QueueEndpoint=http://azurite:10001/${AZURITE_ACCOUNT_NAME};TableEndpoint=http://azurite:10002/${AZURITE_ACCOUNT_NAME};
       ProfileImageStorage__Azurite__ContainerName: profile-images
     ports:
       - "${APP_API_HOST_PORT:-8180}:8080"
     depends_on:
+      clamav:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:

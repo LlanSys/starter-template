@@ -1,0 +1,42 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Africa/Nairobi
+    open-pull-requests-limit: 8
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+      # These contracts require deliberate compatibility verification, including patches.
+      - dependency-name: "MassTransit*"
+      - dependency-name: "Quartz*"
+      - dependency-name: PinguApps.RazorStyle.Cli
+    groups:
+      security-fixes:
+        applies-to: security-updates
+        patterns: ["*"]
+      dotnet-platform:
+        patterns: ["Microsoft.AspNetCore.*", "Microsoft.EntityFrameworkCore*", "Microsoft.Extensions.*", "Npgsql.EntityFrameworkCore.*", "System.Security.Cryptography.*", "dotnet-ef"]
+        update-types: [minor, patch]
+      validation:
+        patterns: ["FluentValidation*"]
+        update-types: [minor, patch]
+      graphql:
+        patterns: ["HotChocolate.*"]
+        update-types: [minor, patch]
+      azure:
+        patterns: ["Azure.*", "Microsoft.Azure.*"]
+        update-types: [minor, patch]
+      telemetry:
+        patterns: ["OpenTelemetry.*"]
+        update-types: [minor, patch]
+      test-and-analysis:
+        patterns: ["Microsoft.CodeAnalysis.*", "Microsoft.NET.Test.Sdk", "xunit*", "coverlet.*", "Testcontainers.*", "NSubstitute", "FluentAssertions", "NetArchTest.*", "Roslynator.*"]
+        update-types: [minor, patch]
+      other-compatible-updates:
+        patterns: ["*"]
+        update-types: [minor, patch]

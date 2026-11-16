@@ -236,6 +236,7 @@ namespace ST.Persistence.Features.Shared.Migrations.PostgreSql
                         .HasColumnType("character varying(300)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -330,6 +331,7 @@ namespace ST.Persistence.Features.Shared.Migrations.PostgreSql
                         .HasColumnType("character varying(50)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -378,6 +380,7 @@ namespace ST.Persistence.Features.Shared.Migrations.PostgreSql
                         .HasDefaultValue(new byte[0]);
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -396,6 +399,58 @@ namespace ST.Persistence.Features.Shared.Migrations.PostgreSql
                         .IsUnique();
 
                     b.ToTable("OrgSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.Shared.OrgSettings.Entities.OrgSettingChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<bool>("Reset")
+                        .HasColumnType("boolean");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasDefaultValue(new byte[0]);
+
+                    b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreatedAt");
+
+                    b.ToTable("OrgSettingChanges", (string)null);
                 });
 
             modelBuilder.Entity("ST.Domain.Features.Shared.Payments.Entities.PaymentRecord", b =>
@@ -463,6 +518,7 @@ namespace ST.Persistence.Features.Shared.Migrations.PostgreSql
                         .HasColumnType("character varying(1000)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")

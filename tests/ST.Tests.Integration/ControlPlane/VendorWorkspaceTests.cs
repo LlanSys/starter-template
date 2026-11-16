@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -30,7 +31,7 @@ public sealed class VendorWorkspaceTests(StarterTemplateWebApplicationFactory fa
             var actor = AppUser.CreateSystemUser(DateTimeOffset.UnixEpoch, SourceTenant, $"vendor-{Guid.CreateVersion7()}", $"vendor-{Guid.CreateVersion7()}@example.test", "test-actor");
             actor.IsActive = true; actor.EmailConfirmed = true; actor.TwoFactorEnabled = true;
             Assert.True((await users.CreateAsync(actor)).Succeeded);
-            Assert.True((await users.AddClaimsAsync(actor, [new Claim("platform_staff", "true"), new Claim("permission", "control_plane.manage")])).Succeeded);
+            Assert.True((await users.AddClaimsAsync(actor, PlatformPermissions.All.Select(key => new Claim("permission", key)).Append(new Claim("platform_staff", "true")))).Succeeded);
             actorId = actor.Id;
         }
         using var vendor = Client(actorId, true);
@@ -132,7 +133,7 @@ public sealed class VendorWorkspaceTests(StarterTemplateWebApplicationFactory fa
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(TestAuthHandler.AuthenticationScheme);
         client.DefaultRequestHeaders.Add("X-Test-UserId", userId);
         client.DefaultRequestHeaders.Add("X-Test-TenantId", SourceTenant.ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Permissions", "control_plane.manage");
+        client.DefaultRequestHeaders.Add("X-Test-Permissions", string.Join(",", PlatformPermissions.All));
         if (staff) client.DefaultRequestHeaders.Add("X-Test-PlatformStaff", "true");
         return client;
     }

@@ -1,0 +1,95 @@
+@page "/control-panel/staff"
+@layout ControlPlaneLayout
+@attribute [Authorize(Policy = PlatformPermissions.ViewPlatformStaff)]
+@using ST.SharedKernel.Features.ControlPlane.Staff
+@using ST.UI.Blazor.Features.ControlPlane.Staff.Components
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using ST.UI.Blazor.Features.Shared.Messaging
+
+<PageTitle>Platform Staff | StarterTemplate</PageTitle>
+<ControlPanelBackLink />
+<MudPaper Class="poc-panel"
+          Elevation="0">
+    <div class="panel-heading">
+        <h1 class="platform-page-title">Platform Staff</h1>
+        @if (AuthSession.HasPermission(PlatformPermissions.ManagePlatformStaff))
+        {
+            <MudButton OnClick="@(() => EditAsync(null))"
+                       Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       Size="Size.Small">Add Staff</MudButton>
+        }
+    </div>
+    <MudText Typo="Typo.body2"
+             Class="mb-3">Manage platform operators separately from customer roles. Invitations verify email; authenticator MFA is required before platform operations.</MudText>
+    @if (_message is not null)
+    {
+        <MudAlert Severity="Severity.Info"
+                  Dense="true"
+                  Class="mb-3">@_message</MudAlert>
+    }
+    <MudTextField T="string"
+                  Value="_search"
+                  ValueChanged="SearchAsync"
+                  Label="Search Staff"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  DebounceInterval="400"
+                  Class="mb-3" />
+    <div class="st-table-scroll">
+        <MudTable Items="_items"
+                  Loading="_loading"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  Elevation="0"
+                  Breakpoint="Breakpoint.None">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>MFA</MudTh>
+                <MudTh>Platform Grants</MudTh>
+                <MudTh Class="table-actions-heading">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.FullName<br />
+                    <MudText Typo="Typo.caption">@context.Username</MudText>
+                </MudTd>
+                <MudTd DataLabel="Email">@context.Email</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string"
+                             Variant="Variant.Text"
+                             Size="Size.Small"
+                             Color="@(context.Status == "Active" ? Color.Success : Color.Default)">@context.Status</MudChip>
+                </MudTd>
+                <MudTd DataLabel="MFA">@(context.MfaEnabled ? "Enabled" : "Not Enrolled")</MudTd>
+                <MudTd DataLabel="Platform Grants">@context.PermissionKeys.Count</MudTd>
+                <MudTd DataLabel="Actions">
+                    <TableRowActions CanDelete="false"
+                                     CanView="true"
+                                     OnView="@(() => HistoryAsync(context))"
+                                     CanEdit="@AuthSession.HasPermission(PlatformPermissions.ManagePlatformStaff)"
+                                     OnEdit="@(() => EditAsync(context))"
+                                     ExtraActions="@InvitationActions(context)"
+                                     OnExtraAction="@(_ => InviteAsync(context))" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText>No matching platform accounts.</MudText>
+            </NoRecordsContent>
+            <PagerContent>
+                <div class="d-flex justify-space-between align-center pa-3">
+                    <MudText Typo="Typo.caption">@_total Records</MudText>
+                    <MudPagination Count="@Math.Max(1, (_total + 24) / 25)"
+                                   Selected="_page"
+                                   SelectedChanged="PageAsync"
+                                   Size="Size.Small" />
+                </div>
+            </PagerContent>
+        </MudTable>
+    </div>
+</MudPaper>

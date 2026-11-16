@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Features.ControlPlane.Modules;
 using ST.Domain.Features.ControlPlane.Modules.Entities;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -98,8 +99,7 @@ internal sealed class DevelopmentIdentitySeeder(
             if (_settings.GrantPlatformAccess)
             {
                 requiredClaims.Add(new Claim("platform_staff", "true"));
-                requiredClaims.Add(new Claim("permission", "control_plane.manage"));
-                requiredClaims.Add(new Claim("permission", "control_plane.approve_kyc"));
+                requiredClaims.AddRange(PlatformPermissions.All.Select(key => new Claim("permission", key)));
             }
 
             var existingClaims = await userManager.GetClaimsAsync(user).ConfigureAwait(false);

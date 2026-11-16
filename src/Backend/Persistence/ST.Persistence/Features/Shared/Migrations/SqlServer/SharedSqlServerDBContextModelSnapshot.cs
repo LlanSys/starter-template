@@ -238,6 +238,7 @@ namespace ST.Persistence.Features.Shared.Migrations.SqlServer
                         .HasColumnType("nvarchar(300)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -332,6 +333,7 @@ namespace ST.Persistence.Features.Shared.Migrations.SqlServer
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -380,6 +382,7 @@ namespace ST.Persistence.Features.Shared.Migrations.SqlServer
                         .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
@@ -398,6 +401,58 @@ namespace ST.Persistence.Features.Shared.Migrations.SqlServer
                         .IsUnique();
 
                     b.ToTable("OrgSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.Shared.OrgSettings.Entities.OrgSettingChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PreviousValue")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("Reset")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreatedAt");
+
+                    b.ToTable("OrgSettingChanges", (string)null);
                 });
 
             modelBuilder.Entity("ST.Domain.Features.Shared.Payments.Entities.PaymentRecord", b =>
@@ -465,6 +520,7 @@ namespace ST.Persistence.Features.Shared.Migrations.SqlServer
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")

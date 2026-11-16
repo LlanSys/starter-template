@@ -1,0 +1,36 @@
+@using ST.SharedKernel.Features.Shared.Dashboard
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2"
+                 Class="mb-3">Latest 100 changes. Task resolution follows the underlying workflow.</MudText>
+        @if (_message is not null)
+        {
+            <MudAlert Severity="Severity.Warning"
+                      Dense="true">@_message</MudAlert>
+        }
+        <MudTable Items="_history"
+                  T="DashboardTaskHistoryResponse"
+                  Dense="true"
+                  Elevation="0"
+                  Loading="_loading">
+            <HeaderContent>
+                <MudTh>Action</MudTh>
+                <MudTh>Changed By</MudTh>
+                <MudTh>Assignment</MudTh>
+                <MudTh>When (@Presentation.TimeZoneLabel)</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Action">@context.Action</MudTd>
+                <MudTd DataLabel="Changed By">@context.ActorName</MudTd>
+                <MudTd DataLabel="Assignment">@(context.PreviousAssigneeName ?? "Unassigned") → @(context.AssigneeName ?? "Unassigned")</MudTd>
+                <MudTd DataLabel="When">@Presentation.Format(context.CreatedAt)</MudTd>
+            </RowTemplate>
+            <NoRecordsContent>No assignment changes recorded.</NoRecordsContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close"
+                   Size="Size.Small">Close</MudButton>
+    </DialogActions>
+</MudDialog>

@@ -12,7 +12,7 @@ namespace ST.Api.Features.ControlPlane.Stamps.GraphQL;
 internal sealed class DeploymentStampMutations
 {
     [GraphQLName("createDeploymentStamp")]
-    [RequireGraphQLPermission(PlatformAccess.Permission)]
+    [RequireGraphQLPermission(PlatformPermissions.ManageStamps)]
     public async Task<DeploymentStampPayload> CreateDeploymentStampAsync(
         CreateDeploymentStampRequest input, [Service] ISender sender, CancellationToken cancellationToken)
     {
@@ -21,7 +21,7 @@ internal sealed class DeploymentStampMutations
     }
 
     [GraphQLName("updateDeploymentStamp")]
-    [RequireGraphQLPermission(PlatformAccess.Permission)]
+    [RequireGraphQLPermission(PlatformPermissions.ManageStamps)]
     public async Task<DeploymentStampPayload> UpdateDeploymentStampAsync(
         Guid id, UpdateDeploymentStampRequest input, [Service] ISender sender, CancellationToken cancellationToken)
     {

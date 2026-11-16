@@ -43,7 +43,10 @@ public class SuspendTenantCommandHandler : IRequestHandler<SuspendTenantCommand,
             return AppResponses.Failure<TenantResponse>("Tenant not found.");
         }
 
-        if (tenant.Id == Guid.Parse("0194f700-0000-7000-8000-000000000001")) return AppResponses.Failure<TenantResponse>("The platform workspace cannot be suspended.");
+        if (tenant.Id == Guid.Parse("0194f700-0000-7000-8000-000000000001"))
+        {
+            return AppResponses.Failure<TenantResponse>("The platform workspace cannot be suspended.");
+        }
 
         if (tenant.Status != TenantStatus.Active)
         {
@@ -71,8 +74,10 @@ public class SuspendTenantCommandHandler : IRequestHandler<SuspendTenantCommand,
             Status = tenant.Status.ToDisplayString(),
             DeploymentStampId = tenant.DeploymentStampId,
             CreatedAt = tenant.CreatedAt,
+            KycApprovedAt = tenant.KycApprovedAt,
             UpdatedAt = tenant.UpdatedAt
         };
+
         return AppResponses.Success(dto);
     }
 }

@@ -1,4 +1,5 @@
 using ST.Domain.Features.IAM.Contracts;
+using ST.Domain.Features.IAM.Users.Enums;
 using ST.Domain.Shared.Contracts;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Domain.Features.IAM.Users.Events;
@@ -17,10 +18,34 @@ namespace ST.Domain.Features.IAM.Users.Entities;
 
 public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
 {
-    public Guid TenantId { get; set; }
+    public Guid TenantId
+    {
+        get; set;
+    }
+    public AccountKind Kind
+    {
+        get; private set;
+    }
 
-    public Guid? AdministratorInvitationId { get; private set; }
-    public DateTimeOffset? AdministratorSetupCompletedAt { get; private set; }
+    public void MarkAsSupportProxy()
+    {
+        Kind = AccountKind.SupportProxy;
+    }
+
+    public void MarkAsDemoProxy()
+    {
+        Kind = AccountKind.DemoProxy;
+    }
+
+
+    public Guid? AdministratorInvitationId
+    {
+        get; private set;
+    }
+    public DateTimeOffset? AdministratorSetupCompletedAt
+    {
+        get; private set;
+    }
     public bool RequiresAdministratorSetup => AdministratorInvitationId.HasValue && !AdministratorSetupCompletedAt.HasValue;
 
     public void BeginAdministratorSetup(Guid invitationId)
@@ -44,32 +69,92 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
     public string LastName { get; set; } = string.Empty;
 
 
-    public Uri? ProfilePictureUrl { get; set; }
+    public Uri? ProfilePictureUrl
+    {
+        get; set;
+    }
 
 
-    public DateTimeOffset? LastLoginAt { get; set; }
-    public int FailedLoginAttempts { get; set; }
-    public DateTimeOffset? LastFailedLoginAt { get; set; }
-    public bool RequirePasswordChange { get; set; }
-    public DateTimeOffset? PasswordLastChanged { get; set; }
+    public DateTimeOffset? LastLoginAt
+    {
+        get; set;
+    }
+    public int FailedLoginAttempts
+    {
+        get; set;
+    }
+    public DateTimeOffset? LastFailedLoginAt
+    {
+        get; set;
+    }
+    public bool RequirePasswordChange
+    {
+        get; set;
+    }
+    public DateTimeOffset? PasswordLastChanged
+    {
+        get; set;
+    }
 
-    public string? TotpSecret { get; set; }
+    public string? TotpSecret
+    {
+        get; set;
+    }
 
-    public bool IsActive { get; set; }
+    public bool IsActive
+    {
+        get; set;
+    }
 
 
-    public DateTimeOffset CreatedAt { get; set; }
-    public string? CreatedBy { get; set; }
-    public DateTimeOffset? ActivatedAt { get; set; }
-    public string? ActivatedBy { get; set; }
-    public DateTimeOffset? UpdatedAt { get; set; }
-    public string? UpdatedBy { get; set; }
-    public DateTimeOffset? DeactivatedAt { get; set; }
-    public string? DeactivatedBy { get; set; }
-    public string? DeactivationReason { get; set; }
-    public bool IsDeleted { get; set; }
-    public DateTimeOffset? DeletedAt { get; set; }
-    public string? DeletedBy { get; set; }
+    public DateTimeOffset CreatedAt
+    {
+        get; set;
+    }
+    public string? CreatedBy
+    {
+        get; set;
+    }
+    public DateTimeOffset? ActivatedAt
+    {
+        get; set;
+    }
+    public string? ActivatedBy
+    {
+        get; set;
+    }
+    public DateTimeOffset? UpdatedAt
+    {
+        get; set;
+    }
+    public string? UpdatedBy
+    {
+        get; set;
+    }
+    public DateTimeOffset? DeactivatedAt
+    {
+        get; set;
+    }
+    public string? DeactivatedBy
+    {
+        get; set;
+    }
+    public string? DeactivationReason
+    {
+        get; set;
+    }
+    public bool IsDeleted
+    {
+        get; set;
+    }
+    public DateTimeOffset? DeletedAt
+    {
+        get; set;
+    }
+    public string? DeletedBy
+    {
+        get; set;
+    }
 
     [Timestamp]
     [SuppressMessage("Performance", "CA1819:Properties should not return arrays",
@@ -281,8 +366,9 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         ArgumentException.ThrowIfNullOrWhiteSpace(grantedBy);
 
         if (IsActive)
+        {
             throw new DomainException("User account is already active.");
-
+        }
 
         IsActive = true;
         ActivatedAt = now;
@@ -303,8 +389,9 @@ public class AppUser : IdentityUser, ISoftDeletable, IHasDomainEvents
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
         if (!IsActive)
+        {
             throw new DomainException("User account is already inactive.");
-
+        }
 
         IsActive = false;
         DeactivatedAt = now;

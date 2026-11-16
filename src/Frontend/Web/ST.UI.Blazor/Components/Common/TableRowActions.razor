@@ -1,61 +1,142 @@
-<div class="table-actions">
-    @if (CanView && ViewActions.Count > 0)
-    {
-        <MudTooltip Text="View">
-            <MudMenu Icon="@Icons.Material.Filled.Visibility" Color="Color.Default" IconColor="Color.Inherit" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="table-action-button view-action">
-                @foreach (var action in ViewActions)
-                {
-                    <MudMenuItem OnClick="@(() => OnViewAction.InvokeAsync(action))">@action</MudMenuItem>
-                }
-            </MudMenu>
-        </MudTooltip>
-    }
-    else if (CanView)
-    {
-        <MudTooltip Text="View">
-            <MudIconButton aria-label="View" Icon="@Icons.Material.Filled.Visibility" Color="Color.Default" Size="Size.Small" Class="table-action-button view-action" OnClick="OnView" />
-        </MudTooltip>
-    }
-
-    @if (CanEdit && EditActions.Count > 0)
-    {
-        <MudTooltip Text="Edit">
-            <MudMenu Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" IconColor="Color.Primary" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="table-action-button edit-action">
-                @foreach (var action in EditActions)
-                {
-                    <MudMenuItem OnClick="@(() => OnEditAction.InvokeAsync(action))">@action</MudMenuItem>
-                }
-            </MudMenu>
-        </MudTooltip>
-    }
-    else if (CanEdit)
-    {
-        <MudTooltip Text="Edit">
-            <MudIconButton aria-label="Edit" Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" Class="table-action-button edit-action" OnClick="OnEdit" />
-        </MudTooltip>
-    }
-
-    @if (CanDelete)
-    {
+<div class="table-actions fixed-table-actions">
+    <span class="table-action-slot">
+        @if (CanView && ViewActions.Count > 0)
+        {
+            <MudTooltip Text="View">
+                <MudMenu aria-label="View"
+                         Icon="@Icons.Material.Filled.Visibility"
+                         Color="Color.Default"
+                         IconColor="Color.Inherit"
+                         Size="Size.Small"
+                         Dense="true"
+                         AnchorOrigin="Origin.BottomRight"
+                         TransformOrigin="Origin.TopRight"
+                         Class="table-action-button view-action">
+                    @foreach (var action in ViewActions)
+                    {
+                        <MudMenuItem OnClick="@(() => OnViewAction.InvokeAsync(action))">@UiLabels.TitleCase(action)</MudMenuItem>
+                    }
+                </MudMenu>
+            </MudTooltip>
+        }
+        else
+        {
+            <MudTooltip Text="View">
+                <span>
+                    <MudIconButton aria-label="View"
+                                   Icon="@Icons.Material.Filled.Visibility"
+                                   Color="Color.Default"
+                                   Size="Size.Small"
+                                   Class="table-action-button view-action"
+                                   OnClick="OnView"
+                                   Disabled="@(!CanView)" />
+                </span>
+            </MudTooltip>
+        }
+    </span>
+    <span class="table-action-slot">
+        @if (CanEdit && EditActions.Count > 0)
+        {
+            <MudTooltip Text="Edit">
+                <MudMenu aria-label="Edit"
+                         Icon="@Icons.Material.Filled.Edit"
+                         Color="Color.Primary"
+                         IconColor="Color.Primary"
+                         Size="Size.Small"
+                         Dense="true"
+                         AnchorOrigin="Origin.BottomRight"
+                         TransformOrigin="Origin.TopRight"
+                         Class="table-action-button edit-action">
+                    @foreach (var action in EditActions)
+                    {
+                        <MudMenuItem OnClick="@(() => OnEditAction.InvokeAsync(action))">@UiLabels.TitleCase(action)</MudMenuItem>
+                    }
+                </MudMenu>
+            </MudTooltip>
+        }
+        else
+        {
+            <MudTooltip Text="Edit">
+                <span>
+                    <MudIconButton aria-label="Edit"
+                                   Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   Class="table-action-button edit-action"
+                                   OnClick="OnEdit"
+                                   Disabled="@(!CanEdit)" />
+                </span>
+            </MudTooltip>
+        }
+    </span>
+    <span class="table-action-slot">
         <MudTooltip Text="Delete">
-            <MudIconButton aria-label="Delete" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Class="table-action-button delete-action" OnClick="OnDelete" />
+            <span>
+                <MudIconButton aria-label="Delete"
+                               Icon="@Icons.Material.Filled.Delete"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               Class="table-action-button delete-action"
+                               OnClick="OnDelete"
+                               Disabled="@(!CanDelete)" />
+            </span>
         </MudTooltip>
-    }
-
-    @if (ExtraActions.Count > 0)
+    </span>
+    <span class="table-action-slot">
+        @if (ExtraActions.Count > 0)
+        {
+            <MudTooltip Text="More Actions">
+                <MudMenu aria-label="More Actions"
+                         Icon="@Icons.Material.Filled.MoreVert"
+                         Color="Color.Default"
+                         IconColor="Color.Inherit"
+                         Size="Size.Small"
+                         Dense="true"
+                         AnchorOrigin="Origin.BottomRight"
+                         TransformOrigin="Origin.TopRight"
+                         Class="table-action-button">
+                    @foreach (var action in ExtraActions)
+                    {
+                        <MudMenuItem OnClick="@(() => OnExtraAction.InvokeAsync(action))">@UiLabels.TitleCase(action)</MudMenuItem>
+                    }
+                </MudMenu>
+            </MudTooltip>
+        }
+        else
+        {
+            <MudTooltip Text="No More Actions">
+                <span>
+                    <MudIconButton aria-label="More Actions"
+                                   Icon="@Icons.Material.Filled.MoreVert"
+                                   Class="table-action-button"
+                                   Size="Size.Small"
+                                   Disabled="true" />
+                </span>
+            </MudTooltip>
+        }
+    </span>
+    @if (!string.IsNullOrWhiteSpace(IndicatorIcon))
     {
-        <MudTooltip Text="More actions">
-            <MudMenu aria-label="More actions" Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" IconColor="Color.Inherit" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="table-action-button">
-                @foreach (var action in ExtraActions)
-                {
-                    <MudMenuItem OnClick="@(() => OnExtraAction.InvokeAsync(action))">@action</MudMenuItem>
-                }
-            </MudMenu>
+        <MudTooltip Text="@IndicatorLabel">
+            <span class="table-action-button table-action-indicator"
+                  role="img"
+                  aria-label="@IndicatorLabel">
+                <MudIcon Icon="@IndicatorIcon"
+                         Size="Size.Small" />
+            </span>
         </MudTooltip>
     }
 </div>
 
 @code {
+    [Parameter]
+    public string? IndicatorIcon { get; set; }
+
+    [Parameter]
+    public string? IndicatorText { get; set; }
+
+    private string IndicatorLabel => string.IsNullOrWhiteSpace(IndicatorText) ? "Information" : IndicatorText;
+
     [Parameter]
     public IReadOnlyList<string> ExtraActions { get; set; } = [];
 

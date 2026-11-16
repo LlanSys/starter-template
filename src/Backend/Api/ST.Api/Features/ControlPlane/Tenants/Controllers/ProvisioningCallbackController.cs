@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane;
 using System;
 using System.Threading.Tasks;
 using ST.Application.Features.ControlPlane.Tenants.Commands;
@@ -23,12 +24,12 @@ public class ProvisioningCallbackController : ControllerBase
     }
 
     [HttpPost("{tenantId:guid}")]
-    [RequirePermission("control_plane.manage")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [RequirePermission(PlatformPermissions.ManageTenantLifecycle)]
     public async Task<IActionResult> CompleteProvisioning(
         [FromRoute] Guid tenantId,
         [FromBody] CompleteTenantProvisioningRequest request)

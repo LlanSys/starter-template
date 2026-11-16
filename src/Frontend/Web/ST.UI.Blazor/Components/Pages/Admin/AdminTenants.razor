@@ -3,7 +3,7 @@
 @using ST.SharedKernel.Features.ControlPlane
 @using ST.UI.Blazor.Features.ControlPlane.Tenants.Components
 @layout ControlPlaneLayout
-@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@attribute [Authorize(Policy = PlatformPermissions.ViewTenants)]
 @rendermode InteractiveServer
 @inject IAuthSession AuthSession
 @inject ITenantService TenantService
@@ -11,51 +11,104 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-@if (!Embedded) { <PageTitle>Tenants | StarterTemplate</PageTitle> }
+@if (!Embedded)
+{
+    <PageTitle>Tenants | StarterTemplate</PageTitle>
+}
 
+@if (!Embedded)
+{
+    <ControlPanelBackLink />
+}
 <section class="dashboard-page">
-    <MudPaper Class="platform-list" Elevation="0">
-        <div class="panel-heading">
-            <h2 style="color: var(--st-moss); font-weight: 700;">Tenant List</h2>
-            <div class="d-flex align-center gap-3">
-                @if (AuthSession.HasPermission("control_plane.manage"))
-                {
-                    <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Business" OnClick="@(() => OpenFormDialogAsync(null))">Create tenant</MudButton>
-                }
+    <MudPaper Class="@(Embedded ? "st-embedded-list" : "platform-list")"
+              Elevation="0">
+        @if (!Embedded)
+        {
+            <div class="panel-heading">
+                <h2>Tenant List</h2>
+                <div class="d-flex align-center gap-3">
+                    @if (AuthSession.HasPermission(PlatformPermissions.CreateTenants))
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => OpenFormDialogAsync(null))">Add Tenant</MudButton>
+                    }
+                </div>
             </div>
+
+        }
+        @if (!string.IsNullOrWhiteSpace(Status))
+        {
+            <div class="d-flex align-center gap-2 mb-2">
+                <MudText Typo="Typo.body2">Status: @Status</MudText>
+                <MudButton Href="/control-panel/tenants"
+                           Size="Size.Small">Clear Filter</MudButton>
+            </div>
+        }
+        <div class="list-toolbar">
+            <MudTextField @bind-Value="_search"
+                          Placeholder="Search name, workspace, hostname..."
+                          Immediate="true"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense" />
         </div>
 
         @if (_isLoading)
         {
-            <MudProgressLinear Color="Color.Success" Indeterminate="true" Class="my-2" />
+            <MudProgressLinear Color="Color.Success"
+                               Indeterminate="true"
+                               Class="my-2" />
         }
 
         @if (!string.IsNullOrWhiteSpace(_message))
         {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="my-2">@_message</MudAlert>
+            <MudAlert Severity="Severity.Error"
+                      Variant="Variant.Outlined"
+                      Dense="true"
+                      Class="my-2">@_message</MudAlert>
         }
 
         <div class="st-table-scroll">
-            <MudTable @ref="_table" Items="_tenants" Dense="true" Hover="true" Elevation="0" FixedHeader="true" RowsPerPage="50" Height="calc(100vh - 25rem)" Style="min-width: 900px;" Breakpoint="Breakpoint.None">
+            <MudTable @ref="_table"
+                      Items="FilteredTenants"
+                      Dense="true"
+                      Hover="true"
+                      Elevation="0"
+                      FixedHeader="true"
+                      RowsPerPage="Presentation.PageSize"
+                      Height="calc(100vh - 25rem)"
+                      Style="--st-table-min-width: 900px;"
+                      Breakpoint="Breakpoint.None">
                 <HeaderContent>
                     <MudTh Style="width: 15rem;">Name</MudTh>
-                    <MudTh>Workspace</MudTh><MudTh>Hostname</MudTh>
+                    <MudTh>Workspace</MudTh>
+                    <MudTh>Hostname</MudTh>
                     <MudTh>Stamp</MudTh>
                     <MudTh Style="width: 10rem;">Status</MudTh>
-                    <MudTh Style="width: 10rem;">Actions</MudTh>
+                    <MudTh Class="st-actions-column">Actions</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Name">@context.DisplayName</MudTd>
-                    <MudTd>@(context.Identifier == "default" ? "Platform" : context.Identifier == "vendor-demo" ? "Demo" : "Customer")</MudTd><MudTd DataLabel="Hostname">@context.HostName</MudTd>
+                    <MudTd>@(context.Identifier == "default" ? "Platform" : context.Identifier == "vendor-demo" ? "Demo" : "Customer")</MudTd>
+                    <MudTd DataLabel="Hostname">@context.HostName</MudTd>
                     <MudTd DataLabel="Stamp">@context.DeploymentStampId</MudTd>
                     <MudTd DataLabel="Status">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == "Active" ? Color.Success : Color.Error)">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@(context.Status == "Active" ? Color.Success : Color.Error)"
+                                 Variant="Variant.Text">
                             @context.Status
                         </MudChip>
                     </MudTd>
-                    <MudTd DataLabel="Actions">
+                    <MudTd DataLabel="Actions"
+                           Class="st-actions-column">
                         <TableRowActions OnEdit="@(() => OpenFormDialogAsync(context))"
-                                         CanEdit="@AuthSession.HasPermission("control_plane.manage")"
+                                         CanEdit="@AuthSession.HasPermission(PlatformPermissions.EditTenants)"
                                          CanView="true"
                                          OnView="@(() => Snackbar.Add($"Tenant: {context.DisplayName} ({context.Status})", Severity.Info))"
                                          CanDelete="false"
@@ -64,12 +117,13 @@
                     </MudTd>
                 </RowTemplate>
                 <NoRecordsContent>
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">No records found.</MudAlert>
+                    <MudText Typo="Typo.body2"
+                             Class="pa-3">No records found.</MudText>
                 </NoRecordsContent>
                 <PagerContent>
                     <GlobalTablePager CurrentPage="(_table?.CurrentPage ?? 0) + 1"
                                       TotalRecords="_table?.GetFilteredItemsCount() ?? 0"
-                                      PageSize="_table?.RowsPerPage ?? 50"
+                                      PageSize="_table?.RowsPerPage ?? Presentation.PageSize"
                                       OnFirstPage="@(() => _table?.NavigateTo(0))"
                                       OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
                                       OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
@@ -81,6 +135,16 @@
 
 @code {
     [Parameter] public bool Embedded { get; set; }
+    [SupplyParameterFromQuery(Name = "status")] public string? Status { get; set; }
+    private string _search = string.Empty;
+    private IEnumerable<TenantResponse> FilteredTenants => _tenants.Where(item => string.IsNullOrWhiteSpace(Status) || item.Status.Equals(Status, StringComparison.OrdinalIgnoreCase))
+        .Where(item => item.DisplayName.Contains(_search, StringComparison.OrdinalIgnoreCase) || item.Identifier.Contains(_search, StringComparison.OrdinalIgnoreCase) || item.HostName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    public Task CreateAsync()
+    {
+        return OpenFormDialogAsync(null);
+    }
+
     private readonly List<TenantResponse> _tenants = [];
     private bool _isLoading = true;
     private string? _message;
@@ -125,7 +189,7 @@
             { nameof(TenantDialog.ExistingTenant), tenant }
         };
 
-        var title = tenant is null ? "Create Tenant" : $"Edit - {tenant.DisplayName}";
+        var title = tenant is null ? "Add Tenant" : $"Edit - {tenant.DisplayName}";
         var dialog = await DialogService.ShowAsync<TenantDialog>(
             title,
             parameters,
@@ -140,8 +204,15 @@
 
     private async Task HandleExtraActionAsync(string action, TenantResponse tenant)
     {
-        if (action == "Set up workspace") { Navigation.NavigateTo($"/control-panel/tenants/{tenant.Id}/setup"); }
+        if (action == "KYC documents") { Navigation.NavigateTo($"/control-panel/tenants/{tenant.Id}/kyc"); }
+        else if (action == "Set up workspace") { Navigation.NavigateTo($"/control-panel/tenants/{tenant.Id}/setup"); }
         else if (action == "Request support") { Navigation.NavigateTo($"/control-panel/support?tenant={tenant.Id}"); }
+        else if (action == "App Address")
+        {
+            await DialogService.ShowAsync<TenantFrontendAddressDialog>($"App Address - {tenant.DisplayName}",
+                new DialogParameters { { nameof(TenantFrontendAddressDialog.TenantId), tenant.Id } },
+                new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false });
+        }
         else if (action == "Manage modules")
         {
             await OpenModulesDialogAsync(tenant);
@@ -163,28 +234,21 @@
     private IReadOnlyList<string> GetExtraActions(TenantResponse tenant)
     {
         var actions = new List<string>();
-        if (AuthSession.HasPermission("control_plane.manage"))
+        var customer = tenant.Identifier is not ("default" or "vendor-demo");
+        if (customer && AuthSession.HasPermission(PlatformPermissions.EditTenants)) actions.Add("App Address");
+        if (AuthSession.HasPermission(PlatformPermissions.ManageTenantModules)) actions.Add("Manage modules");
+        if (customer && AuthSession.HasPermission(PlatformPermissions.ViewKyc)) actions.Add("KYC documents");
+        if (customer && tenant.KycApprovedAt is null && AuthSession.HasPermission(PlatformPermissions.ApproveKyc)) actions.Add("Approve KYC");
+        if (customer && tenant.Status == "Active")
         {
-            actions.Add("Manage modules");
-
-            if (tenant.KycApprovedAt is null && tenant.Identifier is not ("default" or "vendor-demo")
-                && AuthSession.HasPermission(PlatformAccess.ApproveKycPermission))
-            {
-                actions.Add("Approve KYC");
-            }
-
-            if (tenant.Status == "Active")
-            {
-                if (tenant.Identifier != "default" && tenant.Identifier != "vendor-demo") {
-                    actions.Add("Set up workspace"); actions.Add("Request support"); actions.Add("Suspend tenant");
-                }
-                // Support entry remains disabled until scoped support grants are enforced.
-            }
-            else if (tenant.Status == "ProvisioningFailed" && tenant.KycApprovedAt.HasValue) { actions.Add("Retry provisioning"); }
-            else if (tenant.Status == "Suspended" && tenant.KycApprovedAt.HasValue)
-            {
-                actions.Add("Activate tenant");
-            }
+            if (AuthSession.HasPermission(PlatformPermissions.ManageTenantAdministrators)) actions.Add("Set up workspace");
+            if (AuthSession.HasPermission(PlatformPermissions.ManageSupport)) actions.Add("Request support");
+            if (AuthSession.HasPermission(PlatformPermissions.ManageTenantLifecycle)) actions.Add("Suspend tenant");
+        }
+        else if (AuthSession.HasPermission(PlatformPermissions.ManageTenantLifecycle) && tenant.KycApprovedAt.HasValue)
+        {
+            if (tenant.Status == "ProvisioningFailed") actions.Add("Retry provisioning");
+            else if (tenant.Status == "Suspended") actions.Add("Activate tenant");
         }
         return actions;
     }

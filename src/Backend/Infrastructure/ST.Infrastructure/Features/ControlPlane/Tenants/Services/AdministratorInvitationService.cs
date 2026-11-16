@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.Users.Enums;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -29,6 +30,7 @@ internal sealed class AdministratorInvitationService(
         InspectAdministratorInvitationRequest request, CancellationToken cancellationToken)
     {
         var invitation = await FindAsync(request.InvitationId, cancellationToken).ConfigureAwait(false);
+
         if (!IsValid(invitation, request.Token, timeProvider.GetUtcNow()))
         {
             return AppResponses.Failure<AdministratorInvitationPreview>(Unavailable);
@@ -50,6 +52,7 @@ internal sealed class AdministratorInvitationService(
 
         var invitation = await FindAsync(request.InvitationId, cancellationToken).ConfigureAwait(false);
         var now = timeProvider.GetUtcNow();
+
         if (!IsValid(invitation, request.Token, now))
         {
             return AppResponses.Failure<bool>(Unavailable);
@@ -57,6 +60,7 @@ internal sealed class AdministratorInvitationService(
 
         var account = await users.FindByEmailAsync(invitation!.Email).ConfigureAwait(false);
         var legacy = account is not null && await IsLegacyUnclaimedAsync(account, invitation).ConfigureAwait(false);
+
         if (account is not null && !legacy)
         {
             if (!await IsEligibleAsync(account, invitation).ConfigureAwait(false))
@@ -65,6 +69,7 @@ internal sealed class AdministratorInvitationService(
             }
 
             var verified = await signIn.CheckPasswordSignInAsync(account, request.Password, lockoutOnFailure: true).ConfigureAwait(false);
+
             if (!verified.Succeeded)
             {
                 return AppResponses.Failure<bool>("Use the current sign-in method for the invited account.");
@@ -77,6 +82,7 @@ internal sealed class AdministratorInvitationService(
 
         var created = account is null;
         account ??= NewAccount(invitation, now);
+
         if (!await ReserveAsync(invitation, account.Id, now, cancellationToken).ConfigureAwait(false))
         {
             return AppResponses.Failure<bool>(Unavailable);
@@ -84,6 +90,7 @@ internal sealed class AdministratorInvitationService(
 
         account.BeginAdministratorSetup(invitation.Id);
         IdentityResult saved;
+
         try
         {
             if (created)
@@ -119,6 +126,7 @@ internal sealed class AdministratorInvitationService(
     {
         var invitation = await FindAsync(invitationId, cancellationToken).ConfigureAwait(false);
         var now = timeProvider.GetUtcNow();
+
         if (!IsValid(invitation, token, now) || !string.Equals(invitation!.Email, email, StringComparison.OrdinalIgnoreCase))
         {
             return AppResponses.Failure<AppUser>(Unavailable);
@@ -126,6 +134,7 @@ internal sealed class AdministratorInvitationService(
 
         var account = await users.FindByEmailAsync(invitation.Email).ConfigureAwait(false);
         var linked = await users.FindByLoginAsync(provider, providerKey).ConfigureAwait(false);
+
         if ((linked is not null && linked.Id != account?.Id)
             || (account is not null && (linked?.Id != account.Id || !await IsEligibleAsync(account, invitation).ConfigureAwait(false))))
         {
@@ -133,12 +142,14 @@ internal sealed class AdministratorInvitationService(
         }
 
         var created = account is null;
+
         if (created && !await HasCapacityAsync(invitation, cancellationToken).ConfigureAwait(false))
         {
             return AppResponses.Failure<AppUser>("The workspace has reached its account limit.");
         }
 
         account ??= NewAccount(invitation, now);
+
         if (!await ReserveAsync(invitation, account.Id, now, cancellationToken).ConfigureAwait(false))
         {
             return AppResponses.Failure<AppUser>(Unavailable);
@@ -146,6 +157,7 @@ internal sealed class AdministratorInvitationService(
 
         account.BeginAdministratorSetup(invitation.Id);
         bool saved;
+
         try
         {
             saved = created
@@ -157,6 +169,7 @@ internal sealed class AdministratorInvitationService(
                 }
 
                 var added = await users.AddLoginAsync(account, new UserLoginInfo(provider, providerKey, provider)).ConfigureAwait(false);
+
                 if (!added.Succeeded)
                 {
                     throw new ExternalInvitationLinkException();
@@ -189,6 +202,7 @@ internal sealed class AdministratorInvitationService(
         var principal = http.HttpContext?.User;
         var userId = principal?.FindFirstValue(ClaimTypes.NameIdentifier);
         var sessionId = principal?.FindFirstValue("session_id");
+
         if (principal?.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(userId)
             || !Guid.TryParse(sessionId, out _) || !principal.HasClaim("administrator_mfa", "true")
             || !(await sessions.IsSessionValidAsync(sessionId, userId, cancellationToken).ConfigureAwait(false)).IsSuccess)
@@ -197,6 +211,7 @@ internal sealed class AdministratorInvitationService(
         }
 
         var account = await users.FindByIdAsync(userId).ConfigureAwait(false);
+
         if (account is null || !account.IsActive || account.IsDeleted || !account.TwoFactorEnabled
             || account.TenantId != tenantScope.TenantId || account.AdministratorInvitationId is not Guid invitationId)
         {
@@ -204,6 +219,7 @@ internal sealed class AdministratorInvitationService(
         }
 
         var invitation = await FindAsync(invitationId, cancellationToken).ConfigureAwait(false);
+
         if (invitation is null || invitation.ClaimedUserId != account.Id
             || invitation.State is not (AdministratorInvitationState.Claimed or AdministratorInvitationState.Accepted))
         {
@@ -216,6 +232,7 @@ internal sealed class AdministratorInvitationService(
         }
 
         var role = await roles.FindByNameAsync("Tenant Administrator").ConfigureAwait(false);
+
         if (role?.TenantId != account.TenantId || role.TemplateKey != "iam-administrator" || role.Name is null || role.IsDeleted)
         {
             return AppResponses.Failure<bool>("The workspace administrator role is unavailable.");
@@ -225,6 +242,7 @@ internal sealed class AdministratorInvitationService(
         {
             invitation.Accept(account.Id, timeProvider.GetUtcNow());
             invitation.Tenant.AdministratorUserId = account.Id;
+
             if (!await SaveInvitationAsync(cancellationToken).ConfigureAwait(false))
             {
                 return AppResponses.Failure<bool>(Unavailable);
@@ -253,6 +271,7 @@ internal sealed class AdministratorInvitationService(
     {
         var invitation = await plane.AdministratorInvitations.FindAll().AsTracking().Include(item => item.Tenant)
             .SingleOrDefaultAsync(item => item.TenantId == tenantId, cancellationToken).ConfigureAwait(false);
+
         if (invitation is null || !invitation.Tenant.IsCustomerWorkspace || (!revoke && !invitation.Tenant.CanInviteAdministrator))
         {
             return AppResponses.Failure<bool>(Unavailable);
@@ -274,29 +293,38 @@ internal sealed class AdministratorInvitationService(
                 && item.Tenant.WorkspaceVersion > 0 && !item.Tenant.IsDemo, cancellationToken);
     }
 
-    private static bool IsValid(TenantAdministratorInvitation? invitation, string token, DateTimeOffset now) =>
-        invitation?.State == AdministratorInvitationState.Pending && invitation.ExpiresAt > now
+    private static bool IsValid(TenantAdministratorInvitation? invitation, string token, DateTimeOffset now)
+    {
+        return invitation?.State == AdministratorInvitationState.Pending && invitation.ExpiresAt > now
         && !string.IsNullOrEmpty(token) && SingleUseCredential.Matches(invitation.TokenHash, token);
+    }
 
-    private async Task<bool> IsEligibleAsync(AppUser account, TenantAdministratorInvitation invitation) =>
-        account.IsActive && !account.IsDeleted && account.TenantId == invitation.TenantId
+    private async Task<bool> IsEligibleAsync(AppUser account, TenantAdministratorInvitation invitation)
+    {
+        return account.IsActive && !account.IsDeleted && account.TenantId == invitation.TenantId
         && (!account.AdministratorInvitationId.HasValue || account.AdministratorInvitationId == invitation.Id)
         && !(await users.GetClaimsAsync(account).ConfigureAwait(false)).Any(claim => claim.Type == "platform_staff" && claim.Value == "true");
+    }
 
-    private async Task<bool> IsLegacyUnclaimedAsync(AppUser account, TenantAdministratorInvitation invitation) =>
-        !account.EmailConfirmed && account.Id == invitation.Tenant.AdministratorUserId
+    private async Task<bool> IsLegacyUnclaimedAsync(AppUser account, TenantAdministratorInvitation invitation)
+    {
+        return !account.EmailConfirmed && account.Id == invitation.Tenant.AdministratorUserId
         && await IsEligibleAsync(account, invitation).ConfigureAwait(false)
         && !await users.HasPasswordAsync(account).ConfigureAwait(false)
         && (await users.GetLoginsAsync(account).ConfigureAwait(false)).Count == 0;
+    }
 
-    private async Task<bool> HasCapacityAsync(TenantAdministratorInvitation invitation, CancellationToken cancellationToken) =>
-        invitation.Tenant.MaxUsers <= 0 || await users.Users.CountAsync(account =>
-            account.TenantId == invitation.TenantId && !account.IsDeleted, cancellationToken).ConfigureAwait(false) < invitation.Tenant.MaxUsers;
+    private async Task<bool> HasCapacityAsync(TenantAdministratorInvitation invitation, CancellationToken cancellationToken)
+    {
+        return invitation.Tenant.MaxUsers <= 0 || await users.Users.CountAsync(account =>
+            account.TenantId == invitation.TenantId && !account.IsDeleted && account.Kind == AccountKind.Human, cancellationToken).ConfigureAwait(false) < invitation.Tenant.MaxUsers;
+    }
 
     private static AppUser NewAccount(TenantAdministratorInvitation invitation, DateTimeOffset now)
     {
         var account = AppUser.CreateAccount(now, invitation.TenantId, invitation.Email, invitation.FirstName,
             invitation.LastName, invitation.Email, null, invitation.CreatedBy);
+
         account.Id = invitation.ClaimedUserId ?? account.Id;
         account.IsActive = true;
         account.EmailConfirmed = true;
@@ -307,8 +335,10 @@ internal sealed class AdministratorInvitationService(
     }
 
     private async Task<bool> ReserveAsync(TenantAdministratorInvitation invitation, string userId, DateTimeOffset now,
-        CancellationToken cancellationToken) =>
-        invitation.Reserve(userId, now) && await SaveInvitationAsync(cancellationToken).ConfigureAwait(false);
+        CancellationToken cancellationToken)
+    {
+        return invitation.Reserve(userId, now) && await SaveInvitationAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     private async Task<AppResponse<bool>> ClaimAsync(TenantAdministratorInvitation invitation, CancellationToken cancellationToken)
     {
@@ -330,8 +360,11 @@ internal sealed class AdministratorInvitationService(
         }
     }
 
-    private static bool IsDuplicateIdentity(DbUpdateException exception) => exception.InnerException is
+    private static bool IsDuplicateIdentity(DbUpdateException exception)
+    {
+        return exception.InnerException is
         SqlException { Number: 2601 or 2627 } or PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
+    }
 
     private sealed class ExternalInvitationLinkException : Exception;
 }

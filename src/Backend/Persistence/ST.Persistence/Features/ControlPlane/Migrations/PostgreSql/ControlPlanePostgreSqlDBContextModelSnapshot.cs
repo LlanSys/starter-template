@@ -90,6 +90,406 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     b.ToTable("ImpersonationRecords", (string)null);
                 });
 
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("DocumentTypeKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("legacy");
+
+                    b.Property<DateTimeOffset?>("ErasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("NextSafetyScanAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("SafetyCheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SafetyDefinitions")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("SafetyDefinitionsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SafetyEngine")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid?>("SafetyLeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("SafetyLeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SafetyReasonCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("SafetyScanAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SafetyStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SafetyStatus", "NextSafetyScanAt", "SafetyLeaseUntil");
+
+                    b.HasIndex("TenantId", "DocumentTypeKey", "UploadedAt");
+
+                    b.HasIndex("TenantId", "Sha256", "UploadedBy", "DocumentTypeKey", "DocumentType")
+                        .IsUnique();
+
+                    b.ToTable("KycDocuments", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycDocumentReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Accepted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Feedback")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId", "ReviewedAt");
+
+                    b.ToTable("KycDocumentReviews", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycRetentionAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PolicyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "OccurredAt");
+
+                    b.ToTable("KycRetentionAudit", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycRetentionCase", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<bool>("Held")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("HoldReviewDue")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("PolicyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("RecoveryUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RetainUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TenantId");
+
+                    b.HasIndex("NextAttemptAt");
+
+                    b.HasIndex("PolicyId");
+
+                    b.HasIndex("Phase", "RetainUntil");
+
+                    b.ToTable("KycRetentionCases", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycRetentionPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ApprovedMonths")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClosedDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("HoldReviewDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("InactiveDays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("OrphanDays")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PublishedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("RecoveryDays")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("KycRetentionPolicies", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("019a7420-0000-7000-8000-000000000001"),
+                            ApprovedMonths = 24,
+                            ClosedDays = 90,
+                            HoldReviewDays = 90,
+                            InactiveDays = 30,
+                            Name = "General Business",
+                            OrphanDays = 7,
+                            PublishedAt = new DateTimeOffset(new DateTime(2026, 11, 12, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            PublishedBy = "00000000-0000-0000-0000-000000000001",
+                            Reason = "Initial general-business retention schedule.",
+                            RecoveryDays = 30
+                        });
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycRetentionPolicySelection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PolicyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PolicyId");
+
+                    b.ToTable("KycRetentionPolicySelection", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("019a7420-0000-7000-8000-000000000001"),
+                            PolicyId = new Guid("019a7420-0000-7000-8000-000000000001"),
+                            Revision = new Guid("019a7420-0000-7000-8000-000000000001")
+                        });
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycSubmissionLink", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IssuedBy")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<int>("UploadLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Uploads")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TenantId");
+
+                    b.ToTable("KycSubmissionLinks", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycUploadReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("State", "LeaseUntil");
+
+                    b.ToTable("KycUploadReservations", (string)null);
+                });
+
             modelBuilder.Entity("ST.Domain.Features.ControlPlane.Modules.Entities.ModuleCatalogueEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -735,6 +1135,106 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                         },
                         new
                         {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000092"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            DisplayOrder = 0,
+                            Icon = "Menu",
+                            IsActive = true,
+                            Key = "tasks.assign",
+                            Kind = 1,
+                            ModuleKey = "iam",
+                            Path = "",
+                            PermissionKeys = new string[0],
+                            Placement = "Sidebar",
+                            RoleNames = new string[0],
+                            RowVersion = new byte[0],
+                            ShowInNavigation = false,
+                            Title = "Assign operational tasks within this workspace.",
+                            Version = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000096"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            DisplayOrder = 0,
+                            Icon = "Menu",
+                            IsActive = true,
+                            Key = "tenant-settings.view",
+                            Kind = 1,
+                            ModuleKey = "iam",
+                            Path = "",
+                            PermissionKeys = new string[0],
+                            Placement = "Sidebar",
+                            RoleNames = new string[0],
+                            RowVersion = new byte[0],
+                            ShowInNavigation = false,
+                            Title = "View workspace organization settings.",
+                            Version = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000097"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            DisplayOrder = 0,
+                            Icon = "Menu",
+                            IsActive = true,
+                            Key = "tenant-settings.create",
+                            Kind = 1,
+                            ModuleKey = "iam",
+                            Path = "",
+                            PermissionKeys = new string[0],
+                            Placement = "Sidebar",
+                            RoleNames = new string[0],
+                            RowVersion = new byte[0],
+                            ShowInNavigation = false,
+                            Title = "Create workspace organization settings.",
+                            Version = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000098"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            DisplayOrder = 0,
+                            Icon = "Menu",
+                            IsActive = true,
+                            Key = "tenant-settings.update",
+                            Kind = 1,
+                            ModuleKey = "iam",
+                            Path = "",
+                            PermissionKeys = new string[0],
+                            Placement = "Sidebar",
+                            RoleNames = new string[0],
+                            RowVersion = new byte[0],
+                            ShowInNavigation = false,
+                            Title = "Update workspace organization settings.",
+                            Version = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000099"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            DisplayOrder = 0,
+                            Icon = "Menu",
+                            IsActive = true,
+                            Key = "tenant-settings.delete",
+                            Kind = 1,
+                            ModuleKey = "iam",
+                            Path = "",
+                            PermissionKeys = new string[0],
+                            Placement = "Sidebar",
+                            RoleNames = new string[0],
+                            RowVersion = new byte[0],
+                            ShowInNavigation = false,
+                            Title = "Delete workspace organization settings.",
+                            Version = 1
+                        },
+                        new
+                        {
                             Id = new Guid("0194f700-0000-7000-8000-000000000024"),
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "System",
@@ -776,6 +1276,26 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                         },
                         new
                         {
+                            Id = new Guid("0194f700-0000-7000-8000-000000000091"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "System",
+                            DisplayOrder = 0,
+                            Icon = "Menu",
+                            IsActive = true,
+                            Key = "work-tasks",
+                            Kind = 0,
+                            ModuleKey = "core",
+                            Path = "/tasks",
+                            PermissionKeys = new string[0],
+                            Placement = "Sidebar",
+                            RoleNames = new string[0],
+                            RowVersion = new byte[0],
+                            ShowInNavigation = false,
+                            Title = "Tasks",
+                            Version = 1
+                        },
+                        new
+                        {
                             Id = new Guid("0194f700-0000-7000-8000-000000000021"),
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatedBy = "System",
@@ -786,7 +1306,7 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                             Kind = 2,
                             ModuleKey = "iam",
                             Path = "",
-                            PermissionKeys = new[] { "users.view", "users.create", "users.edit", "users.deactivate", "users.manage_roles", "users.manage_permissions", "roles.view", "roles.create", "roles.edit", "roles.delete", "roles.manage_permissions", "menus.view", "menus.create", "menus.edit", "menus.delete", "support.approve" },
+                            PermissionKeys = new[] { "users.view", "users.create", "users.edit", "users.deactivate", "users.manage_roles", "users.manage_permissions", "roles.view", "roles.create", "roles.edit", "roles.delete", "roles.manage_permissions", "menus.view", "menus.create", "menus.edit", "menus.delete", "tasks.assign", "tenant-settings.view", "tenant-settings.create", "tenant-settings.update", "tenant-settings.delete", "support.approve" },
                             Placement = "Sidebar",
                             RoleNames = new string[0],
                             RowVersion = new byte[0],
@@ -1200,6 +1720,10 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                     b.Property<string>("DatabaseProvider")
                         .HasColumnType("text");
 
+                    b.Property<string>("DedicatedFrontendOrigin")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<int>("DemoFixtureVersion")
                         .HasColumnType("integer");
 
@@ -1288,6 +1812,10 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DedicatedFrontendOrigin")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Tenants_DedicatedFrontendOrigin");
 
                     b.HasIndex("DeploymentStampId");
 
@@ -1506,6 +2034,146 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                         });
                 });
 
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.WorkTasks.Entities.OperationalTaskAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssigneeUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CycleAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("OwnerTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SubjectLabel")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerTenantId", "AssigneeUserId", "CompletedAt");
+
+                    b.HasIndex("Kind", "SubjectId", "CycleId", "CycleAt")
+                        .IsUnique();
+
+                    b.ToTable("OperationalTaskAssignments", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.WorkTasks.Entities.OperationalTaskAssignmentEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("AssigneeUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PreviousAssigneeUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignmentId", "CreatedAt");
+
+                    b.ToTable("OperationalTaskAssignmentEvents", (string)null);
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycDocument", b =>
+                {
+                    b.HasOne("ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycDocumentReview", b =>
+                {
+                    b.HasOne("ST.Domain.Features.ControlPlane.Kyc.Entities.KycDocument", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycRetentionCase", b =>
+                {
+                    b.HasOne("ST.Domain.Features.ControlPlane.Kyc.Entities.KycRetentionPolicy", null)
+                        .WithMany()
+                        .HasForeignKey("PolicyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycRetentionPolicySelection", b =>
+                {
+                    b.HasOne("ST.Domain.Features.ControlPlane.Kyc.Entities.KycRetentionPolicy", null)
+                        .WithMany()
+                        .HasForeignKey("PolicyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.Kyc.Entities.KycSubmissionLink", b =>
+                {
+                    b.HasOne("ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant", null)
+                        .WithOne()
+                        .HasForeignKey("ST.Domain.Features.ControlPlane.Kyc.Entities.KycSubmissionLink", "TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ST.Domain.Features.ControlPlane.Support.Entities.SupportAudit", b =>
                 {
                     b.HasOne("ST.Domain.Features.ControlPlane.Support.Entities.SupportGrant", null)
@@ -1546,6 +2214,15 @@ namespace ST.Persistence.Features.ControlPlane.Migrations.PostgreSql
                         .IsRequired();
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("ST.Domain.Features.ControlPlane.WorkTasks.Entities.OperationalTaskAssignmentEvent", b =>
+                {
+                    b.HasOne("ST.Domain.Features.ControlPlane.WorkTasks.Entities.OperationalTaskAssignment", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ST.Domain.Features.ControlPlane.Tenants.Entities.Tenant", b =>

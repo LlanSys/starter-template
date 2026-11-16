@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.Users.Enums;
 using ST.Application.Features.IAM.Users.Queries;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Persistence.Features.IAM.DataContext;
@@ -20,6 +21,7 @@ internal sealed class GetAdminUsers(UserManager<AppUser> userManager, IamDBConte
         var pageSize = Math.Clamp(req.PageSize, 1, 50);
 
         var query = userManager.Users
+            .Where(user => user.Kind == AccountKind.Human)
             .AsNoTracking()
             .OrderBy(static user => user.Email)
             .ThenBy(static user => user.Id)
@@ -106,6 +108,7 @@ internal sealed class GetAdminUsers(UserManager<AppUser> userManager, IamDBConte
             .ConfigureAwait(false);
 
         var hasNextPage = pageUsers.Count > pageSize;
+
         if (hasNextPage)
         {
             pageUsers.RemoveAt(pageUsers.Count - 1);
@@ -116,7 +119,11 @@ internal sealed class GetAdminUsers(UserManager<AppUser> userManager, IamDBConte
                 from userRole in context.UserRoles.AsNoTracking()
                 join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
                 where pageUserIds.Contains(userRole.UserId)
-                select new { userRole.UserId, role.Name })
+                select new
+                {
+                    userRole.UserId,
+                    role.Name
+                })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 

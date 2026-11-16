@@ -4,28 +4,57 @@
 
 <MudDialog>
     <DialogContent>
-    <EditForm FormName="iam-permission-form" Model="_model" OnValidSubmit="SaveAsync">
-        <DataAnnotationsValidator />
+        <EditForm FormName="iam-permission-form"
+                  Model="_model"
+                  OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
             <MudGrid Spacing="2">
-                <MudItem xs="12"><MudSelect T="string" @bind-Value="_model.ModuleKey" Label="Module" Variant="Variant.Outlined" Margin="Margin.Dense">@foreach(var module in AuthSession.CurrentUser?.EnabledModules ?? []) { <MudSelectItem Value="@module">@(module.ToLowerInvariant() switch { "iam" => "Identity and access", "core" => "Core workspace", "payments" => "Payments", "showcase" => "Showcase", _ => module })</MudSelectItem> }</MudSelect></MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudSelect T="string" Value="_model.Context" ValueChanged="OnContextChanged" Label="Context" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                <MudItem xs="12">
+                    <MudSelect T="string"
+                               @bind-Value="_model.ModuleKey"
+                               Label="Module"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense">@foreach (var module in AuthSession.CurrentUser?.EnabledModules ?? [])
+                        {
+                            <MudSelectItem Value="@module">@(module.ToLowerInvariant() switch {  "iam" => "Identity and access",  "core" => "Core workspace",  "payments" => "Payments",  "showcase" => "Showcase",  _ => module })</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudSelect T="string"
+                               Value="_model.Context"
+                               ValueChanged="OnContextChanged"
+                               Label="Context"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               Required>
                         @foreach (var context in _referenceData.PermissionContexts)
                         {
                             <MudSelectItem Value="@context.Key">@context.Label</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudSelect @bind-Value="_model.Resource" Label="Resource" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudSelect @bind-Value="_model.Resource"
+                               Label="Resource"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               Required>
                         @foreach (var resource in ResourceOptions)
                         {
                             <MudSelectItem Value="@resource.Key">@resource.Label</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudSelect @bind-Value="_model.Action" Label="Action" Margin="Margin.Dense" Variant="Variant.Outlined" Required>
+                <MudItem xs="12"
+                         sm="4">
+                    <MudSelect @bind-Value="_model.Action"
+                               Label="Action"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               Required>
                         @foreach (var action in _referenceData.PermissionActions)
                         {
                             <MudSelectItem Value="@action.Key">@action.Label</MudSelectItem>
@@ -35,23 +64,41 @@
                 <MudItem xs="12">
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField Value="@PreviewKey" Label="Generated key" Margin="Margin.Dense" Variant="Variant.Outlined" ReadOnly="true" />
+                    <MudTextField Value="@PreviewKey"
+                                  Label="Generated key"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  ReadOnly="true" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField @bind-Value="_model.Description" Label="Description" Lines="3" Margin="Margin.Dense" Variant="Variant.Outlined" />
+                    <MudTextField @bind-Value="_model.Description"
+                                  Label="Description"
+                                  Lines="3"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined" />
                 </MudItem>
                 @if (ExistingPermission is not null)
                 {
                     <MudItem xs="12">
-                        <MudSwitch T="bool" @bind-Value="_model.IsActive" Color="Color.Success" Label="Active" />
+                        <MudSwitch T="bool"
+                                   @bind-Value="_model.IsActive"
+                                   Color="Color.Success"
+                                   Label="Active" />
                     </MudItem>
                 }
             </MudGrid>
         </EditForm>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Success" Disabled="_isSaving" OnClick="SaveAsync">@(_isSaving ? "Saving..." : SaveLabel)</MudButton>
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Color="Color.Success"
+                   Disabled="_isSaving"
+                   OnClick="SaveAsync"
+                   StartIcon="@Icons.Material.Filled.Save">@(_isSaving ? "Saving..." : "Save")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -67,7 +114,6 @@
     [Parameter]
     public PermissionResponse? ExistingPermission { get; set; }
 
-    private string SaveLabel => ExistingPermission is null ? "Create" : "Update";
 
     private string PreviewKey => $"{Normalize(_model.Resource)}.{Normalize(_model.Action)}";
 

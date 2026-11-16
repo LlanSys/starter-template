@@ -1,0 +1,108 @@
+@using ST.SharedKernel.Features.ControlPlane.Kyc
+@using ST.SharedKernel.Features.ControlPlane.Kyc.Dtos
+
+<MudText Typo="Typo.body2"
+         Class="mb-1">Choose a file for each requested document. Add a row for additional documents.</MudText>
+<MudText Typo="Typo.caption">PDF, JPEG, or PNG. Maximum @(MaxFileBytes / 1_048_576) MB per file.</MudText>
+@if (_message is not null)
+{
+    <MudAlert Severity="@_severity"
+              Dense="true"
+              Class="my-3"
+              role="status">@_message</MudAlert>
+}
+<div class="kyc-document-grid mt-3">
+    @foreach (var row in _rows)
+    {
+        <MudPaper @key="row.Id"
+                  Outlined="true"
+                  Elevation="0"
+                  Class="kyc-upload-card pa-3"
+                  role="group"
+                  aria-label="@Name(row)">
+            @if (row.Additional)
+            {
+                <MudStack Row="true"
+                          AlignItems="AlignItems.Center"
+                          Justify="Justify.SpaceBetween">
+                    <MudSelect T="string"
+                               @bind-Value="row.TypeKey"
+                               @bind-Value:after="@(() => TypeChanged(row))"
+                               Label="Document type"
+                               Disabled="Blocked"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense">
+                        @foreach (var type in Types)
+                        {
+                            <MudSelectItem T="string"
+                                           Value="@type.Key">@type.Name</MudSelectItem>
+                        }
+                        <MudSelectItem T="string"
+                                       Value="@KycDocumentTypes.Other">Other</MudSelectItem>
+                    </MudSelect>
+                    <MudButton OnClick="@(() => RemoveRow(row))"
+                               Disabled="Blocked"
+                               Size="Size.Small"
+                               Class="ml-2">Remove Row</MudButton>
+                </MudStack>
+            }
+            else
+            {
+                <MudText Typo="Typo.subtitle1">@Name(row)</MudText>
+            }
+            @if (row.TypeKey == KycDocumentTypes.Other)
+            {
+                <MudTextField @bind-Value="row.OtherName"
+                              Label="Document name"
+                              Required="true"
+                              MaxLength="80"
+                              Immediate="true"
+                              Disabled="Blocked"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense" />
+            }
+            else
+            {
+                <MudText Typo="Typo.body2"
+                         Class="mb-2">@Types.FirstOrDefault(type => type.Key == row.TypeKey)?.Guidance</MudText>
+            }
+            @{
+    var history = History(row).ToArray();
+}
+            @if (history.Length > 0)
+            {
+                <details class="kyc-upload-history">
+                    <summary>@history.Length uploaded · @history[0].Status</summary>
+                    @foreach (var document in history)
+                    {
+                        <MudText Typo="Typo.caption"
+                                 Class="d-block my-1">@document.FileName · @document.Status</MudText>
+                        @if (!string.IsNullOrWhiteSpace(document.Feedback))
+                        {
+                            <MudText Typo="Typo.body2">@document.Feedback</MudText>
+                        }
+                    }
+                </details>
+            }
+            <div class="kyc-upload-card-actions">
+                <div class="my-2">
+                    <InputFile @key="row.InputKey"
+                               OnChange="@(args => SelectFile(row, args))"
+                               accept=".pdf,.jpg,.jpeg,.png"
+                               disabled="@Blocked"
+                               aria-label="@($"Choose file for {Name(row)}")" />
+                </div>
+                <MudButton OnClick="@(() => UploadAsync(row))"
+                           Disabled="@(Blocked || row.File is null || !HasType(row))"
+                           Color="Color.Primary"
+                           Variant="Variant.Outlined"
+                           Size="Size.Small"
+                           aria-label="@($"Upload {Name(row)}")">Upload</MudButton>
+            </div>
+        </MudPaper>
+    }
+</div>
+<MudButton Class="mt-3"
+           OnClick="AddRow"
+           Disabled="@(Blocked || _rows.Count >= Types.Count + 20)"
+           StartIcon="@Icons.Material.Filled.Add">Add Document</MudButton>

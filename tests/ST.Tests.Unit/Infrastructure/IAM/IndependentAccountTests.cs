@@ -79,23 +79,36 @@ public sealed class IndependentAccountTests
         Assert.Equal(user.Id, createdEvent.UserId);
     }
 
-    [Fact]
-    public async Task DuplicateIdentityInAnotherTenantOrSoftDeletedAccountIsRejected()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SameIdentityInAnotherTenantDoesNotBlockAccountCreation(bool deleted)
     {
         using var fixture = new Fixture();
-        var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, Guid.CreateVersion7(), "EXISTING", "Existing", "Account", "USER@EXAMPLE.TEST", null, ActorId);
-        fixture.Tenant.TenantId.Returns(user.TenantId);
+        var other = Guid.CreateVersion7();
+        fixture.Tenant.TenantId.Returns(other);
+        var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, other, "EXISTING", "Existing", "Account", "USER@EXAMPLE.TEST", null, ActorId);
+        Assert.True((await fixture.Users.CreateAsync(user, Password)).Succeeded);
+        user.IsDeleted = deleted;
+        await fixture.Context.SaveChangesAsync();
+        fixture.Tenant.TenantId.Returns(TenantId);
+        var response = await fixture.Create.Handle(Command(), CancellationToken.None);
+        Assert.True(response.IsSuccess);
+        Assert.Equal(2, await fixture.Context.Users.IgnoreQueryFilters().CountAsync());
+    }
+
+    [Fact]
+    public async Task DeletedIdentityRemainsReservedWithinItsOwnTenant()
+    {
+        using var fixture = new Fixture();
+        var user = AppUser.CreateAccount(DateTimeOffset.UnixEpoch, TenantId, "EXISTING", "Existing", "Account", "USER@EXAMPLE.TEST", null, ActorId);
         Assert.True((await fixture.Users.CreateAsync(user, Password)).Succeeded);
         user.IsDeleted = true;
         await fixture.Context.SaveChangesAsync();
-        fixture.Tenant.TenantId.Returns(TenantId);
-
         var response = await fixture.Create.Handle(Command(), CancellationToken.None);
-
         Assert.False(response.IsSuccess);
         Assert.Contains("already exists", response.Message);
         Assert.Equal(1, await fixture.Context.Users.IgnoreQueryFilters().CountAsync());
-        Assert.Empty(await fixture.Context.AppUserProfiles.ToListAsync());
     }
 
     [Fact]
@@ -133,6 +146,7 @@ public sealed class IndependentAccountTests
         var profiles = Substitute.For<IAppUserProfileRepository>();
         profiles.CreateAsync(Arg.Any<AppUserProfile>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException<AppUserProfile>(new InvalidOperationException("test persistence failure")));
+
         using var fixture = new Fixture(profiles);
         await fixture.AddRoleAsync("Operator");
 
@@ -232,7 +246,10 @@ public sealed class IndependentAccountTests
     public void CreateInputRejectsMissingOrTooShortPassword(string password)
     {
         var validator = new CreateAppUserRequestValidator();
-        Assert.False(validator.Validate(Command().Request with { Password = password }).IsValid);
+        Assert.False(validator.Validate(Command().Request with
+        {
+            Password = password
+        }).IsValid);
     }
 
     [Fact]
@@ -297,6 +314,7 @@ public sealed class IndependentAccountTests
                     new Claim("permission", "Accounts.View")], "test"))
             }
         };
+
         var handler = new GetCurrentUser(http, fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance, new TestModulePolicy());
 
         var response = await handler.Handle(new GetCurrentUserCommand(), CancellationToken.None);
@@ -320,6 +338,7 @@ public sealed class IndependentAccountTests
         using var fixture = new Fixture();
         var handler = new GetCurrentUser(new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
             fixture.Users, Options.Create(new MfaSettings()), NullLogger<GetCurrentUser>.Instance, new TestModulePolicy());
+
         var response = await handler.Handle(new GetCurrentUserCommand(), CancellationToken.None);
         Assert.False(response.IsSuccess);
         Assert.Null(response.Data);
@@ -395,9 +414,19 @@ public sealed class IndependentAccountTests
     public async Task AccessChangesRejectUnresolvedDeletedAndOtherTenantAccounts(string scenario)
     {
         using var fixture = new Fixture();
-        if (scenario == "tenant") fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
+
+        if (scenario == "tenant")
+        {
+            fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
+        }
+
         var user = await fixture.AddUserAsync();
-        if (scenario == "deleted") user.IsDeleted = true;
+
+        if (scenario == "deleted")
+        {
+            user.IsDeleted = true;
+        }
+
         Assert.True((await fixture.Users.UpdateAsync(user)).Succeeded);
         fixture.Tenant.TenantId.Returns(scenario == "unresolved" ? Guid.Empty : TenantId);
         var activation = await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None);
@@ -468,6 +497,7 @@ public sealed class IndependentAccountTests
         var response = activate
             ? await fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None)
             : await fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("Reason"), ActorId), CancellationToken.None);
+
         Assert.False(response.IsSuccess);
         Assert.DoesNotContain("InternalProviderDetail", response.Message ?? string.Empty, StringComparison.Ordinal);
         fixture.Context.ChangeTracker.Clear();
@@ -491,6 +521,7 @@ public sealed class IndependentAccountTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => activate
             ? fixture.Activate.Handle(new ActivateAdminUserCommand(user.Id, ActorId), CancellationToken.None)
             : fixture.Deactivate.Handle(new DeactivateAdminUserCommand(user.Id, new DeactivateUserRequest("Reason"), ActorId), CancellationToken.None));
+
         fixture.Context.ChangeTracker.Clear();
         var persisted = await fixture.Context.Users.SingleAsync();
         Assert.Equal(!activate, persisted.IsActive);
@@ -505,11 +536,17 @@ public sealed class IndependentAccountTests
         fixture.Context.RefreshTokens.Add(StoredRefreshToken.Create(DateTimeOffset.UnixEpoch, user.Id, Guid.CreateVersion7().ToString(), DateTimeOffset.UtcNow.AddDays(1), ActorId));
         await fixture.Context.SaveChangesAsync();
     }
-    private static CreateAppUserCommand Command(ICollection<string>? roles = null) => new(
+    private static CreateAppUserCommand Command(ICollection<string>? roles = null)
+    {
+        return new(
         new CreateAppUserRequest("user", "user@example.test", Password, "First", "Last", null, roles), ActorId);
+    }
 
-    private static UpdateAdminUserCommand EditCommand(string userId, IReadOnlyList<string>? roles = null) => new(
+    private static UpdateAdminUserCommand EditCommand(string userId, IReadOnlyList<string>? roles = null)
+    {
+        return new(
         userId, new UpdateAdminUserRequest("edited", "edited@example.test", "Edited", "Person", null, roles ?? []), ActorId);
+    }
 
     [Fact]
     public async Task InvitationAcceptanceConfirmsEmailSetsPasswordAndRejectsReplay()
@@ -546,14 +583,37 @@ public sealed class IndependentAccountTests
         user.IsActive = true;
         await fixture.Users.UpdateAsync(user);
         var token = await fixture.Users.GenerateUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user));
-        if (rejection == "disabled") user.IsActive = false;
-        if (rejection == "deleted") user.IsDeleted = true;
-        if (rejection == "changed-email") user.Email = "changed@example.test";
-        if (rejection == "tampered-token") token = "invalid-token";
+
+        if (rejection == "disabled")
+        {
+            user.IsActive = false;
+        }
+
+        if (rejection == "deleted")
+        {
+            user.IsDeleted = true;
+        }
+
+        if (rejection == "changed-email")
+        {
+            user.Email = "changed@example.test";
+        }
+
+        if (rejection == "tampered-token")
+        {
+            token = "invalid-token";
+        }
+
         await fixture.Users.UpdateAsync(user);
-        if (rejection == "other-tenant") fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
+
+        if (rejection == "other-tenant")
+        {
+            fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
+        }
+
         var response = await fixture.AcceptInvitation.Handle(new AcceptAccountInvitationCommand(
             new AcceptAccountInvitationRequest(user.Id, token, "ChosenPassword42!", "ChosenPassword42!")), CancellationToken.None);
+
         Assert.False(response.IsSuccess);
         Assert.False(user.EmailConfirmed);
         Assert.True(await fixture.Users.CheckPasswordAsync(user, Password));
@@ -569,6 +629,7 @@ public sealed class IndependentAccountTests
         var token = await fixture.Users.GenerateUserTokenAsync(user, TokenOptions.DefaultProvider, AccountInvitation.Purpose(user));
         var response = await fixture.AcceptInvitation.Handle(new AcceptAccountInvitationCommand(
             new AcceptAccountInvitationRequest(user.Id, token, "weak-password", "weak-password")), CancellationToken.None);
+
         Assert.False(response.IsSuccess);
         fixture.Context.ChangeTracker.Clear();
         var persisted = (await fixture.Users.FindByIdAsync(user.Id))!;
@@ -590,6 +651,7 @@ public sealed class IndependentAccountTests
         SendEmailRequest? sent = null;
         fixture.Email.SendEmailAsync(Arg.Any<SendEmailRequest>(), Arg.Any<CancellationToken>())
             .Returns(call => { sent = call.Arg<SendEmailRequest>(); return AppResponses.Success<SendEmailResponse>(null!); });
+
         var response = await fixture.Invite.Handle(new InviteAdminUserCommand(user.Id), CancellationToken.None);
         Assert.True(response.IsSuccess);
         Assert.NotNull(sent);
@@ -638,6 +700,7 @@ public sealed class IndependentAccountTests
             PublicKey = [1],
             CreatedBy = ActorId
         });
+
         await fixture.Context.SaveChangesAsync();
         Assert.False(await fixture.PasskeyPolicy.IsUniqueAsync(user, credentialId, CancellationToken.None));
         Assert.True(await fixture.PasskeyPolicy.IsUniqueAsync(user, [99], CancellationToken.None));
@@ -666,6 +729,7 @@ public sealed class IndependentAccountTests
             ExpiresAtUtc = DateTime.UtcNow.AddMinutes(expired ? -1 : 5),
             CreatedBy = ActorId
         }, CancellationToken.None);
+
         await fixture.Context.SaveChangesAsync();
         fixture.Tenant.TenantId.Returns(Guid.CreateVersion7());
         Assert.Null(await repo.ConsumeAsync("ceremony", DateTime.UtcNow, CancellationToken.None));
@@ -683,6 +747,7 @@ public sealed class IndependentAccountTests
         var actor = Substitute.For<ICurrentActorProvider>();
         actor.ActorId.Returns(ActorId);
         var options = new DbContextOptionsBuilder<TestIamDBContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
+
         try
         {
             await using (var setup = new TestIamDBContext(options, tenant, actor))
@@ -696,12 +761,14 @@ public sealed class IndependentAccountTests
                     ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
                     CreatedBy = ActorId
                 });
+
                 await setup.SaveChangesAsync();
             }
             await using var first = new TestIamDBContext(options, tenant, actor);
             await using var second = new TestIamDBContext(options, tenant, actor);
             var results = await Task.WhenAll(new IamPasskeyChallengeRepository(first).ConsumeAsync("concurrent", DateTime.UtcNow, CancellationToken.None),
                 new IamPasskeyChallengeRepository(second).ConsumeAsync("concurrent", DateTime.UtcNow, CancellationToken.None));
+
             Assert.Single(results, result => result == "options");
             Assert.Single(results, result => result is null);
         }
@@ -721,11 +788,17 @@ public sealed class IndependentAccountTests
         await SeedAccessAsync(fixture, user);
         var stamp = user.SecurityStamp;
         var token = await fixture.Users.GeneratePasswordResetTokenAsync(user);
-        if (failEvent) fixture.Publisher.Publish(Arg.Any<PasswordResetSuccessEvent>(), Arg.Any<CancellationToken>())
+
+        if (failEvent)
+        {
+            fixture.Publisher.Publish(Arg.Any<PasswordResetSuccessEvent>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("ProviderDetail")));
+        }
+
         const string replacement = "RecoveredPassword42!";
         var response = await fixture.Reset.Handle(new ResetPasswordCommand(new ResetPasswordRequest(
             user.Email!, replacement, null, replacement, token)), CancellationToken.None);
+
         Assert.Equal(!failEvent, response.IsSuccess);
         fixture.Context.ChangeTracker.Clear();
         var persisted = await fixture.Context.Users.SingleAsync();
@@ -733,7 +806,11 @@ public sealed class IndependentAccountTests
         Assert.Equal(!failEvent, await fixture.Users.CheckPasswordAsync(persisted, replacement));
         Assert.Equal(failEvent, (await fixture.Context.AppUserSessions.SingleAsync()).IsActive);
         Assert.Equal(failEvent, (await fixture.Context.RefreshTokens.SingleAsync()).RevokedAt is null);
-        if (failEvent) Assert.Equal(stamp, persisted.SecurityStamp);
+
+        if (failEvent)
+        {
+            Assert.Equal(stamp, persisted.SecurityStamp);
+        }
         else
         {
             Assert.NotEqual(stamp, persisted.SecurityStamp);
@@ -762,8 +839,14 @@ public sealed class IndependentAccountTests
             Substitute.For<IJwtService>(), cache, fixture.UnitOfWork,
             Substitute.For<ISessionService>(), new HttpContextAccessor(),
             Options.Create(new JwtSettings()), NullLogger<VerifyEmailOtp>.Instance, TimeProvider.System);
+
         var response = await handler.Handle(new VerifyEmailOtpCommand(new VerifyEmailOtpRequest
-        { UserId = user.Id, Code = "123456", Purpose = "Login" }), CancellationToken.None);
+        {
+            UserId = user.Id,
+            Code = "123456",
+            Purpose = "Login"
+        }), CancellationToken.None);
+
         Assert.False(response.IsSuccess);
         await cache.DidNotReceiveWithAnyArgs().GetAsync(default!, default);
     }
@@ -784,6 +867,7 @@ public sealed class IndependentAccountTests
             ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
             CreatedBy = ActorId
         }, CancellationToken.None);
+
         await fixture.Context.SaveChangesAsync();
         var passkeys = Substitute.For<IPasskeyService>();
         var handler = new LoginWithPasskey(fixture.Users, new HttpContextAccessor(),
@@ -791,6 +875,7 @@ public sealed class IndependentAccountTests
             Substitute.For<IClaimsService>(),
             Substitute.For<IServiceManager>(), fixture.UnitOfWork,
             passkeys, TimeProvider.System, Options.Create(new JwtSettings()), NullLogger<LoginWithPasskey>.Instance);
+
         using var document = JsonDocument.Parse(json);
         var response = await handler.Handle(new LoginWithPasskeyCommand(null, correlation, document.RootElement), CancellationToken.None);
         Assert.False(response.IsSuccess);
@@ -801,20 +886,56 @@ public sealed class IndependentAccountTests
     private sealed class Fixture : IDisposable
     {
         private readonly SqliteConnection _connection;
-        public TestIamDBContext Context { get; }
+        public TestIamDBContext Context
+        {
+            get;
+        }
         public ICurrentTenantProvider Tenant { get; } = Substitute.For<ICurrentTenantProvider>();
         public IPublisher Publisher { get; } = Substitute.For<IPublisher>();
-        public TestUserManager Users { get; }
-        public IIamUnitOfWork UnitOfWork { get; }
-        public RoleManager<AppRole> Roles { get; }
-        public PasskeyCredentialPolicy PasskeyPolicy { get; }
-        public CreateAppUser Create { get; }
-        public UpdateAdminUser Update { get; }
-        public ActivateAdminUser Activate { get; }
-        public DeactivateAdminUser Deactivate { get; }
-        public AcceptAccountInvitation AcceptInvitation { get; }
-        public InviteAdminUser Invite { get; }
-        public ResetPassword Reset { get; }
+        public TestUserManager Users
+        {
+            get;
+        }
+        public IIamUnitOfWork UnitOfWork
+        {
+            get;
+        }
+        public RoleManager<AppRole> Roles
+        {
+            get;
+        }
+        public PasskeyCredentialPolicy PasskeyPolicy
+        {
+            get;
+        }
+        public CreateAppUser Create
+        {
+            get;
+        }
+        public UpdateAdminUser Update
+        {
+            get;
+        }
+        public ActivateAdminUser Activate
+        {
+            get;
+        }
+        public DeactivateAdminUser Deactivate
+        {
+            get;
+        }
+        public AcceptAccountInvitation AcceptInvitation
+        {
+            get;
+        }
+        public InviteAdminUser Invite
+        {
+            get;
+        }
+        public ResetPassword Reset
+        {
+            get;
+        }
         public IEmailService Email { get; } = Substitute.For<IEmailService>();
         public EmailSettings EmailSettings { get; } = new() { Provider = "LocalMailpit", ClientBaseUrl = "https://starter.example.test" };
 
@@ -834,13 +955,16 @@ public sealed class IndependentAccountTests
                 new EphemeralDataProtectionProvider(),
                 Options.Create(new DataProtectionTokenProviderOptions()),
                 NullLogger<DataProtectorTokenProvider<AppUser>>.Instance));
+
             Roles = new RoleManager<AppRole>(new RoleStore<AppRole, TestIamDBContext>(Context),
                 [new RoleValidator<AppRole>()], new UpperInvariantLookupNormalizer(),
                 new IdentityErrorDescriber(), NullLogger<RoleManager<AppRole>>.Instance);
+
             var uow = new IamUnitOfWork(Context, Substitute.For<IUserRepository>(), new IamSessionRepository(Context),
                 new IamTokenRepository(Context), profiles ?? new IamAppUserProfileRepository(Context),
                 Substitute.For<IAppUserTotpSecretRepository>(), Substitute.For<ITempTotpSecretRepository>(),
                 Substitute.For<IPermissionRepository>(), Substitute.For<IMenuRepository>(), Publisher, NullLogger<IamUnitOfWork>.Instance);
+
             UnitOfWork = uow;
             PasskeyPolicy = new PasskeyCredentialPolicy(uow, Tenant);
             var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("permission", "users.manage_roles")], "Test"));
@@ -856,7 +980,9 @@ public sealed class IndependentAccountTests
         }
 
         public async Task AddRoleAsync(string name)
-            => Assert.True((await Roles.CreateAsync(new AppRole { Id = Guid.CreateVersion7().ToString(), Name = name })).Succeeded);
+        {
+            Assert.True((await Roles.CreateAsync(new AppRole { Id = Guid.CreateVersion7().ToString(), Name = name })).Succeeded);
+        }
 
         public async Task<AppUser> AddUserAsync()
         {
@@ -884,6 +1010,7 @@ public sealed class IndependentAccountTests
             foreach (var entity in builder.Model.GetEntityTypes())
             {
                 var rowVersion = entity.FindProperty("RowVersion");
+
                 if (rowVersion is not null)
                 {
                     rowVersion.ValueGenerated = ValueGenerated.Never;
@@ -897,16 +1024,26 @@ public sealed class IndependentAccountTests
         [new PasswordValidator<AppUser>()], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(),
         null!, NullLogger<UserManager<AppUser>>.Instance)
     {
-        public bool RejectRoleChanges { get; set; }
-        public bool RejectStampChanges { get; set; }
+        public bool RejectRoleChanges
+        {
+            get; set;
+        }
+        public bool RejectStampChanges
+        {
+            get; set;
+        }
 
         public override Task<IdentityResult> UpdateSecurityStampAsync(AppUser user)
-            => RejectStampChanges ? Task.FromResult(IdentityResult.Failed(new IdentityError { Description = "InternalProviderDetail" }))
-                : base.UpdateSecurityStampAsync(user);
+        {
+            return RejectStampChanges ? Task.FromResult(IdentityResult.Failed(new IdentityError { Description = "InternalProviderDetail" }))
+                        : base.UpdateSecurityStampAsync(user);
+        }
 
         public override Task<IdentityResult> AddToRolesAsync(AppUser user, IEnumerable<string> roles)
-            => RejectRoleChanges
-                ? Task.FromResult(IdentityResult.Failed(new IdentityError { Description = "InternalProviderDetail", Code = "TestRejected" }))
-                : base.AddToRolesAsync(user, roles);
+        {
+            return RejectRoleChanges
+                        ? Task.FromResult(IdentityResult.Failed(new IdentityError { Description = "InternalProviderDetail", Code = "TestRejected" }))
+                        : base.AddToRolesAsync(user, roles);
+        }
     }
 }

@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.Users.Enums;
 
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Features.IAM.Users.Commands;
@@ -50,19 +51,32 @@ internal sealed class LoginWithPasskey(
     {
         var originalOptionsStr = await iamUnitOfWork.PasskeyChallengeRepository.ConsumeAsync(
             PasskeyChallengeKeys.Assertion(command.CorrelationId), timeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false);
+
         if (string.IsNullOrEmpty(originalOptionsStr))
+        {
             return AppResponses.Failure<LoginResponse>("Login options have expired or do not exist.");
+        }
+
         JsonElement originalOptions;
         byte[] credentialIdBytes;
+
         try
         {
             originalOptions = JsonSerializer.Deserialize<JsonElement>(originalOptionsStr);
+
             if (command.AssertionResponse.ValueKind != JsonValueKind.Object
                 || !command.AssertionResponse.TryGetProperty("id", out var id)
                 || id.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(id.GetString()) || id.GetString()!.Length > 2048)
+            {
                 return AppResponses.Failure<LoginResponse>("Invalid assertion response.");
+            }
+
             credentialIdBytes = WebEncoders.Base64UrlDecode(id.GetString()!);
-            if (credentialIdBytes.Length == 0) return AppResponses.Failure<LoginResponse>("Invalid assertion response.");
+
+            if (credentialIdBytes.Length == 0)
+            {
+                return AppResponses.Failure<LoginResponse>("Invalid assertion response.");
+            }
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException or FormatException or InvalidOperationException)
         {
@@ -103,7 +117,7 @@ internal sealed class LoginWithPasskey(
             }
         }
 
-        if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed || credential == null)
+        if (user == null || user.Kind != AccountKind.Human || !user.IsActive || user.IsDeleted || !user.EmailConfirmed || credential == null)
         {
             return AppResponses.Failure<LoginResponse>("Invalid login attempt.");
         }
@@ -111,6 +125,7 @@ internal sealed class LoginWithPasskey(
         try
         {
             var newSignCount = await passkeyService.MakeAssertionAsync(user, command.AssertionResponse, originalOptions, credential.PublicKey, credential.SignatureCounter, cancellationToken).ConfigureAwait(false);
+
             if (newSignCount == null)
             {
                 return AppResponses.Failure<LoginResponse>("Passkey assertion failed.");
@@ -145,7 +160,7 @@ internal sealed class LoginWithPasskey(
         var activeSessionId = sessionCreationResult.Data;
         var userClaims = await claimsService.GetUserClaimsAsync(user, activeSessionId).ConfigureAwait(false);
         userClaims.Add(new Claim("amr", "mfa"));
-            var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
+        var tokenResponse = await jwtService.CreateTokenAsync(userClaims).ConfigureAwait(false);
         var refreshToken = jwtService.CreateRefreshToken();
 
         var now = timeProvider.GetUtcNow();

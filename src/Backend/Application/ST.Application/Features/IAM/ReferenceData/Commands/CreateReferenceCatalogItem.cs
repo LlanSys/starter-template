@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.IAM.Menus;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Features.IAM.ReferenceData.Mappings;
 using ST.Application.Utilities;
@@ -22,6 +23,12 @@ internal sealed class CreateReferenceCatalogItemCommandHandler(IIamUnitOfWork un
             if (!ReferenceCatalogTypes.All.Contains(command.CatalogType))
             {
                 return AppResponses.Failure<ReferenceCatalogItemResponse>($"Catalog '{command.CatalogType}' is not supported.");
+            }
+
+            if (command.CatalogType.Equals(ReferenceCatalogTypes.MenuIcons, StringComparison.OrdinalIgnoreCase)
+                && !MaterialIconKeys.Contains(command.Request.Key))
+            {
+                return AppResponses.Failure<ReferenceCatalogItemResponse>("Select a MudBlazor icon.");
             }
 
             var duplicate = await KeyExistsAsync(unitOfWork, command.CatalogType, command.Request.Key, command.Request.ParentKey, cancellationToken)

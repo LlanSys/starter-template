@@ -1,3 +1,6 @@
+using ST.UI.Blazor.Features.Shared.OrgSettings;
+using ST.SharedKernel.Features.ControlPlane;
+using ST.SharedKernel.Features.IAM.Menus;
 using ST.UI.Blazor.Components;
 using ST.UI.Blazor.Components.Security;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -49,10 +52,27 @@ builder.Services.AddMudServices();
 
 builder.Services.AddAuthorizationCore(options =>
 {
-    foreach (var path in DeployedModuleManifest.Pages.Keys) options.AddPolicy("Page:" + path, policy => policy.RequireAuthenticatedUser().RequireClaim("page", path));
-    foreach (var module in new[] { "core", "iam", "payments", "showcase" }) options.AddPolicy("Module." + module, policy => policy.RequireAuthenticatedUser().RequireClaim("module", module));
-    options.AddPolicy("ControlPlane.Manage", policy =>
-        policy.RequireClaim("permission", "control_plane.manage").RequireClaim("platform_staff", "true"));
+    foreach (var path in DeployedModuleManifest.Pages.Keys)
+    {
+        options.AddPolicy("Page:" + path, policy => policy.RequireAuthenticatedUser().RequireClaim("page", path)
+            .RequireAssertion(context => AdministrationPageAccess.CanOpen(path,
+                context.User.FindAll("permission").Select(claim => claim.Value))));
+    }
+
+    foreach (var module in new[] { "core", "iam", "payments", "showcase" })
+    {
+        options.AddPolicy("Module." + module, policy => policy.RequireAuthenticatedUser().RequireClaim("module", module));
+    }
+
+    options.AddPolicy("ControlPlane.Access", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(context => PlatformAccess.CanOpenControlPanel(context.User) && PlatformAccess.HasMfa(context.User)));
+
+    foreach (var permission in PlatformPermissions.All)
+    {
+        options.AddPolicy(permission, policy => policy.RequireAuthenticatedUser()
+            .RequireAssertion(context => PlatformAccess.Can(context.User, permission) && PlatformAccess.HasMfa(context.User)));
+    }
 });
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<ProtectedSessionStorage>();
@@ -79,6 +99,7 @@ builder.Services
 // Protected browser storage is the durable browser source. The scoped server
 // store only bridges periods where JS interop is unavailable within a circuit.
 builder.Services.AddScoped<WorkspaceSelection>();
+builder.Services.AddScoped<FrontendTenantContext>();
 builder.Services.AddScoped<ITokenStorage, TokenStorage>();
 builder.Services.AddScoped<IServerTokenStore, ServerTokenStore>();
 
@@ -89,6 +110,7 @@ builder.Services.AddScoped<IIamAdminService, IamAdminService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IPaymentCheckoutService, PaymentCheckoutService>();
 builder.Services.AddScoped<IOrgSettingsService, OrgSettingsService>();
+builder.Services.AddScoped<PresentationPreferences>();
 builder.Services.AddSingleton<IAuthenticatorQrCodeService, AuthenticatorQrCodeService>();
 builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IAuditService, AuditService>();

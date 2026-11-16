@@ -1,0 +1,121 @@
+@using ST.SharedKernel.Features.ControlPlane.Staff
+@using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
+@using ST.UI.Blazor.Features.Shared.Messaging
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Warning"
+                          Dense="true">@_error</MudAlert>
+            }
+            @if (Account is null)
+            {
+                <MudGrid>
+                    <MudItem xs="12"
+                             sm="6">
+                        <MudTextField @bind-Value="_first"
+                                      Label="First Name"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Required="true" />
+                    </MudItem>
+                    <MudItem xs="12"
+                             sm="6">
+                        <MudTextField @bind-Value="_last"
+                                      Label="Last Name"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Required="true" />
+                    </MudItem>
+                    <MudItem xs="12"
+                             sm="6">
+                        <MudTextField @bind-Value="_username"
+                                      Label="Username"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Required="true" />
+                    </MudItem>
+                    <MudItem xs="12"
+                             sm="6">
+                        <MudTextField @bind-Value="_email"
+                                      Label="Email"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Required="true" />
+                    </MudItem>
+                </MudGrid>
+                <MudText Typo="Typo.body2">Save the account, then send its invitation from the staff list. No password is created or sent by an administrator.</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.subtitle1">@Account.FullName</MudText>
+                <MudText Typo="Typo.body2">@Account.Email · @Account.Status</MudText>
+                <MudCheckBox T="bool"
+                             @bind-Value="_staff"
+                             Label="Platform Staff Membership"
+                             Color="Color.Success" />
+                <MudCheckBox T="bool"
+                             @bind-Value="_active"
+                             Label="Account Active"
+                             Color="Color.Success" />
+            }
+            <MudSelect T="string"
+                       Value="_profile"
+                       ValueChanged="ApplyProfile"
+                       Label="Apply Access Profile"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Disabled="!_staff">
+                @foreach (var profile in PlatformStaffProfiles.All.Where(p => p.PermissionKeys.All(AuthSession.HasPermission)))
+                {
+                    <MudSelectItem Value="@profile.Key">@profile.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudText Typo="Typo.caption">@_keys.Count Selected Permissions</MudText>
+            <MudText Typo="Typo.caption">Profiles are starting selections. Only the explicit checked grants are saved. You can delegate only permissions you currently hold.</MudText>
+            <MudExpansionPanels Elevation="0">
+                <MudExpansionPanel Text="Review Platform Permissions">
+                    <MudGrid Spacing="1">
+                        @foreach (var key in PlatformPermissions.All.Order(StringComparer.Ordinal))
+                        {
+                            <MudItem xs="12"
+                                     sm="6">
+                                <MudCheckBox T="bool"
+                                             Value="@_keys.Contains(key)"
+                                             ValueChanged="@(v => Toggle(key, v))"
+                                             Disabled="@(!_staff || !AuthSession.HasPermission(key))"
+                                             Label="@Label(key)"
+                                             Dense="true"
+                                             Color="Color.Success" />
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+            <MudTextField @bind-Value="_reason"
+                          Label="Reason For This Change"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Lines="2"
+                          MaxLength="500"
+                          Required="true" />
+            @if (Account is not null)
+            {
+                <MudText Typo="Typo.caption">Saving revokes this account's existing sessions. Removing membership also removes its platform grants. The last verified staff administrator is protected.</MudText>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Disabled="_saving"
+                   Size="Size.Small">Cancel</MudButton>
+        <MudButton OnClick="SaveAsync"
+                   Disabled="@(_saving || (_staff && _keys.Count == 0))"
+                   Color="Color.Success"
+                   Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   Size="Size.Small">@(_saving ? "Saving..." : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>

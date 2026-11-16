@@ -1,7 +1,7 @@
 @using ST.UI.Blazor.Features.ControlPlane.Demo
 @page "/control-panel/demo"
 @layout ControlPlaneLayout
-@attribute [Authorize(Policy = "ControlPlane.Manage")]
+@attribute [Authorize(Policy = PlatformPermissions.EnterDemo)]
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @using ST.UI.Blazor.Features.Shared.BackendApi.Contracts.Interfaces
@@ -13,18 +13,38 @@
 @inject ProtectedSessionStorage SessionStorage
 @inject NavigationManager Navigation
 @inject IDialogService Dialogs
+<ControlPanelBackLink />
 <PageTitle>Demo workspace | StarterTemplate</PageTitle>
 <h1 class="platform-page-title">Demo workspace</h1>
-<MudPaper Outlined="true" Elevation="0" Class="pa-4 mt-4">
+<MudPaper Outlined="true"
+          Elevation="0"
+          Class="pa-4 mt-4">
     <MudText Typo="Typo.h6">Vendor demo</MudText>
     <MudText Class="my-3">An isolated tenant with the available modules enabled. Payments and invitations do not send live transactions.</MudText>
-    @if (_message is not null) { <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">@_message</MudAlert> }
-    <MudSelect T="bool" @bind-Value="_readOnly" Label="Experience" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+    @if (_message is not null)
+    {
+        <MudAlert Severity="Severity.Warning"
+                  Dense="true"
+                  Class="mb-3">@_message</MudAlert>
+    }
+    <MudSelect T="bool"
+               @bind-Value="_readOnly"
+               Label="Experience"
+               Variant="Variant.Outlined"
+               Margin="Margin.Dense"
+               Class="mb-3">
         <MudSelectItem Value="false">Tenant administrator</MudSelectItem>
         <MudSelectItem Value="true">Read-only user</MudSelectItem>
     </MudSelect>
-    <MudButton OnClick="EnterAsync" Disabled="_busy" Color="Color.Primary" Variant="Variant.Filled">@(_busy ? "Preparing demo…" : "Enter demo")</MudButton>
-<MudButton OnClick="ResetAsync" Disabled="_busy" Color="Color.Warning" StartIcon="@Icons.Material.Filled.RestartAlt" Class="ml-3">Reset demo</MudButton>
+    <MudButton OnClick="EnterAsync"
+               Disabled="_busy"
+               Color="Color.Primary"
+               Variant="Variant.Filled">@UiLabels.TitleCase(_busy ? "Preparing demo…" : "Enter demo")</MudButton>
+    <MudButton OnClick="ResetAsync"
+               Disabled="_busy"
+               Color="Color.Warning"
+               StartIcon="@Icons.Material.Filled.RestartAlt"
+               Class="ml-3">Reset Demo</MudButton>
 </MudPaper>
 @code {
     private bool _busy, _readOnly;

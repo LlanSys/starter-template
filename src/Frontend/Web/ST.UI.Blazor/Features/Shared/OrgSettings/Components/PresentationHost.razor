@@ -1,0 +1,95 @@
+@implements IDisposable
+@inject IAuthSession AuthSession
+@inject IOrgSettingsService OrgSettingsService
+@inject NavigationManager Navigation
+
+@if (_ready)
+{
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Warning"
+                  Dense="true"
+                  Class="mb-3">Display preferences could not be loaded. Default formatting is being used.</MudAlert>
+    }
+    @ChildContent
+}
+else
+{
+    <MudProgressLinear Indeterminate="true"
+                       Color="Color.Primary"
+                       aria-label="Loading workspace preferences" />
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private Guid? _tenant;
+    private string? _account;
+    private bool _ready;
+    private bool _failed;
+    private bool _disposed;
+    private int _generation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthSession.AuthenticationChanged += OnAuthenticationChanged;
+        Navigation.LocationChanged += OnLocationChanged;
+        Presentation.Changed += OnPreferencesChanged;
+        await LoadAsync();
+    }
+
+    private void OnPreferencesChanged()
+    {
+        if (!_disposed) { _ = InvokeAsync(StateHasChanged); }
+    }
+
+    private void OnAuthenticationChanged()
+    {
+        if (!_disposed) { _ = InvokeAsync(LoadAsync); }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        if (!_disposed) { _ = InvokeAsync(LoadAsync); }
+    }
+
+    private async Task LoadAsync()
+    {
+        var generation = ++_generation;
+        var user = AuthSession.CurrentUser;
+        if (!AuthSession.IsAuthenticated || user is null)
+        {
+            _ready = false;
+            _tenant = null;
+            _account = null;
+            Presentation.Apply(PresentationSettingsResponse.Default);
+            StateHasChanged();
+            return;
+        }
+        if (_tenant != user.TenantId || _account != user.AppUserId)
+        {
+            _ready = false;
+            Presentation.Apply(PresentationSettingsResponse.Default);
+        }
+        _tenant = user.TenantId;
+        _account = user.AppUserId;
+        var response = await OrgSettingsService.GetPresentationAsync();
+        if (_disposed || generation != _generation || AuthSession.CurrentUser?.TenantId != user.TenantId
+            || AuthSession.CurrentUser?.AppUserId != user.AppUserId || !AuthSession.IsAuthenticated)
+        {
+            return;
+        }
+        _failed = !response.IsSuccess || response.Data is null;
+        Presentation.Apply(_failed ? PresentationSettingsResponse.Default : response.Data!);
+        _ready = true;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        ++_generation;
+        AuthSession.AuthenticationChanged -= OnAuthenticationChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
+        Presentation.Changed -= OnPreferencesChanged;
+    }
+}

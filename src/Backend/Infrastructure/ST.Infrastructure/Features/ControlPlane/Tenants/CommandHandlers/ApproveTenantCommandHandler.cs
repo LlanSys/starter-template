@@ -1,3 +1,5 @@
+using ST.Domain.Features.ControlPlane.Kyc.Enums;
+using ST.Application.Features.ControlPlane.Kyc.Contracts;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,19 +25,22 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
     private readonly IStampProvisioner _stampProvisioner;
     private readonly ICurrentActorProvider _actorProvider;
     private readonly TimeProvider _timeProvider;
+    private readonly IKycRetentionService _retention;
 
     public ApproveTenantCommandHandler(
         IControlPlaneUnitOfWork unitOfWork,
         ILogger<ApproveTenantCommandHandler> logger,
         IStampProvisioner stampProvisioner,
         ICurrentActorProvider actorProvider,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IKycRetentionService retention)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _stampProvisioner = stampProvisioner;
         _actorProvider = actorProvider;
         _timeProvider = timeProvider;
+        _retention = retention;
     }
 
     public async Task<AppResponse<TenantResponse>> Handle(ApproveTenantCommand request, CancellationToken cancellationToken)
@@ -55,6 +60,7 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
         }
 
         var now = _timeProvider.GetUtcNow();
+
         if (request.Retry
             ? !tenant.CanProvision || (tenant.Status != TenantStatus.ProvisioningFailed && !tenant.IsProvisioningExpired(now))
             : tenant.KycApprovedAt.HasValue)
@@ -62,9 +68,39 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
             return AppResponses.Failure<TenantResponse>("The workspace is unavailable for this transition.");
         }
 
+        var erased = await _retention.CheckErasureAsync(tenant.Id, cancellationToken).ConfigureAwait(false);
+
+        if (!erased.IsSuccess)
+        {
+            return AppResponses.Failure<TenantResponse>(erased.Error!);
+        }
+
+        if (erased.Data)
+        {
+            return AppResponses.Failure<TenantResponse>("This KYC case has been erased. A new onboarding review is required.");
+        }
+
+        var retentionCase = await _retention.EnsureAsync(tenant.Id, tenant.KycApprovedAt.HasValue, cancellationToken).ConfigureAwait(false);
+
+        if (!retentionCase.CanCollect)
+        {
+            return AppResponses.Failure<TenantResponse>("The KYC case must be open before approval or provisioning.");
+        }
+
+        if (!request.Retry && await _unitOfWork.KycDocuments.FindAll().AnyAsync(item => item.TenantId == tenant.Id
+            && item.ErasedAt == null && item.Status != "Changes requested" && item.SafetyStatus != KycDocumentSafetyStatus.Clean,
+            cancellationToken).ConfigureAwait(false))
+        {
+            return AppResponses.Failure<TenantResponse>("Complete the safety checks or request replacement of blocked evidence before KYC approval.");
+        }
+
+        retentionCase.Touch(now);
+        var retentionPolicy = await _unitOfWork.KycRetentionPolicies.FindAll().SingleAsync(x => x.Id == retentionCase.PolicyId, cancellationToken).ConfigureAwait(false);
+        retentionCase.Schedule(retentionPolicy, true);
         var needsProvisioning = request.Retry || tenant.Status == TenantStatus.PendingApproval;
 
         var stamp = await _unitOfWork.DeploymentStamps.FirstOrDefaultAsync(s => s.Id == tenant.DeploymentStampId, cancellationToken).ConfigureAwait(false);
+
         if (stamp == null)
         {
             return AppResponses.Failure<TenantResponse>("Deployment stamp for this tenant could not be found.");
@@ -78,13 +114,14 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
         }
 
         tenant.ExclusiveStampId = stamp.IsolationTier == IsolationTier.Isolated ? stamp.Id : null;
+
         if (request.Retry)
         {
             tenant.RetryProvisioning(now);
         }
         else
         {
-            tenant.Approve(_actorProvider.ActorId, _timeProvider.GetUtcNow(), request.EvidenceReference);
+            tenant.Approve(_actorProvider.ActorId, now, request.EvidenceReference);
         }
 
         if (needsProvisioning && stamp.IsolationTier == IsolationTier.Isolated)
@@ -110,6 +147,7 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
                 ControlPlaneLogDefinitions.LogStampProvisioningFailed(_logger, tenant.Id, ex);
 
                 tenant.MarkAsProvisioningFailed();
+
                 try
                 {
                     await _unitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);

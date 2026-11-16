@@ -13,34 +13,66 @@
 @inject IAuthSession AuthSession
 
 <PageTitle>Administrator invitation | StarterTemplate</PageTitle>
-<HeadContent><meta name="referrer" content="no-referrer" /></HeadContent>
+<HeadContent>
+    <meta name="referrer"
+          content="no-referrer" />
+</HeadContent>
 
 <section class="auth-shell">
     <div class="auth-card">
-        <div class="auth-heading"><h1>Administrator invitation</h1></div>
+        <AuthBrand TenantId="@(_tenantId == Guid.Empty ? null : _tenantId)"
+                   UseSelectedOrganization="@(_tenantId != Guid.Empty)" />
+        <div class="auth-heading">
+            <h1>Administrator invitation</h1>
+        </div>
         @if (_preview is not null && !_accepted)
         {
             <p>You're invited to administer <strong>@_preview.WorkspaceName</strong> as <strong>@_preview.Email</strong>.</p>
             <div class="form-stack">
                 <label for="administrator-password">@(_preview.ExistingAccount ? "Current password" : "Create a password")</label>
-                <input id="administrator-password" type="password" class="form-control" @bind="_password"
-                       autocomplete="@(_preview.ExistingAccount ? "current-password" : "new-password")" maxlength="128" />
+                <input id="administrator-password"
+                       type="password"
+                       class="form-control"
+                       @bind="_password"
+                       autocomplete="@(_preview.ExistingAccount ? "current-password" : "new-password")"
+                       maxlength="128" />
                 @if (!_preview.ExistingAccount)
                 {
                     <label for="administrator-confirm">Confirm password</label>
-                    <input id="administrator-confirm" type="password" class="form-control" @bind="_confirmation" autocomplete="new-password" maxlength="128" />
+                    <input id="administrator-confirm"
+                           type="password"
+                           class="form-control"
+                           @bind="_confirmation"
+                           autocomplete="new-password"
+                           maxlength="128" />
                 }
-                <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="AcceptAsync">Accept invitation</button>
+                <button type="button"
+                        class="btn btn-st-primary"
+                        disabled="@_busy"
+                        @onclick="AcceptAsync">Accept Invitation</button>
             </div>
             @foreach (var provider in _providers)
             {
-                <form method="post" action="@($"{BackendSettings.Value.PublicBaseUrl!.TrimEnd('/')}/api/v{BackendSettings.Value.Version}/iam/auth/sso/accept")" class="mt-2">
-                    <input type="hidden" name="tenantId" value="@_tenantId" />
-                    <input type="hidden" name="invitationId" value="@Invitation" />
-                    <input type="hidden" name="invitationToken" value="@Token" />
-                    <input type="hidden" name="provider" value="@provider.Scheme" />
-                    <input type="hidden" name="returnUrl" value="@($"{Navigation.BaseUri}iam/sso-callback")" />
-                    <button type="submit" class="btn btn-outline-secondary">Accept with @provider.DisplayName</button>
+                <form method="post"
+                      action="@($"{BackendSettings.Value.PublicBaseUrl!.TrimEnd('/')}/api/v{BackendSettings.Value.Version}/iam/auth/sso/accept")"
+                      class="mt-2">
+                    <input type="hidden"
+                           name="tenantId"
+                           value="@_tenantId" />
+                    <input type="hidden"
+                           name="invitationId"
+                           value="@Invitation" />
+                    <input type="hidden"
+                           name="invitationToken"
+                           value="@Token" />
+                    <input type="hidden"
+                           name="provider"
+                           value="@provider.Scheme" />
+                    <input type="hidden"
+                           name="returnUrl"
+                           value="@($"{Navigation.BaseUri}iam/sso-callback")" />
+                    <button type="submit"
+                            class="btn btn-outline-secondary">Accept With @provider.DisplayName</button>
                 </form>
             }
         }
@@ -50,7 +82,8 @@
         }
         @if (_message is not null)
         {
-            <div role="alert" class="alert alert-danger">@_message</div>
+            <div role="alert"
+                 class="alert alert-danger">@_message</div>
         }
         <a href="@($"/iam/sign-in?workspace={Uri.EscapeDataString(Workspace ?? string.Empty)}")">Go to sign in</a>
     </div>
@@ -92,7 +125,7 @@
         }
 
         _tenantId = workspace.TenantId;
-        await Selection.SetAsync(new(workspace.TenantId, workspace.Identifier, workspace.Name));
+        await Selection.SetAsync(WorkspaceSelectionInfo.From(workspace));
         var response = await Api.SendAsync<AdministratorInvitationPreview>(HttpMethod.Post, $"{Path}/inspect",
             new InspectAdministratorInvitationRequest(Invitation, Token), requiresAuthentication: false);
         _preview = response.Data;

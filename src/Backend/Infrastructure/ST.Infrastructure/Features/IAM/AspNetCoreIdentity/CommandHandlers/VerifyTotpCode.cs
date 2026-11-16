@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.Users.Enums;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
@@ -50,7 +51,8 @@ internal sealed class VerifyTotpCode(
         try
         {
             var user = await userManager.FindByIdAsync(request.UserId).ConfigureAwait(false);
-            if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
+
+            if (user == null || user.Kind != AccountKind.Human || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
             {
                 ServiceLogDefinitions.Log2FAVerificationAttemptNonExistentUser(logger, request.UserId);
                 return AppResponses.Failure<VerifyOtpResponse>("User not found");
@@ -68,6 +70,7 @@ internal sealed class VerifyTotpCode(
             if (tempSecret != null && !firstFactor)
             {
                 var enrollmentSession = httpContextAccessor.HttpContext?.User;
+
                 if (enrollmentSession?.FindFirstValue("session_id") is null
                     || enrollmentSession.FindFirstValue(ClaimTypes.NameIdentifier) != user.Id
                     || enrollmentSession.FindFirstValue("tenant_id") != user.TenantId.ToString())
@@ -102,6 +105,7 @@ internal sealed class VerifyTotpCode(
                     await iamUnitOfWork.CompleteAsync(cancellationToken).ConfigureAwait(false);
 
                     var enableResult = await userManager.SetTwoFactorEnabledAsync(user, true).ConfigureAwait(false);
+
                     if (!enableResult.Succeeded)
                     {
                         ServiceLogDefinitions.LogTotpSetupInitiationError(logger, user.Id, new InvalidOperationException("Identity rejected MFA enrollment."));
@@ -119,6 +123,7 @@ internal sealed class VerifyTotpCode(
                 }
 
                 verification = await VerifyUserTotpAsync(user, request.Code, cancellationToken).ConfigureAwait(false);
+
                 if (verification.IsUnavailable)
                 {
                     return AppResponses.Failure<VerifyOtpResponse>(verification.Message!);
@@ -148,12 +153,14 @@ internal sealed class VerifyTotpCode(
 
             var activeSessionId = sessionCreation.Data;
             var userClaims = await claimsService.GetUserClaimsAsync(user, activeSessionId).ConfigureAwait(false);
+
             if (!userClaims.Any())
             {
                 return AppResponses.Failure<VerifyOtpResponse>("Could not retrieve user claims");
             }
 
             userClaims.Add(new Claim("amr", "mfa"));
+
             if (user.RequiresAdministratorSetup && enrolled && firstFactor)
             {
                 userClaims.Add(new Claim("administrator_mfa", "true"));
@@ -181,7 +188,9 @@ internal sealed class VerifyTotpCode(
             }).ConfigureAwait(false);
 
             if (request.RememberDevice)
+            {
                 await signInManager.RememberTwoFactorClientAsync(user).ConfigureAwait(false);
+            }
 
             await signInManager.SignInAsync(user, request.RememberMe).ConfigureAwait(false);
 
@@ -225,10 +234,16 @@ internal sealed class VerifyTotpCode(
         var attempts = int.TryParse(attemptsStr, out var a) ? a : 0;
 
         if (attempts >= 3)
+        {
             return TotpVerificationResult.Invalid();
+        }
 
         var secretEntity = await iamUnitOfWork.AppUserTotpSecretRepository.GetActiveSecretByUserIdAsync(userId).ConfigureAwait(false);
-        if (secretEntity == null) return TotpVerificationResult.Invalid();
+
+        if (secretEntity == null)
+        {
+            return TotpVerificationResult.Invalid();
+        }
 
         var secretDecryption = TryDecryptTotpSecret(user, secretEntity.EncryptedSecret);
 
@@ -292,17 +307,32 @@ internal sealed class VerifyTotpCode(
 
     private readonly record struct TotpVerificationResult(bool IsValid, bool IsUnavailable, string? Message)
     {
-        public static TotpVerificationResult Valid() => new(true, false, null);
+        public static TotpVerificationResult Valid()
+        {
+            return new(true, false, null);
+        }
 
-        public static TotpVerificationResult Invalid() => new(false, false, null);
+        public static TotpVerificationResult Invalid()
+        {
+            return new(false, false, null);
+        }
 
-        public static TotpVerificationResult Unavailable(string message) => new(false, true, message);
+        public static TotpVerificationResult Unavailable(string message)
+        {
+            return new(false, true, message);
+        }
     }
 
     private readonly record struct TotpSecretDecryptionResult(string? Secret, bool IsUnavailable, string? Message)
     {
-        public static TotpSecretDecryptionResult Decrypted(string secret) => new(secret, false, null);
+        public static TotpSecretDecryptionResult Decrypted(string secret)
+        {
+            return new(secret, false, null);
+        }
 
-        public static TotpSecretDecryptionResult Unavailable(string message) => new(null, true, message);
+        public static TotpSecretDecryptionResult Unavailable(string message)
+        {
+            return new(null, true, message);
+        }
     }
 }

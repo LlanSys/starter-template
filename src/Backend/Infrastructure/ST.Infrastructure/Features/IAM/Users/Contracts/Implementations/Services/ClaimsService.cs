@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.ControlPlane;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Application.Features.Shared.Notifications.Contracts.Interfaces;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -81,13 +82,14 @@ internal sealed class ClaimsService(
                     var roleClaims = await _roleManager.GetClaimsAsync(role).ConfigureAwait(false);
 
                     // Permissions are stored as claims with type "permission"
-                    var permissions = roleClaims.Where(c => c.Type == "permission");
+                    var permissions = roleClaims.Where(c => c.Type == "permission"
+                        && !c.Value.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase));
                     claims.AddRange(permissions);
                 }
             }
 
             var directClaims = await _userManager.GetClaimsAsync(user).ConfigureAwait(false);
-            claims.AddRange(directClaims.Where(c => c.Type is "permission" or "platform_staff" or "demo_workspace" or "demo_actor_id" or "demo_readonly" or "support_grant_id" or "support_actor_id"));
+            claims.AddRange(directClaims.Where(c => (c.Type != "permission" || !c.Value.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || PlatformPermissions.IsDefined(c.Value)) && c.Type is "permission" or "platform_staff" or "demo_workspace" or "demo_actor_id" or "demo_readonly" or "support_grant_id" or "support_actor_id"));
 
             return [.. claims
                 .GroupBy(static claim => $"{claim.Type}:{claim.Value}", StringComparer.OrdinalIgnoreCase)
@@ -123,16 +125,17 @@ internal sealed class ClaimsService(
             if (role != null)
             {
                 var roleClaims = await _roleManager.GetClaimsAsync(role).ConfigureAwait(false);
-                claims.AddRange(roleClaims.Where(c => c.Type == "permission"));
+                claims.AddRange(roleClaims.Where(c => c.Type == "permission"
+                        && !c.Value.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase)));
             }
         }
 
         // Get permissions assigned DIRECTLY to the USER (the "Permission 5" case)
         var directClaims = await _userManager.GetClaimsAsync(user).ConfigureAwait(false);
-        claims.AddRange(directClaims.Where(c => c.Type is "permission" or "platform_staff" or "demo_workspace" or "demo_actor_id" or "demo_readonly" or "support_grant_id" or "support_actor_id"));
+        claims.AddRange(directClaims.Where(c => (c.Type != "permission" || !c.Value.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || PlatformPermissions.IsDefined(c.Value)) && c.Type is "permission" or "platform_staff" or "demo_workspace" or "demo_actor_id" or "demo_readonly" or "support_grant_id" or "support_actor_id"));
 
         // Return a distinct list (so Permission 1 isn't added twice if it's in both)
-        return [.. claims.GroupBy(c => c.Value).Select(g => g.First())];
+        return [.. claims.GroupBy(c => new { c.Type, c.Value }).Select(g => g.First())];
     }
 
     public async Task<bool> RemoveUserClaimAsync(AppUser user, Claim claim)

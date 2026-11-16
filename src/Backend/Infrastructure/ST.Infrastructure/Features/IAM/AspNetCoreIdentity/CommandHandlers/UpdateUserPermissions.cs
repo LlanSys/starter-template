@@ -1,3 +1,5 @@
+using ST.Domain.Features.IAM.Users.Enums;
+using ST.SharedKernel.Features.ControlPlane;
 using System.Security.Claims;
 using ST.Application.Features.IAM.Users.Commands;
 using ST.Domain.Features.IAM.Users.Entities;
@@ -27,9 +29,15 @@ internal sealed class UpdateUserPermissions(
         try
         {
             var user = await userManager.FindByIdAsync(command.UserId).ConfigureAwait(false);
-            if (user is null)
+
+            if (user is null || user.Kind != AccountKind.Human)
             {
                 return AppResponses.Failure<UserPermissionsResponse>("User not found.");
+            }
+
+            if ((await userManager.GetClaimsAsync(user).ConfigureAwait(false)).Any(c => c.Type == PlatformAccess.StaffClaim && c.Value == "true"))
+            {
+                return AppResponses.Failure<UserPermissionsResponse>("Manage platform staff through Platform Staff in the Control Panel.");
             }
 
             var requestedKeys = command.Request.PermissionKeys
@@ -40,7 +48,12 @@ internal sealed class UpdateUserPermissions(
                 .ToList();
 
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
-            if (requestedKeys.Any(key => !access.PermissionAvailable(key))) return AppResponses.Failure<UserPermissionsResponse>("Select permissions from enabled modules; platform permissions cannot be assigned here.");
+
+            if (requestedKeys.Any(key => !access.PermissionAvailable(key)))
+            {
+                return AppResponses.Failure<UserPermissionsResponse>("Select permissions from enabled modules; platform permissions cannot be assigned here.");
+            }
+
             var validKeys = await context.Permissions
                 .AsNoTracking()
                 .Where(permission => requestedKeys.Contains(permission.Key) && permission.IsActive)
@@ -51,6 +64,7 @@ internal sealed class UpdateUserPermissions(
             validKeys.AddRange(access.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && access.EntryAvailable(x)).Select(x => x.Key));
             validKeys.AddRange(EffectiveModuleAccess.TenantSettingsPermissions.Where(access.PermissionAvailable));
             var invalidKeys = requestedKeys.Except(validKeys, StringComparer.OrdinalIgnoreCase).ToList();
+
             if (invalidKeys.Count > 0)
             {
                 return AppResponses.Failure<UserPermissionsResponse>($"Unknown or inactive permission(s): {string.Join(", ", invalidKeys)}.");
@@ -63,7 +77,9 @@ internal sealed class UpdateUserPermissions(
             var existingKeys = existingClaims.Select(claim => claim.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var removals = existingClaims.Where(claim => access.PermissionAvailable(claim.Value)
                 && !requestedKeys.Contains(claim.Value, StringComparer.OrdinalIgnoreCase)).ToArray();
+
             var additions = requestedKeys.Where(key => !existingKeys.Contains(key)).ToArray();
+
             if (!delegation.CanDelegate(additions.Concat(removals.Select(claim => claim.Value))))
             {
                 return AppResponses.Failure<UserPermissionsResponse>("You can only change permissions you hold in this workspace.");

@@ -1,3 +1,4 @@
+using ST.SharedKernel.Features.IAM.Menus;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Utilities;
 using ST.Domain.Features.IAM.Contracts;
@@ -57,13 +58,7 @@ internal sealed class GetReferenceCatalogQueryHandler(IIamUnitOfWork unitOfWork,
                         cancellationToken)
                     .ConfigureAwait(false),
 
-                ReferenceCatalogTypes.MenuIcons => await unitOfWork.MenuIconRepository
-                    .ListAsync(
-                        items => items
-                            .OrderBy(static item => item.Label)
-                            .Select(item => new ReferenceCatalogItemResponse(item.Id, ReferenceCatalogTypes.MenuIcons, item.Key, item.Label, item.Description, null, null, item.IsActive)),
-                        cancellationToken)
-                    .ConfigureAwait(false),
+                ReferenceCatalogTypes.MenuIcons => await GetMenuIconsAsync(cancellationToken).ConfigureAwait(false),
 
                 ReferenceCatalogTypes.MenuRoutes => await unitOfWork.MenuRouteRepository
                     .ListAsync(
@@ -85,4 +80,18 @@ internal sealed class GetReferenceCatalogQueryHandler(IIamUnitOfWork unitOfWork,
             throw;
         }
     }
+    private async Task<IReadOnlyList<ReferenceCatalogItemResponse>> GetMenuIconsAsync(CancellationToken cancellationToken)
+    {
+        var configured = await unitOfWork.MenuIconRepository.ListAsync(
+            items => items.Select(item => new ReferenceCatalogItemResponse(
+                item.Id, ReferenceCatalogTypes.MenuIcons, item.Key, item.Label, item.Description, null, null, item.IsActive)),
+            cancellationToken).ConfigureAwait(false);
+        var configuredKeys = configured.Select(item => MaterialIconKeys.Normalize(item.Key))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var defaults = MaterialIconKeys.All.Where(key => !configuredKeys.Contains(key))
+            .Select(key => new ReferenceCatalogItemResponse(
+                Guid.Empty, ReferenceCatalogTypes.MenuIcons, key, key, "MudBlazor Material icon", null, null, true));
+        return configured.Concat(defaults).OrderBy(item => item.Label, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
 }

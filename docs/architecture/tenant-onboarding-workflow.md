@@ -1,73 +1,25 @@
-# Tenant Onboarding Workflow
+# Tenant onboarding workflow
 
-This document outlines the operational workflows for onboarding new tenants to the StarterTemplate SaaS platform. See [secure workspace onboarding](secure-workspace-onboarding.md) for KYC review, invitation delivery, acceptance, and MFA. Because the platform supports both **Pooled** and **Isolated** isolation tiers, the onboarding steps vary based on the level of isolation required by the client.
+The [tenant onboarding journey](tenant-onboarding-journey.md) describes sales/trial intake, KYC, provisioning and administrator setup. This runbook covers technical provisioning. See [secure workspace onboarding](secure-workspace-onboarding.md) for invitations, credentials and MFA.
 
-## 1. Onboarding a Pooled Tenant
+## Pooled customer workflow
 
-A pooled tenant shares compute, database, and caching infrastructure with other pooled tenants. StarterTemplate enforces logical isolation through tenant-scoped EF queries and tenant ownership checks on writes. This is the fastest and cheapest way to onboard a new customer.
+1. Register a customer workspace on an existing pooled stamp; record the intended initial administrator where known.
+2. Collect and review KYC, then record explicit approval with evidence reference and reviewer.
+3. Initialize the workspace and essential tenant-owned IAM configuration on the approved stamp. Activation and invitation delivery must retain the existing KYC gates.
+4. Deliver the first-administrator invitation through the durable worker; complete credential proof and MFA before assigning administrator authority.
 
-### Workflow
+No new stamp infrastructure is normally required. Logical isolation still requires scoped reads/writes and independent API authorization; shared infrastructure does not make activation unconditional.
 
-1. **No Infrastructure Changes Needed:**
-   Because pooled tenants share infrastructure, you do not need to run any Terraform or Bicep pipelines. The shared resources (e.g., `default-pooled-stamp`) already exist.
+## Dedicated customer workflow
 
-2. **Register the Tenant (Control Panel):**
-   - An administrator logs into the StarterTemplate Control Panel.
-   - Navigates to **Tenants** -> **Add Tenant**.
-   - Fills in the tenant details (e.g., Name, Domain).
-   - Selects the existing **Pooled Deployment Stamp** (e.g., `default-pooled-stamp`).
-   - Saves the tenant.
+1. Register the intended isolated stamp and customer workspace without granting access. Confirm region, ownership and deployment prerequisites.
+2. Collect and approve KYC before starting a customer provisioning attempt. Infrastructure preparation may be arranged in advance, but it does not satisfy the KYC or activation gates.
+3. Dispatch the persisted provisioning attempt, deploy the runtime and provider schema, and verify health and destination ownership.
+4. Activate only through verified completion for the current attempt. Failure/timeout enters recovery; a stale callback cannot activate a newer attempt.
+5. Initialize tenant-owned IAM and deliver the administrator invitation only after readiness. Complete credentials and MFA before final access.
 
-3. **Provisioning Complete:**
-   - The system creates the tenant record in the Control Plane database.
-   - The tenant awaits KYC. A reviewer records the evidence reference and approves KYC. Approval can activate a pooled tenant on the existing stamp. Workspace routing uses its `TenantId` to scope data.
-
----
-
-## 2. Onboarding an Isolated Tenant
-
-An isolated tenant receives their own dedicated physical infrastructure. They do not share compute, databases, or key vaults with any other tenant. This tier requires provisioning new Azure resources before the tenant can be registered in the software.
-
-### Workflow
-
-1. **Provision Infrastructure (IaC Pipeline):**
-   - The infrastructure team (or automated CI/CD pipeline) runs the Bicep/Terraform scripts to provision a new **Deployment Stamp** for the client.
-   - This provisions a new Azure Resource Group, App Service / Container App, SQL Database, Redis Cache, and a dedicated **Azure Key Vault**.
-   - The pipeline securely saves the connection strings (Database, Cache, etc.) into the newly provisioned Azure Key Vault using our standard convention (e.g., `ConnectionStrings--Database`).
-
-2. **Retrieve the Key Vault URI:**
-   - Once the infrastructure pipeline completes, it will output the URI of the newly created Key Vault (e.g., `https://kv-clientxyz-prod.vault.azure.net/`).
-
-3. **Register the Deployment Stamp (Control Panel):**
-   - An administrator logs into the StarterTemplate Control Panel.
-   - Navigates to **Deployment Stamps** -> **Add Stamp**.
-   - Creates a new stamp record representing the infrastructure provisioned in Step 1.
-   - Sets the Tier to **Isolated**.
-   - Inputs the **Key Vault URI** obtained in Step 2. (The application will use its Managed Identity to read the actual connection strings from this vault at runtime).
-
-4. **Register the Tenant (Control Panel):**
-   - The administrator navigates to **Tenants** -> **Add Tenant**.
-   - Fills in the tenant details (e.g., Name, Domain).
-   - Links the tenant to the **newly created Isolated Deployment Stamp** from Step 3.
-   - Saves the tenant.
-
-5. **Provisioning Complete:**
-   - The system creates the tenant record in the Control Plane.
-   - When traffic arrives for this tenant, the Control Plane resolves the Isolated Stamp.
-   - The ASP.NET Core backend dynamically reads the connection strings from the tenant's isolated Key Vault and establishes a connection to their dedicated database.
-
----
-
-## Summary of Differences
-
-| Phase | Pooled Tenant | Isolated Tenant |
-| :--- | :--- | :--- |
-| **Infrastructure** | Uses existing shared resources. | Requires running IaC pipelines to provision dedicated resources (App, DB, Key Vault). |
-| **Deployment Stamp** | Reuses an existing `Pooled` stamp. | Requires creating a new `Isolated` stamp in the Control Panel using the new Key Vault URI. |
-| **Cost & Time** | Instant onboarding, lowest cost. | Slower onboarding (infrastructure deployment time), premium cost. |
-| **Data Isolation** | Logical (tenant-scoped EF reads and writes). | Physical (Dedicated Database). |
-
----
+The workflow source and local provider checks exist. Dedicated cloud runtime/ingress, external sign-in and recovery certification remain deployment acceptance items; local database tests do not certify the entire dedicated deployment.
 
 ## 3. Isolated workspace provisioning
 

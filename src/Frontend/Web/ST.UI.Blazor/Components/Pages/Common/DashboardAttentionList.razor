@@ -1,0 +1,25 @@
+@using ST.SharedKernel.Features.Shared.Dashboard
+
+<ul class="attention-items">
+    @foreach (var item in Items)
+    {
+        <li @key="item.Key">
+            <a href="@item.Href">
+                <div class="attention-copy">
+                    <strong>@item.Title</strong>
+                    <span class="attention-reason">@item.Reason</span>
+                    <span class="attention-action">@item.ActionLabel</span>
+                </div>
+                <span class="attention-count"
+                      aria-label="@(item.Count == 1 ? "1 item" : $"{item.Count} items")">@item.Count</span>
+                <MudIcon Icon="@Icons.Material.Filled.ArrowForward"
+                         Size="Size.Small" />
+            </a>
+        </li>
+    }
+</ul>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DashboardAttentionItemResponse> Items { get; set; } = [];
+}

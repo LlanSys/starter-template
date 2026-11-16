@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.PlatformStaff.Entities;
 using ST.Persistence.Features.IAM.Users.Repositories;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Shared.Contracts;
@@ -31,6 +32,7 @@ public sealed class IamUnitOfWork(
     ILogger<IamUnitOfWork> logger
 ) : BaseUnitOfWork<IamDBContext>(context, publisher, logger, context.Clock), IIamUnitOfWork
 {
+    public IRepository<PlatformStaffChange> PlatformStaffChanges { get; } = new Repository<PlatformStaffChange>(context);
     public IRepository<AppRole> RoleRepository { get; } = new Repository<AppRole>(context);
     public IRepository<NavigationOverride> NavigationOverrides { get; } = new Repository<NavigationOverride>(context);
     public IUserRepository UserRepository { get; } = userRepository;

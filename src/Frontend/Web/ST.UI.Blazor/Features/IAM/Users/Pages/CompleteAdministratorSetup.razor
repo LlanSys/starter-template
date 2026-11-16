@@ -12,14 +12,23 @@
 <PageTitle>Finish administrator setup | StarterTemplate</PageTitle>
 <section class="auth-shell">
     <div class="auth-card">
-        <div class="auth-heading"><h1>Finish administrator setup</h1></div>
+        <AuthBrand />
+        <div class="auth-heading">
+            <h1>Finish administrator setup</h1>
+        </div>
         <p>Complete setup after verifying your authenticator to open your workspace.</p>
         @if (_message is not null)
         {
-            <div role="alert" class="alert alert-danger">@_message</div>
+            <div role="alert"
+                 class="alert alert-danger">@_message</div>
         }
-        <button type="button" class="btn btn-st-primary" disabled="@_busy" @onclick="CompleteAsync">Finish setup</button>
-        <button type="button" class="btn btn-outline-secondary mt-2" @onclick="SignInAgainAsync">Sign in again</button>
+        <button type="button"
+                class="btn btn-st-primary"
+                disabled="@_busy"
+                @onclick="CompleteAsync">Finish Setup</button>
+        <button type="button"
+                class="btn btn-outline-secondary mt-2"
+                @onclick="SignInAgainAsync">Sign In Again</button>
     </div>
 </section>
 

@@ -1,3 +1,4 @@
+using ST.Domain.Features.IAM.Users.Enums;
 using ST.Application.Features.IAM.Users.Queries;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.SharedKernel.Dtos.Common;
@@ -13,7 +14,8 @@ internal sealed class GetUserRoles(UserManager<AppUser> userManager)
     public async Task<AppResponse<UserRolesResponse>> Handle(GetUserRolesQuery request, CancellationToken cancellationToken)
     {
         var user = await userManager.FindByIdAsync(request.UserId).ConfigureAwait(false);
-        if (user is null)
+
+        if (user is null || user.Kind != AccountKind.Human)
         {
             return AppResponses.Failure<UserRolesResponse>("User not found.");
         }

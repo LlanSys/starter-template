@@ -15,6 +15,7 @@ internal sealed class GetDashboardSummaryQueryHandler(IIamUnitOfWork unitOfWork)
             .GroupBy(user => 1).Select(group => new DashboardSummaryResponse(
                 group.Count(), group.Count(user => user.IsActive),
                 group.Count(user => user.IsActive && !user.EmailConfirmed), group.Count(user => !user.IsActive))), cancellationToken).ConfigureAwait(false);
+
         return AppResponses.Success(summary.FirstOrDefault() ?? new DashboardSummaryResponse(0, 0, 0, 0));
     }
 }

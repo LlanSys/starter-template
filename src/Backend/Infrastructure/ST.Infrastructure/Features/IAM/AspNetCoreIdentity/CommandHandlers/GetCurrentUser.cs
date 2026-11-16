@@ -56,13 +56,14 @@ internal sealed class GetCurrentUser(
                 .Order(StringComparer.OrdinalIgnoreCase)
                 .ToList() ?? [];
 
-            var supportId = Guid.TryParse(httpContextAccessor.HttpContext!.User.FindFirstValue("support_grant_id"),out var sg) ? (Guid?)sg : null;
-            var support = supportId.HasValue ? await httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IControlPlaneUnitOfWork>().SupportGrants.FindByIdAsync(supportId.Value,cancellationToken).ConfigureAwait(false) : null;
+            var supportId = Guid.TryParse(httpContextAccessor.HttpContext!.User.FindFirstValue("support_grant_id"), out var sg) ? (Guid?)sg : null;
+            var support = supportId.HasValue ? await httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IControlPlaneUnitOfWork>().SupportGrants.FindByIdAsync(supportId.Value, cancellationToken).ConfigureAwait(false) : null;
             if (supportId.HasValue) rolesList.Clear(); // The approved grant, not mutable proxy roles, owns support authority.
             var access = await policy.GetAsync(cancellationToken).ConfigureAwait(false);
             permissions = permissions.Where(key => key.StartsWith("control_plane.", StringComparison.OrdinalIgnoreCase) || access.PermissionAvailable(key)).ToList();
             var sessionId = httpContextAccessor.HttpContext?.User.FindFirstValue("session_id");
-            var mfaEnrollmentRequired = !httpContextAccessor.HttpContext!.Items.ContainsKey("TrustedWorkspaceProxy") && ((!twoFactorEnabled && appUser.RequiresAdministratorSetup) || IsMfaEnrollmentRequired(twoFactorEnabled, rolesList));
+            var mfaEnrollmentRequired = !httpContextAccessor.HttpContext!.Items.ContainsKey("TrustedWorkspaceProxy") && ((!twoFactorEnabled && (appUser.RequiresAdministratorSetup
+                || PlatformAccess.IsStaff(httpContextAccessor.HttpContext.User))) || IsMfaEnrollmentRequired(twoFactorEnabled, rolesList));
 
             return AppResponses.Success("CurrentUser", new CurrentUserResponse(
                 userId,
@@ -83,13 +84,16 @@ internal sealed class GetCurrentUser(
                 ProfilePictureUrlMapping.ToCurrentUserRoute(appUser.ProfilePictureUrl))
             {
                 AdministratorSetupRequired = appUser.RequiresAdministratorSetup,
-                SupportGrantId = supportId, IsReadOnlySupport = support?.ReadOnly ?? false, SupportExpiresAt = support?.ExpiresAt,
-                WorkspaceName = support is null ? null : (await httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IControlPlaneUnitOfWork>().Tenants.FindByIdAsync(support.WorkspaceId,cancellationToken).ConfigureAwait(false))?.DisplayName,
+                SupportGrantId = supportId,
+                IsReadOnlySupport = support?.ReadOnly ?? false,
+                SupportExpiresAt = support?.ExpiresAt,
+                WorkspaceName = support is null ? null : (await httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IControlPlaneUnitOfWork>().Tenants.FindByIdAsync(support.WorkspaceId, cancellationToken).ConfigureAwait(false))?.DisplayName,
                 UnavailablePermissions = access.Catalogue.Where(x => x.Kind == ModuleCatalogueKind.Permission && !access.PermissionAvailable(x.Key)).Select(x => x.Key).Concat(access.PrivatePermissionModules.Keys.Where(key => !access.PermissionAvailable(key))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
                 AvailablePages = access.AvailablePages.Where(page => !string.IsNullOrEmpty(page.Path)
                     && page.PermissionKeys.All(key => access.PermissionAvailable(key) && permissions.Contains(key, StringComparer.OrdinalIgnoreCase)))
                     .Select(page => page.Path).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
                 EnabledModules = access.Modules.ToArray(),
+                HasMfaProof = PlatformAccess.HasMfa(httpContextAccessor.HttpContext!.User),
                 IsPlatformStaff = PlatformAccess.IsStaff(httpContextAccessor.HttpContext!.User),
                 IsReadOnlyDemo = httpContextAccessor.HttpContext!.User.HasClaim("demo_readonly", "true"),
                 IsDemoWorkspace = httpContextAccessor.HttpContext!.User.HasClaim("demo_workspace", "true")

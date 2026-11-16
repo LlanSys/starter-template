@@ -1,10 +1,25 @@
-<MudAutocomplete T="string" Value="@((string?)null)" ValueChanged="AddAsync" Label="@Label"
-                 SearchFunc="SearchAsync" Strict="true" CoerceValue="false" Clearable="true"
-                 MinCharacters="0" MaxItems="30" Margin="Margin.Dense" Variant="Variant.Outlined" Disabled="Disabled" />
+<MudAutocomplete T="string"
+                 Value="@((string? )null)"
+                 ValueChanged="AddAsync"
+                 Label="@Label"
+                 SearchFunc="SearchAsync"
+                 Strict="true"
+                 CoerceValue="false"
+                 Clearable="true"
+                 MinCharacters="0"
+                 MaxItems="30"
+                 Margin="Margin.Dense"
+                 Variant="Variant.Outlined"
+                 Disabled="Disabled" />
 <div class="d-flex flex-wrap gap-1 mt-1">
     @foreach (var value in Values)
     {
-        <MudChip T="string" Value="@value" OnClose="@(() => RemoveAsync(value))" Size="Size.Small" Disabled="Disabled">@value</MudChip>
+        <MudChip T="string"
+                 Value="@value"
+                 OnClose="@(() => RemoveAsync(value))"
+                 Variant="Variant.Text"
+                 Size="Size.Small"
+                 Disabled="Disabled">@value</MudChip>
     }
 </div>
 

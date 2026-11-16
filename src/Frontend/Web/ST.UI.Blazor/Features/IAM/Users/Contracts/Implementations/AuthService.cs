@@ -44,7 +44,7 @@ internal sealed class AuthService(IBackendApiClient apiClient, ITokenStorage sto
 
         var response = await apiClient.SendAsync<LoginResponse>(
             HttpMethod.Post,
-            Format("iam/auth/sso/exchange"),
+            Format(_apiSettings.Endpoints.Iam.Auth.SsoExchange),
             request,
             requiresAuthentication: false,
             unavailableMessage: "The identity service is unavailable. Please try again.",
