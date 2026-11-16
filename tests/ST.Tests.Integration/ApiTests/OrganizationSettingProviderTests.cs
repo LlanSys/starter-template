@@ -63,19 +63,25 @@ public abstract class OrganizationSettingProviderTests<TFixture>(TFixture fixtur
             OrganizationSettingCatalog.PageSize, value, null, false, "provider-settings-actor")));
 
         var results = await Task.WhenAll(commands);
-        Assert.Single(results.Where(result => result.IsSuccess));
-        Assert.Single(results.Where(result => result.Error?.Type == ErrorType.Conflict));
+        Assert.Single(results, result => result.IsSuccess);
+        Assert.Single(results, result => result.Error?.Type == ErrorType.Conflict);
         await using var verify = Context(tenant);
         var setting = await verify.OrgSettings.AsNoTracking().SingleAsync();
         var revision = Convert.ToBase64String(setting.RowVersion);
         var reset = await SendAsync(new SaveCatalogOrgSettingCommand(setting.Key, null, revision, true, "provider-settings-actor"));
         Assert.True(reset.IsSuccess, reset.Message);
         Assert.False(await verify.OrgSettings.AnyAsync());
-        var history = await verify.OrgSettingChanges.OrderBy(change => change.Id).ToArrayAsync();
+        var history = await verify.OrgSettingChanges.ToArrayAsync();
         Assert.Equal(2, history.Length);
-        Assert.False(history[0].Reset);
-        Assert.True(history[1].Reset);
-        Assert.Equal(setting.Value, history[1].PreviousValue);
+
+        // Both events use the fixed clock. Database GUID ordering does not determine which write happened first.
+        var saved = Assert.Single(history, change => !change.Reset);
+        Assert.Null(saved.PreviousValue);
+        Assert.Equal(setting.Value, saved.Value);
+
+        var resetChange = Assert.Single(history, change => change.Reset);
+        Assert.Equal(saved.Value, resetChange.PreviousValue);
+        Assert.Null(resetChange.Value);
         Assert.All(history, change => Assert.Equal(clock.GetUtcNow(), change.CreatedAt));
         Assert.All(history, change => Assert.Equal("provider-settings-actor", change.CreatedBy));
         await using var foreign = Context(Guid.CreateVersion7());
