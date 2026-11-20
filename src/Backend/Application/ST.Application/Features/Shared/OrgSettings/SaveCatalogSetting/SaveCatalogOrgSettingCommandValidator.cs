@@ -1,7 +1,6 @@
 using FluentValidation;
-using ST.Application.Features.Shared.OrgSettings.CommandHandlers;
 using ST.SharedKernel.Features.Shared.OrgSettings;
-namespace ST.Application.Features.Shared.OrgSettings.Validation;
+namespace ST.Application.Features.Shared.OrgSettings.SaveCatalogSetting;
 public sealed class SaveCatalogOrgSettingCommandValidator : AbstractValidator<SaveCatalogOrgSettingCommand>
 {
     public SaveCatalogOrgSettingCommandValidator()

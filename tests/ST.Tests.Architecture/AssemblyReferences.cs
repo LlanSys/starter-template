@@ -1,46 +1,27 @@
-using ST.Domain.Shared.Entities;
+using System.Reflection;
 using ST.Api.Common.Controllers;
+using ST.Application.Features.Shared.OrgSettings.SaveCatalogSetting;
+using ST.Domain.Shared.Entities;
 using ST.Persistence.Features.Shared.DataContext;
-using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.Shared.Lookups.Dtos;
 using ST.SharedKernel.Validation.Features.Shared.Lookups.Validators;
-using System.IO;
-using System.Reflection;
+using ST.UI.Blazor.Components;
+using InfrastructureRegistration = ST.Infrastructure.Extensions.DependencyInjection;
 
 namespace ST.Tests.Architecture;
 
-/// <summary>
-/// Single source of truth for all assembly handles used in architecture tests.
-/// </summary>
-/// <remarks>
-/// Using a concrete type from each assembly as an anchor is intentional —
-/// if a project is renamed or restructured, the anchor type breaks at compile
-/// time rather than silently passing tests against the wrong assembly.
-/// Never use <c>Assembly.Load("ST.Domain")</c> — string-based loading fails
-/// silently when the assembly name changes.
-/// </remarks>
 internal static class AssemblyReferences
 {
     internal static readonly Assembly Domain = typeof(BaseEntity).Assembly;
     internal static readonly Assembly Api = typeof(BaseController).Assembly;
-    internal static readonly Assembly Application = Assembly.LoadFrom(
-        Path.GetFullPath(Path.Combine(
-            FindRepoRoot(),
-            "src", "Backend", "Application", "ST.Application", "bin", BuildConfiguration, "net10.0", "ST.Application.dll")));
+    internal static readonly Assembly Application = typeof(SaveCatalogOrgSettingCommand).Assembly;
+    internal static readonly Assembly Infrastructure = typeof(InfrastructureRegistration).Assembly;
     internal static readonly Assembly Persistence = typeof(SharedDBContext).Assembly;
     internal static readonly Assembly SharedKernel = typeof(LookupResponse).Assembly;
     internal static readonly Assembly SharedKernelValidation = typeof(GetLookupRequestValidator).Assembly;
-    internal static string RepoRoot => FindRepoRoot();
+    internal static readonly Assembly Blazor = typeof(App).Assembly;
 
-    private static string BuildConfiguration
-    {
-        get
-        {
-            var assemblyDirectory = new DirectoryInfo(Path.GetDirectoryName(typeof(SharedDBContext).Assembly.Location)!);
-            return assemblyDirectory.Parent?.Name
-                ?? throw new DirectoryNotFoundException("Could not determine build configuration from persistence assembly output path.");
-        }
-    }
+    internal static string RepoRoot => FindRepoRoot();
 
     private static string FindRepoRoot()
     {

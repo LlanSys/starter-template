@@ -36,13 +36,12 @@ This file is the canonical source of truth and working contract for AI coding to
 
 ## Architecture Rules
 
-- Dependency direction is inward: `Domain <- Application <- Infrastructure/Persistence <- Api/UI`.
-- `Domain` must not reference Application, Infrastructure, Persistence, API, or UI.
-- `Application` must not reference Infrastructure or Persistence.
-- `SharedKernel` must not reference Domain, Infrastructure, or Persistence.
-- Infrastructure and Persistence implement contracts; they do not define business policy.
-- Keep feature-owned code inside `Features/{Context}/{Feature}` in every layer where that code exists.
-- Keep cross-cutting concerns outside feature folders: logging, middleware, generic caching, generic repositories, JSON helpers, base entities, and shared abstractions.
+- Domain and SharedKernel have no solution project dependencies. Persistence references Domain only and implements repository and Unit of Work contracts defined there.
+- Application references Domain, SharedKernel, and the server-side SharedKernel.Validation project. Infrastructure references Application and Persistence for provider, Identity, and configuration integration. API composes Application, Infrastructure, and Persistence.
+- Blazor references SharedKernel and reaches backend features through typed HTTP clients. Keep UI contracts in the owning Blazor feature.
+- Keep feature-owned code inside `Features/{Context}/{Feature}` in every layer where that code exists. Keep host registration, middleware, app shell and session restoration, logging, generic caching and repositories, JSON helpers, and other application-wide infrastructure outside feature folders.
+- A feature workflow uses the context's own persistence. Cross-context calls use an operation, identifier, projection, or event from the owning context. Keep the existing named data access exceptions and the architecture tests in sync with the [feature folder convention](docs/architecture/feature-folder-convention.md).
+- IAM is independent of downstream product contexts. Product contexts use IAM through stable platform contracts and identifiers.
 
 ## Source Formatting
 
@@ -192,8 +191,8 @@ Keep these files short and aligned with this file. Do not let them become indepe
 
 ## Local application isolation
 
-- Each application host must have its own UserSecretsId; clones must regenerate identities and allocate distinct host ports and Compose project/volume names.
-- Run scripts/check-local-endpoints.ps1 before starting local infrastructure; supply new Compose files explicitly. See docs/development/workstation-endpoints.md.
+- Each application host must have its own UserSecretsId; clones must regenerate identities and allocate distinct host ports and Compose project/volume names. Identical rename reruns retain the generated identities. Configure infrastructure host ports with the `*_HOST_PORT` values in the ignored local environment file. The setup scripts derive the SQL database name from the API prefix unless `LOCAL_DATABASE_NAME` is set.
+- Run scripts/check-local-endpoints.ps1 before starting local infrastructure; supply new Compose files explicitly. Use -FocusSupplied to validate the proposed application against discovered reservations while reporting unrelated conflicts. Omit it for a full-workstation audit. See docs/development/workstation-endpoints.md.
 
 - Local platform setup initializes missing optional payment fields through `scripts/initialize-payment-settings.ps1`. Preserve existing API user-secrets; keep provider credentials blank until supplied and record external-provider certification separately from core starter certification.
 

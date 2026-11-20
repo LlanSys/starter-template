@@ -32,7 +32,11 @@ if ($LASTEXITCODE -ne 0) {
 
 $env:ST_RUN_RABBITMQ_TESTS = 'true'
 $env:ST_RABBITMQ_HOST = 'localhost'
-$env:ST_RABBITMQ_PORT = '5675'
+$env:ST_RABBITMQ_PORT = if ($environment.ContainsKey('RABBITMQ_HOST_PORT')) {
+    $environment.RABBITMQ_HOST_PORT
+} else {
+    '5675'
+}
 $env:ST_RABBITMQ_VIRTUAL_HOST = '/'
 $env:ST_RABBITMQ_USERNAME = $environment.RABBITMQ_USER
 $env:ST_RABBITMQ_PASSWORD = $environment.RABBITMQ_PASSWORD

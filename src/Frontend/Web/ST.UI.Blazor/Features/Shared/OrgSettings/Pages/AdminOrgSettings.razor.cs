@@ -4,7 +4,7 @@ using ST.SharedKernel.Features.Shared.OrgSettings.Dtos;
 using ST.UI.Blazor.Components.Common;
 using ST.UI.Blazor.Features.Shared.OrgSettings.Components;
 using ST.UI.Blazor.Features.Shared.Messaging;
-namespace ST.UI.Blazor.Components.Pages.Admin;
+namespace ST.UI.Blazor.Features.Shared.OrgSettings.Pages;
 
 public partial class AdminOrgSettings
 {

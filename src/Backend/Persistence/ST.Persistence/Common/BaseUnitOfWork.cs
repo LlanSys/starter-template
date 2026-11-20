@@ -4,6 +4,7 @@ using ST.Domain.Shared.Contracts.Common;
 using ST.Persistence.Logging;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace ST.Persistence.Common;
@@ -38,17 +39,28 @@ public abstract class BaseUnitOfWork<TContext>(
             catch (DbUpdateConcurrencyException ex)
             {
                 PersistenceLogDefinitions.LogTransactionConcurrencyRollback(_logger, ex);
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                Context.ChangeTracker.Clear();
+                await RollbackAttemptAsync(transaction).ConfigureAwait(false);
                 throw;
             }
             catch (Exception ex)
             {
                 PersistenceLogDefinitions.LogTransactionErrorRollback(_logger, ex);
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                await RollbackAttemptAsync(transaction).ConfigureAwait(false);
                 throw;
             }
         }).ConfigureAwait(false);
+    }
+
+    private async Task RollbackAttemptAsync(IDbContextTransaction transaction)
+    {
+        try
+        {
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        finally
+        {
+            Context.ChangeTracker.Clear();
+        }
     }
 
     public async Task<TResult> ExecuteInTransactionWithRetryAsync<TResult>(Func<Task<TResult>> operation, int maxRetries = 3, int baseDelayMs = 50)

@@ -9,6 +9,7 @@ using ST.Domain.Features.IAM.ReferenceData.Entities;
 using ST.Domain.Shared.Entities;
 using ST.Persistence.Common;
 using ST.Persistence.Logging;
+using MassTransit;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -80,6 +81,10 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
     {
         ArgumentNullException.ThrowIfNull(builder);
         base.OnModelCreating(builder);
+
+        builder.AddInboxStateEntity(entity => entity.ToTable("IamInboxState"));
+        builder.AddOutboxMessageEntity(entity => entity.ToTable("IamOutboxMessage"));
+        builder.AddOutboxStateEntity(entity => entity.ToTable("IamOutboxState"));
 
         builder.ApplyConfigurationsFromAssembly(
             typeof(IamDBContext).Assembly,

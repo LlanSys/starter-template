@@ -5,7 +5,7 @@ using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.Shared.Common.Enums;
 using ST.SharedKernel.Features.Shared.OrgSettings;
 
-namespace ST.Application.Features.Shared.OrgSettings.CommandHandlers;
+namespace ST.Application.Features.Shared.OrgSettings.SaveCatalogSetting;
 
 internal sealed class SaveCatalogOrgSettingHandler(ISharedUnitOfWork unit, TimeProvider clock)
     : IRequestHandler<SaveCatalogOrgSettingCommand, AppResponse<bool>>

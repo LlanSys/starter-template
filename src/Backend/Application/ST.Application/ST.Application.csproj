@@ -21,4 +21,8 @@
 
 
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ST.Tests.Integration" />
+  </ItemGroup>
+
 </Project>

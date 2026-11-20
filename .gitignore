@@ -432,3 +432,6 @@ ef_env.txt
 
 # Local tenant-host routing verification artifacts
 /output/frontend-routing/
+# Local acceptance reports and temporary working files
+/output/
+/tmp/

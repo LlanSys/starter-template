@@ -15,7 +15,7 @@ Clone StarterTemplate into the new application's directory and run its rename sc
 .\scripts\rename-template.ps1 -NewName MyApplication -NamespacePrefix MA
 ```
 
-Review the diff and set the clone's Git remote to its own repository. The script updates product/project/namespace names, Dockerfiles, and assigns fresh host UserSecretsId values. It does not copy local secret contents or configure live cloud resources. Allocate distinct host ports and Compose project/volume names before starting applications side by side.
+Review the diff and set the clone's Git remote to its own repository. The script updates product/project/namespace names, Dockerfiles, and assigns fresh host UserSecretsId values. It does not copy local secret contents or configure live cloud resources. Allocate distinct host ports and Compose project/volume names before starting applications side by side. Infrastructure ports are configurable through the `*_HOST_PORT` values in `ops/local/.env.example`. The setup script uses those same values for native host settings. `LOCAL_DATABASE_NAME` overrides the SQL database name. When blank or absent, the setup scripts derive the name from the API project prefix.
 
 Keep DataProtection:ApplicationName stable after the first protected cookie, token or TOTP secret is issued. See [Renaming the template](renaming-the-template.md).
 
@@ -132,3 +132,11 @@ An account or passkey from another application database is not imported into a f
 ## Configure optional payment providers
 
 Run `./scripts/initialize-payment-settings.ps1` to add every configurable Stripe and M-Pesa field to API user-secrets. Local platform setup invokes it automatically. Existing values are preserved; newly added credential fields are blank, M-Pesa uses Sandbox, and the default provider is NoOp. Fill provider-issued values through **ST.Api → Manage User Secrets**. See [the payment configuration checklist](environment-configuration-checklist.md) for the exact callback routes and public API origin requirements. The helper does not issue payments or register callbacks.
+
+## Taking later platform fixes
+
+Record the StarterTemplate starting commit in the downstream release record. For a local walkthrough from uncommitted changes, retain a source manifest and the patch as additional evidence, then pin the reviewed release commit before using it as a published baseline.
+
+Review later platform fixes against the downstream application and select the changes it needs. Apply them on a downstream branch, adapt namespace and configuration ownership, and run that application's checks. A focused cherry-pick with `-x` can retain the upstream commit reference when the change applies cleanly. Document a manual backport when the downstream design has diverged. Keep the downstream application's credentials, Data Protection identity, ports, database history and business behavior under its own ownership.
+
+The [organization settings reference slice](organization-settings.md#save-and-reset-reference-slice) and the test-only neutral slice show how to add product behavior through the existing extension points. Track the setup evidence and outstanding provider or deployment checks in the downstream checklist.

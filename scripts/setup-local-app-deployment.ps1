@@ -13,6 +13,7 @@ $envFile = Join-Path $repoRoot 'ops/local/.env'
 $composeFile = Join-Path $repoRoot 'ops/local/docker-compose.yml'
 $appsComposeFile = Join-Path $repoRoot 'ops/local/docker-compose.apps.yml'
 $platformScript = Join-Path $repoRoot 'scripts/setup-local-platform.ps1'
+$apiProject = Join-Path $repoRoot 'src/Backend/Api/ST.Api/ST.Api.csproj'
 
 function New-LocalSecret {
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
@@ -95,8 +96,16 @@ if (-not $environment.Contains('APP_IAM_TEMPORARY_PASSWORD') -or [string]::IsNul
 }
 
 $environment = Read-EnvironmentFile $envFile
+$databaseName = $environment.LOCAL_DATABASE_NAME
+if ([string]::IsNullOrWhiteSpace($databaseName)) {
+    $databaseName = [IO.Path]::GetFileNameWithoutExtension($apiProject) -replace '\.Api$', ''
+}
+if ($databaseName -notmatch '^[A-Za-z][A-Za-z0-9_]*$') {
+    throw 'LOCAL_DATABASE_NAME must start with a letter and contain only letters, digits or underscores.'
+}
+
 if ($UseContainerSql) {
-    $containerSqlConnection = "Server=sqlserver,1433;Database=ST;User Id=sa;Password=$($environment.MSSQL_SA_PASSWORD);Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
+    $containerSqlConnection = "Server=sqlserver,1433;Database=$databaseName;User Id=sa;Password=$($environment.MSSQL_SA_PASSWORD);Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
     Set-EnvironmentValue $envFile 'APP_SQL_CONNECTION_STRING' $containerSqlConnection
 } elseif (-not $environment.Contains('APP_SQL_CONNECTION_STRING') -or
     [string]::IsNullOrWhiteSpace($environment.APP_SQL_CONNECTION_STRING) -or
@@ -105,7 +114,7 @@ if ($UseContainerSql) {
 APP_SQL_CONNECTION_STRING is missing from $envFile.
 
 Set it to the SQL Server connection your app containers should use, for example:
-APP_SQL_CONNECTION_STRING=Server=host.docker.internal;Database=ST;User Id=sa;Password=<your-local-password>;Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True
+APP_SQL_CONNECTION_STRING=Server=host.docker.internal;Database=$databaseName;User Id=sa;Password=<your-local-password>;Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True
 
 Or rerun this script with -UseContainerSql to use the Docker SQL Server profile.
 "@
@@ -119,7 +128,7 @@ $composeArguments = @(
     '--profile', 'apps'
 )
 
-& (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles @($composeFile, $appsComposeFile)
+& (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles @($composeFile, $appsComposeFile) -FocusSupplied
 
 & docker @composeArguments up -d --build --wait
 if ($LASTEXITCODE -ne 0) {

@@ -44,8 +44,8 @@ internal static partial class LogDefinitions
     [LoggerMessage(EventId = 2318, Level = LogLevel.Error, Message = "Error fetching staff members")]
     public static partial void LogStaffMembersFetchFailed(ILogger logger, Exception ex);
 
-    [LoggerMessage(EventId = 2319, Level = LogLevel.Information, Message = "AppUserCreatedIntegrationEvent published for {UserId}")]
-    public static partial void LogAppUserCreatedIntegrationPublished(ILogger logger, string userId);
+    [LoggerMessage(EventId = 2319, Level = LogLevel.Information, Message = "AppUserCreatedIntegrationEvent staged for {UserId}")]
+    public static partial void LogAppUserCreatedIntegrationStaged(ILogger logger, string userId);
 
     [LoggerMessage(EventId = 2320, Level = LogLevel.Error, Message = "Failed to publish integration event for AppUser {UserId}")]
     public static partial void LogAppUserCreatedIntegrationPublishFailed(ILogger logger, string userId, Exception ex);

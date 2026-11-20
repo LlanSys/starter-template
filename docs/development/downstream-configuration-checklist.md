@@ -27,13 +27,13 @@ Use a fresh copy of this checklist for every application, environment and deploy
 
 - [ ] Allocate native HTTP/HTTPS ports for both hosts in `Properties/launchSettings.json`. Update the UI's API addresses and integration callback registrations accordingly.
 - [ ] Allocate different Docker host ports for API/UI. Keep these distinct from native ports if both modes can run together. Container-internal ports remain unchanged.
-- [ ] Review **every** infrastructure host mapping in `ops/local/docker-compose.yml`: SQL Server, RabbitMQ/management, Redis, Mailpit SMTP/UI, Seq and all three Azurite ports. Renaming does not allocate ports.
+- [ ] Set every infrastructure `*_HOST_PORT` override in the ignored `ops/local/.env`, using the keys in `.env.example`. Include SQL Server, RabbitMQ/management, Redis, Mailpit SMTP/UI, Seq, all three Azurite ports and ClamAV. The setup script carries these values into native host settings.
 - [ ] Confirm a distinct Compose project name, all explicitly named external volumes, the Blazor key volume, cache/key-ring prefixes, storage account/container prefixes and local profile-image paths. Do not reuse another application's data volumes.
 - [ ] Create ignored `ops/local/.env` with this application's credentials and port overrides. Required API container values include `APP_SQL_CONNECTION_STRING` and `APP_JWT_SECRET`. Optional SSO values use the `APP_GOOGLE_SSO_*` and `APP_ENTRA_SSO_*` mappings already present in the apps Compose file; an extra stdin override is unnecessary.
 - [ ] Run the endpoint audit with **both** new Compose files before startup:
 
 ```powershell
-.\scripts\check-local-endpoints.ps1 -ComposeFiles @('ops/local/docker-compose.yml', 'ops/local/docker-compose.apps.yml')
+.\scripts\check-local-endpoints.ps1 -FocusSupplied -ComposeFiles @('ops/local/docker-compose.yml', 'ops/local/docker-compose.apps.yml')
 ```
 
 - [ ] Document any deliberate shared local infrastructure. Use separate application databases and key/cache namespaces even on a shared server. Sharing a server is not evidence of independent infrastructure certification.
@@ -49,7 +49,7 @@ Use a fresh copy of this checklist for every application, environment and deploy
 ## 4. Database, bootstrap and tenant policy
 
 - [ ] Select `DatabaseSettings:Provider` and configure `ConnectionStrings:DefaultConnection`. Confirm any `ControlPlaneConnection`, `IamConnection` and `SharedConnection` overrides deliberately; a dedicated stamp uses central ControlPlane plus its own IAM/Shared data database.
-- [ ] Use a new application database. Apply the provider-specific ControlPlane, IAM and Shared migrations in that order, including the Shared Quartz schema. Do not apply InitialStarter baselines to an unrelated existing database.
+- [ ] Use a new application database. The local setup scripts derive the SQL name from the renamed API prefix, or use `LOCAL_DATABASE_NAME` when supplied. Apply the provider-specific ControlPlane, IAM and Shared migrations in that order, including the Shared Quartz schema. Do not apply InitialStarter baselines to an unrelated existing database.
 - [ ] Restore pinned local tools using `dotnet tool restore`; do not upgrade EF or Quartz majors as a setup workaround. Check provider histories and pending model changes.
 - [ ] For an existing application database, run `scripts/update-local-database.ps1` before using `-Apply`. Pause API writers and retain a backup before upgrades. This local workflow requires matching context connections and refuses remote/system databases.
 - [ ] Confirm the bootstrap tenant ID matches `Tenant:DefaultTenantId` and the intended seeded workspace. Identical seed IDs in separate application databases do not share authority; do not mechanically replace persisted IDs.

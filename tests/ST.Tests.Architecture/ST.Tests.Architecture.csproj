@@ -33,6 +33,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Backend\Api\ST.Api\ST.Api.csproj" />
+    <ProjectReference Include="..\..\src\Backend\Application\ST.Application\ST.Application.csproj" />
+    <ProjectReference Include="..\..\src\Frontend\Web\ST.UI.Blazor\ST.UI.Blazor.csproj" />
     <ProjectReference Include="..\..\src\Backend\Domain\ST.Domain\ST.Domain.csproj" />
     <ProjectReference Include="..\..\src\Backend\Persistence\ST.Persistence\ST.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Shared\ST.SharedKernel.Validation\ST.SharedKernel.Validation.csproj" />

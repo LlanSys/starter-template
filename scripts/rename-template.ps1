@@ -34,7 +34,14 @@ $compactName = $displayName -replace '[^A-Za-z0-9]', ''
 $kebabName = (($displayName -creplace '([a-z0-9])([A-Z])', '$1-$2') -replace '\s+', '-').ToLowerInvariant()
 $lowerCompactName = $compactName.ToLowerInvariant()
 
-$excludedDirectoryNames = @('.git', '.vs', '.idea', 'bin', 'obj', 'node_modules', 'Logs', 'artifacts')
+if ($displayName -ceq $currentDisplayName -and $NamespacePrefix -ceq $currentPrefix) {
+    Write-Host "Template identity is already '$displayName' ($NamespacePrefix)."
+    return
+}
+
+$excludedDirectoryNames = @(
+    '.git', '.vs', '.idea', 'bin', 'obj', 'node_modules', 'Logs', 'artifacts', 'output', 'tmp', 'TestResults'
+)
 $excludedFiles = @(
     (Join-Path $repoRoot 'ops/local/.env')
 )
@@ -136,5 +143,9 @@ foreach ($path in $paths) {
     }
 }
 
-Write-Host "Template identity updated to '$displayName' with namespace prefix '$NamespacePrefix'."
+if ($WhatIfPreference) {
+    Write-Host "Previewed template identity '$displayName' with namespace prefix '$NamespacePrefix'."
+} else {
+    Write-Host "Template identity updated to '$displayName' with namespace prefix '$NamespacePrefix'."
+}
 Write-Host 'Review configuration, URLs, tenant seed data, and Azure resource names before the first run.'

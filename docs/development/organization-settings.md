@@ -34,6 +34,20 @@ Catalogue/history queries use the tenant-settings cache group and tenant mutatio
 
 Each write locks the tenant/key inside its database transaction (SQL Server application lock or PostgreSQL transaction advisory lock). Revision tokens reject stale saves, including simultaneous first overrides. Override and append-only audit insertion commit together. A reset leaves the change history intact. Both provider migrations add OrgSettingChanges only; no existing settings or identities are removed.
 
+## Save and reset reference slice
+
+| Responsibility | File |
+| --- | --- |
+| Protected page, settings table, and save/reset orchestration | [AdminOrgSettings.razor](../../src/Frontend/Web/ST.UI.Blazor/Features/Shared/OrgSettings/Pages/AdminOrgSettings.razor), [code-behind](../../src/Frontend/Web/ST.UI.Blazor/Features/Shared/OrgSettings/Pages/AdminOrgSettings.razor.cs), [edit dialog](../../src/Frontend/Web/ST.UI.Blazor/Features/Shared/OrgSettings/Components/OrgSettingFormDialog.razor) |
+| Typed client and circuit-scoped display state | [OrgSettingsService](../../src/Frontend/Web/ST.UI.Blazor/Features/Shared/OrgSettings/Implementations/OrgSettingsService.cs), [PresentationPreferences](../../src/Frontend/Web/ST.UI.Blazor/Features/Shared/OrgSettings/PresentationPreferences.cs) |
+| Transport payload, catalogue, and endpoint permissions | [SaveCatalogOrgSettingRequest](../../src/Shared/ST.SharedKernel/Features/Shared/OrgSettings/Dtos/SaveCatalogOrgSettingRequest.cs), [OrganizationSettingCatalog](../../src/Shared/ST.SharedKernel/Features/Shared/OrgSettings/OrganizationSettingCatalog.cs), [OrgSettingsController](../../src/Backend/Api/ST.Api/Features/Shared/OrgSettings/Controllers/OrgSettingsController.cs) |
+| Save/reset intent, validation, transaction, and cache invalidation | [SaveCatalogSetting use case](../../src/Backend/Application/ST.Application/Features/Shared/OrgSettings/SaveCatalogSetting) |
+| Tenant-scoped override and append-only audit | [OrgSetting](../../src/Backend/Domain/ST.Domain/Features/Shared/OrgSettings/Entities/OrgSetting.cs), [OrgSettingChange](../../src/Backend/Domain/ST.Domain/Features/Shared/OrgSettings/Entities/OrgSettingChange.cs), [OrgSettingRepository](../../src/Backend/Persistence/ST.Persistence/Features/Shared/OrgSettings/Repositories/OrgSettingRepository.cs), [SharedUnitOfWork](../../src/Backend/Persistence/ST.Persistence/Features/Shared/SharedUnitOfWork.cs) |
+
+The edit dialog submits the setting value and revision. Reset submits the revision to its own endpoint with its own policy. The controller derives the actor from the authenticated request and sends the same application command with the save or reset intent. The handler locks the setting for the current tenant, checks the revision, and commits the override change and audit together. The command invalidates cached settings after success. The page reloads the catalogue, history, and display preferences.
+
+When adding a downstream feature, start with one use case and the roles, tenant scope, and records it owns. Keep the page, its interaction code, and its typed HTTP client in the owning Blazor feature. Co-locate the command, validator, and handler by use case in Application. Put the HTTP request and response in SharedKernel when both hosts use them. Keep business invariants and persistence contracts in Domain, and implement the owning context's repositories and provider migrations in Persistence. Prove the permission boundary, tenant isolation, and stale-write behavior where the use case needs it. The [neutral test-only slice](../../tests/ST.Tests.Integration/NeutralSlice/NeutralVerticalSliceTests.cs) shows how a product feature reaches the API, handler, Unit of Work, and tenant-filtered repository.
+
 ## Workspace sign-in
 
 Workspace identifies the organization before credential lookup. It is not an access permission. The same email can belong to independent accounts in different workspaces. Continue to validate credentials, MFA, tenant state and live permissions at the API boundary.
