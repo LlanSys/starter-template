@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
-using ST.Application.Features.Shared.OrgSettings.CommandHandlers;
+using ST.Application.Features.Shared.OrgSettings.SaveCatalogSetting;
 using ST.Application.Features.Shared.OrgSettings.QueryHandlers;
 using ST.Domain.Features.Shared.Contracts;
 using ST.Domain.Features.Shared.EmailTemplates.Contracts.Repositories;

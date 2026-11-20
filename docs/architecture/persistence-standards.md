@@ -95,6 +95,26 @@ This keeps command handlers predictable and prevents partial commits inside a la
 
 ---
 
+## Transaction and delivery boundaries
+
+Use the owning context's transaction for its business writes, audit facts, and any durable message they require. An external provider call belongs after commit or behind a persisted work item. Cross-context workflows record each completed step and recheck eligibility when resuming.
+
+| Path | Commit and failure behavior |
+| --- | --- |
+| IAM account creation | The Identity store acquires the transaction-owned tenant admission lock. The account, role changes, profile and MassTransit notice commit in IAM together. The handler uses one captured instant for the account and event. A failed transactional attempt clears its tracked state before a retry. |
+| Shared organization settings | The settings handler locks the tenant and setting key, checks the revision, and saves the override and append-only audit in one Shared transaction. Cache invalidation follows success. |
+| ControlPlane first-administrator onboarding | Invitation intent and its delivery lease are persisted before email is sent. An expired lease can be retried, and reissuing replaces the previous link. During completion, ControlPlane can record the accepted invitation before IAM grants the role. IAM keeps access restricted until the account setup completes. A repeat request rechecks the current session, MFA, tenant, and invitation and resumes the remaining steps. |
+
+`CompleteAsync` saves its own DbContext. `BaseUnitOfWork.ExecuteInTransactionAsync` dispatches pending in-process events before its final save and commit. The session-oriented retry wrapper has a different dispatch contract. Shared's `CompleteWithEventsAsync` has no production caller today. A call to any of these helpers provides atomicity only for writes enlisted in its transaction.
+
+The [IAM publisher](../../src/Backend/Infrastructure/ST.Infrastructure/Contracts/Implementations/Common/MassTransitIntegrationEventPublisher.cs) stages account notices in the request's IAM DbContext. The [API registration](../../src/Backend/Api/ST.Api/Extensions/DependencyInjection.cs) starts both the IAM and Shared outbox delivery workers. Shared retains its existing tables and can drain earlier queued messages. IAM staging is explicit because MassTransit 8.5.12 uses one default scoped bus context when configuring the bus outbox. The current `IIntegrationEventPublisher` binding serves IAM account creation. A new bounded context must bind durable events to its own transaction and outbox instead of reusing this IAM-bound adapter. [Pinned MassTransit registration source](https://github.com/MassTransit/MassTransit/blob/v8.5.12/src/Persistence/MassTransit.EntityFrameworkCoreIntegration/Configuration/Configuration/EntityFrameworkBusOutboxConfigurator.cs)
+
+Both workers use a shared notification that can wake more than one waiter. The default notifier in the pinned version stores one active wait and raised an error during the two-worker shutdown test. The notification wakes both workers and leaves each worker's cancellation independent. [Pinned MassTransit notification source](https://github.com/MassTransit/MassTransit/blob/v8.5.12/src/MassTransit/Middleware/Outbox/BusOutboxNotification.cs)
+
+Each worker polls its configured physical database. A runtime with a dedicated stamp should point its host IAM connection at that stamp's database. Unbound hosts can route requests to connection overrides, which the default outbox workers do not enumerate. A database reached only through such an override still needs delivery from a runtime pointed at that database. Restart checks cover the configured database, including multiple tenant scopes within that database.
+
+Outbox delivery is at least once. A retry sends the stored message ID. A consumer with side effects must make them idempotent using the message ID or a stable business key. Apply the additive SQL Server or PostgreSQL IAM migration before starting a release that uses the IAM outbox. Drain IAM messages before a rollback to an older binary, or retain the IAM outbox tables and resume delivery with a compatible worker.
+
 ## 5. Query And Search Pattern
 
 For list screens and searchable APIs:

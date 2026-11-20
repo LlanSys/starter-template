@@ -5,6 +5,8 @@
 > Current starter baseline: IAM, Shared and ControlPlane only. The historical roadmap below records earlier implementation decisions; it does not require retention of removed business contexts. The active refactor/certification status is [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Six InitialStarter migrations target fresh databases only.
 
 
+> Architecture adoption and downstream setup: [StarterTemplate architecture and downstream delivery plan](docs/architecture/downstream-architecture-adoption-plan.md). Follow its phase ledger for this work.
+
 > Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
 
 > Last updated: 2026-11-09
@@ -15,6 +17,13 @@
 
 ---
 
+## Downstream baseline release — 2026-11-20
+
+The reviewed code candidate is `654a260e4708a30e85753453f8b8a912a519ecc1`, based on current main. Its clean AdoptionRelease clone passes both Release builds, 281 unit and 70 architecture tests, live platform/customer password/TOTP onboarding, two-tenant settings/cache/audit isolation and restart continuity with bootstrap disabled. All 122 candidate integration cases pass with zero failures or skips, including real RabbitMQ. Phase 5 is qualified locally and ready for PR review. The [release evidence](docs/development/downstream-release-acceptance-2026-11-20.md) and [phase ledger](docs/architecture/downstream-architecture-adoption-plan.md#phase-5-release-acceptance--2026-11-20) distinguish the local baseline from each product's deployment acceptance and the deferred Alderfield browser check.
+## Downstream clone setup — 2026-11-20
+
+The disposable LlanAdoption walkthrough passes both host builds, 70 architecture cases and 22 selected integration cases. Clone setup supports environment-based infrastructure ports, a database name derived from the renamed API prefix or an explicit override, a focused endpoint audit, and safe identical rename reruns. Evidence and remaining release acceptance are recorded in the [adoption ledger](docs/architecture/downstream-architecture-adoption-plan.md#phase-4-clone-walkthrough--2026-11-20).
+
 ## Tenant branding and sign-in terminology (2026-11-15)
 
 Use tenant-owned display names and derived initials in auth/sidebar branding, with a neutral loading shell and Organization Code/Change Organization fallback. Keep workspace as the internal tenant-context concept and preserve IAM, stamp resolution, MFA and permission boundaries. See [tenant branding and sign-in](docs/development/tenant-branding-and-sign-in.md) for the UX contract and hostname-discovery boundary.
@@ -22,6 +31,8 @@ Use tenant-owned display names and derived initials in auth/sidebar branding, wi
 ## Organization settings and workspace sign-in (2026-11-15)
 
 Implement the vendor-owned presentation catalogue (UTC time zone, regional/date/time formats and default page size), real UI consumers, permission-protected revision-checked save/reset, tenant-scoped audit and SQL Server/PostgreSQL migrations. Preserve TimeProvider UTC decisions and existing identities. Resolve workspace before credential entry, show the organization's name and retain Change Workspace/manual fallback. See [organization settings](docs/development/organization-settings.md) for contracts and verification boundaries.
+
+The organization settings save/reset workflow is the production reference for downstream vertical slices. Use its [file map and implementation recipe](docs/development/organization-settings.md#save-and-reset-reference-slice).
 
 ## .NET 10 dependency maintenance (2026-11-13)
 
@@ -62,7 +73,7 @@ StarterTemplate is a reusable enterprise .NET solution template for building pro
 The solution is structured as a **Logical Modular Monolith**:
 - **Single Deployable Unit:** Simplifies deployment, operations, and hosting costs while the domain is evolving.
 - **Bounded Contexts:** Clear separation of concerns (IAM, Workforce, Banking, Shared) with separate database schemas and DbContexts to prevent cross-context table joins.
-- **Clean Architecture:** Strict inward-pointing dependency directions (Domain & SharedKernel -> Application -> Infrastructure & Persistence -> API & UI Hosts).
+- **Clean Architecture:** Domain and SharedKernel have no solution project dependencies. Persistence uses Domain, the API composes the backend, and Blazor uses SharedKernel and the HTTP API. See the [project reference graph](docs/architecture/feature-folder-convention.md#dependency-and-persistence-rules).
 - **Vertical Slice Structure:** Cross-layer feature folders to maximize readability and reduce code scatteredness.
 - **Client Decoupling:** Blazor Web serves as a clean HTTP API client, ensuring the web host requires zero database connectivity or secrets.
 
@@ -111,7 +122,7 @@ To prevent logical modular monoliths from decaying into a "distributed big ball 
 1. **No Cross-DbContext Queries:** Modules can never join tables belonging to another context in SQL.
 2. **References by ID Only:** Domain entities in one context (e.g., Banking `Customer`) must refer to entities in another context (e.g., IAM `AppUser`) using IDs, never navigation properties.
 3. **Communication via Events:** Cross-context mutations are synchronized asynchronously using Integration Events and the MassTransit Outbox.
-4. **Compile-time Assembly/Namespace Checks:** `NetArchTest` checks in `ST.Tests.Architecture` enforce that code inside a module namespace (e.g., `ST.Application.Features.Banking`) does not reference classes in another module namespace (e.g., `ST.Application.Features.HR`) directly.
+4. **Architecture checks:** CI checks project references separately from compiled dependencies. IAM stays independent of downstream product features. Compiled checks restrict cross-context persistence to named workflows documented in the [feature folder convention](docs/architecture/feature-folder-convention.md#dependency-and-persistence-rules).
 
 ### 2.4 Feature Folder Convention
 Code is organized horizontally by bounded context and vertically by feature:
@@ -140,7 +151,7 @@ Every public top-level type must live in its own file named after that type. Thi
 ### 3.2 Areas That Must Still Be Completed Or Certified
 - **Platform Storage Certification:** Profile image storage now supports local, Azurite, and Azure Blob providers behind `IProfilePictureStorage`; Data Protection supports local keys plus Azure Blob/Key Vault configuration. The remaining gate is local build plus Azure configuration smoke once cloud resources are ready.
 - **HybridCache Certification:** Query caching and output caching are wired; complete the remaining review for native `GetOrCreateAsync` usage, negative-cache behavior, and Redis-backed multi-node invalidation.
-- **MassTransit/Outbox Certification:** RabbitMQ and Azure Service Bus transports are configurable and MassTransit EF Outbox is registered. Real RabbitMQ EF-outbox-to-consumer delivery is certified by `scripts/test-local-messaging.ps1`; Azure Service Bus transport certification remains cloud-dependent.
+- **MassTransit outbox:** IAM account creation queues its notice in the IAM transaction. The Shared worker remains available for existing queued messages. Local RabbitMQ transport and provider-specific certification details are tracked in the [persistence guide](docs/architecture/persistence-standards.md#transaction-and-delivery-boundaries).
 - **Exception And Validation Coverage:** ProblemDetails and frontend parsing are in place, and the UI sanitizes backend failures before displaying them. The remaining gate is validator coverage review for command/request DTOs and tests proving backend validation messages surface cleanly in Blazor.
 - **API Security And Lifecycle:** Security headers, configurable rate limiting, CORS, JWT, permission policies, API versioning, response compression, and OutputCache are present. The remaining gate is deprecation policy, throttle response consistency, CSRF stance, and operational tests.
 - **Production Migrations:** Build a pipeline using `efbundle` to execute schema changes safely during deployments instead of using `db.Database.Migrate()` on startup.

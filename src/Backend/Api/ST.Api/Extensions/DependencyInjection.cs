@@ -6,6 +6,7 @@ using Azure.Identity;
 using Azure.Storage.Blobs;
 
 using ST.Api.Common.Authorization;
+using ST.Api.Common.Messaging;
 using ST.Api.Configuration;
 using ST.Api.Logging;
 using ST.Api.Middleware;
@@ -14,11 +15,13 @@ using ST.Domain.Exceptions;
 using ST.Infrastructure.Configuration;
 using ST.Infrastructure.Logging;
 using ST.Infrastructure.Messaging.Consumers;
+using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.Shared.DataContext;
 
 using FluentValidation;
 
 using MassTransit;
+using MassTransit.Middleware.Outbox;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -29,6 +32,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -464,31 +468,11 @@ internal static partial class DependencyInjection
             options.Predicate = check => check.Tags.Contains("ready");
         });
 
+        var provider = configuration.GetValue<string>("DatabaseSettings:Provider") ?? "SqlServer";
+
         services.AddMassTransit(x =>
         {
-            // EF Outbox
-            x.AddEntityFrameworkOutbox<SharedDBContext>(o =>
-            {
-                var provider = configuration.GetValue<string>("DatabaseSettings:Provider") ?? "SqlServer";
-
-                if (provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
-                {
-                    o.UsePostgres();
-                }
-                else if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
-                {
-                    o.UseSqlServer();
-                }
-                else
-                {
-                    throw new InvalidOperationException("Unsupported database provider for the messaging outbox.");
-                }
-
-                o.UseBusOutbox();
-                o.DuplicateDetectionWindow = TimeSpan.FromHours(24);
-                o.QueryDelay = TimeSpan.FromSeconds(30);
-                o.QueryMessageLimit = 100;
-            });
+            AddDatabaseOutboxes(x, provider);
 
             // Register all consumers from assembly
             x.AddConsumers(assembly);
@@ -587,6 +571,38 @@ internal static partial class DependencyInjection
         });
 
         return services;
+    }
+
+    internal static void AddDatabaseOutboxes(IBusRegistrationConfigurator registration, string provider)
+    {
+        // Shared keeps draining previously committed messages. The IAM publisher binds its database explicitly.
+        registration.AddEntityFrameworkOutbox<IamDBContext>(outbox => ConfigureDatabaseOutbox(outbox, provider));
+        registration.AddEntityFrameworkOutbox<SharedDBContext>(outbox => ConfigureDatabaseOutbox(outbox, provider));
+
+        // MassTransit's default wake-up service has one waiter slot. Both delivery workers share this service.
+        registration.RemoveAll<IBusOutboxNotification>();
+        registration.AddSingleton<IBusOutboxNotification, OutboxDeliveryNotification>();
+    }
+
+    private static void ConfigureDatabaseOutbox(IEntityFrameworkOutboxConfigurator outbox, string provider)
+    {
+        if (provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+        {
+            outbox.UsePostgres(enableSchemaCaching: false);
+        }
+        else if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+        {
+            outbox.UseSqlServer(enableSchemaCaching: false);
+        }
+        else
+        {
+            throw new InvalidOperationException("Unsupported database provider for the messaging outbox.");
+        }
+
+        outbox.DuplicateDetectionWindow = TimeSpan.FromHours(24);
+        outbox.QueryDelay = TimeSpan.FromSeconds(30);
+        outbox.QueryMessageLimit = 100;
+        outbox.UseBusOutbox();
     }
 
     private static MessagingTransport GetMessagingTransport(MessagingSettings settings)

@@ -7,7 +7,7 @@ services:
       TZ: UTC
       CLAMAV_NO_FRESHCLAMD: "false"
     ports:
-      - "127.0.0.1:13315:3310"
+      - "127.0.0.1:${CLAMAV_HOST_PORT:-13315}:3310"
     volumes:
       - clamav-definitions:/var/lib/clamav
       - ./clamd.conf:/etc/clamav/clamd.conf:ro
@@ -25,8 +25,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in ops/local/.env}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in ops/local/.env}
     ports:
-      - "5675:5672"
-      - "15675:15672"
+      - "${RABBITMQ_HOST_PORT:-5675}:5672"
+      - "${RABBITMQ_MANAGEMENT_HOST_PORT:-15675}:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -55,8 +55,8 @@ services:
   mailpit:
     image: axllent/mailpit:v1.27
     ports:
-      - "1030:1025"
-      - "8030:8025"
+      - "${MAILPIT_SMTP_HOST_PORT:-1030}:1025"
+      - "${MAILPIT_UI_HOST_PORT:-8030}:8025"
     restart: unless-stopped
 
   seq:
@@ -66,7 +66,7 @@ services:
       ACCEPT_EULA: "Y"
       SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_PASSWORD:?Set SEQ_PASSWORD in ops/local/.env}
     ports:
-      - "5344:80"
+      - "${SEQ_HOST_PORT:-5344}:80"
     volumes:
       - seq-data:/data
     restart: unless-stopped
@@ -77,9 +77,9 @@ services:
     environment:
       AZURITE_ACCOUNTS: ${AZURITE_ACCOUNT_NAME:?Set AZURITE_ACCOUNT_NAME in ops/local/.env}:${AZURITE_ACCOUNT_KEY:?Set AZURITE_ACCOUNT_KEY in ops/local/.env}
     ports:
-      - "10020:10000"
-      - "10021:10001"
-      - "10022:10002"
+      - "${AZURITE_BLOB_HOST_PORT:-10020}:10000"
+      - "${AZURITE_QUEUE_HOST_PORT:-10021}:10001"
+      - "${AZURITE_TABLE_HOST_PORT:-10022}:10002"
     volumes:
       - azurite-data:/data
     restart: unless-stopped
@@ -92,7 +92,7 @@ services:
       MSSQL_PID: "Developer"
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in ops/local/.env}
     ports:
-      - "14335:1433"
+      - "${SQLSERVER_HOST_PORT:-14335}:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
     healthcheck:

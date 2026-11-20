@@ -30,3 +30,5 @@ CLAUDE.md
 GEMINI.md
 tests/
 scripts/
+output
+tmp

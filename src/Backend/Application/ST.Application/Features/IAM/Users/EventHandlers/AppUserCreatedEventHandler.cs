@@ -29,7 +29,7 @@ internal sealed class AppUserCreatedEventHandler(IIntegrationEventPublisher inte
 
             await integrationEventPublisher.PublishAsync(integrationEvent, cancellationToken).ConfigureAwait(false);
 
-            LogDefinitions.LogAppUserCreatedIntegrationPublished(logger, evt.UserId);
+            LogDefinitions.LogAppUserCreatedIntegrationStaged(logger, evt.UserId);
 
         }
         catch (Exception ex)

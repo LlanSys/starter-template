@@ -19,4 +19,4 @@
 ## or put your custom commands -------------------
 #echo 'Husky.Net is awesome!'
 
-dotnet test tests/BT.Tests.Architecture/BT.Tests.Architecture.csproj --filter FullyQualifiedName~MigrationGuardrailTests
+dotnet test tests/ST.Tests.Architecture/ST.Tests.Architecture.csproj --filter FullyQualifiedName~MigrationGuardrailTests

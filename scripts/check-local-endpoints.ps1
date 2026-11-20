@@ -1,9 +1,15 @@
 [CmdletBinding()]
 param(
     [string[]]$ComposeFiles = @(),
-    [string[]]$RepositoryPaths = @()
+    [string[]]$RepositoryPaths = @(),
+    [switch]$FocusSupplied
 )
 $ErrorActionPreference = 'Stop'
+if ($FocusSupplied -and !$ComposeFiles.Count) {
+    throw 'FocusSupplied requires at least one Compose file.'
+}
+$focusedOwners = @()
+$focusedRoots = @()
 # Capture Compose JSON in memory only: it contains resolved local credentials.
 $containerIds = @(& docker ps -aq)
 if ($LASTEXITCODE -ne 0) { throw 'Docker inventory failed.' }
@@ -49,6 +55,9 @@ foreach ($directory in ($orderedDirectories | Select-Object -Unique)) {
     $json = & docker @arguments config --format json 2>$null
     if ($LASTEXITCODE -ne 0) { throw "Cannot resolve Compose configuration in $directory. Check local env values." }
     $config = $json | ConvertFrom-Json
+    if ($directory -in $suppliedDirectories) {
+        $focusedOwners += "$($config.name)/"
+    }
     $root = $directory
     while ($root -and -not (Test-Path -LiteralPath (Join-Path $root '.git'))) {
         $root = Split-Path -Parent $root
@@ -67,7 +76,10 @@ foreach ($directory in ($orderedDirectories | Select-Object -Unique)) {
 
     # A supplied Compose checkout takes precedence over a discovered linked worktree of the same project.
     $allocationKey = "$($config.name)|$repositoryIdentity"
-    if ($root) { $repositoryRoots[$allocationKey] = $root }
+    if ($root) {
+        $repositoryRoots[$allocationKey] = $root
+        if ($directory -in $suppliedDirectories) { $focusedRoots += $root }
+    }
     $composePorts[$allocationKey] = @(foreach ($service in $config.services.PSObject.Properties) {
         foreach ($mapping in $service.Value.ports) {
             if (-not $mapping.published) { continue }
@@ -107,14 +119,44 @@ foreach ($root in $roots) {
         }
     }
 }
-$failures = @()
+foreach ($container in $containers) {
+    if ($container.Config.Labels.'com.docker.compose.project') { continue }
+    foreach ($binding in $container.HostConfig.PortBindings.PSObject.Properties) {
+        $protocol = $binding.Name.Split('/')[-1]
+        foreach ($hostBinding in $binding.Value) {
+            if (!$hostBinding.HostPort) { continue }
+            $ports += [pscustomobject]@{
+                Owner = "Standalone container $($container.Name)"
+                Port = [int]$hostBinding.HostPort
+                Protocol = $protocol
+            }
+        }
+    }
+}
+$failures = [Collections.Generic.List[string]]::new()
+function Add-AllocationFailure([string]$message, [string[]]$owners) {
+    $relevant = !$FocusSupplied
+    foreach ($owner in $owners) {
+        foreach ($prefix in $focusedOwners) {
+            if ($owner.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { $relevant = $true }
+        }
+        foreach ($root in $focusedRoots) {
+            if ($owner.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+                $relevant = $true
+            }
+        }
+    }
+    if ($relevant) { $failures.Add($message) } else { Write-Warning $message }
+}
 foreach ($group in ($ports | Group-Object Port, Protocol)) {
     $owners = @($group.Group.Owner | Select-Object -Unique)
-    if ($owners.Count -gt 1) { $failures += "Port collision $($group.Name): $($owners -join ', ')" }
+    if ($owners.Count -gt 1) {
+        Add-AllocationFailure "Port collision $($group.Name): $($owners -join ', ')" $owners
+    }
 }
 foreach ($group in ($secrets | Group-Object Id)) {
     if (@($group.Group.Owner | Select-Object -Unique).Count -gt 1) {
-        $failures += "Shared UserSecretsId $($group.Name): $($group.Group.Owner -join ', ')"
+        Add-AllocationFailure "Shared UserSecretsId $($group.Name): $($group.Group.Owner -join ', ')" $group.Group.Owner
     }
 }
 # Detect containers created with obsolete bindings; do not recreate or delete them here.
@@ -128,7 +170,7 @@ foreach ($container in $containers) {
             $owner = "$project/$service"
             $expected = @($ports | Where-Object Owner -eq $owner)
             if ($project -and $expected.Count -and [int]$hostBinding.HostPort -notin $expected.Port) {
-                $failures += "Stale binding $($container.Name): $($hostBinding.HostPort); recreate with Compose."
+                Add-AllocationFailure "Stale binding $($container.Name): $($hostBinding.HostPort); recreate with Compose." @($owner)
             } elseif (-not $project) {
                 Write-Warning "Standalone container $($container.Name) reserves port $($hostBinding.HostPort), state $($container.State.Status)."
             }
@@ -140,5 +182,9 @@ if ($failures.Count) {
     foreach ($failure in $failures) { Write-Error $failure -ErrorAction Continue }
     throw 'Local endpoint audit failed.'
 }
-Write-Host "PASS: $($ports.Count) distinct service/app allocations and $($secrets.Count) independent secret stores."
+if ($FocusSupplied) {
+    Write-Host 'PASS: supplied Compose projects and hosts have no allocation conflicts with discovered reservations.'
+} else {
+    Write-Host "PASS: $($ports.Count) distinct service/app allocations and $($secrets.Count) independent secret stores."
+}
 Write-Host 'Scope: discovered Compose groups (all profiles), supplied files, launch ports and secret-store identities. This does not validate credentials, database contents or external/native applications.'

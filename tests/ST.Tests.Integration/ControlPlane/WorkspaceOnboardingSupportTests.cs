@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Domain.Features.ControlPlane.Tenants.Entities;
+using ST.Domain.Features.ControlPlane.Tenants.Enums;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Persistence.Features.ControlPlane.DataContext;
@@ -63,8 +64,10 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
             .CountAsync(role => role.TenantId == tenantId && role.Name == "Tenant Administrator"));
     }
 
-    [Fact]
-    public async Task InvitationMfaScopedSupportAndRevocationUseRealTenantSessions()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InvitationMfaScopedSupportAndRevocationUseRealTenantSessions(bool resumeAfterControlPlaneCommit)
     {
         var a = Guid.CreateVersion7(); var b = Guid.CreateVersion7();
         using (var scope = factory.Services.CreateScope())
@@ -153,10 +156,40 @@ public sealed class WorkspaceOnboardingSupportTests(StarterTemplateWebApplicatio
             verify with { Code = otp.ComputeTotp(), ChallengeToken = challenge.Token });
         var beforeComplete = await Post<RefreshTokenResponse>(anonymous, "/api/v1/iam/auth/refresh-token", new RefreshTokenRequest(mfa.Token, mfa.RefreshToken));
         tenant.DefaultRequestHeaders.Authorization = new("Bearer", beforeComplete.Token);
+        if (resumeAfterControlPlaneCommit)
+        {
+            // Persist the same ControlPlane checkpoint that completion writes before granting IAM access.
+            await using var scope = factory.Services.CreateAsyncScope();
+            var control = scope.ServiceProvider.GetRequiredService<ControlPlaneDBContext>();
+            var accepted = await control.AdministratorInvitations.Include(item => item.Tenant)
+                .SingleAsync(item => item.Id == invitationId && item.TenantId == a);
+            Assert.Equal(AdministratorInvitationState.Claimed, accepted.State);
+            accepted.Accept(login.UserId, TimeProvider.System.GetUtcNow());
+            accepted.Tenant.AdministratorUserId = login.UserId;
+            await control.SaveChangesAsync();
+
+            var iam = scope.ServiceProvider.GetRequiredService<IamDBContext>();
+            var restricted = await iam.Users.IgnoreQueryFilters().SingleAsync(user => user.Id == login.UserId);
+            Assert.True(restricted.RequiresAdministratorSetup);
+            Assert.Equal(HttpStatusCode.Forbidden, (await tenant.GetAsync("/api/v1/iam/admin/roles")).StatusCode);
+        }
+
         await Post<bool>(tenant, "/api/v1/workspaces/administrator-invitation/complete", null);
         var refreshed = await Post<RefreshTokenResponse>(anonymous, "/api/v1/iam/auth/refresh-token",
             new RefreshTokenRequest(beforeComplete.Token, beforeComplete.RefreshToken));
         tenant.DefaultRequestHeaders.Authorization = new("Bearer", refreshed.Token);
+        await Post<bool>(tenant, "/api/v1/workspaces/administrator-invitation/complete", null);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var iam = scope.ServiceProvider.GetRequiredService<IamDBContext>();
+            var adminRoleId = await iam.Roles.IgnoreQueryFilters()
+                .Where(role => role.TenantId == a && role.TemplateKey == "iam-administrator")
+                .Select(role => role.Id)
+                .SingleAsync();
+            Assert.Equal(1, await iam.Set<IdentityUserRole<string>>()
+                .CountAsync(link => link.UserId == login.UserId && link.RoleId == adminRoleId));
+        }
         using (var roles = await tenant.GetAsync("/api/v1/iam/admin/roles")) Assert.Equal(HttpStatusCode.OK, roles.StatusCode);
         using (var settings = await tenant.GetAsync("/api/v1/shared/tenant-settings"))
         {

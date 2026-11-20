@@ -9,7 +9,7 @@ cd E:\Repos\StarterTemplate
 
 This produces project and namespace names such as `IH.Domain`, `IH.Application`, and `IH.Api`. `NewName` is the product identity; `NamespacePrefix` is the short technical prefix and is required so the script never guesses an acronym incorrectly.
 
-Use `-WhatIf` first to preview changes. The script updates product-name variants in text files, reads the current prefix from AGENTS.md, changes dotted technical prefixes and updates the declared root prefix, handles the known compact `STApi` local-data path, and renames matching files and folders. It deliberately does not replace every standalone `BT`, because `BT` is also valid unrelated data such as Bhutan's ISO country code. It skips Git metadata, generated build output, logs, verification artifacts, dependencies, and `ops/local/.env`.
+Use `-WhatIf` first to preview changes. The script updates product-name variants in text files, reads the current prefix from AGENTS.md, changes dotted technical prefixes and updates the declared root prefix, handles the known compact `STApi` local-data path, and renames matching files and folders. It deliberately does not replace every standalone `BT`, because `BT` is also valid unrelated data such as Bhutan's ISO country code. It skips Git metadata, generated build output, logs, `output`, `tmp`, `TestResults`, dependencies, and `ops/local/.env`.
 
 After the script runs:
 
@@ -28,6 +28,6 @@ The script updates repository configuration tokens; it does not rename live Azur
 
 ## Independent local configuration
 
-Renaming assigns fresh UserSecretsId values to host projects and updates design-time references. Provision local secrets for the renamed clone; secret contents are not copied. Modern PowerShell uses UUIDv7; Windows PowerShell 5.1 uses a cryptographically random identifier because its runtime lacks that API.
+Renaming assigns fresh UserSecretsId values to host projects and updates design-time references. Provision local secrets for the renamed clone; secret contents are not copied. Modern PowerShell uses UUIDv7; Windows PowerShell 5.1 uses a cryptographically random identifier because its runtime lacks that API. Rerunning with the identical product name and prefix leaves the existing identities intact. Run `scripts/test-rename-template.ps1` from PowerShell 7 to verify dry-run behavior, project paths, secret references, repeated runs, and generated-file exclusions.
 
 Allocate distinct host ports and Compose project/volume names before starting a clone alongside another application. Run scripts/check-local-endpoints.ps1 with -ComposeFiles pointing to its Compose file; see [workstation endpoint allocations](workstation-endpoints.md).

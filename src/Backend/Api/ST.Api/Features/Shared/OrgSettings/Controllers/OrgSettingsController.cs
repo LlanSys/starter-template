@@ -3,6 +3,7 @@ using ST.Api.Common.Authorization;
 using ST.Api.Common.Controllers;
 using ST.Application.Features.Shared.OrgSettings.CommandHandlers;
 using ST.Application.Features.Shared.OrgSettings.QueryHandlers;
+using ST.Application.Features.Shared.OrgSettings.SaveCatalogSetting;
 using ST.SharedKernel.Features.Shared.OrgSettings.Dtos;
 using MediatR;
 using ST.SharedKernel.Features.Shared.OrgSettings;
