@@ -79,10 +79,10 @@ Local operator and integration evidence establishes how these flows behave under
 
 ### Phase 5 Release the downstream baseline
 
-- [ ] Review the staged change, run package policy and strict restore, build API/Blazor, and run unit, architecture and relevant provider integration tests. Run the full integration suite for the release candidate and record intentional external-provider skips.
-- [ ] Create a disposable clean clone at the exact candidate SHA. Rename it, configure separate local resources, verify health, apply migrations and perform real local password/MFA and two-tenant isolation checks. Add a disposable product slice through normal entry points and confirm permission enforcement and tenant-scoped persistence.
-- [ ] Capture the revision, configuration inventory without secret values, expected test result, measured setup time, any manual steps and remaining environment checks. Mark the release candidate as the downstream source once the evidence is reviewed.
-- [ ] Keep deployment acceptance visible per product and tier. Verify deployed ingress, key continuity, live configured identity and providers, monitoring/load objectives, restore/rollback and dedicated runtime provisioning as applicable before real customer use.
+- [x] Review the staged change, run package policy and strict restore, build API/Blazor, and run unit, architecture and relevant provider integration tests. Run the full integration suite for the release candidate and record intentional external-provider skips.
+- [x] Create a disposable clean clone at the exact candidate SHA. Rename it, configure separate local resources, verify health, apply migrations and perform real local password/MFA and two-tenant isolation checks. Add a disposable product slice through normal entry points and confirm permission enforcement and tenant-scoped persistence.
+- [x] Capture the revision, configuration inventory without secret values, expected test result, measured setup time, any manual steps and remaining environment checks. Mark the release candidate as the downstream source once the evidence is reviewed.
+- [x] Keep deployment acceptance visible per product and tier. Verify deployed ingress, key continuity, live configured identity and providers, monitoring/load objectives, restore/rollback and dedicated runtime provisioning as applicable before real customer use.
 
 **Exit.** A reviewable pinned build baseline and repeatable clean-clone evidence. The configuration checklist distinguishes local working setup from each product's deployed release obligations.
 
@@ -169,17 +169,26 @@ The local walkthrough used the working source at `8ab1954b60c69c3bd19dfd5f98d35d
 
 The combined integration run exposed a fixture dependency on the process environment. The outbox fixture had scanned unrelated handlers, which failed validation when another test selected Development. It now registers its two required handlers and validates dependencies explicitly. The final combined selection passed with a saved report.
 
-Local artifacts are under the disposable `ST-Adoption-01a1fa27e5d77a79a6bc78ec6280f1a7` directory in the Windows temporary folder. The report is `LlanAdoption/output/phase4-tests/clone-phase4-integration-final.trx`, and the source manifest is `phase4-code-manifest.sha256`. Reviewable source changes remain in the StarterTemplate working tree.
+Local artifacts are under the disposable `ST-Adoption-01a1fa27e5d77a79a6bc78ec6280f1a7` directory in the Windows temporary folder. The report is `LlanAdoption/output/phase4-tests/clone-phase4-integration-final.trx`, and the source manifest is `phase4-code-manifest.sha256`. The implementation is now included in the Phase 5 code candidate below.
 
 The [setup guide](../development/starter-setup.md) covers identity, ports, database selection and focused backports of later platform fixes. The historical `BT_Q_Scheduler` name is scoped by each application's database. Preserve it when upgrading an existing database. Phase 5 records the pinned source, final clean-copy acceptance and each deployed environment's provider and recovery evidence. The Alderfield browser check remains deferred by the user's instruction.
 
+## Phase 5 release acceptance — 2026-11-20
+
+Code candidate: `654a260e4708a30e85753453f8b8a912a519ecc1`, based on main `b87c0c6c298d215f3807308635e0b9e59729203b`. The [release report](../development/downstream-release-acceptance-2026-11-20.md) records the clean AdoptionRelease/AR clone, separate identities/data/key ring, configuration without secret values, observed timings and exact verification boundaries.
+
+The renamed API and Blazor Release builds, 281 unit tests and 70 architecture tests pass. The required source build/architecture checks, strict restores, package-policy and rename regressions also pass after main's dependency updates. All 122 candidate integration cases pass, with zero failures or skips and real RabbitMQ enabled. The code revision is qualified as the downstream source for local product development and PR review. This is a local release candidate; each product retains its deployed acceptance gates.
+
+Live checks pass for health, platform password/TOTP, two customer welcome invitations and resumable administrator setup, customer/platform permission separation, independent tenant settings/cache/audit, signed foreign-tenant rejection, stale revisions and reset. Both customers pass session and fresh password/TOTP checks after an API restart with bootstrap disabled. The existing test-only product slice provides API/handler/repository extension and permission/isolation acceptance without adding a shipped business domain.
+
+Each product retains its own deployed ingress, encryption/key continuity, configured live-provider/device, monitoring/load, restore/rollback and dedicated-runtime acceptance. The Alderfield signed-in browser check remains deferred by the user's instruction.
 ## Phase ledger
 
 | Phase | Status | Revision and evidence | Next action |
 | --- | --- | --- | --- |
 | 0 Baseline and inventory | Inventory complete (local) | PR #5 merge 5a972dd; CI, source graph and local evidence recorded in the Phase 0 inventory above. | Review the documented boundaries, then begin Phase 1. |
-| 1 Architecture enforcement | Verified locally | Release API and Blazor builds passed. Architecture suite passed all 69 cases, including the foreign repository regression check. Changes are in the working tree. | Begin Phase 2 with organization settings save/reset. |
+| 1 Architecture enforcement | Verified locally | Release API and Blazor builds passed. Architecture suite passed all 69 cases, including the foreign repository regression check. Implementation is included in candidate 654a260. | Begin Phase 2 with organization settings save/reset. |
 | 2 Reference slice | Automated checks passed; browser deferred | API and Blazor images built and ran locally. All 70 architecture tests and eight focused integration cases passed. The Alderfield QA browser session reached MFA, where its supplied codes were rejected. The user chose to proceed to Phase 3. | Browser save/reset acceptance can be revisited independently. |
 | 3 Transactions and durable work | Verified locally on configured databases | 281 unit and 70 architecture cases passed. Thirteen focused integration cases passed across the initial and corrected runs, including provider migration, account rollback and restart delivery, settings audit, and onboarding recovery. The existing real RabbitMQ transport check passed separately. | Continue to Phase 4. Track physical database overrides and deployed provider acceptance in the deployment evidence. |
 | 4 Clone setup | Verified in disposable copy | LlanAdoption/LA builds, 70 architecture and 22 selected integration cases pass. Rename, port propagation, database naming and negative allocation probes pass. See the Phase 4 walkthrough above. | Prepare the reviewed, pinned Phase 5 baseline. |
-| 5 Downstream release | Next | Phase 4 working-copy evidence is recorded. Release commit and final release acceptance remain open. | Review and pin the candidate, then run release acceptance. |
+| 5 Downstream release | Qualified local release candidate | Code 654a260; clean renamed builds, 281 unit, 70 architecture and all 122 integration cases pass with zero skips. Live two-tenant and restart acceptance passes. See the release report. | Review the PR and adopt the pinned code for downstream development. Complete deployment acceptance per product before customer use. |

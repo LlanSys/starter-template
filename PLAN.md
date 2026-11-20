@@ -17,6 +17,9 @@
 
 ---
 
+## Downstream baseline release — 2026-11-20
+
+The reviewed code candidate is `654a260e4708a30e85753453f8b8a912a519ecc1`, based on current main. Its clean AdoptionRelease clone passes both Release builds, 281 unit and 70 architecture tests, live platform/customer password/TOTP onboarding, two-tenant settings/cache/audit isolation and restart continuity with bootstrap disabled. All 122 candidate integration cases pass with zero failures or skips, including real RabbitMQ. Phase 5 is qualified locally and ready for PR review. The [release evidence](docs/development/downstream-release-acceptance-2026-11-20.md) and [phase ledger](docs/architecture/downstream-architecture-adoption-plan.md#phase-5-release-acceptance--2026-11-20) distinguish the local baseline from each product's deployment acceptance and the deferred Alderfield browser check.
 ## Downstream clone setup — 2026-11-20
 
 The disposable LlanAdoption walkthrough passes both host builds, 70 architecture cases and 22 selected integration cases. Clone setup supports environment-based infrastructure ports, a database name derived from the renamed API prefix or an explicit override, a focused endpoint audit, and safe identical rename reruns. Evidence and remaining release acceptance are recorded in the [adoption ledger](docs/architecture/downstream-architecture-adoption-plan.md#phase-4-clone-walkthrough--2026-11-20).
