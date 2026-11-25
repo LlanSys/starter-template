@@ -1,3 +1,4 @@
+using ST.Domain.Shared;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -27,7 +28,7 @@ public sealed class ProvisioningAttemptTests
         encryption.Decrypt(Arg.Any<string>()).Returns(call => call.Arg<string>()[10..]);
         uow.Tenants.FindByIdAsync(tenant.Id, Arg.Any<CancellationToken>()).Returns(tenant);
         uow.DeploymentStamps.FindByIdAsync(tenant.DeploymentStampId, Arg.Any<CancellationToken>())
-            .Returns(new DeploymentStamp { Name = "isolated", TargetResourceGroup = "test", IsolationTier = IsolationTier.Isolated, DatabaseProvider = "SqlServer", CreatedBy = "fixture" });
+            .Returns(new DeploymentStamp { Name = "isolated", TargetResourceGroup = "test", IsolationTier = IsolationTier.Isolated, DatabaseProvider = DatabaseProviders.Supported[0], CreatedBy = "fixture" });
         using var services = new ServiceCollection().AddLogging()
             .AddSingleton(uow).AddSingleton(readiness).AddSingleton(encryption).AddSingleton(TimeProvider.System)
             .AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<CompleteTenantProvisioningCommand>())
@@ -46,14 +47,14 @@ public sealed class ProvisioningAttemptTests
         }
 
         await readiness.DidNotReceiveWithAnyArgs().VerifyAsync(default, default!, default!, default);
-        readiness.VerifyAsync(tenant.Id, "destination", "SqlServer", Arg.Any<CancellationToken>())
+        readiness.VerifyAsync(tenant.Id, "destination", DatabaseProviders.Supported[0], Arg.Any<CancellationToken>())
             .Returns(AppResponses.Failure<bool>("Unapplied migrations"));
         var rejected = await sender.Send(new CompleteTenantProvisioningCommand(tenant.Id, "destination", "", first));
         Assert.False(rejected.IsSuccess);
         Assert.Equal(TenantStatus.Provisioning, tenant.Status);
         Assert.Null(tenant.DatabaseConnectionString);
 
-        readiness.VerifyAsync(tenant.Id, "destination", "SqlServer", Arg.Any<CancellationToken>())
+        readiness.VerifyAsync(tenant.Id, "destination", DatabaseProviders.Supported[0], Arg.Any<CancellationToken>())
             .Returns(AppResponses.Success(true));
         Assert.True((await sender.Send(new CompleteTenantProvisioningCommand(tenant.Id, "destination", "", first))).IsSuccess);
         Assert.Equal(TenantStatus.Active, tenant.Status);

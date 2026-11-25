@@ -1,6 +1,11 @@
 [CmdletBinding()]
 param(
+    # <db:SqlServer>
     [switch]$IncludeSqlServer,
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    [switch]$IncludePostgreSql,
+    # </db:PostgreSql>
     [switch]$IncludeSeq,
     [switch]$SkipPull,
     [switch]$UseSharedLocalKeyRing
@@ -49,14 +54,18 @@ function Read-EnvironmentFile([string]$path) {
 if (-not (Test-Path -LiteralPath $envFile)) {
     $rabbitPassword = New-LocalSecret
     $redisPassword = New-LocalSecret
+    # <db:SqlServer>
     $sqlPassword = "St!$(New-LocalSecret)"
+    # </db:SqlServer>
 
     @(
         'RABBITMQ_USER=stdev'
         "RABBITMQ_PASSWORD=$rabbitPassword"
         "REDIS_PASSWORD=$redisPassword"
         'REDIS_HOST_PORT=6382'
+        # <db:SqlServer>
         "MSSQL_SA_PASSWORD=$sqlPassword"
+        # </db:SqlServer>
         'AZURITE_ACCOUNT_NAME=stdevstorage'
         "AZURITE_ACCOUNT_KEY=$(New-LocalBase64Secret)"
     ) | Set-Content -LiteralPath $envFile -Encoding ascii
@@ -72,6 +81,11 @@ if (-not $environment.ContainsKey('REDIS_HOST_PORT')) {
     $environment = Read-EnvironmentFile $envFile
 }
 
+# <db:PostgreSql>
+if (-not $environment.ContainsKey('POSTGRES_PASSWORD')) {
+    Add-Content -LiteralPath $envFile -Value "POSTGRES_PASSWORD=$(New-LocalSecret)"
+}
+# </db:PostgreSql>
 if (-not $environment.ContainsKey('AZURITE_ACCOUNT_NAME')) {
     Add-Content -LiteralPath $envFile -Value 'AZURITE_ACCOUNT_NAME=stdevstorage'
 }
@@ -89,7 +103,12 @@ $defaultPorts = [ordered]@{
     AZURITE_BLOB_HOST_PORT = 10020
     AZURITE_QUEUE_HOST_PORT = 10021
     AZURITE_TABLE_HOST_PORT = 10022
+    # <db:SqlServer>
     SQLSERVER_HOST_PORT = 14335
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    POSTGRES_HOST_PORT = 15435
+    # </db:PostgreSql>
     CLAMAV_HOST_PORT = 13315
 }
 foreach ($key in $defaultPorts.Keys) {
@@ -118,7 +137,12 @@ $requiredKeys = @(
     'RABBITMQ_PASSWORD',
     'REDIS_PASSWORD',
     'REDIS_HOST_PORT',
+    # <db:SqlServer>
     'MSSQL_SA_PASSWORD',
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    'POSTGRES_PASSWORD',
+    # </db:PostgreSql>
     'AZURITE_ACCOUNT_NAME',
     'AZURITE_ACCOUNT_KEY'
 )
@@ -134,8 +158,13 @@ $volumeNames = @(
     'startertemplate_rabbitmq-data',
     'startertemplate_redis-data',
     'startertemplate_seq-data',
-    'startertemplate_azurite-data',
+    # <db:SqlServer>
     'startertemplate_sqlserver-data'
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    'startertemplate_postgres-data'
+    # </db:PostgreSql>
+    'startertemplate_azurite-data'
 )
 foreach ($volumeName in $volumeNames) {
     & docker volume inspect $volumeName *> $null
@@ -178,6 +207,7 @@ dotnet user-secrets set 'KycDocuments:ContainerName' 'kyc-documents' --project $
 
 
 $profiles = @()
+# <db:SqlServer>
 if ($IncludeSqlServer) {
     $profiles += @('--profile', 'database')
     $sqlConnection = "Server=localhost,$($environment.SQLSERVER_HOST_PORT);Database=$databaseName;User Id=sa;Password=$($environment.MSSQL_SA_PASSWORD);Encrypt=True;TrustServerCertificate=True;"
@@ -187,6 +217,18 @@ if ($IncludeSqlServer) {
         dotnet user-secrets set "ConnectionStrings:$name" $sqlConnection --project $apiProject
     }
 }
+# </db:SqlServer>
+# <db:PostgreSql>
+if ($IncludePostgreSql) {
+    $profiles += @('--profile', 'postgres')
+    $postgresConnection = "Host=localhost;Port=$($environment.POSTGRES_HOST_PORT);Database=$databaseName;Username=postgres;Password=$($environment.POSTGRES_PASSWORD)"
+    dotnet user-secrets set 'ConnectionStrings:DefaultConnection' $postgresConnection --project $apiProject
+    dotnet user-secrets set 'DatabaseSettings:Provider' 'PostgreSql' --project $apiProject
+    foreach ($name in @('ControlPlaneConnection', 'IamConnection', 'SharedConnection')) {
+        dotnet user-secrets set "ConnectionStrings:$name" $postgresConnection --project $apiProject
+    }
+}
+# </db:PostgreSql>
 if ($IncludeSeq) {
     $profiles += @('--profile', 'observability')
     dotnet user-secrets set 'Serilog:WriteTo:1:Args:serverUrl' "http://localhost:$($environment.SEQ_HOST_PORT)" --project $apiProject
@@ -229,4 +271,9 @@ Write-Host "  Mailpit:    http://localhost:$($environment.MAILPIT_UI_HOST_PORT)"
 if ($IncludeSeq) { Write-Host "  Seq:        http://localhost:$($environment.SEQ_HOST_PORT)" }
 Write-Host "  Azurite:    http://localhost:$($environment.AZURITE_BLOB_HOST_PORT)"
 Write-Host "  KYC scanner: localhost:$($environment.CLAMAV_HOST_PORT) (private ClamAV; first signature load can take several minutes)"
+# <db:SqlServer>
 if ($IncludeSqlServer) { Write-Host "  SQL Server: localhost,$($environment.SQLSERVER_HOST_PORT)" }
+# </db:SqlServer>
+# <db:PostgreSql>
+if ($IncludePostgreSql) { Write-Host "  PostgreSQL: localhost:$($environment.POSTGRES_HOST_PORT)" }
+# </db:PostgreSql>

@@ -1,12 +1,17 @@
 using System.Data.Common;
 using System.Globalization;
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging;
+// <db:PostgreSql>
 using Npgsql;
+// </db:PostgreSql>
 using ST.Application.Features.ControlPlane.Tenants.Contracts;
 using ST.Domain.Features.ControlPlane.Tenants.Entities;
+using ST.Domain.Shared;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.Shared.DataContext;
 using ST.SharedKernel.Dtos.Common;
@@ -52,7 +57,8 @@ internal sealed partial class TenantDatabaseReadiness(
 
     private IamDBContext CreateIam(string connection, string provider)
     {
-        if (string.Equals(provider, "SqlServer", StringComparison.OrdinalIgnoreCase))
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.SqlServer))
         {
             var settings = new SqlConnectionStringBuilder(connection);
             ValidateDatabase(settings.InitialCatalog, settings.DataSource);
@@ -60,8 +66,10 @@ internal sealed partial class TenantDatabaseReadiness(
                 new DbContextOptionsBuilder<IamSqlServerDBContext>()
                     .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, clock);
         }
+        // </db:SqlServer>
 
-        if (string.Equals(provider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.PostgreSql))
         {
             var settings = new NpgsqlConnectionStringBuilder(connection);
             ValidateDatabase(settings.Database, settings.Host);
@@ -69,26 +77,47 @@ internal sealed partial class TenantDatabaseReadiness(
                 new DbContextOptionsBuilder<IamPostgreSqlDBContext>()
                     .UseNpgsql(connection, postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, clock);
         }
+        // </db:PostgreSql>
 
         throw new ArgumentException("Unsupported destination database provider.");
     }
 
     private SharedDBContext CreateShared(string connection, string provider)
     {
-        return string.Equals(provider, "SqlServer", StringComparison.OrdinalIgnoreCase)
-            ? new SharedSqlServerDBContext(
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.SqlServer))
+        {
+            return new SharedSqlServerDBContext(
                 new DbContextOptionsBuilder<SharedSqlServerDBContext>()
                     .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options,
-                clock, null!, null!)
-            : new SharedPostgreSqlDBContext(
+                clock, null!, null!);
+        }
+        // </db:SqlServer>
+
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.PostgreSql))
+        {
+            return new SharedPostgreSqlDBContext(
                 new DbContextOptionsBuilder<SharedPostgreSqlDBContext>()
                     .UseNpgsql(connection, postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options,
                 clock, null!, null!);
+        }
+        // </db:PostgreSql>
+
+        throw new ArgumentException("Unsupported destination database provider.");
     }
 
     private static void ValidateDatabase(string? database, string? server)
     {
-        string[] reserved = ["master", "model", "msdb", "tempdb", "postgres", "template0", "template1"];
+        string[] reserved =
+        [
+            // <db:SqlServer>
+            "master", "model", "msdb", "tempdb",
+            // </db:SqlServer>
+            // <db:PostgreSql>
+            "postgres", "template0", "template1",
+            // </db:PostgreSql>
+        ];
         if (string.IsNullOrWhiteSpace(database) || string.IsNullOrWhiteSpace(server)
             || reserved.Contains(database, StringComparer.OrdinalIgnoreCase))
         {
@@ -101,10 +130,22 @@ internal sealed partial class TenantDatabaseReadiness(
         Guid tenantId,
         CancellationToken cancellationToken)
     {
-        var postgres = context.Database.IsNpgsql();
-        string Quote(string identifier) => postgres
-            ? "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\""
-            : "[" + identifier.Replace("]", "]]", StringComparison.Ordinal) + "]";
+        string Quote(string identifier)
+        {
+            // <db:PostgreSql>
+            if (context.Database.IsNpgsql())
+            {
+                return "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+            }
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (context.Database.IsSqlServer())
+            {
+                return "[" + identifier.Replace("]", "]]", StringComparison.Ordinal) + "]";
+            }
+            // </db:SqlServer>
+            throw new InvalidOperationException("Unsupported destination database provider.");
+        }
 
         await context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = context.Database.GetDbConnection().CreateCommand();

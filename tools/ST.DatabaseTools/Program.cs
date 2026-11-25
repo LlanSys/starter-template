@@ -1,6 +1,11 @@
 using System.Security.Cryptography;
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
+// <db:PostgreSql>
 using Npgsql;
+// </db:PostgreSql>
+using ST.Domain.Shared;
 
 namespace ST.DatabaseTools;
 
@@ -8,14 +13,16 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
-        if (args is not ["SqlServer" or "PostgreSql",
-            "local-status" or "local-upgrade" or "check-local-authenticator" or "reprotect-local-authenticator"])
+        if (args is not [var requestedProvider,
+            "local-status" or "local-upgrade" or "check-local-authenticator" or "reprotect-local-authenticator"]
+            || !DatabaseProviders.Supported.Contains(requestedProvider, StringComparer.Ordinal))
         {
-            Console.Error.WriteLine("Usage: ST.DatabaseTools SqlServer|PostgreSql local-status|local-upgrade|check-local-authenticator|reprotect-local-authenticator");
+            Console.Error.WriteLine(
+                $"Usage: ST.DatabaseTools {string.Join('|', DatabaseProviders.Supported)} local-status|local-upgrade|check-local-authenticator|reprotect-local-authenticator");
             return 2;
         }
 
-        var sqlServer = args[0] == "SqlServer";
+        var provider = requestedProvider;
         var operation = args[1];
         var isMigrationOperation = operation is "local-status" or "local-upgrade";
 
@@ -37,13 +44,13 @@ internal static class Program
             var clock = TimeProvider.System;
             if (isMigrationOperation)
             {
-                var target = LocalDatabaseTarget.ResolveForMigrations(sqlServer);
+                var target = LocalDatabaseTarget.ResolveForMigrations(provider);
                 var valid = await LocalMigrationWorkflow.RunAsync(
                     target, clock, apply: operation == "local-upgrade", cancellation.Token).ConfigureAwait(false);
                 return valid ? 0 : 1;
             }
 
-            var recoveryTarget = new LocalDatabaseTarget(sqlServer, RequiredSetting("ST_DATABASE_CONNECTION"));
+            var recoveryTarget = new LocalDatabaseTarget(provider, RequiredSetting("ST_DATABASE_CONNECTION"));
             var context = recoveryTarget.CreateIamContext(clock);
             await using var contextLifetime = context.ConfigureAwait(false);
             await LocalAuthenticatorReprotection.RunAsync(
@@ -64,14 +71,18 @@ internal static class Program
         {
             Console.Error.WriteLine(exception.Message);
         }
+        // <db:SqlServer>
         catch (SqlException exception) when (isMigrationOperation)
         {
             Console.Error.WriteLine($"Local SQL Server operation failed (diagnostic code {exception.Number}).");
         }
+        // </db:SqlServer>
+        // <db:PostgreSql>
         catch (PostgresException exception) when (isMigrationOperation)
         {
             Console.Error.WriteLine($"Local PostgreSQL operation failed (diagnostic code {exception.SqlState}).");
         }
+        // </db:PostgreSql>
         catch (Exception)
         {
             Console.Error.WriteLine(isMigrationOperation

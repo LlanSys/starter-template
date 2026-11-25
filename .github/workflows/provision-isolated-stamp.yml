@@ -22,9 +22,15 @@ on:
       database_provider:
         description: Database provider
         required: true
-        default: SqlServer
         type: choice
-        options: [SqlServer, PostgreSql]
+        # The first option is the default.
+        options:
+          # <db:SqlServer>
+          - SqlServer
+          # </db:SqlServer>
+          # <db:PostgreSql>
+          - PostgreSql
+          # </db:PostgreSql>
 
 permissions:
   contents: read
@@ -49,13 +55,38 @@ jobs:
       PROVISIONING_STAMP_ID: ${{ inputs.stamp_id }}
       PROVISIONING_RESOURCE_GROUP: ${{ inputs.resource_group }}
       PROVISIONING_DATABASE_PROVIDER: ${{ inputs.database_provider }}
-      PROVISIONING_CONTROLPLANE_PROVIDER: ${{ vars.DATABASE_PROVIDER || 'SqlServer' }}
+      # Normalised by the 'Resolve control-plane database provider' step.
+      PROVISIONING_CONTROLPLANE_PROVIDER: ${{ vars.DATABASE_PROVIDER }}
       PROVISIONING_REGION: ${{ vars.AZURE_REGION }}
       PROVISIONING_CALLBACK_ORIGIN: ${{ vars.PROVISIONING_CALLBACK_ORIGIN }}
       PROVISIONING_CALLBACK_AUDIENCE: ${{ vars.PROVISIONING_CALLBACK_AUDIENCE || 'urn:startertemplate:provisioning' }}
       PROVISIONING_TRUSTED_PROXY_CIDR: ${{ vars.PROVISIONING_TRUSTED_PROXY_CIDR }}
 
     steps:
+      - name: Resolve control-plane database provider
+        shell: bash
+        env:
+          CONFIGURED_PROVIDER: ${{ vars.DATABASE_PROVIDER }}
+        run: |
+          set -euo pipefail
+          supported=()
+          # <db:SqlServer>
+          supported+=(SqlServer)
+          # </db:SqlServer>
+          # <db:PostgreSql>
+          supported+=(PostgreSql)
+          # </db:PostgreSql>
+          provider="${CONFIGURED_PROVIDER:-${supported[0]}}"
+          if [ "${#supported[@]}" -eq 1 ]; then
+            # Single-provider forks ignore the DATABASE_PROVIDER variable.
+            provider="${supported[0]}"
+          fi
+          if [[ ! " ${supported[*]} " =~ " ${provider} " ]]; then
+            echo "ERROR: DATABASE_PROVIDER '$provider' is not supported. Supported: ${supported[*]}."
+            exit 1
+          fi
+          echo "PROVISIONING_CONTROLPLANE_PROVIDER=$provider" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
 
       - name: Validate provisioning identity and configuration

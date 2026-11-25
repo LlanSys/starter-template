@@ -22,14 +22,18 @@ public abstract class TenantConnectionInterceptorIntegrationTests<TFixture> : IC
 
         var builder = new DbContextOptionsBuilder<SharedDBContext>();
 
+        // <db:PostgreSql>
         if (fixture is PostgreSqlDbFixture)
         {
             builder.UseNpgsql(fixture.GetConnectionString());
         }
-        else if (fixture is MsSqlDbFixture)
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (fixture is MsSqlDbFixture)
         {
             builder.UseSqlServer(fixture.GetConnectionString());
         }
+        // </db:SqlServer>
 
 
 

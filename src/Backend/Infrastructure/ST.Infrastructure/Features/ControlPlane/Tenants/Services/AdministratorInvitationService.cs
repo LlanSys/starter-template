@@ -3,8 +3,12 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
+// <db:PostgreSql>
 using Npgsql;
+// </db:PostgreSql>
 using ST.Application.Features.ControlPlane.Tenants.Contracts;
 using ST.Application.Features.IAM.Users.Contracts.Interfaces;
 using ST.Domain.Features.ControlPlane.Contracts;
@@ -362,8 +366,14 @@ internal sealed class AdministratorInvitationService(
 
     private static bool IsDuplicateIdentity(DbUpdateException exception)
     {
-        return exception.InnerException is
-        SqlException { Number: 2601 or 2627 } or PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
+        var duplicate = false;
+        // <db:SqlServer>
+        duplicate |= exception.InnerException is SqlException { Number: 2601 or 2627 };
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        duplicate |= exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
+        // </db:PostgreSql>
+        return duplicate;
     }
 
     private sealed class ExternalInvitationLinkException : Exception;

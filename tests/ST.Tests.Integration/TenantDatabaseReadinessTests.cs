@@ -1,9 +1,9 @@
-using Microsoft.Data.SqlClient;
 using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
+using ST.Domain.Shared;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Features.ControlPlane.Tenants.Commands;
 using ST.Application.Features.ControlPlane.Tenants.Contracts;
@@ -17,7 +17,6 @@ using ST.Persistence.Features.ControlPlane.DataContext;
 using ST.Persistence.Features.ControlPlane.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Infrastructure.Features.ControlPlane.Provisioning;
 using ST.Persistence.Features.IAM.DataContext;
@@ -33,13 +32,11 @@ public abstract class TenantDatabaseReadinessTests<TFixture>(TFixture fixture) :
     [Fact]
     public async Task SuspendedCutoverAndRollbackRouteToVerifiedDataWithoutAffectingTheOtherWorkspace()
     {
-        var postgres = fixture is PostgreSqlDbFixture;
-        string Connection(string name) => postgres
-            ? new NpgsqlConnectionStringBuilder(fixture.GetConnectionString()) { Database = name }.ConnectionString
-            : new SqlConnectionStringBuilder(fixture.GetConnectionString()) { InitialCatalog = name }.ConnectionString;
-        var sourceConnection = Connection("source_" + Guid.CreateVersion7().ToString("N"));
-        var targetConnection = Connection("target_" + Guid.CreateVersion7().ToString("N"));
-        var providerName = postgres ? "PostgreSql" : "SqlServer";
+        var providerName = TestDatabaseProvider.ProviderOf(fixture);
+        var sourceName = "source_" + Guid.CreateVersion7().ToString("N");
+        var targetName = "target_" + Guid.CreateVersion7().ToString("N");
+        var sourceConnection = TestDatabaseProvider.WithDatabase(fixture, sourceName);
+        var targetConnection = TestDatabaseProvider.WithDatabase(fixture, targetName);
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:DefaultConnection"] = sourceConnection,
@@ -105,13 +102,13 @@ public abstract class TenantDatabaseReadinessTests<TFixture>(TFixture fixture) :
         control.Tenants.AddRange(tenant, other);
         await control.SaveChangesAsync();
 
-        await using var source = CreateIam(sourceConnection, postgres);
-        await using var target = CreateIam(targetConnection, postgres);
+        await using var source = CreateIam(sourceConnection, providerName);
+        await using var target = CreateIam(targetConnection, providerName);
         await source.Database.MigrateAsync();
         await target.Database.MigrateAsync();
-        await using var shared = CreateShared(targetConnection, postgres);
+        await using var shared = CreateShared(targetConnection, providerName);
         await shared.Database.MigrateAsync();
-        await using var sourceShared = CreateShared(sourceConnection, postgres);
+        await using var sourceShared = CreateShared(sourceConnection, providerName);
         await sourceShared.Database.MigrateAsync();
         source.Users.Add(AppUser.CreateSystemUser(DateTimeOffset.UnixEpoch, tenantId, "owner", "owner@example.test", "fixture"));
         source.Users.Add(AppUser.CreateSystemUser(DateTimeOffset.UnixEpoch, otherId, "other", "other@example.test", "fixture"));
@@ -146,12 +143,11 @@ public abstract class TenantDatabaseReadinessTests<TFixture>(TFixture fixture) :
 
         await using (var routedScope = services.CreateAsyncScope())
         {
-            await using var routed = CreateIam(sourceConnection, postgres, current,
+            await using var routed = CreateIam(sourceConnection, providerName, current,
                 new TenantConnectionInterceptor(routedScope.ServiceProvider));
             Assert.Equal("owner", (await routed.Users.SingleAsync()).UserName);
 
-            Assert.Equal(postgres ? new NpgsqlConnectionStringBuilder(targetConnection).Database
-                : new SqlConnectionStringBuilder(targetConnection).InitialCatalog, routed.Database.GetDbConnection().Database);
+            Assert.Equal(targetName, routed.Database.GetDbConnection().Database);
         }
         Assert.Equal("other", (await source.Users.IgnoreQueryFilters().AsNoTracking().SingleAsync(user => user.TenantId == otherId)).UserName);
         tenant.Suspend();
@@ -161,64 +157,98 @@ public abstract class TenantDatabaseReadinessTests<TFixture>(TFixture fixture) :
         await control.SaveChangesAsync();
         await using (var routedScope = services.CreateAsyncScope())
         {
-            await using var routed = CreateIam(targetConnection, postgres, current,
+            await using var routed = CreateIam(targetConnection, providerName, current,
                 new TenantConnectionInterceptor(routedScope.ServiceProvider));
             Assert.Equal("owner", (await routed.Users.SingleAsync()).UserName);
-            Assert.Equal(postgres ? new NpgsqlConnectionStringBuilder(sourceConnection).Database
-                : new SqlConnectionStringBuilder(sourceConnection).InitialCatalog, routed.Database.GetDbConnection().Database);
+            Assert.Equal(sourceName, routed.Database.GetDbConnection().Database);
         }
         Assert.Equal("https://pooled.example.test", tenant.ClientOrigin);
         Assert.Equal(2, await source.Users.IgnoreQueryFilters().CountAsync());
         Assert.Single(await target.Users.IgnoreQueryFilters().ToArrayAsync());
     }
 
-    private static IamDBContext CreateIam(string connection, bool postgres,
+    private static IamDBContext CreateIam(string connection, string provider,
         ICurrentTenantProvider? tenant = null, TenantConnectionInterceptor? interceptor = null)
     {
-        var options = postgres
-            ? new DbContextOptionsBuilder<IamPostgreSqlDBContext>()
-                .UseNpgsql(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_IAM"))
-            : (DbContextOptionsBuilder)new DbContextOptionsBuilder<IamSqlServerDBContext>()
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.PostgreSql))
+        {
+            var options = new DbContextOptionsBuilder<IamPostgreSqlDBContext>()
+                .UseNpgsql(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_IAM"));
+            if (interceptor is not null) { options.AddInterceptors(interceptor); }
+            return new IamPostgreSqlDBContext(options.Options, TimeProvider.System, tenant);
+        }
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.SqlServer))
+        {
+            var options = new DbContextOptionsBuilder<IamSqlServerDBContext>()
                 .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_IAM"));
-        if (interceptor is not null) { options.AddInterceptors(interceptor); }
-        return postgres
-            ? new IamPostgreSqlDBContext((DbContextOptions<IamPostgreSqlDBContext>)options.Options, TimeProvider.System, tenant)
-            : new IamSqlServerDBContext((DbContextOptions<IamSqlServerDBContext>)options.Options, TimeProvider.System, tenant);
+            if (interceptor is not null) { options.AddInterceptors(interceptor); }
+            return new IamSqlServerDBContext(options.Options, TimeProvider.System, tenant);
+        }
+        // </db:SqlServer>
+        throw new NotSupportedException(provider);
     }
 
-    private static SharedDBContext CreateShared(string connection, bool postgres)
+    private static SharedDBContext CreateShared(string connection, string provider)
     {
-        return postgres
-            ? new SharedPostgreSqlDBContext(new DbContextOptionsBuilder<SharedPostgreSqlDBContext>()
-                .UseNpgsql(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options, TimeProvider.System, null!, null!)
-            : new SharedSqlServerDBContext(new DbContextOptionsBuilder<SharedSqlServerDBContext>()
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.PostgreSql))
+        {
+            return new SharedPostgreSqlDBContext(new DbContextOptionsBuilder<SharedPostgreSqlDBContext>()
+                .UseNpgsql(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options, TimeProvider.System, null!, null!);
+        }
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.SqlServer))
+        {
+            return new SharedSqlServerDBContext(new DbContextOptionsBuilder<SharedSqlServerDBContext>()
                 .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options, TimeProvider.System, null!, null!);
+        }
+        // </db:SqlServer>
+        throw new NotSupportedException(provider);
     }
 
     [Fact]
     public async Task DestinationRequiresCurrentSchemasAndExcludesAnotherWorkspacesData()
     {
-        var postgres = fixture is PostgreSqlDbFixture;
         var database = "readiness_" + Guid.CreateVersion7().ToString("N");
-        var connection = postgres
-            ? new NpgsqlConnectionStringBuilder(fixture.GetConnectionString()) { Database = database }.ConnectionString
-            : new SqlConnectionStringBuilder(fixture.GetConnectionString()) { InitialCatalog = database }.ConnectionString;
-        var provider = postgres ? "PostgreSql" : "SqlServer";
+        var connection = TestDatabaseProvider.WithDatabase(fixture, database);
+        var provider = TestDatabaseProvider.ProviderOf(fixture);
         var tenant = Guid.CreateVersion7();
         using var logs = LoggerFactory.Create(builder => builder.AddConsole());
         var readiness = new TenantDatabaseReadiness(TimeProvider.System, logs.CreateLogger<TenantDatabaseReadiness>());
         Assert.False((await readiness.VerifyAsync(tenant, connection, provider, CancellationToken.None)).IsSuccess);
 
-        await using IamDBContext iam = postgres
-            ? new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>()
-                .UseNpgsql(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, TimeProvider.System)
-            : new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>()
-                .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, TimeProvider.System);
-        await using SharedDBContext shared = postgres
-            ? new SharedPostgreSqlDBContext(new DbContextOptionsBuilder<SharedPostgreSqlDBContext>()
-                .UseNpgsql(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options, TimeProvider.System, null!, null!)
-            : new SharedSqlServerDBContext(new DbContextOptionsBuilder<SharedSqlServerDBContext>()
-                .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options, TimeProvider.System, null!, null!);
+        IamDBContext? iamCreated = null;
+        // <db:PostgreSql>
+        if (fixture is PostgreSqlDbFixture)
+        {
+            iamCreated = new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>() .UseNpgsql(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, TimeProvider.System);
+        }
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (fixture is MsSqlDbFixture)
+        {
+            iamCreated = new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>() .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, TimeProvider.System);
+        }
+        // </db:SqlServer>
+        await using IamDBContext iam = iamCreated ?? throw TestDatabaseProvider.Unsupported(fixture);
+        SharedDBContext? sharedCreated = null;
+        // <db:PostgreSql>
+        if (fixture is PostgreSqlDbFixture)
+        {
+            sharedCreated = new SharedPostgreSqlDBContext(new DbContextOptionsBuilder<SharedPostgreSqlDBContext>() .UseNpgsql(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options, TimeProvider.System, null!, null!);
+        }
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (fixture is MsSqlDbFixture)
+        {
+            sharedCreated = new SharedSqlServerDBContext(new DbContextOptionsBuilder<SharedSqlServerDBContext>() .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory_Shared")).Options, TimeProvider.System, null!, null!);
+        }
+        // </db:SqlServer>
+        await using SharedDBContext shared = sharedCreated ?? throw TestDatabaseProvider.Unsupported(fixture);
         await iam.Database.MigrateAsync();
         Assert.False((await readiness.VerifyAsync(tenant, connection, provider, CancellationToken.None)).IsSuccess);
         await shared.Database.MigrateAsync();

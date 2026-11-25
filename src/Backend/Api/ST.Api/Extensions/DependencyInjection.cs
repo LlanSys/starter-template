@@ -1,3 +1,5 @@
+using ST.Persistence.Common.Configuration;
+using ST.Domain.Shared;
 using System.Security.Claims;
 using Microsoft.Extensions.Options;
 using Asp.Versioning;
@@ -31,7 +33,12 @@ using Microsoft.AspNetCore.Identity;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.ResponseCompression;
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
+// <db:PostgreSql>
+using Npgsql;
+// </db:PostgreSql>
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
@@ -468,7 +475,7 @@ internal static partial class DependencyInjection
             options.Predicate = check => check.Tags.Contains("ready");
         });
 
-        var provider = configuration.GetValue<string>("DatabaseSettings:Provider") ?? "SqlServer";
+        var provider = configuration.GetValue<string>($"{DatabaseSettings.SectionName}:Provider") ?? DatabaseSettings.DefaultProvider;
 
         services.AddMassTransit(x =>
         {
@@ -507,7 +514,12 @@ internal static partial class DependencyInjection
                             r.Handle<EmailServiceException>();
                             r.Handle<TimeoutException>();
                             r.Handle<HttpRequestException>();
+                            // <db:SqlServer>
                             r.Handle<SqlException>();
+                            // </db:SqlServer>
+                            // <db:PostgreSql>
+                            r.Handle<NpgsqlException>(exception => exception.IsTransient);
+                            // </db:PostgreSql>
 
                             r.Ignore<ArgumentException>();
                             r.Ignore<InvalidEmailAddressException>();
@@ -547,7 +559,12 @@ internal static partial class DependencyInjection
                             r.Handle<EmailServiceException>();
                             r.Handle<TimeoutException>();
                             r.Handle<HttpRequestException>();
+                            // <db:SqlServer>
                             r.Handle<SqlException>();
+                            // </db:SqlServer>
+                            // <db:PostgreSql>
+                            r.Handle<NpgsqlException>(exception => exception.IsTransient);
+                            // </db:PostgreSql>
                             r.Handle<RabbitMqConnectionException>();
 
                             r.Ignore<ArgumentException>();
@@ -586,15 +603,22 @@ internal static partial class DependencyInjection
 
     private static void ConfigureDatabaseOutbox(IEntityFrameworkOutboxConfigurator outbox, string provider)
     {
-        if (provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+        var configured = false;
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.PostgreSql))
         {
             outbox.UsePostgres(enableSchemaCaching: false);
+            configured = true;
         }
-        else if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.SqlServer))
         {
             outbox.UseSqlServer(enableSchemaCaching: false);
+            configured = true;
         }
-        else
+        // </db:SqlServer>
+        if (!configured)
         {
             throw new InvalidOperationException("Unsupported database provider for the messaging outbox.");
         }

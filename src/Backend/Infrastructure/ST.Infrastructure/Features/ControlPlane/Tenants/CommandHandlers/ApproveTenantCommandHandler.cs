@@ -1,3 +1,4 @@
+using ST.Domain.Shared;
 using ST.Domain.Features.ControlPlane.Kyc.Enums;
 using ST.Application.Features.ControlPlane.Kyc.Contracts;
 using System;
@@ -136,7 +137,8 @@ public class ApproveTenantCommandHandler : IRequestHandler<ApproveTenantCommand,
                     tenant.Id.ToString(),
                     stamp.Id.ToString(),
                     stamp.TargetResourceGroup,
-                    tenant.DatabaseProvider ?? stamp.DatabaseProvider ?? "PostgreSql",
+                    // Last supported provider: the template's historical default, and the only provider in a fork.
+                    tenant.DatabaseProvider ?? stamp.DatabaseProvider ?? DatabaseProviders.Supported[^1],
                     operationId,
                     cancellationToken).ConfigureAwait(false);
 

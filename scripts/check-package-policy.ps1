@@ -61,7 +61,14 @@ foreach ($item in $central.SelectNodes('/Project/ItemGroup/PackageVersion')) {
     if ($version -notmatch '^(\d+\.\d+\.\d+(\.\d+)?|\[\d+\.\d+\.\d+\])$') {
         Add-Issue "$name must use an explicit stable version, not a floating/range/prerelease value: $version"
     }
-    if ($name -match '^(Microsoft\.(AspNetCore\.|EntityFrameworkCore($|\.)|Extensions\.)|Npgsql\.EntityFrameworkCore\.|System\.Security\.Cryptography\.)' -and $version -notmatch '^10\.') {
+    $platformFamilyPattern = @(
+        'Microsoft\.(AspNetCore\.|EntityFrameworkCore($|\.)|Extensions\.)'
+        # <db:PostgreSql>
+        'Npgsql\.EntityFrameworkCore\.'
+        # </db:PostgreSql>
+        'System\.Security\.Cryptography\.'
+    ) -join '|'
+    if ($name -match "^($platformFamilyPattern)" -and $version -notmatch '^10\.') {
         Add-Issue "$name must stay on the approved Microsoft/EF 10.x line: $version"
     }
     if ($name -match '^MassTransit($|\.)' -and $version -ne "[$($properties['MassTransitVersion'])]") {

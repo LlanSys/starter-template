@@ -26,6 +26,7 @@ internal static class DBContextHelper
                 continue;
             }
 
+            // <db:PostgreSql>
             if (((DbContext)context).Database.IsNpgsql())
             {
                 var rowVersionProp = entityType.FindProperty(nameof(BaseEntity.RowVersion));
@@ -46,6 +47,7 @@ internal static class DBContextHelper
                     }
                 }
             }
+            // </db:PostgreSql>
 
             foreach (var property in entityType.GetProperties())
             {
@@ -65,6 +67,7 @@ internal static class DBContextHelper
         }
     }
 
+    // <db:PostgreSql>
     public static void ConfigurePostgreSqlConcurrency(ModelBuilder modelBuilder)
     {
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
@@ -87,6 +90,7 @@ internal static class DBContextHelper
                 entry.Property(property.Name).CurrentValue = RandomNumberGenerator.GetBytes(16);
         }
     }
+    // </db:PostgreSql>
 
     public static void UpdateAuditAndSoftDelete(ChangeTracker changeTracker, string userId, Guid tenantId, DateTimeOffset now)
     {

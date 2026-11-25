@@ -19,18 +19,30 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+// <db:SqlServer>
 using Testcontainers.MsSql;
+// </db:SqlServer>
+// <db:PostgreSql>
+using Testcontainers.PostgreSql;
+// </db:PostgreSql>
 using Xunit;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
+// <db:PostgreSql>
+using Npgsql;
+// </db:PostgreSql>
+using ST.Domain.Shared;
 using ST.Domain.Features.ControlPlane.Tenants.Entities;
 using ST.Tests.Integration.NeutralSlice;
 
 namespace ST.Tests.Integration.TestFixtures;
 
 /// <summary>
-/// Integration test host that spins up a fresh SQL Server Testcontainer, rewires
+/// Integration test host that spins up a fresh database Testcontainer for the build's primary
+/// provider (DatabaseProviders.Supported[0]), rewires
 /// ALL bounded-context DbContexts to point at it, applies migrations, then runs tests.
 ///
 /// Lifecycle (xUnit IClassFixture + IAsyncLifetime):
@@ -42,7 +54,8 @@ namespace ST.Tests.Integration.TestFixtures;
 /// </summary>
 public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly MsSqlContainer _dbContainer;
+    private static readonly string DatabaseProvider = DatabaseProviders.Supported[0];
+    private readonly IDatabaseContainer _dbContainer;
     private readonly IContainer _mailpit;
     private readonly IContainer _kycStorage;
     private readonly string _kycKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
@@ -71,10 +84,28 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             .WithPortBinding(1025, true).WithPortBinding(8025, true)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(1025)).Build();
 
-        _dbContainer = new MsSqlBuilder()
-            .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-            .WithPassword("Strong@Passw0rd!")
-            .Build();
+        IDatabaseContainer? container = null;
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(DatabaseProvider, DatabaseProviders.SqlServer))
+        {
+            container = new MsSqlBuilder()
+                .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+                .WithPassword("Strong@Passw0rd!")
+                .Build();
+        }
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(DatabaseProvider, DatabaseProviders.PostgreSql))
+        {
+            container = new PostgreSqlBuilder()
+                .WithImage("postgres:15-alpine")
+                .WithDatabase("starter_api_tests")
+                .WithUsername("postgres")
+                .WithPassword("postgres")
+                .Build();
+        }
+        // </db:PostgreSql>
+        _dbContainer = container ?? throw new NotSupportedException(DatabaseProvider);
     }
 
     internal async Task RegisterTenantAsync(Guid id)
@@ -167,11 +198,24 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             //   a) Remove the existing DbContextOptions<T> descriptors registered by Program.cs
             //   b) Re-register them directly with our container connection string
             //
-            RewireDbContext<ControlPlaneDBContext, ControlPlaneSqlServerDBContext>(services, _containerConnectionString);
-            RewireDbContext<IamDBContext, IamSqlServerDBContext>(services, _containerConnectionString);
-            RewireDbContext<SharedDBContext, SharedSqlServerDBContext>(services, _containerConnectionString);
+            // <db:SqlServer>
+            if (DatabaseProviders.Is(DatabaseProvider, DatabaseProviders.SqlServer))
+            {
+                RewireDbContext<ControlPlaneDBContext, ControlPlaneSqlServerDBContext>(services, _containerConnectionString);
+                RewireDbContext<IamDBContext, IamSqlServerDBContext>(services, _containerConnectionString);
+                RewireDbContext<SharedDBContext, SharedSqlServerDBContext>(services, _containerConnectionString);
+            }
+            // </db:SqlServer>
+            // <db:PostgreSql>
+            if (DatabaseProviders.Is(DatabaseProvider, DatabaseProviders.PostgreSql))
+            {
+                RewireDbContext<ControlPlaneDBContext, ControlPlanePostgreSqlDBContext>(services, _containerConnectionString);
+                RewireDbContext<IamDBContext, IamPostgreSqlDBContext>(services, _containerConnectionString);
+                RewireDbContext<SharedDBContext, SharedPostgreSqlDBContext>(services, _containerConnectionString);
+            }
+            // </db:PostgreSql>
             services.AddControllers().AddApplicationPart(typeof(NeutralSliceController).Assembly);
-            services.AddDbContext<NeutralSliceDBContext>(options => options.UseSqlServer(_containerConnectionString));
+            services.AddDbContext<NeutralSliceDBContext>(options => UseContainerDatabase(options, _containerConnectionString));
             services.AddScoped<NeutralSliceUnitOfWork>();
             services.AddTransient<IRequestHandler<CreateNeutralNote, Guid>, CreateNeutralNoteHandler>();
             services.AddTransient<IRequestHandler<ReadNeutralNote, string?>, ReadNeutralNoteHandler>();
@@ -179,19 +223,19 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         });
     }
 
-    private static void RewireDbContext<TContext, TSqlServerContext>(
+    private static void RewireDbContext<TContext, TProviderContext>(
         IServiceCollection services,
         string connectionString)
         where TContext : DbContext
-        where TSqlServerContext : TContext
+        where TProviderContext : TContext
     {
         // Remove existing DbContextOptions descriptors registered by Program.cs
         var descriptorsToRemove = services
             .Where(d =>
                 d.ServiceType == typeof(IDbContextOptionsConfiguration<TContext>)
-             || d.ServiceType == typeof(IDbContextOptionsConfiguration<TSqlServerContext>)
+             || d.ServiceType == typeof(IDbContextOptionsConfiguration<TProviderContext>)
              || d.ServiceType == typeof(DbContextOptions<TContext>)
-             || d.ServiceType == typeof(DbContextOptions<TSqlServerContext>))
+             || d.ServiceType == typeof(DbContextOptions<TProviderContext>))
             .ToList();
 
         foreach (var d in descriptorsToRemove)
@@ -202,8 +246,8 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         // Remove existing concrete context registrations
         var concreteToRemove = services
             .Where(d =>
-                (d.ServiceType == typeof(TContext) && d.ImplementationType == typeof(TSqlServerContext))
-             || d.ServiceType == typeof(TSqlServerContext))
+                (d.ServiceType == typeof(TContext) && d.ImplementationType == typeof(TProviderContext))
+             || d.ServiceType == typeof(TProviderContext))
             .ToList();
 
         foreach (var d in concreteToRemove)
@@ -213,8 +257,24 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
 
         // Re-register pointing at the Testcontainer. No migration settings needed
         // because we use EnsureCreated / CreateTablesAsync for test schema setup.
-        services.AddDbContext<TContext, TSqlServerContext>((_, options) =>
-            options.UseSqlServer(connectionString, sql => sql.CommandTimeout(60)));
+        services.AddDbContext<TContext, TProviderContext>((_, options) =>
+            UseContainerDatabase(options, connectionString));
+    }
+
+    private static void UseContainerDatabase(DbContextOptionsBuilder options, string connectionString)
+    {
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(DatabaseProvider, DatabaseProviders.SqlServer))
+        {
+            options.UseSqlServer(connectionString, sql => sql.CommandTimeout(60));
+        }
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(DatabaseProvider, DatabaseProviders.PostgreSql))
+        {
+            options.UseNpgsql(connectionString, npgsql => npgsql.CommandTimeout(60));
+        }
+        // </db:PostgreSql>
     }
 
     public async Task InitializeAsync()
@@ -223,8 +283,13 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         await _dbContainer.StartAsync();
         await _mailpit.StartAsync();
         await _kycStorage.StartAsync();
-        var rawCs = _dbContainer.GetConnectionString();
-        _containerConnectionString = rawCs.TrimEnd(';') + ";TrustServerCertificate=True;Encrypt=False;";
+        _containerConnectionString = _dbContainer.GetConnectionString();
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(DatabaseProvider, DatabaseProviders.SqlServer))
+        {
+            _containerConnectionString = _containerConnectionString.TrimEnd(';') + ";TrustServerCertificate=True;Encrypt=False;";
+        }
+        // </db:SqlServer>
 
         // Step 2: Force the WebApplicationFactory to build the host now (by accessing Services).
         // _containerConnectionString is populated above so ConfigureTestServices wires correctly.
@@ -238,8 +303,8 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
         // because EnsureCreated() is NOT additive — once the database has ANY tables, it returns
         // false and skips CreateTables() for every subsequent call.
         //
-        // We catch SQL Server error 2714 (object already exists) and 1913 (index already exists)
-        // to handle tables/indexes that appear in multiple context models.
+        // We catch the provider's "object already exists" errors to handle tables/indexes
+        // that appear in multiple context models.
         //
         // Order matters: ControlPlane first — TenantConnectionInterceptor queries [Tenants] on
         // every connection open before any other table can be touched.
@@ -260,8 +325,8 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
 
     /// <summary>
     /// Creates the tables defined in <paramref name="context"/>'s model against the
-    /// already-existing test database, silently ignoring SQL Server errors when a table
-    /// or index already exists (created by a previously-called context).
+    /// already-existing test database, silently ignoring "already exists" errors for tables
+    /// or indexes created by a previously-called context.
     /// </summary>
     private static async Task CreateTablesAsync(DbContext context)
     {
@@ -270,6 +335,7 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             var creator = context.GetService<IRelationalDatabaseCreator>();
             await creator.CreateTablesAsync();
         }
+        // <db:SqlServer>
         catch (SqlException ex)
             when (ex.Number is 2714 or 1913)
         {
@@ -277,5 +343,13 @@ public class StarterTemplateWebApplicationFactory : WebApplicationFactory<Progra
             // 1913 = The operation failed because an index or statistics with name '…' already exists.
             // Both are expected when contexts share a database and tables/indexes overlap.
         }
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        catch (PostgresException ex)
+            when (ex.SqlState is PostgresErrorCodes.DuplicateTable or PostgresErrorCodes.DuplicateObject)
+        {
+            // 42P07 duplicate_table / 42710 duplicate_object: expected when contexts share tables or indexes.
+        }
+        // </db:PostgreSql>
     }
 }

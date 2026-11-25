@@ -28,7 +28,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - Repo: `LlanSys/starter-template`
 - Product: StarterTemplate
 - Root namespace prefix: `ST`
-- Rename a clone with `scripts/rename-template.ps1` before its first run or deployment.
+- Rename a clone with `scripts/rename-template.ps1 -NewName <Name> -NamespacePrefix <XX> -DatabaseProvider <SqlServer|PostgreSql|Both> -ResetGitHistory` before anything else, including its first run, commit or deployment. The script keeps only the chosen database provider and replaces the template's git history with a fresh repository. See docs/development/renaming-the-template.md.
 - After protected data has been issued, `DataProtection:ApplicationName` is immutable without an explicit migration or security reset.
 - Target framework: `.NET 10`
 - Architecture: modular monolith with Clean Architecture boundaries and bounded-context feature folders.
@@ -80,12 +80,24 @@ This file is the canonical source of truth and working contract for AI coding to
 - Use `CountAsync` only when the count is returned, logged, or used for a decision.
 - Avoid N+1 query patterns. Batch identifiers and map results in memory.
 - Cursor pagination must fetch `pageSize + 1` before trimming.
-- **StarterTemplate supports multiple database providers (PostgreSQL and SQL Server).** When adding EF Core migrations, you MUST generate separate migrations for each provider's DbContext and specify the correct output directory. For example, for the IAM bounded context: `dotnet ef migrations add <Name> -c IamSqlServerDBContext -o Features/IAM/Migrations/SqlServer` and `dotnet ef migrations add <Name> -c IamPostgreSqlDBContext -o Features/IAM/Migrations/PostgreSql`. Do not rely on default output directories.
+- **Database providers.** When adding EF Core migrations, generate one migration per provider present in the repository, using that provider's derived DbContext and an explicit output directory. Do not rely on default output directories. For the IAM bounded context:
+<!-- <db:SqlServer> -->
+  - `dotnet ef migrations add <Name> -c IamSqlServerDBContext -o Features/IAM/Migrations/SqlServer`
+<!-- </db:SqlServer> -->
+<!-- <db:PostgreSql> -->
+  - `dotnet ef migrations add <Name> -c IamPostgreSqlDBContext -o Features/IAM/Migrations/PostgreSql`
+<!-- </db:PostgreSql> -->
+- **Provider markers.** Provider-specific code in shared files sits inside whole-line `<db:SqlServer>` / `<db:PostgreSql>` comment markers, written as independent per-provider blocks (no `if/else` across providers). Provider-only files follow the naming globs in `scripts/database-providers.json`; update that manifest when adding one. The template's marker guardrail test and `template-fork-check.yml` enforce this. See docs/architecture/database-provider-selection.md.
 - **Database Context Factories:** When creating `IDesignTimeDbContextFactory<T>` implementations, always specify a provider-specific fallback connection string using `DesignTimeConfigurationFactory.GetConnectionString(..., fallbackConnectionName: "DefaultPostgreSqlConnection")` (or `"DefaultSqlConnection"`) to prevent parsing crashes from incompatible connection string parameters.
 - **Idempotent Migrations:** EF Core index creations are globally intercepted by custom SQL generators (`IdempotentSqlServerMigrationsSqlGenerator` and `IdempotentNpgsqlMigrationsSqlGenerator`) to inject `IF NOT EXISTS` logic. Do not write manual raw SQL for idempotency on index creationâ€”the generator handles this automatically.
 
 - The six InitialStarter migrations target fresh databases only. Never apply them as upgrades to an existing application database. Shared baselines include the provider-specific Quartz tables.
-- PostgreSQL uses application-stamped byte concurrency tokens; SQL Server uses native rowversion.
+<!-- <db:PostgreSql> -->
+- PostgreSQL uses application-stamped byte concurrency tokens.
+<!-- </db:PostgreSql> -->
+<!-- <db:SqlServer> -->
+- SQL Server uses native rowversion.
+<!-- </db:SqlServer> -->
 - Passkey challenges and external sign-in authorization codes are temporary tenant-scoped records, deliberately hard-deleted on consumption or expiry. Credential ceremonies require user verification and persisted ownership/uniqueness checks.
 
 ## Validation, Logging, And Caching

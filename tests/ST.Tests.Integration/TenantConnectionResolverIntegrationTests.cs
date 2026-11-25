@@ -16,6 +16,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using ST.Tests.Integration.TestFixtures;
 using ST.Domain.Features.ControlPlane.Auditing.Contracts.Repositories;
 
 namespace ST.Tests.Integration;
@@ -118,7 +119,7 @@ public class TenantConnectionResolverIntegrationTests
         // 5. Build a target DbContext (SharedDBContext) using the interceptor
         var builder = new DbContextOptionsBuilder<SharedDBContext>();
         // A placeholder connection string to prove it gets swapped
-        builder.UseSqlServer("Server=OldServer;Database=SharedDB;");
+        builder.UseTestDatabaseProvider("Server=OldServer;Database=SharedDB;");
         builder.AddInterceptors(new TenantConnectionInterceptor(serviceProvider));
 
         using var context = new SharedDBContext(builder.Options, TimeProvider.System, tenantProviderMock, new TestActorProvider());

@@ -4,10 +4,10 @@ param location string = resourceGroup().location
 @description('The unique prefix for naming resources.')
 param resourcePrefix string = 'stapp'
 
-@description('The administrator login username for the SQL server.')
+@description('The administrator login username for the database server.')
 param sqlAdministratorLogin string
 
-@description('The administrator login password for the SQL server.')
+@description('The administrator login password for the database server.')
 @secure()
 param sqlAdministratorLoginPassword string
 
@@ -21,19 +21,34 @@ param deploymentTarget string = 'container-apps'
 @description('Creates or explicitly repairs the public Container App bootstrap revisions. Keep false for infrastructure-only reruns after application images have been deployed.')
 param manageContainerApps bool = true
 
-@description('The database provider to provision and configure.')
+@description('The database provider to provision and configure. Empty selects the first supported provider.')
 @allowed([
+  ''
+  // <db:SqlServer>
   'SqlServer'
+  // </db:SqlServer>
+  // <db:PostgreSql>
   'PostgreSql'
+  // </db:PostgreSql>
 ])
-param databaseProvider string = 'SqlServer'
+param databaseProvider string = ''
+
+var supportedDatabaseProviders = [
+  // <db:SqlServer>
+  'SqlServer'
+  // </db:SqlServer>
+  // <db:PostgreSql>
+  'PostgreSql'
+  // </db:PostgreSql>
+]
+var selectedDatabaseProvider = empty(databaseProvider) ? first(supportedDatabaseProviders) : databaseProvider
 
 @description('Optional Azure Cache for Redis connection string. When empty, cache falls back to the configured non-Azure provider.')
 @secure()
 param azureCacheConnectionString string = ''
 
 // Resource Names
-var sqlServerName = '${resourcePrefix}-sql-${uniqueString(resourceGroup().id)}'
+var databaseServerName = '${resourcePrefix}-sql-${uniqueString(resourceGroup().id)}'
 var logAnalyticsName = '${resourcePrefix}-law-${uniqueString(resourceGroup().id)}'
 var acaEnvName = '${resourcePrefix}-env-${uniqueString(resourceGroup().id)}'
 var apiAppName = '${resourcePrefix}-api'
@@ -47,10 +62,11 @@ var storageAccountName = take('${resourcePrefix}st${uniqueString(resourceGroup()
 #disable-next-line BCP318
 var apiPrincipalId = deploymentTarget == 'container-apps' ? (containerApps.outputs.?apiPrincipalId ?? '') : (appService.outputs.?apiPrincipalId ?? '')
 
-module sql '../modules/sql.bicep' = if (databaseProvider == 'SqlServer') {
+// <db:SqlServer>
+module sql '../modules/sql.bicep' = if (selectedDatabaseProvider == 'SqlServer') {
   name: 'sqlDeploy'
   params: {
-    serverName: sqlServerName
+    serverName: databaseServerName
     databaseName: 'ST'
     administratorLogin: sqlAdministratorLogin
     administratorLoginPassword: sqlAdministratorLoginPassword
@@ -58,11 +74,13 @@ module sql '../modules/sql.bicep' = if (databaseProvider == 'SqlServer') {
     allowAzureIps: true
   }
 }
+// </db:SqlServer>
 
-module postgres '../modules/postgres.bicep' = if (databaseProvider == 'PostgreSql') {
+// <db:PostgreSql>
+module postgres '../modules/postgres.bicep' = if (selectedDatabaseProvider == 'PostgreSql') {
   name: 'postgresDeploy'
   params: {
-    serverName: sqlServerName // Using same naming convention for simplicity
+    serverName: databaseServerName
     databaseName: 'bt'
     administratorLogin: sqlAdministratorLogin
     administratorLoginPassword: sqlAdministratorLoginPassword
@@ -70,6 +88,49 @@ module postgres '../modules/postgres.bicep' = if (databaseProvider == 'PostgreSq
     allowAzureIps: true
   }
 }
+// </db:PostgreSql>
+
+// Exactly one provider value is non-empty; markers let fork-time selection drop the others.
+// <db:SqlServer>
+#disable-next-line BCP318
+var sqlServerConnectionString = selectedDatabaseProvider == 'SqlServer' ? 'Server=tcp:${sql.outputs.?serverFullyQualifiedDomainName ?? ''},1433;Initial Catalog=${sql.outputs.?databaseName ?? ''};Persist Security Info=False;User ID=${sqlAdministratorLogin};Password=${sqlAdministratorLoginPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;' : ''
+#disable-next-line BCP318
+var sqlServerFqdn = selectedDatabaseProvider == 'SqlServer' ? (sql.outputs.?serverFullyQualifiedDomainName ?? '') : ''
+#disable-next-line BCP318
+var sqlServerDatabaseName = selectedDatabaseProvider == 'SqlServer' ? (sql.outputs.?databaseName ?? '') : ''
+// </db:SqlServer>
+// <db:PostgreSql>
+#disable-next-line BCP318
+var postgresConnectionString = selectedDatabaseProvider == 'PostgreSql' ? 'Host=${postgres.outputs.?serverFullyQualifiedDomainName ?? ''};Port=5432;Database=${postgres.outputs.?databaseName ?? ''};Username=${sqlAdministratorLogin};Password=${sqlAdministratorLoginPassword};Ssl Mode=Require;Trust Server Certificate=false;' : ''
+#disable-next-line BCP318
+var postgresFqdn = selectedDatabaseProvider == 'PostgreSql' ? (postgres.outputs.?serverFullyQualifiedDomainName ?? '') : ''
+#disable-next-line BCP318
+var postgresDatabaseName = selectedDatabaseProvider == 'PostgreSql' ? (postgres.outputs.?databaseName ?? '') : ''
+// </db:PostgreSql>
+var databaseConnectionStrings = [
+  // <db:SqlServer>
+  sqlServerConnectionString
+  // </db:SqlServer>
+  // <db:PostgreSql>
+  postgresConnectionString
+  // </db:PostgreSql>
+]
+var databaseServerFqdns = [
+  // <db:SqlServer>
+  sqlServerFqdn
+  // </db:SqlServer>
+  // <db:PostgreSql>
+  postgresFqdn
+  // </db:PostgreSql>
+]
+var databaseNames = [
+  // <db:SqlServer>
+  sqlServerDatabaseName
+  // </db:SqlServer>
+  // <db:PostgreSql>
+  postgresDatabaseName
+  // </db:PostgreSql>
+]
 
 module logAnalytics '../modules/loganalytics.bicep' = {
   name: 'logAnalyticsDeploy'
@@ -88,7 +149,7 @@ module containerApps '../modules/containerapps.bicep' = if (deploymentTarget == 
     apiAppName: apiAppName
     uiAppName: uiAppName
     location: location
-    databaseProvider: databaseProvider
+    databaseProvider: selectedDatabaseProvider
     keyVaultUri: keyVaultUri
     storageAccountName: storageAccountName
     dataProtectionKeyIdentifier: '${keyVaultUri}keys/dataprotection'
@@ -103,7 +164,7 @@ module appService '../modules/appservice.bicep' = if (deploymentTarget == 'app-s
     apiAppName: apiAppName
     uiAppName: uiAppName
     location: location
-    databaseProvider: databaseProvider
+    databaseProvider: selectedDatabaseProvider
     keyVaultUri: keyVaultUri
     storageAccountName: storageAccountName
     dataProtectionKeyIdentifier: '${keyVaultUri}keys/dataprotection'
@@ -155,11 +216,7 @@ module keyVault '../modules/keyvault.bicep' = {
     keyVaultName: keyVaultName
     location: location
     apiPrincipalId: apiPrincipalId
-    databaseConnectionString: databaseProvider == 'SqlServer'
-#disable-next-line BCP318
-      ? 'Server=tcp:${sql.outputs.?serverFullyQualifiedDomainName ?? ''},1433;Initial Catalog=${sql.outputs.?databaseName ?? ''};Persist Security Info=False;User ID=${sqlAdministratorLogin};Password=${sqlAdministratorLoginPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
-#disable-next-line BCP318
-      : 'Host=${postgres.outputs.?serverFullyQualifiedDomainName ?? ''};Port=5432;Database=${postgres.outputs.?databaseName ?? ''};Username=${sqlAdministratorLogin};Password=${sqlAdministratorLoginPassword};Ssl Mode=Require;Trust Server Certificate=false;'
+    databaseConnectionString: join(databaseConnectionStrings, '')
     serviceBusNamespaceName: serviceBus.outputs.serviceBusNamespaceName
     azureCacheConnectionString: !empty(azureCacheConnectionString) ? azureCacheConnectionString : redis.outputs.redisConnectionString
     communicationConnectionString: communication.outputs.communicationConnectionString
@@ -177,10 +234,8 @@ module storageAccount '../modules/storage.bicep' = {
   }
 }
 
-#disable-next-line BCP318
-output sqlServerFqdn string = databaseProvider == 'SqlServer' ? (sql.outputs.?serverFullyQualifiedDomainName ?? '') : (postgres.outputs.?serverFullyQualifiedDomainName ?? '')
-#disable-next-line BCP318
-output sqlDatabaseName string = databaseProvider == 'SqlServer' ? (sql.outputs.?databaseName ?? '') : (postgres.outputs.?databaseName ?? '')
+output databaseServerFqdn string = join(databaseServerFqdns, '')
+output databaseName string = join(databaseNames, '')
 
 output keyVaultUri string = keyVault.outputs.keyVaultUri
 output apiAppNameOutput string = apiAppName

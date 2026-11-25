@@ -1,12 +1,18 @@
+// <db:PostgreSql>
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
+// </db:PostgreSql>
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+// <db:PostgreSql>
 using Npgsql;
+// </db:PostgreSql>
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Features.IAM.Users.Enums;
@@ -131,6 +137,7 @@ public sealed class TenantUserStore(
     {
         var resource = $"ST:IAM:AccountAdmission:{tenantId:N}";
 
+        // <db:SqlServer>
         if (context.Database.IsSqlServer())
         {
             await context.Database.ExecuteSqlInterpolatedAsync($"""
@@ -139,13 +146,18 @@ public sealed class TenantUserStore(
                     @LockOwner=N'Transaction', @LockTimeout=15000;
                 IF @result < 0 THROW 51000, 'Account admission lock unavailable.', 1;
                 """, cancellationToken).ConfigureAwait(false);
+            return;
         }
-        else if (context.Database.IsNpgsql())
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (context.Database.IsNpgsql())
         {
             var key = BinaryPrimitives.ReadInt64BigEndian(SHA256.HashData(Encoding.UTF8.GetBytes(resource)));
             await context.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", cancellationToken).ConfigureAwait(false);
+            return;
         }
-        else if (!string.Equals(context.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+        // </db:PostgreSql>
+        if (!string.Equals(context.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Account admission requires a supported transactional database provider.");
         }
@@ -153,8 +165,14 @@ public sealed class TenantUserStore(
 
     private static bool IsUniqueViolation(DbUpdateException exception)
     {
-        return exception.InnerException is PostgresException { SqlState: "23505" }
-            or SqlException { Number: 2601 or 2627 };
+        var duplicate = false;
+        // <db:PostgreSql>
+        duplicate |= exception.InnerException is PostgresException { SqlState: "23505" };
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        duplicate |= exception.InnerException is SqlException { Number: 2601 or 2627 };
+        // </db:SqlServer>
+        return duplicate;
     }
 
     private static IdentityResult Rejected(string code, string message)

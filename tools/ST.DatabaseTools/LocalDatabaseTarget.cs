@@ -1,11 +1,19 @@
 using System.Net;
 using System.Xml.Linq;
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
+// <db:PostgreSql>
 using Npgsql;
+// </db:PostgreSql>
+using ST.Domain.Shared;
+using ST.Domain.Shared.Contracts.Common;
+using ST.Persistence.Features.ControlPlane.DataContext;
 using ST.Persistence.Features.IAM.DataContext;
+using ST.Persistence.Features.Shared.DataContext;
 using ST.Persistence.Features.Shared.Migrations.Generators;
 
 namespace ST.DatabaseTools;
@@ -14,13 +22,16 @@ internal sealed class LocalDatabaseTarget
 {
     private readonly string _connection;
 
-    public LocalDatabaseTarget(bool sqlServer, string connection)
+    public LocalDatabaseTarget(string provider, string connection)
     {
-        SqlServer = sqlServer;
-        string? host;
-        string? database;
+        Provider = DatabaseProviders.Normalize(provider);
+        string? host = null;
+        string? database = null;
+        var localAlias = false;
+        List<string> reserved = [];
 
-        if (sqlServer)
+        // <db:SqlServer>
+        if (Is(DatabaseProviders.SqlServer))
         {
             var settings = new SqlConnectionStringBuilder(connection);
             var server = settings.DataSource;
@@ -33,23 +44,27 @@ internal sealed class LocalDatabaseTarget
             {
                 throw new LocalDatabaseOperationException("Choose a directly addressed local SQL Server database.");
             }
+
+            localAlias = host == "." || string.Equals(host, "(local)", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(host, "(localdb)", StringComparison.OrdinalIgnoreCase);
+            reserved.AddRange(["master", "model", "msdb", "tempdb"]);
         }
-        else
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (Is(DatabaseProviders.PostgreSql))
         {
             var settings = new NpgsqlConnectionStringBuilder(connection);
             host = settings.Host;
             database = settings.Database;
+            reserved.AddRange(["postgres", "template0", "template1"]);
         }
+        // </db:PostgreSql>
 
-        var localSqlAlias = sqlServer && (host == "." || string.Equals(host, "(local)", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(host, "(localdb)", StringComparison.OrdinalIgnoreCase));
-
-        if (!IsLoopback(host) && !localSqlAlias)
+        if (!IsLoopback(host) && !localAlias)
         {
             throw new LocalDatabaseOperationException("Choose a single local database server. Remote database targets are refused.");
         }
 
-        string[] reserved = ["master", "model", "msdb", "tempdb", "postgres", "template0", "template1"];
         if (string.IsNullOrWhiteSpace(database) || reserved.Contains(database, StringComparer.OrdinalIgnoreCase))
         {
             throw new LocalDatabaseOperationException("Choose an explicit local application database.");
@@ -58,14 +73,16 @@ internal sealed class LocalDatabaseTarget
         _connection = connection;
     }
 
-    public bool SqlServer { get; }
+    public string Provider { get; }
 
-    public static LocalDatabaseTarget ResolveForMigrations(bool sqlServer)
+    private bool Is(string provider) => DatabaseProviders.Is(Provider, provider);
+
+    public static LocalDatabaseTarget ResolveForMigrations(string provider)
     {
         var explicitConnection = Environment.GetEnvironmentVariable("ST_DATABASE_CONNECTION");
         if (!string.IsNullOrWhiteSpace(explicitConnection))
         {
-            return new LocalDatabaseTarget(sqlServer, explicitConnection);
+            return new LocalDatabaseTarget(provider, explicitConnection);
         }
 
         var apiDirectory = Path.GetFullPath("src/Backend/Api/ST.Api");
@@ -89,8 +106,7 @@ internal sealed class LocalDatabaseTarget
             .AddEnvironmentVariables()
             .Build();
 
-        var provider = sqlServer ? "SqlServer" : "PostgreSql";
-        if (!string.Equals(configuration["DatabaseSettings:Provider"], provider, StringComparison.OrdinalIgnoreCase))
+        if (!DatabaseProviders.Is(configuration["DatabaseSettings:Provider"], provider))
         {
             throw new LocalDatabaseOperationException("Match -Provider to the API's Development DatabaseSettings:Provider, or select an explicit local database.");
         }
@@ -112,30 +128,78 @@ internal sealed class LocalDatabaseTarget
             }
         }
 
-        return new LocalDatabaseTarget(sqlServer, connection);
+        return new LocalDatabaseTarget(provider, connection);
+    }
+
+    public ControlPlaneDBContext CreateControlPlaneContext(TimeProvider clock)
+    {
+        // <db:SqlServer>
+        if (Is(DatabaseProviders.SqlServer))
+        {
+            return new ControlPlaneSqlServerDBContext(CreateOptions<ControlPlaneSqlServerDBContext>("ControlPlane"), clock);
+        }
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (Is(DatabaseProviders.PostgreSql))
+        {
+            return new ControlPlanePostgreSqlDBContext(CreateOptions<ControlPlanePostgreSqlDBContext>("ControlPlane"), clock);
+        }
+        // </db:PostgreSql>
+        throw new LocalDatabaseOperationException($"Unsupported database provider '{Provider}'.");
     }
 
     public IamDBContext CreateIamContext(TimeProvider clock)
     {
-        return SqlServer
-            ? new IamSqlServerDBContext(CreateOptions<IamSqlServerDBContext>("IAM"), clock)
-            : new IamPostgreSqlDBContext(CreateOptions<IamPostgreSqlDBContext>("IAM"), clock);
+        // <db:SqlServer>
+        if (Is(DatabaseProviders.SqlServer))
+        {
+            return new IamSqlServerDBContext(CreateOptions<IamSqlServerDBContext>("IAM"), clock);
+        }
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (Is(DatabaseProviders.PostgreSql))
+        {
+            return new IamPostgreSqlDBContext(CreateOptions<IamPostgreSqlDBContext>("IAM"), clock);
+        }
+        // </db:PostgreSql>
+        throw new LocalDatabaseOperationException($"Unsupported database provider '{Provider}'.");
+    }
+
+    public SharedDBContext CreateSharedContext(TimeProvider clock, ICurrentTenantProvider tenant, ICurrentActorProvider actor)
+    {
+        // <db:SqlServer>
+        if (Is(DatabaseProviders.SqlServer))
+        {
+            return new SharedSqlServerDBContext(CreateOptions<SharedSqlServerDBContext>("Shared"), clock, tenant, actor);
+        }
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (Is(DatabaseProviders.PostgreSql))
+        {
+            return new SharedPostgreSqlDBContext(CreateOptions<SharedPostgreSqlDBContext>("Shared"), clock, tenant, actor);
+        }
+        // </db:PostgreSql>
+        throw new LocalDatabaseOperationException($"Unsupported database provider '{Provider}'.");
     }
 
     public DbContextOptions<TContext> CreateOptions<TContext>(string contextName) where TContext : DbContext
     {
         var options = new DbContextOptionsBuilder<TContext>();
         var historyTable = "__EFMigrationsHistory_" + contextName;
-        if (SqlServer)
+        // <db:SqlServer>
+        if (Is(DatabaseProviders.SqlServer))
         {
             options.UseSqlServer(_connection, sql => sql.MigrationsHistoryTable(historyTable))
                 .ReplaceService<IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
         }
-        else
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (Is(DatabaseProviders.PostgreSql))
         {
-            options.UseNpgsql(_connection, postgres => postgres.MigrationsHistoryTable(historyTable))
+            options.UseNpgsql(_connection, npgsql => npgsql.MigrationsHistoryTable(historyTable))
                 .ReplaceService<IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
         }
+        // </db:PostgreSql>
 
         return options.Options;
     }

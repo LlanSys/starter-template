@@ -1,13 +1,13 @@
-@description('The name of the PostgreSQL server.')
+@description('The name of the PostgreSQL flexible server.')
 param serverName string
 
 @description('The name of the PostgreSQL Database.')
 param databaseName string = 'bt'
 
-@description('The administrator login username for the PostgreSQL server.')
+@description('The administrator login username for the PostgreSQL flexible server.')
 param administratorLogin string
 
-@description('The administrator login password for the PostgreSQL server.')
+@description('The administrator login password for the PostgreSQL flexible server.')
 @secure()
 param administratorLoginPassword string
 

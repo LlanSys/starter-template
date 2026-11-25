@@ -89,8 +89,13 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
         builder.ApplyConfigurationsFromAssembly(
             typeof(IamDBContext).Assembly,
             type => type.Namespace?.StartsWith("ST.Persistence.Features.IAM", StringComparison.Ordinal) == true &&
+                    // <db:SqlServer>
                     !(type.Namespace?.Contains("SqlServer") == true) &&
-                    !(type.Namespace?.Contains("PostgreSql") == true));
+                    // </db:SqlServer>
+                    // <db:PostgreSql>
+                    !(type.Namespace?.Contains("PostgreSql") == true) &&
+                    // </db:PostgreSql>
+                    true);
 
         DBContextHelper.ApplyStandardModelConventions(builder, this);
 
@@ -144,7 +149,9 @@ public class IamDBContext : IdentityDbContext<AppUser, AppRole, string>, ITenant
 
             var domainEvents = DBContextHelper.CollectDomainEvents(ChangeTracker);
             DBContextHelper.ClearDomainEventsFromAggregates(ChangeTracker);
+            // <db:PostgreSql>
             DBContextHelper.StampPostgreSqlConcurrency(this);
+            // </db:PostgreSql>
             DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId, Clock.GetUtcNow());
 
             var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken).ConfigureAwait(false);

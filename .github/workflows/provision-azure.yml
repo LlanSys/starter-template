@@ -79,6 +79,31 @@ jobs:
             fi
           done
 
+      - name: Resolve database provider
+        id: database
+        shell: bash
+        env:
+          CONFIGURED_PROVIDER: ${{ vars.DATABASE_PROVIDER }}
+        run: |
+          set -euo pipefail
+          supported=()
+          # <db:SqlServer>
+          supported+=(SqlServer)
+          # </db:SqlServer>
+          # <db:PostgreSql>
+          supported+=(PostgreSql)
+          # </db:PostgreSql>
+          provider="${CONFIGURED_PROVIDER:-${supported[0]}}"
+          if [ "${#supported[@]}" -eq 1 ]; then
+            # Single-provider forks ignore the DATABASE_PROVIDER variable.
+            provider="${supported[0]}"
+          fi
+          if [[ ! " ${supported[*]} " =~ " ${provider} " ]]; then
+            echo "ERROR: DATABASE_PROVIDER '$provider' is not supported. Supported: ${supported[*]}."
+            exit 1
+          fi
+          echo "provider=$provider" >> "$GITHUB_OUTPUT"
+
       - name: Resolve Deployment Target
         id: resolve-target
         shell: bash
@@ -106,7 +131,7 @@ jobs:
             sqlAdministratorLogin="btadmin"
             sqlAdministratorLoginPassword="${{ secrets.AZURE_SQL_ADMIN_PASSWORD }}"
             deploymentTarget="${{ steps.resolve-target.outputs.bicep_target }}"
-            databaseProvider="${{ vars.DATABASE_PROVIDER || 'SqlServer' }}"
+            databaseProvider="${{ steps.database.outputs.provider }}"
             azureCacheConnectionString="${{ secrets.AZURE_REDIS_CONNECTION_STRING }}"
             manageContainerApps=${{ inputs.manage_container_apps || 'false' }}
             resourcePrefix="stprod"

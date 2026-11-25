@@ -117,7 +117,38 @@ jobs:
     name: Build DB Migrations
     needs: setup
     runs-on: ubuntu-latest
+    outputs:
+      database_provider: ${{ steps.database.outputs.provider }}
     steps:
+      - id: database
+        name: Resolve database provider
+        shell: bash
+        env:
+          CONFIGURED_PROVIDER: ${{ vars.DATABASE_PROVIDER }}
+        run: |
+          set -euo pipefail
+          supported=()
+          # The first supported provider is the default for non-Azure targets.
+          # <db:PostgreSql>
+          supported+=(PostgreSql)
+          # </db:PostgreSql>
+          # <db:SqlServer>
+          supported+=(SqlServer)
+          # </db:SqlServer>
+          provider="${CONFIGURED_PROVIDER:-${supported[0]}}"
+          if [ "${#supported[@]}" -eq 1 ]; then
+            # Single-provider forks ignore the DATABASE_PROVIDER variable.
+            if [ -n "$CONFIGURED_PROVIDER" ] && [ "$CONFIGURED_PROVIDER" != "${supported[0]}" ]; then
+              echo "::warning::DATABASE_PROVIDER=$CONFIGURED_PROVIDER is ignored; this repository only supports ${supported[0]}."
+            fi
+            provider="${supported[0]}"
+          fi
+          if [[ ! " ${supported[*]} " =~ " ${provider} " ]]; then
+            echo "ERROR: DATABASE_PROVIDER '$provider' is not supported. Supported: ${supported[*]}."
+            exit 1
+          fi
+          echo "provider=$provider" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -130,17 +161,23 @@ jobs:
         run: dotnet tool restore
 
       - name: Build EF Core Migration Bundles
+        env:
+          PROVIDER: ${{ steps.database.outputs.provider }}
         run: |
-          PROVIDER="PostgreSql"
-          if [ "${{ vars.DATABASE_PROVIDER }}" == "SqlServer" ]; then
-            PROVIDER="SqlServer"
-          fi
+          set -euo pipefail
           echo "Building migration bundles for provider: $PROVIDER"
+          # <db:PostgreSql>
           if [ "$PROVIDER" == "PostgreSql" ]; then
             DESIGN_CONNECTION="Host=localhost;Database=starterdesign;Username=postgres;Password=DesignOnly123!"
-          else
+          fi
+          # </db:PostgreSql>
+          # <db:SqlServer>
+          if [ "$PROVIDER" == "SqlServer" ]; then
             DESIGN_CONNECTION="Server=localhost;Database=starterdesign;User Id=sa;Password=DesignOnly123!;TrustServerCertificate=True"
           fi
+          # </db:SqlServer>
+          export DatabaseSettings__Provider="$PROVIDER"
+          export ConnectionStrings__DefaultConnection="$DESIGN_CONNECTION"
           export ConnectionStrings__IamConnection="$DESIGN_CONNECTION"
           export ConnectionStrings__SharedConnection="$DESIGN_CONNECTION"
           export ConnectionStrings__ControlPlaneConnection="$DESIGN_CONNECTION"
@@ -149,9 +186,6 @@ jobs:
           dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Iam${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-iam --configuration Release
           dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context Shared${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-shared --configuration Release
           dotnet ef migrations bundle --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context ControlPlane${PROVIDER}DBContext --self-contained -r linux-x64 -o ./publish-migrations/efbundle-controlplane --configuration Release
-        env:
-          DatabaseSettings__Provider: "PostgreSql"
-          ConnectionStrings__DefaultConnection: "Host=localhost;Database=postgres;Username=postgres;Password=password"
 
       - name: Upload Migration Artifacts
         uses: actions/upload-artifact@v4
@@ -166,12 +200,26 @@ jobs:
     steps:
       - name: Validate configuration
         env:
+          DATABASE_PROVIDER: ${{ needs.build-migrations.outputs.database_provider }}
+          # <db:PostgreSql>
           POSTGRES_CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          # </db:PostgreSql>
+          # <db:SqlServer>
+          SQLSERVER_CONNECTION_STRING: ${{ secrets.SQLSERVER_CONNECTION_STRING }}
+          # </db:SqlServer>
         run: |
-          if [ -z "$POSTGRES_CONNECTION_STRING" ]; then
+          # <db:PostgreSql>
+          if [ "$DATABASE_PROVIDER" == "PostgreSql" ] && [ -z "$POSTGRES_CONNECTION_STRING" ]; then
             echo "POSTGRES_CONNECTION_STRING secret is required."
             exit 1
           fi
+          # </db:PostgreSql>
+          # <db:SqlServer>
+          if [ "$DATABASE_PROVIDER" == "SqlServer" ] && [ -z "$SQLSERVER_CONNECTION_STRING" ]; then
+            echo "SQLSERVER_CONNECTION_STRING secret is required."
+            exit 1
+          fi
+          # </db:SqlServer>
 
       - name: Download Migration Artifacts
         uses: actions/download-artifact@v4
@@ -183,6 +231,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # <db:PostgreSql>
+          if [ "$DATABASE_PROVIDER" == "PostgreSql" ]; then
+            TARGET_CONNECTION_STRING="$POSTGRES_CONNECTION_STRING"
+          fi
+          # </db:PostgreSql>
+          # <db:SqlServer>
+          if [ "$DATABASE_PROVIDER" == "SqlServer" ]; then
+            TARGET_CONNECTION_STRING="$SQLSERVER_CONNECTION_STRING"
+          fi
+          # </db:SqlServer>
+          export DatabaseSettings__Provider="$DATABASE_PROVIDER"
+          export ConnectionStrings__ControlPlaneConnection="$TARGET_CONNECTION_STRING"
+          export ConnectionStrings__IamConnection="$TARGET_CONNECTION_STRING"
+          export ConnectionStrings__SharedConnection="$TARGET_CONNECTION_STRING"
+          export ConnectionStrings__DefaultConnection="$TARGET_CONNECTION_STRING"
 
           chmod +x ./db-migrations/efbundle-controlplane
           chmod +x ./db-migrations/efbundle-iam
@@ -198,7 +262,7 @@ jobs:
               echo "Running ${bundle} migration bundle (attempt ${attempt}/${max_attempts})..."
               log_file="$(mktemp)"
 
-              if "./db-migrations/${bundle}" --connection "$POSTGRES_CONNECTION_STRING" 2>&1 | tee "$log_file"; then
+              if "./db-migrations/${bundle}" --connection "$TARGET_CONNECTION_STRING" 2>&1 | tee "$log_file"; then
                 rm -f "$log_file"
                 return 0
               fi
@@ -226,12 +290,13 @@ jobs:
           run_bundle efbundle-iam
           run_bundle efbundle-shared
         env:
+          DATABASE_PROVIDER: ${{ needs.build-migrations.outputs.database_provider }}
+          # <db:PostgreSql>
           POSTGRES_CONNECTION_STRING: ${{ secrets.POSTGRES_CONNECTION_STRING }}
-          DatabaseSettings__Provider: "PostgreSql"
-          ConnectionStrings__ControlPlaneConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
-          ConnectionStrings__IamConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
-          ConnectionStrings__SharedConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
-          ConnectionStrings__DefaultConnection: ${{ secrets.POSTGRES_CONNECTION_STRING }}
+          # </db:PostgreSql>
+          # <db:SqlServer>
+          SQLSERVER_CONNECTION_STRING: ${{ secrets.SQLSERVER_CONNECTION_STRING }}
+          # </db:SqlServer>
 
   deploy-digitalocean:
     name: Deploy DigitalOcean App Platform

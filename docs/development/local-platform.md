@@ -64,6 +64,10 @@ Optional profiles:
 ./scripts/setup-local-platform.ps1 -IncludeSqlServer -IncludeSeq
 ```
 
+<!-- <db:PostgreSql> -->
+For PostgreSQL use `./scripts/setup-local-platform.ps1 -IncludePostgreSql`. It starts the `postgres` Compose profile on `POSTGRES_HOST_PORT` (default 15435) with `POSTGRES_PASSWORD` from `ops/local/.env`, and sets the API connection secret.
+<!-- </db:PostgreSql> -->
+
 Do not use `-IncludeSqlServer` when retaining an existing SQL Server/SSMS database connection. The script leaves the existing `ConnectionStrings:DefaultConnection` secret unchanged unless that switch is supplied.
 
 The setup script is idempotent and can be run whenever Docker services or local user-secrets need to be aligned. It creates credentials only when the ignored `ops/local/.env` file does not exist; later runs reuse those credentials and safely reconcile containers. It is not required before every Visual Studio launch when the containers are already running and the secrets have not changed.

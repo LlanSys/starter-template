@@ -20,7 +20,12 @@ internal static class UserMessageSanitizer
         "StackTrace",
         " at ",
         "Microsoft.",
+        // <db:SqlServer>
         "SqlException",
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        "Npgsql",
+        // </db:PostgreSql>
         "DbUpdateException",
         "RequestFailedException",
         "CryptographicException",

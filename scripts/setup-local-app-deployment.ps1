@@ -60,9 +60,18 @@ function Set-EnvironmentValue([string]$path, [string]$key, [string]$value) {
     $lines | Set-Content -LiteralPath $path -Encoding ascii
 }
 
+# -UseContainerSql runs the first supported provider's local database container.
+$containerDatabaseProvider = $null
+# <db:SqlServer>
+if (-not $containerDatabaseProvider) { $containerDatabaseProvider = 'SqlServer' }
+# </db:SqlServer>
+# <db:PostgreSql>
+if (-not $containerDatabaseProvider) { $containerDatabaseProvider = 'PostgreSql' }
+# </db:PostgreSql>
+
 $platformArguments = @{}
 if ($UseContainerSql) {
-    $platformArguments.IncludeSqlServer = $true
+    $platformArguments["Include$containerDatabaseProvider"] = $true
 }
 if ($IncludeSeq) {
     $platformArguments.IncludeSeq = $true
@@ -105,18 +114,33 @@ if ($databaseName -notmatch '^[A-Za-z][A-Za-z0-9_]*$') {
 }
 
 if ($UseContainerSql) {
-    $containerSqlConnection = "Server=sqlserver,1433;Database=$databaseName;User Id=sa;Password=$($environment.MSSQL_SA_PASSWORD);Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
+    # <db:SqlServer>
+    if ($containerDatabaseProvider -eq 'SqlServer') {
+        $containerSqlConnection = "Server=sqlserver,1433;Database=$databaseName;User Id=sa;Password=$($environment.MSSQL_SA_PASSWORD);Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
+    }
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    if ($containerDatabaseProvider -eq 'PostgreSql') {
+        $containerSqlConnection = "Host=postgres;Port=5432;Database=$databaseName;Username=postgres;Password=$($environment.POSTGRES_PASSWORD)"
+    }
+    # </db:PostgreSql>
     Set-EnvironmentValue $envFile 'APP_SQL_CONNECTION_STRING' $containerSqlConnection
 } elseif (-not $environment.Contains('APP_SQL_CONNECTION_STRING') -or
     [string]::IsNullOrWhiteSpace($environment.APP_SQL_CONNECTION_STRING) -or
     $environment.APP_SQL_CONNECTION_STRING -like '*replace-local-sql-password*') {
+    # <db:SqlServer>
+    $exampleConnection = "Server=host.docker.internal;Database=$databaseName;User Id=sa;Password=<your-local-password>;Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True"
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    if (-not $exampleConnection) { $exampleConnection = "Host=host.docker.internal;Port=5432;Database=$databaseName;Username=postgres;Password=<your-local-password>" }
+    # </db:PostgreSql>
     throw @"
 APP_SQL_CONNECTION_STRING is missing from $envFile.
 
-Set it to the SQL Server connection your app containers should use, for example:
-APP_SQL_CONNECTION_STRING=Server=host.docker.internal;Database=$databaseName;User Id=sa;Password=<your-local-password>;Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True
+Set it to the database connection your app containers should use, for example:
+APP_SQL_CONNECTION_STRING=$exampleConnection
 
-Or rerun this script with -UseContainerSql to use the Docker SQL Server profile.
+Or rerun this script with -UseContainerSql to use the local database container.
 "@
 }
 

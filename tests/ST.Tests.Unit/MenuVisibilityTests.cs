@@ -63,13 +63,28 @@ public sealed class MenuVisibilityTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void BothProvidersGenerateAdditiveVisibilityMigration(bool postgres)
+    // <db:SqlServer>
+    [InlineData("SqlServer")]
+    // </db:SqlServer>
+    // <db:PostgreSql>
+    [InlineData("PostgreSql")]
+    // </db:PostgreSql>
+    public void BothProvidersGenerateAdditiveVisibilityMigration(string provider)
     {
-        using DbContext context = postgres
-            ? new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql("Host=localhost;Database=test;Username=test;Password=test").Options, TimeProvider.System)
-            : new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer("Server=localhost;Database=test;Integrated Security=true;TrustServerCertificate=true").Options, TimeProvider.System);
+        DbContext? created = null;
+        // <db:PostgreSql>
+        if (provider == "PostgreSql")
+        {
+            created = new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql("Host=localhost;Database=test;Username=test;Password=test").Options, TimeProvider.System);
+        }
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (provider == "SqlServer")
+        {
+            created = new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer("Server=localhost;Database=test;Integrated Security=true;TrustServerCertificate=true").Options, TimeProvider.System);
+        }
+        // </db:SqlServer>
+        using var context = created ?? throw new InvalidOperationException("No database provider configured for this case.");
         var migrations = context.GetService<IMigrationsAssembly>().Migrations;
         var target = migrations.Keys.Single(key => key.EndsWith("MenuVisibility", StringComparison.Ordinal));
         var previous = migrations.Keys.Order(StringComparer.Ordinal).Last(key => string.CompareOrdinal(key, target) < 0);

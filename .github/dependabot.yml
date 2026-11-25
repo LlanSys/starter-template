@@ -20,7 +20,15 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
       dotnet-platform:
-        patterns: ["Microsoft.AspNetCore.*", "Microsoft.EntityFrameworkCore*", "Microsoft.Extensions.*", "Npgsql.EntityFrameworkCore.*", "System.Security.Cryptography.*", "dotnet-ef"]
+        patterns:
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.EntityFrameworkCore*"
+          - "Microsoft.Extensions.*"
+          # <db:PostgreSql>
+          - "Npgsql.EntityFrameworkCore.*"
+          # </db:PostgreSql>
+          - "System.Security.Cryptography.*"
+          - "dotnet-ef"
         update-types: [minor, patch]
       validation:
         patterns: ["FluentValidation*"]

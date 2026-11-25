@@ -1,9 +1,7 @@
 using MediatR;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Npgsql;
 using NSubstitute;
 using ST.Application.Features.Shared.OrgSettings.SaveCatalogSetting;
 using ST.Application.Features.Shared.OrgSettings.QueryHandlers;
@@ -26,19 +24,26 @@ public abstract class OrganizationSettingProviderTests<TFixture>(TFixture fixtur
     [Fact]
     public async Task ProviderSerializesWritesAndAtomicallyRecordsResetWithCapturedUtcTime()
     {
-        var postgres = fixture is PostgreSqlDbFixture;
         var database = "OrgSettings_" + Guid.CreateVersion7().ToString("N");
-        var connection = postgres
-            ? new NpgsqlConnectionStringBuilder(fixture.GetConnectionString()) { Database = database }.ConnectionString
-            : new SqlConnectionStringBuilder(fixture.GetConnectionString()) { InitialCatalog = database }.ConnectionString;
+        var connection = TestDatabaseProvider.WithDatabase(fixture, database);
 
         var tenant = Guid.CreateVersion7();
         TimeProvider clock = new FixedClock();
         SharedDBContext Context(Guid owner)
         {
-            return postgres
-                ? new SharedPostgreSqlDBContext(new DbContextOptionsBuilder<SharedPostgreSqlDBContext>().UseNpgsql(connection).Options, clock, new TenantScope(owner), new Actor())
-                : new SharedSqlServerDBContext(new DbContextOptionsBuilder<SharedSqlServerDBContext>().UseSqlServer(connection).Options, clock, new TenantScope(owner), new Actor());
+            // <db:PostgreSql>
+            if (fixture is PostgreSqlDbFixture)
+            {
+                return new SharedPostgreSqlDBContext(new DbContextOptionsBuilder<SharedPostgreSqlDBContext>().UseNpgsql(connection).Options, clock, new TenantScope(owner), new Actor());
+            }
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (fixture is MsSqlDbFixture)
+            {
+                return new SharedSqlServerDBContext(new DbContextOptionsBuilder<SharedSqlServerDBContext>().UseSqlServer(connection).Options, clock, new TenantScope(owner), new Actor());
+            }
+            // </db:SqlServer>
+            throw TestDatabaseProvider.Unsupported(fixture);
         }
 
         await using (var schema = Context(tenant))

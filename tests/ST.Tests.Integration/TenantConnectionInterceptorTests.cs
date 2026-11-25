@@ -1,3 +1,4 @@
+using ST.Domain.Shared;
 using ST.Domain.Shared.Contracts.Common;
 using ST.Persistence.Common.Interceptors;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -44,7 +45,7 @@ public class TenantConnectionInterceptorTests
 
         public Task<string?> GetDatabaseProviderAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<string?>("SqlServer");
+            return Task.FromResult<string?>(DatabaseProviders.Supported[0]);
         }
     }
 
