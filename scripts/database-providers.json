@@ -60,7 +60,14 @@
   "templateOnly": [
     ".github/workflows/template-fork-check.yml",
     "scripts/test-database-provider-selection.ps1",
-    "ops/azure/main.json"
+    "ops/azure/main.json",
+    "docs/development/downstream-release-acceptance-2026-11-20.md",
+    "docs/development/enterprise-gap-closure-2026-11-14.md",
+    "docs/development/frontend-host-routing-verification-2026-11-15.md",
+    "docs/development/local-browser-and-clone-acceptance-2026-11-10.md",
+    "docs/development/operator-acceptance-defects-2026-11-14.md",
+    "docs/development/operator-acceptance-results-2026-11-15.md",
+    "docs/development/organization-settings-verification-2026-11-15.md"
   ],
   "markerTooling": [
     "tests/ST.Tests.Architecture/Template/"

@@ -102,7 +102,7 @@ Current near-term focus:
 | SignalR | Auth and user/group strategy | Hubs need secure user, role, tenant, and context grouping. |
 | QuestPDF reporting | Feature data and storage/download strategy | Reports should be generated from real features and delivered consistently. |
 | Payments | Domain feature needing payments, provider abstraction | Provider integrations need idempotency, audit, callbacks, and reconciliation. |
-| Product modules such as loans | StarterTemplate completed and cloned downstream | SACCO/product-specific behavior belongs in the downstream solution, not the reusable template core. |
+| Product modules such as loans | StarterTemplate completed and cloned downstream | Product-specific behavior belongs in the downstream solution, not the reusable template core. |
 
 ---
 
@@ -238,7 +238,7 @@ Avoid these until their gates are ready:
 - External verification provider integrations before Customer/Employee identity evidence and audit models are stable.
 - Azure deployment before local run, health checks, and secret strategy are stable.
 - Entra ID SSO before AppUser linking and claims model are stable.
-- SACCO/product modules before StarterTemplate platform foundations are reliable and cloned downstream.
+- Product modules before StarterTemplate platform foundations are reliable and cloned downstream.
 - Plugin-driven modules before static/dynamic module catalog is proven.
 - Heavy maturity polish before a working local product demo exists.
 
@@ -279,7 +279,7 @@ Recommended immediate order:
 3. Certify Phase 2: platform storage, cache, exception, validation, and messaging hardening.
 4. Certify Phase 3: health checks, observability, API security/deprecation/throttling, and operational diagnostics.
 5. Certify Phase 4: CI/CD deployment readiness, migration bundles, Docker local platform, and Azure App Service release flow. (Complete)
-6. Move product-specific work such as SACCO loans, KYC/CRB, AML, payroll, or full HR into downstream solutions cloned from StarterTemplate.
+6. Move product-specific work such as lending, credit-bureau checks, AML, payroll, or full HR into downstream solutions cloned from StarterTemplate.
 
 ---
 
@@ -293,7 +293,7 @@ Use this register as the working execution checklist. A phase is not considered 
 | Phase 2 - Platform Storage, Cache, Exceptions, Validation, Messaging | In progress | Azure Blob profile storage, Data Protection Blob/Key Vault keys, HybridCache/output cache, ProblemDetails propagation, FluentValidation coverage, MassTransit outbox | Build/test plus targeted smoke for profile upload, error messages, lookup cache, outbox publish |
 | Phase 3 - API Security And Operational Readiness | In progress | security headers, CORS, configurable rate limiting policies, response compression, API version/deprecation headers, deep health checks, PII log masking, correlated tracing, dependency vulnerability hygiene | Health endpoints prove SQL/Redis/storage/Key Vault where enabled; logs are safe; API communicates deprecation/throttling clearly; package advisories are resolved or explicitly risk-accepted |
 | Phase 4 - Deployment And Release Engineering | Implemented | OIDC-authenticated efbundle migration pipeline, Docker Compose, GitHub Actions release, Azure App Service deployment slots, Key Vault wiring, rollback notes | CI builds/test/releases, migration bundle generated, Azure deploy smoke passes |
-| Phase 5 - Template Extensibility | In progress | feature flags, permission-aware dynamic menus, SignalR baseline, reporting abstraction, payment gateway abstractions, Entra SSO, passkeys, RCL consolidation | Feature gates and dynamic menus fail closed; reusable examples exist without domain-specific SACCO logic; passkeys have real flows before being marked complete |
+| Phase 5 - Template Extensibility | In progress | feature flags, permission-aware dynamic menus, SignalR baseline, reporting abstraction, payment gateway abstractions, Entra SSO, passkeys, RCL consolidation | Feature gates and dynamic menus fail closed; reusable examples exist without domain-specific business logic; passkeys have real flows before being marked complete |
 
 ---
 

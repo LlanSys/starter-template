@@ -20,7 +20,7 @@ public sealed class PaymentEventHandler(ILogger<PaymentEventHandler> logger) :
             notification.Amount.Amount,
             notification.Amount.Currency);
 
-        // TODO: Update specific business domains (e.g. SACCO Deposits, Insurtech Policies)
+        // Downstream products apply the payment to their own records here (e.g. deposits, invoices, policy premiums).
         return Task.CompletedTask;
     }
 

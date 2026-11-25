@@ -10,7 +10,7 @@ This is the implementation map for the StarterTemplate architecture work. It com
 - Take each phase as a reviewable change with its own evidence. Record status, revision, checks, exceptions and next action in the phase ledger below. When a phase exposes a behavior defect, isolate and fix it with a focused regression rather than mixing the behavior change into a move.
 - Follow [AGENTS.md](../../AGENTS.md). Changes to conventions update the canonical instruction, the relevant architecture guide and the guardrail together. Prefer short using directives, injected `TimeProvider`, cancellation, stable .NET 10 dependencies and layouts the repository formatter can check.
 - Keep current public routes, permission keys, payloads, table and migration identities, scheduler names, and protected-data application names stable during structural moves. Treat changes to these as compatibility decisions with an upgrade path.
-- Keep one active StarterTemplate checkout. A disposable downstream clone is a release test. Product implementation, including any LlanSacco adoption work, belongs in its own workspace.
+- Keep one active StarterTemplate checkout. A disposable downstream clone is a release test. Product implementation belongs in each product's own workspace.
 
 ## What StarterTemplate already does well
 
@@ -92,7 +92,7 @@ Use the same platform bootstrap across the catalogue. A capability belongs in St
 
 | Product | Product-owned features to add after baseline setup |
 | --- | --- |
-| LlanSacco | Member onboarding and KYC, savings, lending, check-off, ledger, authorization of financial actions and reconciliation. Adopt platform improvements in the existing SACCO workspace. |
+| Example financial-services product | Customer onboarding and KYC, accounts, lending, ledger, authorization of financial actions and reconciliation. Adopt platform improvements in the product's own workspace. |
 | LlanAssure | Agency/broker operations, clients, policies, renewals, claims and commissions. |
 | LlanPOS | Sales, stock, terminals, receipts, shifts and settlement or reconciliation as needed. |
 | LlanPay | Merchant onboarding, payment orchestration, provider reconciliation, settlement and payment-specific risk controls. An existing payment adapter is a starting integration seam. |

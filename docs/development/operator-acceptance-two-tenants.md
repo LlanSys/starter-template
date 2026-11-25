@@ -1,6 +1,6 @@
 # Operator acceptance: two real onboarding runs
 
-Prepared 2026-11-14. This workbook supports repeatable local business acceptance. The agent's completed operations and remaining checks are recorded separately in `output/pdf/operator-acceptance/qa-results.csv` and `live-run-evidence.json`. The independent Allan Run pack starts with every case NOT RUN.
+Prepared 2026-11-14. This workbook supports repeatable local business acceptance. The agent's completed operations and remaining checks are recorded separately in `output/pdf/operator-acceptance/qa-results.csv` and `live-run-evidence.json`. The independent operator run pack starts with every case NOT RUN.
 
 ## Platform staff prerequisite is implemented
 
@@ -106,6 +106,6 @@ Keep separate results for platform IAM, tenant IAM, cross-tenant isolation, brow
 
 ## Pack contents
 
-The local output/pdf/operator-acceptance folder and output/pdf/startertemplate-operator-acceptance.zip contain twelve synthetic PDFs, document-manifest.json, account-matrix.csv, editable qa-results.csv and this checklist. The files contain no credentials, MFA seeds or invitation/submission tokens. Completed checks identify their verification method; the separate Allan Run sheet remains blank.
+The local output/pdf/operator-acceptance folder and output/pdf/startertemplate-operator-acceptance.zip contain twelve synthetic PDFs, document-manifest.json, account-matrix.csv, editable qa-results.csv and this checklist. The files contain no credentials, MFA seeds or invitation/submission tokens. Completed checks identify their verification method; the separate independent operator run sheet remains blank.
 
 For the existing completed live QA tenants, use [the current account handoff](local-qa-account-handoff.md#distinct-customer-administrators-15-november-2026-follow-up); archived acceptance packs retain their original shared-email isolation scenario.

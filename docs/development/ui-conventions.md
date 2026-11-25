@@ -1,6 +1,6 @@
 # StarterTemplate UI conventions
 
-The Access Catalog is the administration listing reference. BaseTemplate's compact Admin Center and Lebrese's shared MudProviderHost inform the presentation. Preserve StarterTemplate's own IAM, tenant model and effective menu filtering.
+The Access Catalog is the administration listing reference. A compact admin-center layout and a shared MudProviderHost inform the presentation. Preserve StarterTemplate's own IAM, tenant model and effective menu filtering.
 
 ## Listing composition
 

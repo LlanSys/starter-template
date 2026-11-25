@@ -162,7 +162,7 @@ The tenant lifecycle is modelled as an explicit state machine. **No provisioning
 
 **Status: OUT OF SCOPE FOR BASE TEMPLATE.**
 
-While a public-facing onboarding flow (registration -> payment via Stripe -> automated tenant provisioning) is common for SaaS products, it is highly specific to the business domain (e.g., InsurHub vs Sacco System).
+While a public-facing onboarding flow (registration -> payment via Stripe -> automated tenant provisioning) is common for SaaS products, it is highly specific to the business domain (for example, an insurance product versus a lending product).
 Therefore, this base template provides the foundational Tenant State Machine (administrative approval gate, Pending Provisioning, etc.) but leaves the actual public onboarding endpoints, Stripe integrations, and domain-specific readiness checks to the downstream applications.
 
 When implementing this downstream, keep in mind:
