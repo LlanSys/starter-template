@@ -161,7 +161,7 @@ module containerApps '../modules/containerapps.bicep' = if (deploymentTarget == 
     environmentName: acaEnvName
     platformLogsToLogAnalytics: useAzureMonitor
     logAnalyticsCustomerId: useAzureMonitor ? logAnalytics!.outputs.customerId : ''
-    logAnalyticsSharedKey: useAzureMonitor ? logAnalytics!.outputs.primarySharedKey : ''
+    logAnalyticsSharedKey: useAzureMonitor ? logAnalyticsWorkspace!.listKeys().primarySharedKey : ''
     apiAppName: apiAppName
     uiAppName: uiAppName
     location: location
@@ -189,6 +189,15 @@ module appService '../modules/appservice.bicep' = if (deploymentTarget == 'app-s
     otlpEndpoint: otlpEndpoint
     otlpHeaders: otlpHeaders
   }
+}
+
+// Existing-resource references for reading access keys without exposing them as module outputs.
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = if (useAzureMonitor) {
+  name: logAnalyticsName
+}
+
+resource redisCache 'Microsoft.Cache/redis@2023-08-01' existing = if (empty(azureCacheConnectionString)) {
+  name: redisName
 }
 
 module redis '../modules/redis.bicep' = if (empty(azureCacheConnectionString)) {
@@ -238,7 +247,7 @@ module keyVault '../modules/keyvault.bicep' = {
     apiPrincipalId: apiPrincipalId
     databaseConnectionString: join(databaseConnectionStrings, '')
     serviceBusNamespaceName: serviceBus.outputs.serviceBusNamespaceName
-    azureCacheConnectionString: !empty(azureCacheConnectionString) ? azureCacheConnectionString : redis.outputs.redisConnectionString
+    azureCacheConnectionString: !empty(azureCacheConnectionString) ? azureCacheConnectionString : '${redis!.outputs.redisHostName},abortConnect=false,ssl=true,password=${redisCache!.listKeys().primaryKey}'
     communicationConnectionString: communication.outputs.communicationConnectionString
     communicationFromAddress: communication.outputs.communicationFromAddress
     appInsightsConnectionString: useAzureMonitor ? appInsights!.outputs.appInsightsConnectionString : ''

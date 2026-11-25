@@ -18,4 +18,6 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
   }
 }
 
-output redisConnectionString string = '${redisCache.properties.hostName},abortConnect=false,ssl=true,password=${redisCache.listKeys().primaryKey}'
+// The access key is not an output: deployment outputs are visible in deployment history.
+// Callers read it with listKeys() on an existing-resource reference and pass it to a secure parameter.
+output redisHostName string = redisCache.properties.hostName

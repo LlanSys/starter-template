@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.45.15.27210",
-      "templateHash": "14420156333357112137"
+      "templateHash": "15585980938815277768"
     }
   },
   "parameters": {
@@ -424,7 +424,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "9772354710304753533"
+              "templateHash": "14661133413809979209"
             }
           },
           "parameters": {
@@ -463,10 +463,6 @@
             "customerId": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2022-10-01').customerId]"
-            },
-            "primarySharedKey": {
-              "type": "string",
-              "value": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2022-10-01').primarySharedKey]"
             }
           }
         }
@@ -490,7 +486,7 @@
             "value": "[variables('useAzureMonitor')]"
           },
           "logAnalyticsCustomerId": "[if(variables('useAzureMonitor'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeploy'), '2025-04-01').outputs.customerId.value), createObject('value', ''))]",
-          "logAnalyticsSharedKey": "[if(variables('useAzureMonitor'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeploy'), '2025-04-01').outputs.primarySharedKey.value), createObject('value', ''))]",
+          "logAnalyticsSharedKey": "[if(variables('useAzureMonitor'), createObject('value', listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName')), '2022-10-01').primarySharedKey), createObject('value', ''))]",
           "apiAppName": {
             "value": "[variables('apiAppName')]"
           },
@@ -1078,7 +1074,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "4139479196462193855"
+              "templateHash": "15737702493904127682"
             }
           },
           "parameters": {
@@ -1113,9 +1109,9 @@
             }
           ],
           "outputs": {
-            "redisConnectionString": {
+            "redisHostName": {
               "type": "string",
-              "value": "[format('{0},abortConnect=false,ssl=true,password={1}', reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2023-08-01').hostName, listKeys(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2023-08-01').primaryKey)]"
+              "value": "[reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2023-08-01').hostName]"
             }
           }
         }
@@ -1411,7 +1407,7 @@
           "serviceBusNamespaceName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'serviceBusDeploy'), '2025-04-01').outputs.serviceBusNamespaceName.value]"
           },
-          "azureCacheConnectionString": "[if(not(empty(parameters('azureCacheConnectionString'))), createObject('value', parameters('azureCacheConnectionString')), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'redisDeploy'), '2025-04-01').outputs.redisConnectionString.value))]",
+          "azureCacheConnectionString": "[if(not(empty(parameters('azureCacheConnectionString'))), createObject('value', parameters('azureCacheConnectionString')), createObject('value', format('{0},abortConnect=false,ssl=true,password={1}', reference(resourceId('Microsoft.Resources/deployments', 'redisDeploy'), '2025-04-01').outputs.redisHostName.value, listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey)))]",
           "communicationConnectionString": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'communicationDeploy'), '2025-04-01').outputs.communicationConnectionString.value]"
           },
