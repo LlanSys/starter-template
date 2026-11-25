@@ -71,8 +71,7 @@
     "scripts/select-database-provider.ps1",
     "scripts/rename-template.ps1",
     "scripts/test-rename-template.ps1",
-    "scripts/lib/TemplateFiles.ps1",
-    "PLAN.html"
+    "scripts/lib/TemplateFiles.ps1"
   ],
   "markerProcessingExclusions": [
     "scripts/test-rename-template.ps1",

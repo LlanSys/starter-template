@@ -65,7 +65,8 @@ Add these environment variables:
 | `AZURE_TENANT_ID` | Entra tenant ID | OIDC tenant |
 | `AZURE_SUBSCRIPTION_ID` | Azure subscription ID | Deployment subscription |
 | `AZURE_RESOURCE_GROUP` | `rg-startertemplate-prod` | Resource group containing Azure SQL |
-| `AZURE_SQL_SERVER_NAME` | `bt-prod-sqlserver` | SQL logical server name without `.database.windows.net` |
+| `AZURE_SQL_SERVER_NAME` | `bt-prod-sqlserver` | Database server name: the Azure SQL logical server (without `.database.windows.net`) or the PostgreSQL flexible server |
+| `DATABASE_PROVIDER` | `SqlServer` | Template only: `SqlServer` or `PostgreSql`. A single-provider fork ignores it. |
 | `AZURE_SQL_NETWORK_MODE` | `PublicRunner` | `PublicRunner` or `PrivateRunner` migration networking strategy |
 | `AZURE_API_APP_NAME` | `starter-template-api-dev` | Exact API App Service resource name (for app-service) |
 | `AZURE_UI_APP_NAME` | `starter-template-web-dev` | Exact UI App Service resource name (for app-service) |
@@ -79,7 +80,8 @@ Add this environment secret:
 
 | Secret | Value |
 | --- | --- |
-| `AZURE_SQL_CONNECTION_STRING` | Passwordless Azure SQL connection string shown below |
+| `AZURE_SQL_CONNECTION_STRING` | SQL Server: passwordless Azure SQL connection string shown below |
+| `AZURE_POSTGRES_CONNECTION_STRING` | PostgreSQL: Azure Database for PostgreSQL connection string |
 
 Recommended connection string:
 
@@ -91,7 +93,11 @@ The connection string contains no password. `azure/login@v2` establishes the Git
 
 Add required reviewers to the `azure-prod` environment if deployment approval is required.
 
-## 5. Azure SQL Networking
+## 5. Database Networking
+
+<!-- <db:PostgreSql> -->
+For PostgreSQL the workflow manages the temporary rule with `az postgres flexible-server firewall-rule`, so the deployment identity needs permission to manage firewall rules on the flexible server. The rest of this section describes Azure SQL, but the same `PublicRunner` / `PrivateRunner` modes apply.
+<!-- </db:PostgreSql> -->
 
 The workflow supports two explicit networking modes:
 
@@ -113,8 +119,8 @@ For a private-endpoint-only production architecture, replace the GitHub-hosted m
 
 The workflow:
 
-- Builds self-contained Linux migration bundles for IAM, HR, Shared, and Banking.
-- Passes the Azure SQL connection string explicitly to each bundle.
+- Builds self-contained Linux migration bundles for ControlPlane, IAM and Shared, using the configured provider's DbContexts.
+- Passes the provider's connection string explicitly to each bundle.
 - Exposes that same secret through the context-specific `ConnectionStrings__*` environment keys. EF constructs each design-time `DbContext` before processing the bundle's `--connection` override, so both forms are required.
 - Retries bundle execution while a serverless Azure SQL database resumes.
 - Fails immediately when a bundle reports a deterministic missing-connection configuration error instead of treating it as an Azure SQL wake-up delay.

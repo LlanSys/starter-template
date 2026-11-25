@@ -43,7 +43,7 @@ Required pieces:
 
 - Azure Container Registry or Docker Hub/GHCR credentials.
 - Azure Container Apps environment.
-- Azure SQL or another supported production database.
+- Azure SQL or Azure Database for PostgreSQL, matching the provider the clone kept.
 - Azure Key Vault.
 - Azure Blob Storage.
 - Azure Service Bus for production messaging, or RabbitMQ if the client deliberately hosts RabbitMQ.
@@ -159,7 +159,8 @@ Use configuration for runtime providers:
 | Email | Mailpit | Approved email API provider | Approved email API provider |
 | Profile images | Azurite or local filesystem | Private Azure Blob | S3-compatible storage or private volume |
 | Data Protection | Local key ring | Azure Blob plus Key Vault | Redis or shared file share |
-| SQL | Local SQL Server | Azure SQL | SQL Server-compatible host |
+| Database (SQL Server) | Local SQL Server | Azure SQL | SQL Server-compatible host |
+| Database (PostgreSQL) | Local PostgreSQL container | Azure Database for PostgreSQL | Managed PostgreSQL (e.g. DigitalOcean) |
 
 Use CI/CD variables for deployment target:
 

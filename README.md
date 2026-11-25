@@ -111,12 +111,12 @@ See:
 
 ## Clone Readiness
 
-The domain-neutral refactor is still in progress. The final clone certification gate is tracked in the refactor plan. To configure a clone:
+The core starter is certified for cloning: the domain-neutral refactor is complete (see the [refactor plan](docs/architecture/domain-neutral-refactor-plan.md)), and every PR forks the template once per database provider to prove the result builds and passes its tests. To configure a clone:
 
-1. Clone and rename before first run.
-2. Configure local secrets and SQL.
+1. Clone from GitHub and rename before the first run (see [Clone And Rename](#clone-and-rename)).
+2. Configure local secrets and the database connection for the chosen provider.
 3. Run the local Docker platform.
-4. Keep product-specific modules outside the base template until cloned.
+4. Keep product-specific modules in the clone, not in the base template.
 
 Some provider-dependent capabilities still need environment-specific certification in the target application:
 
