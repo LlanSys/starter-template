@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.45.15.27210",
-      "templateHash": "15585980938815277768"
+      "templateHash": "12621773653650948098"
     }
   },
   "parameters": {
@@ -525,7 +525,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "236729920256185780"
+              "templateHash": "1956049201081586876"
             }
           },
           "parameters": {
@@ -624,6 +624,11 @@
               }
             }
           },
+          "variables": {
+            "otlpHeadersSecretName": "otlp-headers",
+            "otlpHeadersSecret": "[if(empty(parameters('otlpHeaders')), createArray(), createArray(createObject('name', variables('otlpHeadersSecretName'), 'value', parameters('otlpHeaders'))))]",
+            "otlpHeadersEnv": "[if(empty(parameters('otlpHeaders')), createArray(), createArray(createObject('name', 'Observability__Otlp__Headers', 'secretRef', variables('otlpHeadersSecretName'))))]"
+          },
           "resources": [
             {
               "type": "Microsoft.App/managedEnvironments",
@@ -647,6 +652,7 @@
                 "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('environmentName'))]",
                 "configuration": {
                   "activeRevisionsMode": "Single",
+                  "secrets": "[variables('otlpHeadersSecret')]",
                   "ingress": {
                     "external": true,
                     "targetPort": 8080
@@ -657,56 +663,7 @@
                     {
                       "name": "api",
                       "image": "mcr.microsoft.com/dotnet/samples:aspnetapp",
-                      "env": [
-                        {
-                          "name": "DatabaseSettings__Provider",
-                          "value": "[parameters('databaseProvider')]"
-                        },
-                        {
-                          "name": "KeyVault__Uri",
-                          "value": "[parameters('keyVaultUri')]"
-                        },
-                        {
-                          "name": "ProfileImageStorage__AzureBlob__ContainerUri",
-                          "value": "[if(empty(parameters('storageAccountName')), '', format('https://{0}.blob.{1}/profile-images', parameters('storageAccountName'), environment().suffixes.storage))]"
-                        },
-                        {
-                          "name": "ProfileImageStorage__Provider",
-                          "value": "AzureBlob"
-                        },
-                        {
-                          "name": "DataProtection__BlobKeyUri",
-                          "value": "[if(empty(parameters('storageAccountName')), '', format('https://{0}.blob.{1}/dataprotection-keys/keyring.xml', parameters('storageAccountName'), environment().suffixes.storage))]"
-                        },
-                        {
-                          "name": "DataProtection__KeyEncryptionMode",
-                          "value": "KeyVault"
-                        },
-                        {
-                          "name": "DataProtection__KeyVaultKeyIdentifier",
-                          "value": "[parameters('dataProtectionKeyIdentifier')]"
-                        },
-                        {
-                          "name": "CacheSettings__Provider",
-                          "value": "Auto"
-                        },
-                        {
-                          "name": "AllowedOrigins__0",
-                          "value": "[format('https://{0}.{1}', parameters('uiAppName'), reference(resourceId('Microsoft.App/managedEnvironments', parameters('environmentName')), '2023-05-01').defaultDomain)]"
-                        },
-                        {
-                          "name": "Messaging__Transport",
-                          "value": "AzureServiceBus"
-                        },
-                        {
-                          "name": "Observability__Otlp__Endpoint",
-                          "value": "[parameters('otlpEndpoint')]"
-                        },
-                        {
-                          "name": "Observability__Otlp__Headers",
-                          "value": "[parameters('otlpHeaders')]"
-                        }
-                      ],
+                      "env": "[concat(createArray(createObject('name', 'DatabaseSettings__Provider', 'value', parameters('databaseProvider')), createObject('name', 'KeyVault__Uri', 'value', parameters('keyVaultUri')), createObject('name', 'ProfileImageStorage__AzureBlob__ContainerUri', 'value', if(empty(parameters('storageAccountName')), '', format('https://{0}.blob.{1}/profile-images', parameters('storageAccountName'), environment().suffixes.storage))), createObject('name', 'ProfileImageStorage__Provider', 'value', 'AzureBlob'), createObject('name', 'DataProtection__BlobKeyUri', 'value', if(empty(parameters('storageAccountName')), '', format('https://{0}.blob.{1}/dataprotection-keys/keyring.xml', parameters('storageAccountName'), environment().suffixes.storage))), createObject('name', 'DataProtection__KeyEncryptionMode', 'value', 'KeyVault'), createObject('name', 'DataProtection__KeyVaultKeyIdentifier', 'value', parameters('dataProtectionKeyIdentifier')), createObject('name', 'CacheSettings__Provider', 'value', 'Auto'), createObject('name', 'AllowedOrigins__0', 'value', format('https://{0}.{1}', parameters('uiAppName'), reference(resourceId('Microsoft.App/managedEnvironments', parameters('environmentName')), '2023-05-01').defaultDomain)), createObject('name', 'Messaging__Transport', 'value', 'AzureServiceBus'), createObject('name', 'Observability__Otlp__Endpoint', 'value', parameters('otlpEndpoint'))), variables('otlpHeadersEnv'))]",
                       "resources": {
                         "cpu": "[json('0.5')]",
                         "memory": "1.0Gi"
