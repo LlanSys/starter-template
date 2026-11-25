@@ -40,6 +40,20 @@ try {
         sqlAdministratorLogin = @{ value = 'stampadmin' }
         sqlAdministratorLoginPassword = @{ value = $env:PROVISIONING_SQL_PASSWORD }
     }
+    # Optional observability settings; the template defaults to azure-monitor without OTLP.
+    if (-not [string]::IsNullOrWhiteSpace($env:PROVISIONING_OBSERVABILITY_MODE)) {
+        if ($env:PROVISIONING_OBSERVABILITY_MODE -notin @('azure-monitor', 'otlp-only')) {
+            throw 'AZURE_OBSERVABILITY_MODE must be azure-monitor or otlp-only.'
+        }
+        $parameters.observabilityMode = @{ value = $env:PROVISIONING_OBSERVABILITY_MODE }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:PROVISIONING_OTLP_ENDPOINT)) {
+        $parameters.otlpEndpoint = @{ value = $env:PROVISIONING_OTLP_ENDPOINT }
+        $parameters.otlpHeaders = @{ value = [string]$env:PROVISIONING_OTLP_HEADERS }
+    }
+    if ($env:PROVISIONING_OBSERVABILITY_MODE -eq 'otlp-only' -and [string]::IsNullOrWhiteSpace($env:PROVISIONING_OTLP_ENDPOINT)) {
+        throw 'otlp-only observability needs GRAFANA_OTLP_ENDPOINT; otherwise the stamp would have no telemetry.'
+    }
     [IO.File]::WriteAllText($temporary, (ConvertTo-Json -InputObject @{ parameters = $parameters } -Depth 5))
     if (-not $IsWindows) { & chmod 600 $temporary }
     $result = Invoke-Azure @('deployment','group','create','--resource-group',$env:PROVISIONING_RESOURCE_GROUP,

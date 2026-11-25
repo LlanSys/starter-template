@@ -1,12 +1,15 @@
 @description('Name of the Container Apps Environment')
 param environmentName string
 
-@description('The Customer ID of the Log Analytics Workspace')
-param logAnalyticsCustomerId string
+@description('Store Container Apps platform logs in Log Analytics. When false, platform logs are not stored (live log streaming still works).')
+param platformLogsToLogAnalytics bool = true
 
-@description('The Shared Key of the Log Analytics Workspace')
+@description('The Customer ID of the Log Analytics Workspace (required when platformLogsToLogAnalytics is true)')
+param logAnalyticsCustomerId string = ''
+
+@description('The Shared Key of the Log Analytics Workspace (required when platformLogsToLogAnalytics is true)')
 @secure()
-param logAnalyticsSharedKey string
+param logAnalyticsSharedKey string = ''
 
 
 @description('Name of the API Container App')
@@ -47,12 +50,15 @@ resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: environmentName
   location: location
   properties: {
-    appLogsConfiguration: {
+    // A null destination is Azure's "none": platform logs are not stored.
+    appLogsConfiguration: platformLogsToLogAnalytics ? {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
         customerId: logAnalyticsCustomerId
         sharedKey: logAnalyticsSharedKey
       }
+    } : {
+      destination: null
     }
   }
 }

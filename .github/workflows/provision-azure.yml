@@ -137,3 +137,4 @@ jobs:
             resourcePrefix="stprod"
             otlpEndpoint="${{ secrets.GRAFANA_OTLP_ENDPOINT }}"
             otlpHeaders="${{ secrets.GRAFANA_OTLP_HEADERS }}"
+            observabilityMode="${{ vars.AZURE_OBSERVABILITY_MODE || 'azure-monitor' }}"

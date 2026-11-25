@@ -152,6 +152,9 @@ jobs:
         env:
           PROVISIONING_SQL_PASSWORD: ${{ secrets.AZURE_SQL_ADMIN_PASSWORD }}
           PROVISIONING_CONTROLPLANE_CONNECTION: ${{ secrets.PROVISIONING_CONTROLPLANE_CONNECTION }}
+          PROVISIONING_OBSERVABILITY_MODE: ${{ vars.AZURE_OBSERVABILITY_MODE }}
+          PROVISIONING_OTLP_ENDPOINT: ${{ secrets.GRAFANA_OTLP_ENDPOINT }}
+          PROVISIONING_OTLP_HEADERS: ${{ secrets.GRAFANA_OTLP_HEADERS }}
         run: ./scripts/provision-isolated-stamp.ps1
 
       - name: Deploy API

@@ -75,6 +75,7 @@ Add these environment variables:
 | `AZURE_ACA_API_NAME` | `ca-starter-template-api` | Exact API Container App resource name (for ACA flows) |
 | `AZURE_ACA_UI_NAME` | `ca-starter-template-blazor` | Exact UI Container App resource name (for ACA flows) |
 | `AZURE_SERVICE_BUS_NAMESPACE` | `bt-prod-servicebus` | Service Bus namespace for messaging |
+| `AZURE_OBSERVABILITY_MODE` | `azure-monitor` | Optional. `azure-monitor` (default) or `otlp-only`. See [Observability mode](#observability-mode). |
 
 Add this environment secret:
 
@@ -169,3 +170,12 @@ After subscription access and target configuration are verified, resume:
     gh variable set AZURE_DEPLOYMENT_ENABLED --body true
 
 Then run the workflow manually with the intended target or merge the next change to main. Existing failed runs remain in history; changing the variable does not retroactively alter them or cancel already-running jobs. The workflow summary reports the resolved pause/enabled state.
+
+## Observability mode
+
+Provisioning (`provision-azure.yml` and isolated stamps) reads the optional `AZURE_OBSERVABILITY_MODE` variable:
+
+- `azure-monitor` (default): provisions Log Analytics and Application Insights, stores Container Apps platform logs in Log Analytics, and gives the API an Application Insights connection string.
+- `otlp-only`: provisions neither. Application logs, traces and metrics go only to the OTLP endpoint in the `GRAFANA_OTLP_ENDPOINT` / `GRAFANA_OTLP_HEADERS` secrets, so set those first; stamp provisioning refuses `otlp-only` without an endpoint. Container Apps platform logs are not stored: live log streaming still works, but historical system and console log queries in Log Analytics are not available.
+
+Choose `otlp-only` to avoid Azure Monitor ingestion and retention costs when Grafana Cloud or another OTLP backend is the system of record. Switching an existing environment to `otlp-only` stops new platform-log storage; delete the old Log Analytics workspace and Application Insights resources separately if you no longer need their history.
