@@ -101,9 +101,12 @@ try
                 options.LogsEndpoint = OtlpExport.SignalEndpoint(otlpEndpoint, OtlpExport.Logs).ToString();
                 options.TracesEndpoint = OtlpExport.SignalEndpoint(otlpEndpoint, OtlpExport.Traces).ToString();
                 options.Headers = new Dictionary<string, string>(headers);
+                // Same resource labels as traces and metrics, so logs filter together with them.
                 options.ResourceAttributes = new Dictionary<string, object>
                 {
-                    ["service.name"] = context.Configuration["Observability:ServiceName"] ?? "StarterTemplate.API"
+                    ["service.name"] = context.Configuration["Observability:ServiceName"] ?? "StarterTemplate.API",
+                    ["service.namespace"] = context.Configuration["Observability:ServiceNamespace"] ?? "StarterTemplate",
+                    ["deployment.environment"] = context.HostingEnvironment.EnvironmentName
                 };
             });
         }

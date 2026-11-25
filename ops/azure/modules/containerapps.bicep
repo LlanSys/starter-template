@@ -45,6 +45,21 @@ param otlpHeaders string = ''
 
 
 
+// Container Apps rejects empty secret values, so the secret and its reference exist only when headers are set.
+var otlpHeadersSecretName = 'otlp-headers'
+var otlpHeadersSecret = empty(otlpHeaders) ? [] : [
+  {
+    name: otlpHeadersSecretName
+    value: otlpHeaders
+  }
+]
+var otlpHeadersEnv = empty(otlpHeaders) ? [] : [
+  {
+    name: 'Observability__Otlp__Headers'
+    secretRef: otlpHeadersSecretName
+  }
+]
+
 // Container Apps Environment
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: environmentName
@@ -75,6 +90,8 @@ resource apiApp 'Microsoft.App/containerApps@2023-05-01' = if (manageContainerAp
     managedEnvironmentId: containerAppEnv.id
     configuration: {
       activeRevisionsMode: 'Single'
+      // Credentials are Container Apps secrets, so they are not readable as plain configuration.
+      secrets: otlpHeadersSecret
       // Bootstrap with a public image. The deployment workflow configures the
       // selected private registry only when it replaces this revision.
       ingress: {
@@ -87,7 +104,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-05-01' = if (manageContainerAp
         {
           name: 'api'
           image: 'mcr.microsoft.com/dotnet/samples:aspnetapp'
-          env: [
+          env: concat([
             {
               name: 'DatabaseSettings__Provider'
               value: databaseProvider
@@ -132,11 +149,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-05-01' = if (manageContainerAp
               name: 'Observability__Otlp__Endpoint'
               value: otlpEndpoint
             }
-            {
-              name: 'Observability__Otlp__Headers'
-              value: otlpHeaders
-            }
-          ]
+          ], otlpHeadersEnv)
           resources: {
             cpu: json('0.5')
             memory: '1.0Gi'
