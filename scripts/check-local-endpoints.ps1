@@ -53,7 +53,15 @@ foreach ($directory in ($orderedDirectories | Select-Object -Unique)) {
         $arguments += @('-f', $file)
     }
     $json = & docker @arguments config --format json 2>$null
-    if ($LASTEXITCODE -ne 0) { throw "Cannot resolve Compose configuration in $directory. Check local env values." }
+    if ($LASTEXITCODE -ne 0) {
+        # In focused mode an unrelated project that cannot be resolved (for example a stale worktree
+        # with missing env values) must not block the supplied application; report it and move on.
+        if ($FocusSupplied -and $directory -notin $suppliedDirectories) {
+            Write-Warning "Skipping unrelated Compose group that cannot be resolved: $directory. Its ports were not checked."
+            continue
+        }
+        throw "Cannot resolve Compose configuration in $directory. Check local env values."
+    }
     $config = $json | ConvertFrom-Json
     if ($directory -in $suppliedDirectories) {
         $focusedOwners += "$($config.name)/"

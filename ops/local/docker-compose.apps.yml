@@ -48,6 +48,10 @@ services:
       ProfileImageStorage__Provider: Azurite
       ProfileImageStorage__Azurite__ConnectionString: DefaultEndpointsProtocol=http;AccountName=${AZURITE_ACCOUNT_NAME:?Set AZURITE_ACCOUNT_NAME in ops/local/.env};AccountKey=${AZURITE_ACCOUNT_KEY:?Set AZURITE_ACCOUNT_KEY in ops/local/.env};BlobEndpoint=http://azurite:10000/${AZURITE_ACCOUNT_NAME};QueueEndpoint=http://azurite:10001/${AZURITE_ACCOUNT_NAME};TableEndpoint=http://azurite:10002/${AZURITE_ACCOUNT_NAME};
       ProfileImageStorage__Azurite__ContainerName: profile-images
+      # Optional OTLP export (e.g. Grafana Cloud). Off unless APP_OBSERVABILITY_ENABLED=true and an endpoint is set.
+      Observability__Enabled: ${APP_OBSERVABILITY_ENABLED:-false}
+      Observability__Otlp__Endpoint: ${APP_OTLP_ENDPOINT:-}
+      Observability__Otlp__Headers: ${APP_OTLP_HEADERS:-}
     ports:
       - "${APP_API_HOST_PORT:-8180}:8080"
     depends_on:
