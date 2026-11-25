@@ -17,4 +17,5 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10
 
 output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
 output customerId string = logAnalyticsWorkspace.properties.customerId
-output primarySharedKey string = logAnalyticsWorkspace.listKeys().primarySharedKey
+// The shared key is not an output: deployment outputs are visible in deployment history.
+// Callers read it with listKeys() on an existing-resource reference and pass it to a secure parameter.

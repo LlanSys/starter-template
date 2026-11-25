@@ -47,6 +47,21 @@ var selectedDatabaseProvider = empty(databaseProvider) ? first(supportedDatabase
 @secure()
 param azureCacheConnectionString string = ''
 
+@description('The OTLP endpoint for application telemetry (e.g. Grafana Cloud).')
+param otlpEndpoint string = ''
+
+@description('The OTLP headers (e.g. Authorization=Basic ...)')
+@secure()
+param otlpHeaders string = ''
+
+@description('Observability mode. azure-monitor: provisions Log Analytics and Application Insights and stores Container Apps platform logs in Log Analytics. otlp-only: provisions neither; application logs, traces and metrics go only to the OTLP endpoint (set otlpEndpoint), and Container Apps platform logs are not stored, although live log streaming still works.')
+@allowed([
+  'azure-monitor'
+  'otlp-only'
+])
+param observabilityMode string = 'azure-monitor'
+var useAzureMonitor = observabilityMode == 'azure-monitor'
+
 // Resource Names
 var databaseServerName = '${resourcePrefix}-sql-${uniqueString(resourceGroup().id)}'
 var logAnalyticsName = '${resourcePrefix}-law-${uniqueString(resourceGroup().id)}'
@@ -132,7 +147,7 @@ var databaseNames = [
   // </db:PostgreSql>
 ]
 
-module logAnalytics '../modules/loganalytics.bicep' = {
+module logAnalytics '../modules/loganalytics.bicep' = if (useAzureMonitor) {
   name: 'logAnalyticsDeploy'
   params: {
     logAnalyticsWorkspaceName: logAnalyticsName
@@ -144,8 +159,9 @@ module containerApps '../modules/containerapps.bicep' = if (deploymentTarget == 
   name: 'acaDeploy'
   params: {
     environmentName: acaEnvName
-    logAnalyticsCustomerId: logAnalytics.outputs.customerId
-    logAnalyticsSharedKey: logAnalytics.outputs.primarySharedKey
+    platformLogsToLogAnalytics: useAzureMonitor
+    logAnalyticsCustomerId: useAzureMonitor ? logAnalytics!.outputs.customerId : ''
+    logAnalyticsSharedKey: useAzureMonitor ? logAnalyticsWorkspace!.listKeys().primarySharedKey : ''
     apiAppName: apiAppName
     uiAppName: uiAppName
     location: location
@@ -154,6 +170,8 @@ module containerApps '../modules/containerapps.bicep' = if (deploymentTarget == 
     storageAccountName: storageAccountName
     dataProtectionKeyIdentifier: '${keyVaultUri}keys/dataprotection'
     manageContainerApps: manageContainerApps
+    otlpEndpoint: otlpEndpoint
+    otlpHeaders: otlpHeaders
   }
 }
 
@@ -168,7 +186,18 @@ module appService '../modules/appservice.bicep' = if (deploymentTarget == 'app-s
     keyVaultUri: keyVaultUri
     storageAccountName: storageAccountName
     dataProtectionKeyIdentifier: '${keyVaultUri}keys/dataprotection'
+    otlpEndpoint: otlpEndpoint
+    otlpHeaders: otlpHeaders
   }
+}
+
+// Existing-resource references for reading access keys without exposing them as module outputs.
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = if (useAzureMonitor) {
+  name: logAnalyticsName
+}
+
+resource redisCache 'Microsoft.Cache/redis@2023-08-01' existing = if (empty(azureCacheConnectionString)) {
+  name: redisName
 }
 
 module redis '../modules/redis.bicep' = if (empty(azureCacheConnectionString)) {
@@ -179,12 +208,12 @@ module redis '../modules/redis.bicep' = if (empty(azureCacheConnectionString)) {
   }
 }
 
-module appInsights '../modules/appinsights.bicep' = {
+module appInsights '../modules/appinsights.bicep' = if (useAzureMonitor) {
   name: 'appInsightsDeploy'
   params: {
     appInsightsName: appInsightsName
     location: location
-    logAnalyticsWorkspaceId: logAnalytics.outputs.logAnalyticsWorkspaceId
+    logAnalyticsWorkspaceId: logAnalytics!.outputs.logAnalyticsWorkspaceId
   }
 }
 
@@ -218,10 +247,10 @@ module keyVault '../modules/keyvault.bicep' = {
     apiPrincipalId: apiPrincipalId
     databaseConnectionString: join(databaseConnectionStrings, '')
     serviceBusNamespaceName: serviceBus.outputs.serviceBusNamespaceName
-    azureCacheConnectionString: !empty(azureCacheConnectionString) ? azureCacheConnectionString : redis.outputs.redisConnectionString
+    azureCacheConnectionString: !empty(azureCacheConnectionString) ? azureCacheConnectionString : '${redis!.outputs.redisHostName},abortConnect=false,ssl=true,password=${redisCache!.listKeys().primaryKey}'
     communicationConnectionString: communication.outputs.communicationConnectionString
     communicationFromAddress: communication.outputs.communicationFromAddress
-    appInsightsConnectionString: appInsights.outputs.appInsightsConnectionString
+    appInsightsConnectionString: useAzureMonitor ? appInsights!.outputs.appInsightsConnectionString : ''
   }
 }
 

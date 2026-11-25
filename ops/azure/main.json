@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.45.15.27210",
-      "templateHash": "5576568835692974006"
+      "templateHash": "15585980938815277768"
     }
   },
   "parameters": {
@@ -85,6 +85,17 @@
       "metadata": {
         "description": "The Grafana Cloud OTLP headers (e.g. Authorization=Basic ...)"
       }
+    },
+    "observabilityMode": {
+      "type": "string",
+      "defaultValue": "azure-monitor",
+      "allowedValues": [
+        "azure-monitor",
+        "otlp-only"
+      ],
+      "metadata": {
+        "description": "Observability mode. azure-monitor: provisions Log Analytics and Application Insights and stores Container Apps platform logs in Log Analytics. otlp-only: provisions neither; application logs, traces and metrics go only to the OTLP endpoint (set otlpEndpoint), and Container Apps platform logs are not stored, although live log streaming still works."
+      }
     }
   },
   "variables": {
@@ -93,6 +104,7 @@
       "PostgreSql"
     ],
     "selectedDatabaseProvider": "[if(empty(parameters('databaseProvider')), first(variables('supportedDatabaseProviders')), parameters('databaseProvider'))]",
+    "useAzureMonitor": "[equals(parameters('observabilityMode'), 'azure-monitor')]",
     "databaseServerName": "[format('{0}-sql-{1}', parameters('resourcePrefix'), uniqueString(resourceGroup().id))]",
     "logAnalyticsName": "[format('{0}-law-{1}', parameters('resourcePrefix'), uniqueString(resourceGroup().id))]",
     "acaEnvName": "[format('{0}-env-{1}', parameters('resourcePrefix'), uniqueString(resourceGroup().id))]",
@@ -285,14 +297,14 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "13275500084613769069"
+              "templateHash": "16527556553633540078"
             }
           },
           "parameters": {
             "serverName": {
               "type": "string",
               "metadata": {
-                "description": "The name of the PostgreSQL server."
+                "description": "The name of the PostgreSQL flexible server."
               }
             },
             "databaseName": {
@@ -305,13 +317,13 @@
             "administratorLogin": {
               "type": "string",
               "metadata": {
-                "description": "The administrator login username for the PostgreSQL server."
+                "description": "The administrator login username for the PostgreSQL flexible server."
               }
             },
             "administratorLoginPassword": {
               "type": "securestring",
               "metadata": {
-                "description": "The administrator login password for the PostgreSQL server."
+                "description": "The administrator login password for the PostgreSQL flexible server."
               }
             },
             "location": {
@@ -388,6 +400,7 @@
       }
     },
     {
+      "condition": "[variables('useAzureMonitor')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "logAnalyticsDeploy",
@@ -411,7 +424,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "9772354710304753533"
+              "templateHash": "14661133413809979209"
             }
           },
           "parameters": {
@@ -450,10 +463,6 @@
             "customerId": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2022-10-01').customerId]"
-            },
-            "primarySharedKey": {
-              "type": "string",
-              "value": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2022-10-01').primarySharedKey]"
             }
           }
         }
@@ -473,12 +482,11 @@
           "environmentName": {
             "value": "[variables('acaEnvName')]"
           },
-          "logAnalyticsCustomerId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeploy'), '2025-04-01').outputs.customerId.value]"
+          "platformLogsToLogAnalytics": {
+            "value": "[variables('useAzureMonitor')]"
           },
-          "logAnalyticsSharedKey": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeploy'), '2025-04-01').outputs.primarySharedKey.value]"
-          },
+          "logAnalyticsCustomerId": "[if(variables('useAzureMonitor'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeploy'), '2025-04-01').outputs.customerId.value), createObject('value', ''))]",
+          "logAnalyticsSharedKey": "[if(variables('useAzureMonitor'), createObject('value', listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName')), '2022-10-01').primarySharedKey), createObject('value', ''))]",
           "apiAppName": {
             "value": "[variables('apiAppName')]"
           },
@@ -517,7 +525,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "17437782956556608744"
+              "templateHash": "236729920256185780"
             }
           },
           "parameters": {
@@ -527,16 +535,25 @@
                 "description": "Name of the Container Apps Environment"
               }
             },
+            "platformLogsToLogAnalytics": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Store Container Apps platform logs in Log Analytics. When false, platform logs are not stored (live log streaming still works)."
+              }
+            },
             "logAnalyticsCustomerId": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
-                "description": "The Customer ID of the Log Analytics Workspace"
+                "description": "The Customer ID of the Log Analytics Workspace (required when platformLogsToLogAnalytics is true)"
               }
             },
             "logAnalyticsSharedKey": {
               "type": "securestring",
+              "defaultValue": "",
               "metadata": {
-                "description": "The Shared Key of the Log Analytics Workspace"
+                "description": "The Shared Key of the Log Analytics Workspace (required when platformLogsToLogAnalytics is true)"
               }
             },
             "apiAppName": {
@@ -614,13 +631,7 @@
               "name": "[parameters('environmentName')]",
               "location": "[parameters('location')]",
               "properties": {
-                "appLogsConfiguration": {
-                  "destination": "log-analytics",
-                  "logAnalyticsConfiguration": {
-                    "customerId": "[parameters('logAnalyticsCustomerId')]",
-                    "sharedKey": "[parameters('logAnalyticsSharedKey')]"
-                  }
-                }
+                "appLogsConfiguration": "[if(parameters('platformLogsToLogAnalytics'), createObject('destination', 'log-analytics', 'logAnalyticsConfiguration', createObject('customerId', parameters('logAnalyticsCustomerId'), 'sharedKey', parameters('logAnalyticsSharedKey'))), createObject('destination', null()))]"
               }
             },
             {
@@ -1063,7 +1074,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "4139479196462193855"
+              "templateHash": "15737702493904127682"
             }
           },
           "parameters": {
@@ -1098,15 +1109,16 @@
             }
           ],
           "outputs": {
-            "redisConnectionString": {
+            "redisHostName": {
               "type": "string",
-              "value": "[format('{0},abortConnect=false,ssl=true,password={1}', reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2023-08-01').hostName, listKeys(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2023-08-01').primaryKey)]"
+              "value": "[reference(resourceId('Microsoft.Cache/redis', parameters('redisCacheName')), '2023-08-01').hostName]"
             }
           }
         }
       }
     },
     {
+      "condition": "[variables('useAzureMonitor')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "appInsightsDeploy",
@@ -1395,16 +1407,14 @@
           "serviceBusNamespaceName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'serviceBusDeploy'), '2025-04-01').outputs.serviceBusNamespaceName.value]"
           },
-          "azureCacheConnectionString": "[if(not(empty(parameters('azureCacheConnectionString'))), createObject('value', parameters('azureCacheConnectionString')), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'redisDeploy'), '2025-04-01').outputs.redisConnectionString.value))]",
+          "azureCacheConnectionString": "[if(not(empty(parameters('azureCacheConnectionString'))), createObject('value', parameters('azureCacheConnectionString')), createObject('value', format('{0},abortConnect=false,ssl=true,password={1}', reference(resourceId('Microsoft.Resources/deployments', 'redisDeploy'), '2025-04-01').outputs.redisHostName.value, listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey)))]",
           "communicationConnectionString": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'communicationDeploy'), '2025-04-01').outputs.communicationConnectionString.value]"
           },
           "communicationFromAddress": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'communicationDeploy'), '2025-04-01').outputs.communicationFromAddress.value]"
           },
-          "appInsightsConnectionString": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'appInsightsDeploy'), '2025-04-01').outputs.appInsightsConnectionString.value]"
-          }
+          "appInsightsConnectionString": "[if(variables('useAzureMonitor'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'appInsightsDeploy'), '2025-04-01').outputs.appInsightsConnectionString.value), createObject('value', ''))]"
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",

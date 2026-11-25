@@ -1,3 +1,5 @@
+using Serilog.Sinks.OpenTelemetry;
+using ST.Infrastructure.Configuration;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Azure.Identity;
 
@@ -89,28 +91,16 @@ try
 
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
-            var headerString = context.Configuration["Observability:Otlp:Headers"];
-            var headers = new Dictionary<string, string>();
+            var headers = OtlpExport.ParseHeaders(context.Configuration["Observability:Otlp:Headers"]);
 
-            if (!string.IsNullOrWhiteSpace(headerString))
-            {
-                var pairs = headerString.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-                foreach (var pair in pairs)
-                {
-                    var parts = pair.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
-
-                    if (parts.Length == 2)
-                    {
-                        headers[parts[0].Trim()] = parts[1].Trim();
-                    }
-                }
-            }
-
+            // HTTP/protobuf with the full signal paths: hosted OTLP gateways (e.g. Grafana Cloud)
+            // do not accept the sink's default gRPC transport.
             configuration.WriteTo.OpenTelemetry(options =>
             {
-                options.Endpoint = otlpEndpoint;
-                options.Headers = headers;
+                options.Protocol = OtlpProtocol.HttpProtobuf;
+                options.LogsEndpoint = OtlpExport.SignalEndpoint(otlpEndpoint, OtlpExport.Logs).ToString();
+                options.TracesEndpoint = OtlpExport.SignalEndpoint(otlpEndpoint, OtlpExport.Traces).ToString();
+                options.Headers = new Dictionary<string, string>(headers);
                 options.ResourceAttributes = new Dictionary<string, object>
                 {
                     ["service.name"] = context.Configuration["Observability:ServiceName"] ?? "StarterTemplate.API"
