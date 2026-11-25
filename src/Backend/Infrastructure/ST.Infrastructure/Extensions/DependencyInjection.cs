@@ -1,3 +1,4 @@
+using ST.Domain.Shared;
 using ST.Application.Features.ControlPlane.Tenants.Contracts;
 using ST.Infrastructure.Features.ControlPlane.Tenants.Services;
 using ST.SharedKernel.Features.ControlPlane.Tenants;
@@ -846,7 +847,7 @@ public static class DependencyInjection
     /// </para>
     /// <para>
     /// <b>What the Distro includes automatically</b> (no extra packages needed):
-    /// ASP.NET Core request tracing, HttpClient tracing, SQLClient tracing,
+    /// ASP.NET Core request tracing, HttpClient tracing, database client tracing,
     /// Azure resource detection (App Service, VM, Container Apps), live metrics.
     /// </para>
     /// <para>
@@ -916,11 +917,14 @@ public static class DependencyInjection
                         !ctx.Request.Path.StartsWithSegments("/metrics");
                 })
                 .AddHttpClientInstrumentation()
-                .AddSqlClientInstrumentation(options =>
-                {
-                    options.RecordException = true;
-                })
                 .AddSource("ST.Cache");
+
+            // <db:SqlServer>
+            tracing.AddSqlClientInstrumentation(options =>
+            {
+                options.RecordException = true;
+            });
+            // </db:SqlServer>
 
             if (hasOtlp)
             {
@@ -1143,7 +1147,7 @@ public static class DependencyInjection
 
     private static void ConfigureQuartz(IServiceCollection services, IConfiguration configuration)
     {
-        var dbProvider = configuration.GetValue<string>($"{DatabaseSettings.SectionName}:Provider") ?? "SqlServer";
+        var dbProvider = configuration.GetValue<string>($"{DatabaseSettings.SectionName}:Provider") ?? DatabaseSettings.DefaultProvider;
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("DefaultConnection string not found in configuration");
 
@@ -1160,20 +1164,24 @@ public static class DependencyInjection
 
                 s.UseNewtonsoftJsonSerializer();
 
-                if (dbProvider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+                // <db:PostgreSql>
+                if (DatabaseProviders.Is(dbProvider, DatabaseProviders.PostgreSql))
                 {
                     s.UsePostgres(sq =>
                     {
                         sq.ConnectionString = connectionString;
                     });
                 }
-                else
+                // </db:PostgreSql>
+                // <db:SqlServer>
+                if (DatabaseProviders.Is(dbProvider, DatabaseProviders.SqlServer))
                 {
                     s.UseSqlServer(sq =>
                     {
                         sq.ConnectionString = connectionString;
                     });
                 }
+                // </db:SqlServer>
             });
         });
 

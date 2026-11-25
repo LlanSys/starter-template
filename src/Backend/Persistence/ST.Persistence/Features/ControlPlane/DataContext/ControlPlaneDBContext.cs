@@ -138,13 +138,20 @@ public class ControlPlaneDBContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(
             typeof(ControlPlaneDBContext).Assembly,
             type => type.Namespace?.StartsWith("ST.Persistence.Features.ControlPlane", StringComparison.Ordinal) == true &&
+                    // <db:SqlServer>
                     !(type.Namespace?.Contains("SqlServer") == true) &&
-                    !(type.Namespace?.Contains("PostgreSql") == true));
+                    // </db:SqlServer>
+                    // <db:PostgreSql>
+                    !(type.Namespace?.Contains("PostgreSql") == true) &&
+                    // </db:PostgreSql>
+                    true);
 
+        // <db:PostgreSql>
         if (Database.IsNpgsql())
         {
             DBContextHelper.ConfigurePostgreSqlConcurrency(modelBuilder);
         }
+        // </db:PostgreSql>
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -152,7 +159,9 @@ public class ControlPlaneDBContext : DbContext
         try
         {
             // Note: Control Plane is not tenant-filtered. TenantId is Guid.Empty.
+            // <db:PostgreSql>
             DBContextHelper.StampPostgreSqlConcurrency(this);
+            // </db:PostgreSql>
             DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, Guid.Empty, Clock.GetUtcNow());
             return await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }

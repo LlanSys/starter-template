@@ -16,18 +16,14 @@ internal static class LocalMigrationWorkflow
         bool apply,
         CancellationToken cancellationToken)
     {
-        ControlPlaneDBContext controlPlane = target.SqlServer
-            ? new ControlPlaneSqlServerDBContext(target.CreateOptions<ControlPlaneSqlServerDBContext>("ControlPlane"), clock)
-            : new ControlPlanePostgreSqlDBContext(target.CreateOptions<ControlPlanePostgreSqlDBContext>("ControlPlane"), clock);
+        var controlPlane = target.CreateControlPlaneContext(clock);
         await using var controlPlaneLifetime = controlPlane.ConfigureAwait(false);
 
         var iam = target.CreateIamContext(clock);
         await using var iamLifetime = iam.ConfigureAwait(false);
 
         var scope = new MigrationScope();
-        SharedDBContext shared = target.SqlServer
-            ? new SharedSqlServerDBContext(target.CreateOptions<SharedSqlServerDBContext>("Shared"), clock, scope, scope)
-            : new SharedPostgreSqlDBContext(target.CreateOptions<SharedPostgreSqlDBContext>("Shared"), clock, scope, scope);
+        var shared = target.CreateSharedContext(clock, scope, scope);
         await using var sharedLifetime = shared.ConfigureAwait(false);
 
         var connection = controlPlane.Database.GetDbConnection();

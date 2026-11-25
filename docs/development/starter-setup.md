@@ -11,11 +11,13 @@ Use the [downstream configuration and release checklist](downstream-configuratio
 Clone StarterTemplate into the new application's directory and run its rename script from that root:
 
 ```powershell
-.\scripts\rename-template.ps1 -NewName MyApplication -NamespacePrefix MA -WhatIf
-.\scripts\rename-template.ps1 -NewName MyApplication -NamespacePrefix MA
+.\scripts\rename-template.ps1 -NewName MyApplication -NamespacePrefix MA -DatabaseProvider PostgreSql -ResetGitHistory -WhatIf
+.\scripts\rename-template.ps1 -NewName MyApplication -NamespacePrefix MA -DatabaseProvider PostgreSql -ResetGitHistory
+git remote add origin <new-remote-url>
+git push -u origin main
 ```
 
-Review the diff and set the clone's Git remote to its own repository. The script updates product/project/namespace names, Dockerfiles, and assigns fresh host UserSecretsId values. It does not copy local secret contents or configure live cloud resources. Allocate distinct host ports and Compose project/volume names before starting applications side by side. Infrastructure ports are configurable through the `*_HOST_PORT` values in `ops/local/.env.example`. The setup script uses those same values for native host settings. `LOCAL_DATABASE_NAME` overrides the SQL database name. When blank or absent, the setup scripts derive the name from the API project prefix.
+`-DatabaseProvider` (`SqlServer`, `PostgreSql` or `Both`) keeps only the chosen database provider; see [database provider selection](../architecture/database-provider-selection.md). `-ResetGitHistory` deletes the template's git history first and finishes with a fresh repository and one initial commit, ready for the new remote. The script updates product/project/namespace names, Dockerfiles, and assigns fresh host UserSecretsId values. It does not copy local secret contents or configure live cloud resources. Allocate distinct host ports and Compose project/volume names before starting applications side by side. Infrastructure ports are configurable through the `*_HOST_PORT` values in `ops/local/.env.example`. The setup script uses those same values for native host settings. `LOCAL_DATABASE_NAME` overrides the SQL database name. When blank or absent, the setup scripts derive the name from the API project prefix.
 
 Keep DataProtection:ApplicationName stable after the first protected cookie, token or TOTP secret is issued. See [Renaming the template](renaming-the-template.md).
 
@@ -71,17 +73,26 @@ StarterTemplate currently uses starter-azure-prod/starter-non-azure-prod environ
 
 ## Apply the fresh database baseline
 
-Set DatabaseSettings:Provider to SqlServer or PostgreSql and configure matching ControlPlaneConnection, IamConnection, SharedConnection and DefaultConnection strings. DefaultConnection is also used by Quartz. Keep these connections on the same local database unless deliberately configuring deployment stamps.
+Set DatabaseSettings:Provider to the provider this clone kept (the rename script sets it) and configure matching ControlPlaneConnection, IamConnection, SharedConnection and DefaultConnection strings. DefaultConnection is also used by Quartz. Keep these connections on the same local database unless deliberately configuring deployment stamps.
 
-Restore the pinned tools with `dotnet tool restore`, then apply ControlPlane, IAM and Shared in that order. For SQL Server:
+Restore the pinned tools with `dotnet tool restore`, then apply ControlPlane, IAM and Shared in that order:
 
+<!-- <db:SqlServer> -->
 ```powershell
 dotnet ef database update --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context ControlPlaneSqlServerDBContext
 dotnet ef database update --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context IamSqlServerDBContext
 dotnet ef database update --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context SharedSqlServerDBContext
 ```
+<!-- </db:SqlServer> -->
+<!-- <db:PostgreSql> -->
+```powershell
+dotnet ef database update --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context ControlPlanePostgreSqlDBContext
+dotnet ef database update --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context IamPostgreSqlDBContext
+dotnet ef database update --project src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj --startup-project src/Backend/Api/ST.Api/ST.Api.csproj --context SharedPostgreSqlDBContext
+```
+<!-- </db:PostgreSql> -->
 
-For PostgreSQL substitute PostgreSql for SqlServer in all three context names. Each context owns its migration history table. Shared creates Quartz tables along with platform payment, notification and outbox persistence. Run application hosts from Visual Studio after migrations.
+Each context owns its migration history table. Shared creates Quartz tables along with platform payment, notification and outbox persistence. Run application hosts from Visual Studio after migrations.
 
 ## Check and update an existing local database
 
@@ -90,12 +101,11 @@ From the StarterTemplate root, run the check after pulling changes or scaffoldin
 ```powershell
 .\scripts\update-local-database.ps1
 .\scripts\update-local-database.ps1 -Apply
-# Use -Provider PostgreSql for a PostgreSQL database.
 ```
 
 The default command lists pending migration IDs for ControlPlane, IAM and Shared. With `-Apply`, all three contexts are checked before any migration runs. A missing StarterTemplate baseline, unknown migration, history gap, or model drift blocks the update. The command rechecks all three histories after applying migrations. Each context is upgraded separately. If a later context fails, correct the reported problem and rerun the check before applying again.
 
-The command uses the API's Development configuration, user-secrets and process environment. SQL Server is the default. The provider must match `DatabaseSettings:Provider`, and the three contexts must share `ConnectionStrings:DefaultConnection`. Set `ST_DATABASE_CONNECTION` in the current process to select an explicit local application database instead. Both paths reject remote and system databases. Keep database credentials out of arguments and logs.
+The command uses the API's Development configuration, user-secrets and process environment. The provider must match `DatabaseSettings:Provider`, and the three contexts must share `ConnectionStrings:DefaultConnection`. Set `ST_DATABASE_CONNECTION` in the current process to select an explicit local application database instead. Both paths reject remote and system databases. Keep database credentials out of arguments and logs.
 
 Keep the database running and pause the API hosts before applying pending migrations. Back up local data you need to retain. Use the fresh setup above for a new database. The local command runs independently of GitHub Actions and the Azure deployment setting.
 

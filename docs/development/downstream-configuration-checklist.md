@@ -14,7 +14,7 @@ Use a fresh copy of this checklist for every application, environment and deploy
 
 ## 1. Identity before first run
 
-- [ ] Run `scripts/rename-template.ps1 -NewName <ProductName> -NamespacePrefix <PREFIX> -WhatIf`, inspect the plan, then run without `-WhatIf`. Confirm namespace, project/solution paths, product branding (including logo initials and fallback avatars), image names and telemetry names.
+- [ ] Choose the database provider (`SqlServer`, `PostgreSql`, or `Both` only if the product must run on either). Run `scripts/rename-template.ps1 -NewName <ProductName> -NamespacePrefix <PREFIX> -DatabaseProvider <Provider> -ResetGitHistory -WhatIf`, inspect the plan, then run without `-WhatIf`. Confirm the fresh repository has one initial commit and no remote, then add the new remote and push. Confirm namespace, project/solution paths, product branding (including logo initials and fallback avatars), image names and telemetry names.
 - [ ] Set `origin` to the downstream repository. Confirm its owner/name, immutable repository ID and default branch. Never push downstream changes back to StarterTemplate accidentally.
 - [ ] Confirm the API and Blazor `UserSecretsId` values are fresh, distinct from each other and distinct from other applications. The rename script regenerates IDs; it does not copy secret contents.
 - [ ] Keep `.env`, user-secrets, certificates, local key rings and generated logs out of Git and Docker build contexts. Start from empty provider credentials rather than another application's secrets.

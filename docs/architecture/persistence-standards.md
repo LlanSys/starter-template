@@ -201,7 +201,7 @@ When using PostgreSQL as the primary database provider, you can safely utilize j
 
 ## Fresh starter baseline and concurrency
 
-Only IAM, Shared and ControlPlane ship in the starter. Generate separate SQL Server and PostgreSQL migrations in Features/{Context}/Migrations/{SqlServer|PostgreSql}; each context has its own migration history. InitialStarter targets an empty database. Existing downstream database upgrades require a separate migration strategy.
+Only IAM, Shared and ControlPlane ship in the starter. Generate one migration per provider present in the repository in Features/{Context}/Migrations/{Provider}; each context has its own migration history. A fork keeps one provider (see [database provider selection](database-provider-selection.md)); provider-specific code in shared files sits inside `<db:Provider>` markers. InitialStarter targets an empty database. Existing downstream database upgrades require a separate migration strategy.
 
 SQL Server uses native rowversion. PostgreSQL stores a required byte concurrency token and assigns a new cryptographically random value on every added/modified row through DBContextHelper. EF includes the original value in update predicates; conflicting writers fail rather than overwrite silently. ControlPlane applies this convention even though its registry is deliberately not tenant-filtered.
 

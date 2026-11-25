@@ -6,6 +6,8 @@ using ST.Api.Common.Authorization;
 using ST.Api.Extensions;
 using ST.Api.Features.Shared.Realtime;
 using ST.Api.Health;
+using ST.Persistence.Common.Configuration;
+using ST.Domain.Shared;
 using ST.Api.Utilities;
 using ST.Application.Extensions;
 using ST.Infrastructure.Extensions;
@@ -267,9 +269,22 @@ try
         .AddCheck("self-ready", () => HealthCheckResult.Healthy(), tags: ["ready"])
         .AddCheck("self-live", () => HealthCheckResult.Healthy(), tags: ["live"]);
 
-    if (healthCheckSettings.SqlServer)
+    if (healthCheckSettings.Database)
     {
-        healthChecks.AddCheck<SqlServerHealthCheck>("sql-server", tags: ["ready", "dependency"]);
+        var databaseSettings = (builder.Configuration.GetSection(DatabaseSettings.SectionName).Get<DatabaseSettings>()
+            ?? new DatabaseSettings()).EnsureSupported();
+        // <db:SqlServer>
+        if (databaseSettings.Is(DatabaseProviders.SqlServer))
+        {
+            healthChecks.AddCheck<SqlServerHealthCheck>("database", tags: ["ready", "dependency"]);
+        }
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (databaseSettings.Is(DatabaseProviders.PostgreSql))
+        {
+            healthChecks.AddCheck<PostgreSqlHealthCheck>("database", tags: ["ready", "dependency"]);
+        }
+        // </db:PostgreSql>
     }
 
     if (healthCheckSettings.Redis)

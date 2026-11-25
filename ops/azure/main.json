@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.45.15.27210",
-      "templateHash": "1618285683006371517"
+      "templateHash": "5576568835692974006"
     }
   },
   "parameters": {
@@ -26,13 +26,13 @@
     "sqlAdministratorLogin": {
       "type": "string",
       "metadata": {
-        "description": "The administrator login username for the SQL server."
+        "description": "The administrator login username for the database server."
       }
     },
     "sqlAdministratorLoginPassword": {
       "type": "securestring",
       "metadata": {
-        "description": "The administrator login password for the SQL server."
+        "description": "The administrator login password for the database server."
       }
     },
     "deploymentTarget": {
@@ -55,13 +55,14 @@
     },
     "databaseProvider": {
       "type": "string",
-      "defaultValue": "SqlServer",
+      "defaultValue": "",
       "allowedValues": [
+        "",
         "SqlServer",
         "PostgreSql"
       ],
       "metadata": {
-        "description": "The database provider to provision and configure."
+        "description": "The database provider to provision and configure. Empty selects the first supported provider."
       }
     },
     "azureCacheConnectionString": {
@@ -70,10 +71,29 @@
       "metadata": {
         "description": "Optional Azure Cache for Redis connection string. When empty, cache falls back to the configured non-Azure provider."
       }
+    },
+    "otlpEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The Grafana Cloud OTLP endpoint."
+      }
+    },
+    "otlpHeaders": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The Grafana Cloud OTLP headers (e.g. Authorization=Basic ...)"
+      }
     }
   },
   "variables": {
-    "sqlServerName": "[format('{0}-sql-{1}', parameters('resourcePrefix'), uniqueString(resourceGroup().id))]",
+    "supportedDatabaseProviders": [
+      "SqlServer",
+      "PostgreSql"
+    ],
+    "selectedDatabaseProvider": "[if(empty(parameters('databaseProvider')), first(variables('supportedDatabaseProviders')), parameters('databaseProvider'))]",
+    "databaseServerName": "[format('{0}-sql-{1}', parameters('resourcePrefix'), uniqueString(resourceGroup().id))]",
     "logAnalyticsName": "[format('{0}-law-{1}', parameters('resourcePrefix'), uniqueString(resourceGroup().id))]",
     "acaEnvName": "[format('{0}-env-{1}', parameters('resourcePrefix'), uniqueString(resourceGroup().id))]",
     "apiAppName": "[format('{0}-api', parameters('resourcePrefix'))]",
@@ -89,7 +109,7 @@
   },
   "resources": [
     {
-      "condition": "[equals(parameters('databaseProvider'), 'SqlServer')]",
+      "condition": "[equals(variables('selectedDatabaseProvider'), 'SqlServer')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "sqlDeploy",
@@ -100,7 +120,7 @@
         "mode": "Incremental",
         "parameters": {
           "serverName": {
-            "value": "[variables('sqlServerName')]"
+            "value": "[variables('databaseServerName')]"
           },
           "databaseName": {
             "value": "ST"
@@ -125,7 +145,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "1245835781905864213"
+              "templateHash": "8527357644285541263"
             }
           },
           "parameters": {
@@ -229,7 +249,7 @@
       }
     },
     {
-      "condition": "[equals(parameters('databaseProvider'), 'PostgreSql')]",
+      "condition": "[equals(variables('selectedDatabaseProvider'), 'PostgreSql')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "postgresDeploy",
@@ -240,7 +260,7 @@
         "mode": "Incremental",
         "parameters": {
           "serverName": {
-            "value": "[variables('sqlServerName')]"
+            "value": "[variables('databaseServerName')]"
           },
           "databaseName": {
             "value": "bt"
@@ -469,7 +489,7 @@
             "value": "[parameters('location')]"
           },
           "databaseProvider": {
-            "value": "[parameters('databaseProvider')]"
+            "value": "[variables('selectedDatabaseProvider')]"
           },
           "keyVaultUri": {
             "value": "[variables('keyVaultUri')]"
@@ -482,6 +502,12 @@
           },
           "manageContainerApps": {
             "value": "[parameters('manageContainerApps')]"
+          },
+          "otlpEndpoint": {
+            "value": "[parameters('otlpEndpoint')]"
+          },
+          "otlpHeaders": {
+            "value": "[parameters('otlpHeaders')]"
           }
         },
         "template": {
@@ -491,7 +517,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "9013156339466093895"
+              "templateHash": "17437782956556608744"
             }
           },
           "parameters": {
@@ -564,6 +590,20 @@
               "defaultValue": true,
               "metadata": {
                 "description": "Creates or repairs the public bootstrap Container Apps. Set to false after the first successful deployment so infrastructure-only runs do not replace deployed application revisions."
+              }
+            },
+            "otlpEndpoint": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "The Grafana Cloud OTLP endpoint."
+              }
+            },
+            "otlpHeaders": {
+              "type": "securestring",
+              "defaultValue": "",
+              "metadata": {
+                "description": "The Grafana Cloud OTLP headers."
               }
             }
           },
@@ -646,6 +686,14 @@
                         {
                           "name": "Messaging__Transport",
                           "value": "AzureServiceBus"
+                        },
+                        {
+                          "name": "Observability__Otlp__Endpoint",
+                          "value": "[parameters('otlpEndpoint')]"
+                        },
+                        {
+                          "name": "Observability__Otlp__Headers",
+                          "value": "[parameters('otlpHeaders')]"
                         }
                       ],
                       "resources": {
@@ -761,7 +809,7 @@
             "value": "[parameters('location')]"
           },
           "databaseProvider": {
-            "value": "[parameters('databaseProvider')]"
+            "value": "[variables('selectedDatabaseProvider')]"
           },
           "keyVaultUri": {
             "value": "[variables('keyVaultUri')]"
@@ -771,6 +819,12 @@
           },
           "dataProtectionKeyIdentifier": {
             "value": "[format('{0}keys/dataprotection', variables('keyVaultUri'))]"
+          },
+          "otlpEndpoint": {
+            "value": "[parameters('otlpEndpoint')]"
+          },
+          "otlpHeaders": {
+            "value": "[parameters('otlpHeaders')]"
           }
         },
         "template": {
@@ -780,7 +834,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "11195716529652507892"
+              "templateHash": "13851504925397122616"
             }
           },
           "parameters": {
@@ -834,6 +888,20 @@
               "defaultValue": "",
               "metadata": {
                 "description": "The versionless Key Vault key identifier used to encrypt Data Protection keys."
+              }
+            },
+            "otlpEndpoint": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "The Grafana Cloud OTLP endpoint."
+              }
+            },
+            "otlpHeaders": {
+              "type": "securestring",
+              "defaultValue": "",
+              "metadata": {
+                "description": "The Grafana Cloud OTLP headers."
               }
             }
           },
@@ -906,6 +974,14 @@
                     {
                       "name": "Messaging__Transport",
                       "value": "AzureServiceBus"
+                    },
+                    {
+                      "name": "Observability__Otlp__Endpoint",
+                      "value": "[parameters('otlpEndpoint')]"
+                    },
+                    {
+                      "name": "Observability__Otlp__Headers",
+                      "value": "[parameters('otlpHeaders')]"
                     }
                   ]
                 }
@@ -1313,7 +1389,9 @@
             "value": "[parameters('location')]"
           },
           "apiPrincipalId": "[if(equals(parameters('deploymentTarget'), 'container-apps'), createObject('value', coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'acaDeploy'), '2025-04-01').outputs, 'apiPrincipalId'), 'value'), '')), createObject('value', coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'appServiceDeploy'), '2025-04-01').outputs, 'apiPrincipalId'), 'value'), '')))]",
-          "databaseConnectionString": "[if(equals(parameters('databaseProvider'), 'SqlServer'), createObject('value', format('Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'sqlDeploy'), '2025-04-01').outputs, 'serverFullyQualifiedDomainName'), 'value'), ''), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'sqlDeploy'), '2025-04-01').outputs, 'databaseName'), 'value'), ''), parameters('sqlAdministratorLogin'), parameters('sqlAdministratorLoginPassword'))), createObject('value', format('Host={0};Port=5432;Database={1};Username={2};Password={3};Ssl Mode=Require;Trust Server Certificate=false;', coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'postgresDeploy'), '2025-04-01').outputs, 'serverFullyQualifiedDomainName'), 'value'), ''), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'postgresDeploy'), '2025-04-01').outputs, 'databaseName'), 'value'), ''), parameters('sqlAdministratorLogin'), parameters('sqlAdministratorLoginPassword'))))]",
+          "databaseConnectionString": {
+            "value": "[join(createArray(if(equals(variables('selectedDatabaseProvider'), 'SqlServer'), format('Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'sqlDeploy'), '2025-04-01').outputs, 'serverFullyQualifiedDomainName'), 'value'), ''), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'sqlDeploy'), '2025-04-01').outputs, 'databaseName'), 'value'), ''), parameters('sqlAdministratorLogin'), parameters('sqlAdministratorLoginPassword')), ''), if(equals(variables('selectedDatabaseProvider'), 'PostgreSql'), format('Host={0};Port=5432;Database={1};Username={2};Password={3};Ssl Mode=Require;Trust Server Certificate=false;', coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'postgresDeploy'), '2025-04-01').outputs, 'serverFullyQualifiedDomainName'), 'value'), ''), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'postgresDeploy'), '2025-04-01').outputs, 'databaseName'), 'value'), ''), parameters('sqlAdministratorLogin'), parameters('sqlAdministratorLoginPassword')), '')), '')]"
+          },
           "serviceBusNamespaceName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'serviceBusDeploy'), '2025-04-01').outputs.serviceBusNamespaceName.value]"
           },
@@ -1689,13 +1767,13 @@
     }
   ],
   "outputs": {
-    "sqlServerFqdn": {
+    "databaseServerFqdn": {
       "type": "string",
-      "value": "[if(equals(parameters('databaseProvider'), 'SqlServer'), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'sqlDeploy'), '2025-04-01').outputs, 'serverFullyQualifiedDomainName'), 'value'), ''), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'postgresDeploy'), '2025-04-01').outputs, 'serverFullyQualifiedDomainName'), 'value'), ''))]"
+      "value": "[join(createArray(if(equals(variables('selectedDatabaseProvider'), 'SqlServer'), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'sqlDeploy'), '2025-04-01').outputs, 'serverFullyQualifiedDomainName'), 'value'), ''), ''), if(equals(variables('selectedDatabaseProvider'), 'PostgreSql'), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'postgresDeploy'), '2025-04-01').outputs, 'serverFullyQualifiedDomainName'), 'value'), ''), '')), '')]"
     },
-    "sqlDatabaseName": {
+    "databaseName": {
       "type": "string",
-      "value": "[if(equals(parameters('databaseProvider'), 'SqlServer'), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'sqlDeploy'), '2025-04-01').outputs, 'databaseName'), 'value'), ''), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'postgresDeploy'), '2025-04-01').outputs, 'databaseName'), 'value'), ''))]"
+      "value": "[join(createArray(if(equals(variables('selectedDatabaseProvider'), 'SqlServer'), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'sqlDeploy'), '2025-04-01').outputs, 'databaseName'), 'value'), ''), ''), if(equals(variables('selectedDatabaseProvider'), 'PostgreSql'), coalesce(tryGet(tryGet(reference(resourceId('Microsoft.Resources/deployments', 'postgresDeploy'), '2025-04-01').outputs, 'databaseName'), 'value'), ''), '')), '')]"
     },
     "apiHost": {
       "type": "string",

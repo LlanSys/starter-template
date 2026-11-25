@@ -318,18 +318,21 @@ internal sealed partial class PlatformStaffService(
 
     private async Task LockAsync(CancellationToken ct)
     {
+        // <db:SqlServer>
         if (db.Database.IsSqlServer())
         {
             await db.Database.ExecuteSqlRawAsync("DECLARE @r int; EXEC @r = sys.sp_getapplock @Resource = N'ST:IAM:PlatformStaffAuthority', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 30000; IF @r < 0 THROW 51000, 'Authority lock unavailable', 1;", ct).ConfigureAwait(false);
+            return;
         }
-        else if (db.Database.IsNpgsql())
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        if (db.Database.IsNpgsql())
         {
             await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(731043, 1)", ct).ConfigureAwait(false);
+            return;
         }
-        else
-        {
-            throw new NotSupportedException("Platform staff administration requires a supported database provider.");
-        }
+        // </db:PostgreSql>
+        throw new NotSupportedException("Platform staff administration requires a supported database provider.");
     }
 
     private async Task<bool> AuthorizedAsync(string permission, CancellationToken ct)

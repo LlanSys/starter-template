@@ -1,7 +1,11 @@
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+// <db:PostgreSql>
 using Npgsql;
+// </db:PostgreSql>
 using ST.Application.Features.Shared.WorkTasks;
 using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Domain.Features.ControlPlane.Tenants.Entities;
@@ -124,8 +128,7 @@ internal sealed partial class WorkTaskService(IControlPlaneUnitOfWork unit, Work
             LogConflict(logger, exception);
             return Conflict();
         }
-        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 }
-            || exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
             LogConflict(logger, exception);
             return Conflict();
@@ -248,4 +251,16 @@ internal sealed partial class WorkTaskService(IControlPlaneUnitOfWork unit, Work
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Concurrent task assignment rejected; reload the task before retrying.")]
     private static partial void LogConflict(ILogger logger, Exception exception);
+
+    private static bool IsUniqueViolation(DbUpdateException exception)
+    {
+        var duplicate = false;
+        // <db:SqlServer>
+        duplicate |= exception.InnerException is SqlException { Number: 2601 or 2627 };
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        duplicate |= exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
+        // </db:PostgreSql>
+        return duplicate;
+    }
 }

@@ -1,3 +1,4 @@
+using ST.Domain.Shared;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Domain.Features.ControlPlane.Tenants.Entities;
@@ -84,7 +85,7 @@ public sealed class TenantRoutingApprovalTests
         CreatedBy = "creator-id",
         Status = status,
         DatabaseConnectionString = "encrypted-database",
-        DatabaseProvider = "SqlServer",
+        DatabaseProvider = DatabaseProviders.Supported[0],
         DeploymentStamp = new DeploymentStamp
         {
             Name = "Test stamp",

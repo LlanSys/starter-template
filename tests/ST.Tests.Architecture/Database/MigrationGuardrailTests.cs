@@ -11,43 +11,55 @@ namespace ST.Tests.Architecture.Database;
 [Trait("Category", "Guardrail")]
 public class MigrationGuardrailTests
 {
+    // <db:SqlServer>
     [Fact]
     public void IamSqlServer_ShouldNotHavePendingModelChanges()
     {
         AssertNoPendingModelChanges<IamSqlServerDBContext>(options => options.UseSqlServer("Server=.;Database=dummy;Integrated Security=true"));
     }
+    // </db:SqlServer>
 
+    // <db:PostgreSql>
     [Fact]
     public void IamPostgreSql_ShouldNotHavePendingModelChanges()
     {
         AssertNoPendingModelChanges<IamPostgreSqlDBContext>(options => options.UseNpgsql("Host=localhost;Database=dummy;Username=postgres;Password=postgres"));
     }
+    // </db:PostgreSql>
 
+    // <db:SqlServer>
     [Fact]
     public void SharedSqlServer_ShouldNotHavePendingModelChanges()
     {
         AssertNoPendingModelChanges<SharedSqlServerDBContext>(options => options.UseSqlServer("Server=.;Database=dummy;Integrated Security=true"));
     }
+    // </db:SqlServer>
 
+    // <db:PostgreSql>
     [Fact]
     public void SharedPostgreSql_ShouldNotHavePendingModelChanges()
     {
         AssertNoPendingModelChanges<SharedPostgreSqlDBContext>(options => options.UseNpgsql("Host=localhost;Database=dummy;Username=postgres;Password=postgres"));
     }
+    // </db:PostgreSql>
 
 
 
+    // <db:SqlServer>
     [Fact]
     public void ControlPlaneSqlServer_ShouldNotHavePendingModelChanges()
     {
         AssertNoPendingModelChanges<ControlPlaneSqlServerDBContext>(options => options.UseSqlServer("Server=.;Database=dummy;Integrated Security=true"));
     }
+    // </db:SqlServer>
 
+    // <db:PostgreSql>
     [Fact]
     public void ControlPlanePostgreSql_ShouldNotHavePendingModelChanges()
     {
         AssertNoPendingModelChanges<ControlPlanePostgreSqlDBContext>(options => options.UseNpgsql("Host=localhost;Database=dummy;Username=postgres;Password=postgres"));
     }
+    // </db:PostgreSql>
 
     private static void AssertNoPendingModelChanges<TContext>(Action<DbContextOptionsBuilder> configureOptions) where TContext : DbContext
     {

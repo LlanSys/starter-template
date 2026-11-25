@@ -1,3 +1,4 @@
+using ST.Domain.Shared;
 using ST.Persistence.Common.Configuration;
 using ST.Persistence.Features.Shared.Migrations.Generators;
 using ST.Domain.Features.IAM.Contracts;
@@ -34,13 +35,14 @@ public static class SharedPersistenceDI
             ?? throw new InvalidOperationException("SharedConnection (or DefaultConnection) not found.");
 
         services.Configure<DatabaseSettings>(configuration.GetSection(DatabaseSettings.SectionName));
-        var dbSettings = configuration.GetSection(DatabaseSettings.SectionName).Get<DatabaseSettings>() ?? new DatabaseSettings();
+        var dbSettings = (configuration.GetSection(DatabaseSettings.SectionName).Get<DatabaseSettings>() ?? new DatabaseSettings()).EnsureSupported();
 
         services.TryAddScoped<TenantConnectionInterceptor>();
 
         void ConfigureDbContextOptions(IServiceProvider provider, DbContextOptionsBuilder options)
         {
-            if (dbSettings.Provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+            // <db:PostgreSql>
+            if (dbSettings.Is(DatabaseProviders.PostgreSql))
             {
                 options.UseNpgsql(connectionString, pgOptions =>
                 {
@@ -50,7 +52,9 @@ public static class SharedPersistenceDI
                     pgOptions.MigrationsHistoryTable("__EFMigrationsHistory_Shared");
                 }).ReplaceService<IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
             }
-            else
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (dbSettings.Is(DatabaseProviders.SqlServer))
             {
                 options.UseSqlServer(connectionString, sqlOptions =>
                 {
@@ -60,6 +64,7 @@ public static class SharedPersistenceDI
                     sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Shared");
                 }).ReplaceService<IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
             }
+            // </db:SqlServer>
 
             // Enable sensitive data logging only in non-production environments for diagnostics
             if (environment?.IsDevelopment() == true || environment?.IsStaging() == true)
@@ -70,14 +75,18 @@ public static class SharedPersistenceDI
             options.AddInterceptors(provider.GetRequiredService<TenantConnectionInterceptor>());
         }
 
-        if (dbSettings.Provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+        // <db:PostgreSql>
+        if (dbSettings.Is(DatabaseProviders.PostgreSql))
         {
             services.AddDbContext<SharedDBContext, SharedPostgreSqlDBContext>(ConfigureDbContextOptions);
         }
-        else
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (dbSettings.Is(DatabaseProviders.SqlServer))
         {
             services.AddDbContext<SharedDBContext, SharedSqlServerDBContext>(ConfigureDbContextOptions);
         }
+        // </db:SqlServer>
 
 
         services.AddScoped<IEmailTemplateRepository, SharedEmailTemplateRepository>();

@@ -1,8 +1,12 @@
 using MediatR;
+// <db:SqlServer>
 using Microsoft.Data.SqlClient;
+// </db:SqlServer>
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+// <db:PostgreSql>
 using Npgsql;
+// </db:PostgreSql>
 using ST.Application.Features.ControlPlane.Tenants.Commands;
 using ST.Domain.Features.ControlPlane.Contracts;
 using ST.Domain.Shared.Contracts.Common;
@@ -74,7 +78,13 @@ internal sealed class SaveTenantFrontendAddressHandler(IControlPlaneUnitOfWork u
     private static bool IsAddressConflict(DbUpdateException exception)
     {
         const string index = "UX_Tenants_DedicatedFrontendOrigin";
-        return exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } postgres && postgres.ConstraintName == index
-            || exception.InnerException is SqlException { Number: 2601 or 2627 } sql && sql.Message.Contains(index, StringComparison.Ordinal);
+        var conflict = false;
+        // <db:PostgreSql>
+        conflict |= exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } postgres && postgres.ConstraintName == index;
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        conflict |= exception.InnerException is SqlException { Number: 2601 or 2627 } sql && sql.Message.Contains(index, StringComparison.Ordinal);
+        // </db:SqlServer>
+        return conflict;
     }
 }

@@ -21,14 +21,18 @@ public abstract class TenantIsolationMutationTests<TFixture> : IClassFixture<TFi
 
         var builder = new DbContextOptionsBuilder<IamDBContext>();
 
+        // <db:PostgreSql>
         if (fixture is PostgreSqlDbFixture)
         {
             builder.UseNpgsql(fixture.GetConnectionString());
         }
-        else if (fixture is MsSqlDbFixture)
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (fixture is MsSqlDbFixture)
         {
             builder.UseSqlServer(fixture.GetConnectionString());
         }
+        // </db:SqlServer>
 
         _options = builder.Options;
     }

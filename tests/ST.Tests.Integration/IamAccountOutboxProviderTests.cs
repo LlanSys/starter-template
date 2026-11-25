@@ -4,13 +4,12 @@ using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Npgsql;
 using NSubstitute;
+using ST.Domain.Shared;
 using ST.Application.Contracts.Interfaces.Common;
 using ST.Application.Features.ControlPlane.Modules;
 using ST.Application.Features.IAM.Users.Commands;
@@ -39,11 +38,9 @@ public abstract class IamAccountOutboxProviderTests<TFixture>(TFixture fixture) 
     [Fact]
     public async Task AccountAndNoticeRollbackTogetherAndWorkerDrainsBothOutboxesAfterRestart()
     {
-        var postgres = fixture is PostgreSqlDbFixture;
+        var provider = TestDatabaseProvider.ProviderOf(fixture);
         var database = $"IamOutbox_{Guid.CreateVersion7():N}";
-        var connection = postgres
-            ? new NpgsqlConnectionStringBuilder(fixture.GetConnectionString()) { Database = database }.ConnectionString
-            : new SqlConnectionStringBuilder(fixture.GetConnectionString()) { InitialCatalog = database }.ConnectionString;
+        var connection = TestDatabaseProvider.WithDatabase(fixture, database);
 
         var tenant = Guid.CreateVersion7();
         var otherTenant = Guid.CreateVersion7();
@@ -58,7 +55,7 @@ public abstract class IamAccountOutboxProviderTests<TFixture>(TFixture fixture) 
         Guid sharedMessageId;
         string userId;
 
-        using (var firstProcess = BuildHost(postgres, connection, tenant, actor, now, commitFault))
+        using (var firstProcess = BuildHost(provider, connection, tenant, actor, now, commitFault))
         {
             await using var scope = firstProcess.Services.CreateAsyncScope();
             var services = scope.ServiceProvider;
@@ -103,7 +100,7 @@ public abstract class IamAccountOutboxProviderTests<TFixture>(TFixture fixture) 
             sharedMessageId = (await shared.Set<OutboxMessage>().AsNoTracking().SingleAsync()).MessageId;
         }
 
-        using var restarted = BuildHost(postgres, connection, otherTenant, actor, now, new AccountCommitFault());
+        using var restarted = BuildHost(provider, connection, otherTenant, actor, now, new AccountCommitFault());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(75));
         var received = restarted.Services.GetRequiredService<Channel<ReceivedNotice>>();
         await restarted.StartAsync(timeout.Token);
@@ -143,7 +140,7 @@ public abstract class IamAccountOutboxProviderTests<TFixture>(TFixture fixture) 
     }
 
     private static IHost BuildHost(
-        bool postgres, string connection, Guid tenant, string actor, DateTimeOffset now, AccountCommitFault fault)
+        string provider, string connection, Guid tenant, string actor, DateTimeOffset now, AccountCommitFault fault)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions
@@ -163,21 +160,24 @@ public abstract class IamAccountOutboxProviderTests<TFixture>(TFixture fixture) 
         services.AddSingleton(Channel.CreateUnbounded<ReceivedNotice>());
         services.AddHttpContextAccessor();
 
-        var provider = postgres ? "PostgreSql" : "SqlServer";
         builder.Configuration["DatabaseSettings:Provider"] = provider;
         builder.Configuration["ConnectionStrings:DefaultConnection"] = connection;
         services.AddSingleton(Substitute.For<ITenantConnectionResolver>());
         services.AddIamPersistence(builder.Configuration, builder.Environment);
         services.AddSharedPersistence(builder.Configuration, builder.Environment);
 
-        if (postgres)
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.PostgreSql))
         {
             services.ConfigureDbContext<IamPostgreSqlDBContext>(options => options.AddInterceptors(fault));
         }
-        else
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(provider, DatabaseProviders.SqlServer))
         {
             services.ConfigureDbContext<IamSqlServerDBContext>(options => options.AddInterceptors(fault));
         }
+        // </db:SqlServer>
 
         services.AddIdentityCore<AppUser>(options => options.User.RequireUniqueEmail = true)
             .AddRoles<AppRole>()

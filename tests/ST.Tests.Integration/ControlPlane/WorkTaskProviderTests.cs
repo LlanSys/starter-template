@@ -4,10 +4,8 @@ using NSubstitute;
 using ST.Domain.Features.ControlPlane.Auditing.Contracts.Repositories;
 using ST.Persistence.Features.ControlPlane.Tenants.Repositories;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Npgsql;
 using ST.Application.Features.ControlPlane.Modules;
 using ST.Domain.Features.ControlPlane.Kyc.Entities;
 using ST.Domain.Features.ControlPlane.Support.Entities;
@@ -29,26 +27,44 @@ public abstract class WorkTaskProviderTests<TFixture>(TFixture fixture) : IClass
     [Fact]
     public async Task MigrationsSourceKeysAssignmentsAndHistoryWorkOnTheProvider()
     {
-        var postgres = fixture is PostgreSqlDbFixture;
         var database = $"TaskAssignments_{Guid.CreateVersion7():N}";
-        var connection = postgres ? new NpgsqlConnectionStringBuilder(fixture.GetConnectionString()) { Database = database }.ConnectionString
-            : new SqlConnectionStringBuilder(fixture.GetConnectionString()) { InitialCatalog = database }.ConnectionString;
+        var connection = TestDatabaseProvider.WithDatabase(fixture, database);
 
         var tenant = new TaskTenant();
         var actor = new TaskActor();
         var clock = TimeProvider.System;
-        ControlPlaneDBContext Plane() => postgres
-            ? new ControlPlanePostgreSqlDBContext(new DbContextOptionsBuilder<ControlPlanePostgreSqlDBContext>()
-                .UseNpgsql(connection, options => options.MigrationsHistoryTable("__EFMigrationsHistory_ControlPlane")).Options, clock, actor)
-            : new ControlPlaneSqlServerDBContext(new DbContextOptionsBuilder<ControlPlaneSqlServerDBContext>()
-                .UseSqlServer(connection, options => options.MigrationsHistoryTable("__EFMigrationsHistory_ControlPlane")).Options, clock, actor);
+        ControlPlaneDBContext Plane()
+        {
+            // <db:PostgreSql>
+            if (fixture is PostgreSqlDbFixture)
+            {
+                return new ControlPlanePostgreSqlDBContext(new DbContextOptionsBuilder<ControlPlanePostgreSqlDBContext>().UseNpgsql(connection, options => options.MigrationsHistoryTable("__EFMigrationsHistory_ControlPlane")).Options, clock, actor);
+            }
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (fixture is MsSqlDbFixture)
+            {
+                return new ControlPlaneSqlServerDBContext(new DbContextOptionsBuilder<ControlPlaneSqlServerDBContext>().UseSqlServer(connection, options => options.MigrationsHistoryTable("__EFMigrationsHistory_ControlPlane")).Options, clock, actor);
+            }
+            // </db:SqlServer>
+            throw TestDatabaseProvider.Unsupported(fixture);
+        }
         await using var plane = Plane();
         await plane.Database.MigrateAsync();
-        await using IamDBContext iam = postgres
-            ? new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>()
-                .UseNpgsql(connection, options => options.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, clock, tenant, actor)
-            : new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>()
-                .UseSqlServer(connection, options => options.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, clock, tenant, actor);
+        IamDBContext? iamCreated = null;
+        // <db:PostgreSql>
+        if (fixture is PostgreSqlDbFixture)
+        {
+            iamCreated = new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql(connection, options => options.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, clock, tenant, actor);
+        }
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (fixture is MsSqlDbFixture)
+        {
+            iamCreated = new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer(connection, options => options.MigrationsHistoryTable("__EFMigrationsHistory_IAM")).Options, clock, tenant, actor);
+        }
+        // </db:SqlServer>
+        await using IamDBContext iam = iamCreated ?? throw TestDatabaseProvider.Unsupported(fixture);
 
         var baseline = iam.Database.GetMigrations().Single(id => id.EndsWith("_AddTaskAssignmentPermissions", StringComparison.Ordinal));
         await iam.GetService<IMigrator>().MigrateAsync(baseline);

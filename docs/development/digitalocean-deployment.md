@@ -135,3 +135,13 @@ The deployment pipeline (`.github/workflows/non-azure-deploy.yml`) is already co
 1. Build the Docker images for `ST.Api` and `ST.UI.Blazor`.
 2. Push them to the GitHub Container Registry (GHCR).
 3. Connect to DigitalOcean via `doctl` and trigger a re-deployment of your App Platform app using the newly pushed images.
+
+## Database provider
+
+Migrations and the app follow the provider resolved by the workflow. In the template that is `vars.DATABASE_PROVIDER`, defaulting to PostgreSql. A single-provider fork always uses its provider.
+<!-- <db:PostgreSql> -->
+- PostgreSQL: set the `POSTGRES_CONNECTION_STRING` secret. The App Platform spec is `ops/digitalocean/app.yaml`.
+<!-- </db:PostgreSql> -->
+<!-- <db:SqlServer> -->
+- SQL Server: set the `SQLSERVER_CONNECTION_STRING` secret. DigitalOcean has no managed SQL Server, so use `ops/digitalocean/app.sqlserver.yaml` with an externally hosted database.
+<!-- </db:SqlServer> -->

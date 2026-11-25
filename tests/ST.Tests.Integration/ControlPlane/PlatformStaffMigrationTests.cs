@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql;
 using ST.Domain.Features.ControlPlane.Tenants.Entities;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Persistence.Features.IAM.DataContext;
@@ -17,16 +15,22 @@ public abstract class PlatformStaffMigrationTests<TFixture>(TFixture fixture) : 
     [Fact]
     public async Task UpgradeGrantsOnlyExplicitFullAuthorityStaffAndCreatesAuditStore()
     {
-        var postgres = fixture is PostgreSqlDbFixture;
         var name = $"StaffMigration_{Guid.CreateVersion7():N}";
-        var connection = postgres ? new NpgsqlConnectionStringBuilder(fixture.GetConnectionString())
+        var connection = TestDatabaseProvider.WithDatabase(fixture, name);
+        IamDBContext? created = null;
+        // <db:PostgreSql>
+        if (fixture is PostgreSqlDbFixture)
         {
-            Database = name
-        }.ConnectionString : new SqlConnectionStringBuilder(fixture.GetConnectionString())
+            created = new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql(connection).Options, TimeProvider.System);
+        }
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (fixture is MsSqlDbFixture)
         {
-            InitialCatalog = name
-        }.ConnectionString;
-        await using IamDBContext db = postgres ? new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql(connection).Options, TimeProvider.System) : new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer(connection).Options, TimeProvider.System);
+            created = new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer(connection).Options, TimeProvider.System);
+        }
+        // </db:SqlServer>
+        await using IamDBContext db = created ?? throw TestDatabaseProvider.Unsupported(fixture);
         var migrations = db.Database.GetMigrations().ToArray();
         var previous = Array.FindIndex(migrations, m => m.EndsWith("_EnforceTenantAccountAdmission", StringComparison.Ordinal));
         await db.GetService<IMigrator>().MigrateAsync(migrations[previous]);
@@ -101,14 +105,18 @@ public abstract class PlatformStaffMigrationTests<TFixture>(TFixture fixture) : 
         Assert.All(granted, c => Assert.Equal(accounts["full"].Id, c.UserId));
         Assert.Empty(await db.PlatformStaffChanges.ToArrayAsync());
         await using var transaction = await db.Database.BeginTransactionAsync();
-        if (postgres)
+        // <db:PostgreSql>
+        if (fixture is PostgreSqlDbFixture)
         {
             await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(731043, 1)");
         }
-        else
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (fixture is MsSqlDbFixture)
         {
             await db.Database.ExecuteSqlRawAsync("DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource=N'ST:IAM:PlatformStaffAuthority', @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=30000; IF @r < 0 THROW 51000, 'Authority lock unavailable', 1;");
         }
+        // </db:SqlServer>
 
         await transaction.RollbackAsync();
     }

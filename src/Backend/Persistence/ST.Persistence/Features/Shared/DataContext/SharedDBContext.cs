@@ -96,8 +96,13 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
         modelBuilder.ApplyConfigurationsFromAssembly(
             typeof(SharedDBContext).Assembly,
             type => type.Namespace?.StartsWith("ST.Persistence.Features.Shared", StringComparison.Ordinal) == true &&
+                    // <db:SqlServer>
                     !(type.Namespace?.Contains("SqlServer") == true) &&
-                    !(type.Namespace?.Contains("PostgreSql") == true));
+                    // </db:SqlServer>
+                    // <db:PostgreSql>
+                    !(type.Namespace?.Contains("PostgreSql") == true) &&
+                    // </db:PostgreSql>
+                    true);
 
         DBContextHelper.ApplyStandardModelConventions(modelBuilder, this);
     }
@@ -124,7 +129,9 @@ public class SharedDBContext : DbContext, ITenantFilteredDBContext
 
             var domainEvents = DBContextHelper.CollectDomainEvents(ChangeTracker);
             DBContextHelper.ClearDomainEventsFromAggregates(ChangeTracker);
+            // <db:PostgreSql>
             DBContextHelper.StampPostgreSqlConcurrency(this);
+            // </db:PostgreSql>
             DBContextHelper.UpdateAuditAndSoftDelete(ChangeTracker, _actorProvider?.ActorId ?? ICurrentActorProvider.SystemActor, CurrentTenantId, Clock.GetUtcNow());
             var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken).ConfigureAwait(false);
             _collectedDomainEvents ??= [];

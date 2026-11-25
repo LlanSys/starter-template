@@ -1,6 +1,11 @@
 [CmdletBinding()]
 param(
+    # <db:SqlServer>
     [switch]$IncludeSqlServer,
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    [switch]$IncludePostgreSql,
+    # </db:PostgreSql>
     [switch]$IncludeSeq
 )
 
@@ -15,7 +20,12 @@ if (-not (Test-Path -LiteralPath $envFile)) {
 }
 
 $profiles = @()
+# <db:SqlServer>
 if ($IncludeSqlServer) { $profiles += @('--profile', 'database') }
+# </db:SqlServer>
+# <db:PostgreSql>
+if ($IncludePostgreSql) { $profiles += @('--profile', 'postgres') }
+# </db:PostgreSql>
 if ($IncludeSeq) { $profiles += @('--profile', 'observability') }
 
 $composeArguments = @('compose', '--env-file', $envFile, '-f', $composeFile)

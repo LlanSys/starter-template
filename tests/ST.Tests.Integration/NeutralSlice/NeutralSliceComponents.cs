@@ -5,6 +5,9 @@ using ST.Persistence.Common;
 using ST.Persistence.Common.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+// <db:PostgreSql>
+using System.Security.Cryptography;
+// </db:PostgreSql>
 
 namespace ST.Tests.Integration.NeutralSlice;
 
@@ -22,7 +25,19 @@ internal sealed class NeutralSliceDBContext(DbContextOptions<NeutralSliceDBConte
         entity.ToTable("CertificationNotes");
         entity.HasKey(note => note.Id);
         entity.Property(note => note.Title).HasMaxLength(100).IsRequired();
-        entity.Property(note => note.RowVersion).IsRowVersion();
+        // <db:SqlServer>
+        if (Database.IsSqlServer())
+        {
+            entity.Property(note => note.RowVersion).IsRowVersion();
+        }
+        // </db:SqlServer>
+        // <db:PostgreSql>
+        // PostgreSQL has no rowversion; the application stamps a random concurrency token (see DBContextHelper).
+        if (Database.IsNpgsql())
+        {
+            entity.Property(note => note.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+        }
+        // </db:PostgreSql>
         entity.HasQueryFilter(note => note.TenantId == tenant.TenantId);
     }
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -33,6 +48,15 @@ internal sealed class NeutralSliceDBContext(DbContextOptions<NeutralSliceDBConte
             entry.Entity.CreatedBy = actor.ActorId;
             entry.Entity.CreatedAt = DateTimeOffset.UtcNow;
         }
+        // <db:PostgreSql>
+        if (Database.IsNpgsql())
+        {
+            foreach (var entry in ChangeTracker.Entries<NeutralNote>().Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+            {
+                entry.Entity.RowVersion = RandomNumberGenerator.GetBytes(16);
+            }
+        }
+        // </db:PostgreSql>
         return base.SaveChangesAsync(cancellationToken);
     }
 }

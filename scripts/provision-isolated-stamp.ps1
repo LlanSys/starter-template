@@ -5,8 +5,16 @@ $ErrorActionPreference = 'Stop'
 $tenantId = [Guid]::Parse($env:PROVISIONING_TENANT_ID)
 $stampId = [Guid]::Parse($env:PROVISIONING_STAMP_ID)
 [void][Guid]::Parse($env:PROVISIONING_OPERATION_ID)
+$supportedDatabaseProviders = @(
+    # <db:SqlServer>
+    'SqlServer'
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    'PostgreSql'
+    # </db:PostgreSql>
+)
 $provider = $env:PROVISIONING_DATABASE_PROVIDER
-if ($provider -notin @('SqlServer', 'PostgreSql') -or $provider -ne $env:PROVISIONING_CONTROLPLANE_PROVIDER) {
+if ($provider -notin $supportedDatabaseProviders -or $provider -ne $env:PROVISIONING_CONTROLPLANE_PROVIDER) {
     throw 'Choose the database provider configured for this control plane.'
 }
 foreach ($name in @('PROVISIONING_RESOURCE_GROUP','PROVISIONING_REGION','PROVISIONING_SQL_PASSWORD',

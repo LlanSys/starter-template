@@ -1,0 +1,47 @@
+# Template-only: forks remove this workflow (scripts/database-providers.json 'templateOnly').
+# Simulates a downstream fork for each database provider and proves it builds and tests.
+name: Template Fork Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      integration:
+        description: Run the integration suite (Docker) for each fork
+        type: boolean
+        default: false
+
+jobs:
+  fork:
+    name: Fork (${{ matrix.provider }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [SqlServer, PostgreSql]
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Rename test fixture
+        shell: pwsh
+        run: ./scripts/test-rename-template.ps1
+
+      - name: Fork, build and test
+        shell: pwsh
+        run: |
+          $integration = '${{ github.event_name }}' -eq 'schedule' -or '${{ inputs.integration }}' -eq 'true'
+          ./scripts/test-database-provider-selection.ps1 -Provider ${{ matrix.provider }} -IncludeIntegrationTests:$integration

@@ -16,9 +16,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using ST.Domain.Features.IAM.Users.Enums;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Shared.Contracts.Common;
@@ -34,13 +32,24 @@ public abstract class TenantAccountAdmissionProviderTests<TFixture>(TFixture fix
     public async Task StorageBoundaryEnforcesTenantUniquenessQuotaAndTransactionalAdmission()
     {
         var database = $"Admission_{Guid.CreateVersion7():N}";
-        var postgres = fixture is PostgreSqlDbFixture;
-        var connection = postgres ? new NpgsqlConnectionStringBuilder(fixture.GetConnectionString()) { Database = database }.ConnectionString
-            : new SqlConnectionStringBuilder(fixture.GetConnectionString()) { InitialCatalog = database }.ConnectionString;
+        var connection = TestDatabaseProvider.WithDatabase(fixture, database);
 
-        IamDBContext Context(Guid tenant) => postgres
-            ? new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql(connection).Options, TimeProvider.System, new TenantScope(tenant))
-            : new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer(connection).Options, TimeProvider.System, new TenantScope(tenant));
+        IamDBContext Context(Guid tenant)
+        {
+            // <db:PostgreSql>
+            if (fixture is PostgreSqlDbFixture)
+            {
+                return new IamPostgreSqlDBContext(new DbContextOptionsBuilder<IamPostgreSqlDBContext>().UseNpgsql(connection).Options, TimeProvider.System, new TenantScope(tenant));
+            }
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (fixture is MsSqlDbFixture)
+            {
+                return new IamSqlServerDBContext(new DbContextOptionsBuilder<IamSqlServerDBContext>().UseSqlServer(connection).Options, TimeProvider.System, new TenantScope(tenant));
+            }
+            // </db:SqlServer>
+            throw TestDatabaseProvider.Unsupported(fixture);
+        }
         var tenant = Guid.CreateVersion7();
         var limits = new Limits { Value = 1 };
 
@@ -154,25 +163,33 @@ public abstract class TenantAccountAdmissionProviderTests<TFixture>(TFixture fix
             // Legacy duplicate identities stop the upgrade; no account is silently merged or deleted.
             await db.GetService<IMigrator>().MigrateAsync(previous);
 
-            if (postgres)
+            // <db:PostgreSql>
+            if (fixture is PostgreSqlDbFixture)
             {
                 await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"Users\" SET \"NormalizedEmail\" = {human.NormalizedEmail} WHERE \"Id\" = {proxy.Id}");
             }
-            else
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (fixture is MsSqlDbFixture)
             {
                 await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE [Users] SET [NormalizedEmail] = {human.NormalizedEmail} WHERE [Id] = {proxy.Id}");
             }
+            // </db:SqlServer>
 
             await Assert.ThrowsAnyAsync<Exception>(() => db.Database.MigrateAsync());
 
-            if (postgres)
+            // <db:PostgreSql>
+            if (fixture is PostgreSqlDbFixture)
             {
                 await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"Users\" SET \"NormalizedEmail\" = {proxy.NormalizedEmail} WHERE \"Id\" = {proxy.Id}");
             }
-            else
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (fixture is MsSqlDbFixture)
             {
                 await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE [Users] SET [NormalizedEmail] = {proxy.NormalizedEmail} WHERE [Id] = {proxy.Id}");
             }
+            // </db:SqlServer>
 
             await db.Database.MigrateAsync();
             Assert.Equal(2, await db.Users.CountAsync());
@@ -184,14 +201,25 @@ public abstract class TenantAccountAdmissionProviderTests<TFixture>(TFixture fix
     [Fact]
     public async Task ExistingEvidenceIsQuarantinedAndScanLeasesAreConcurrentOnTheProvider()
     {
-        var postgres = fixture is PostgreSqlDbFixture;
         var database = $"KycSafety_{Guid.CreateVersion7():N}";
-        var connection = postgres ? new NpgsqlConnectionStringBuilder(fixture.GetConnectionString()) { Database = database }.ConnectionString
-            : new SqlConnectionStringBuilder(fixture.GetConnectionString()) { InitialCatalog = database }.ConnectionString;
+        var connection = TestDatabaseProvider.WithDatabase(fixture, database);
 
-        ControlPlaneDBContext Context() => postgres
-            ? new ControlPlanePostgreSqlDBContext(new DbContextOptionsBuilder<ControlPlanePostgreSqlDBContext>().UseNpgsql(connection).Options, TimeProvider.System, new Actor())
-            : new ControlPlaneSqlServerDBContext(new DbContextOptionsBuilder<ControlPlaneSqlServerDBContext>().UseSqlServer(connection).Options, TimeProvider.System, new Actor());
+        ControlPlaneDBContext Context()
+        {
+            // <db:PostgreSql>
+            if (fixture is PostgreSqlDbFixture)
+            {
+                return new ControlPlanePostgreSqlDBContext(new DbContextOptionsBuilder<ControlPlanePostgreSqlDBContext>().UseNpgsql(connection).Options, TimeProvider.System, new Actor());
+            }
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (fixture is MsSqlDbFixture)
+            {
+                return new ControlPlaneSqlServerDBContext(new DbContextOptionsBuilder<ControlPlaneSqlServerDBContext>().UseSqlServer(connection).Options, TimeProvider.System, new Actor());
+            }
+            // </db:SqlServer>
+            throw TestDatabaseProvider.Unsupported(fixture);
+        }
         var now = TimeProvider.System.GetUtcNow();
         var tenantId = Guid.CreateVersion7();
         var pending = new KycDocument(tenantId, "Registration", "synthetic.pdf", "application/pdf", 10, new string('A', 64), "test", now);

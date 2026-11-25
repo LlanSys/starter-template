@@ -1,3 +1,4 @@
+using ST.Domain.Shared;
 using System;
 using System.Linq.Expressions;
 using System.Threading;
@@ -144,7 +145,7 @@ public sealed class CreateTenantCommandHandlerTests
             DeploymentStampId = stampId,
             SubscriptionTier = "Enterprise",
             ContactEmail = "test@example.com",
-            DatabaseProvider = "SqlServer",
+            DatabaseProvider = DatabaseProviders.Supported[0],
             HostName = "test.example.com",
             DatabaseConnectionString = "Server=localhost;Database=db;"
         };

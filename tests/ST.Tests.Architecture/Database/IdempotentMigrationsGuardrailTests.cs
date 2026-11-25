@@ -22,6 +22,7 @@ namespace ST.Tests.Architecture.Database;
 [Trait("Category", "Guardrail")]
 public class IdempotentMigrationsGuardrailTests
 {
+    // <db:SqlServer>
     [Theory]
     [InlineData(typeof(SharedSqlServerDBContext), typeof(IdempotentSqlServerMigrationsSqlGenerator))]
     [InlineData(typeof(IamSqlServerDBContext), typeof(IdempotentSqlServerMigrationsSqlGenerator))]
@@ -48,7 +49,9 @@ public class IdempotentMigrationsGuardrailTests
         var generator = context.Database.GetService<IMigrationsSqlGenerator>();
         Assert.IsType(expectedGeneratorType, generator);
     }
+    // </db:SqlServer>
 
+    // <db:PostgreSql>
     [Theory]
     [InlineData(typeof(SharedPostgreSqlDBContext), typeof(IdempotentNpgsqlMigrationsSqlGenerator))]
     [InlineData(typeof(IamPostgreSqlDBContext), typeof(IdempotentNpgsqlMigrationsSqlGenerator))]
@@ -79,6 +82,7 @@ public class IdempotentMigrationsGuardrailTests
         Assert.Contains("CREATE TABLE IF NOT EXISTS", historySql, StringComparison.Ordinal);
         Assert.DoesNotContain("IF NOT EXISTS IF NOT EXISTS", historySql, StringComparison.Ordinal);
     }
+    // </db:PostgreSql>
 
     private static IConfiguration BuildConfiguration(string provider)
     {

@@ -1,3 +1,4 @@
+using ST.Domain.Shared;
 using ST.Persistence.Common.Configuration;
 using ST.Persistence.Features.Shared.Migrations.Generators;
 using ST.Domain.Features.ControlPlane.Auditing.Contracts.Repositories;
@@ -25,11 +26,12 @@ public static class ControlPlanePersistenceDI
             ?? throw new InvalidOperationException("ControlPlaneConnection (or DefaultConnection) not found.");
 
         services.Configure<DatabaseSettings>(configuration.GetSection(DatabaseSettings.SectionName));
-        var dbSettings = configuration.GetSection(DatabaseSettings.SectionName).Get<DatabaseSettings>() ?? new DatabaseSettings();
+        var dbSettings = (configuration.GetSection(DatabaseSettings.SectionName).Get<DatabaseSettings>() ?? new DatabaseSettings()).EnsureSupported();
 
         void ConfigureDbContextOptions(DbContextOptionsBuilder options)
         {
-            if (dbSettings.Provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+            // <db:PostgreSql>
+            if (dbSettings.Is(DatabaseProviders.PostgreSql))
             {
                 options.UseNpgsql(connectionString, pgOptions =>
                 {
@@ -39,7 +41,9 @@ public static class ControlPlanePersistenceDI
                     pgOptions.MigrationsHistoryTable("__EFMigrationsHistory_ControlPlane");
                 }).ReplaceService<IMigrationsSqlGenerator, IdempotentNpgsqlMigrationsSqlGenerator>();
             }
-            else
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (dbSettings.Is(DatabaseProviders.SqlServer))
             {
                 options.UseSqlServer(connectionString, sqlOptions =>
                 {
@@ -49,6 +53,7 @@ public static class ControlPlanePersistenceDI
                     sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_ControlPlane");
                 }).ReplaceService<IMigrationsSqlGenerator, IdempotentSqlServerMigrationsSqlGenerator>();
             }
+            // </db:SqlServer>
 
             if (environment?.IsDevelopment() == true || environment?.IsStaging() == true)
             {
@@ -56,14 +61,18 @@ public static class ControlPlanePersistenceDI
             }
         }
 
-        if (dbSettings.Provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
+        // <db:PostgreSql>
+        if (dbSettings.Is(DatabaseProviders.PostgreSql))
         {
             services.AddDbContext<ControlPlaneDBContext, ControlPlanePostgreSqlDBContext>(ConfigureDbContextOptions);
         }
-        else
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (dbSettings.Is(DatabaseProviders.SqlServer))
         {
             services.AddDbContext<ControlPlaneDBContext, ControlPlaneSqlServerDBContext>(ConfigureDbContextOptions);
         }
+        // </db:SqlServer>
 
         services.AddScoped<ITenantRepository, TenantRepository>();
         services.AddScoped<IDeploymentStampRepository, DeploymentStampRepository>();

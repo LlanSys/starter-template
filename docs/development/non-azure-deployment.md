@@ -183,3 +183,13 @@ Do not remove Azure settings to make non-Azure deployment work. Keep provider se
 - Non-Azure deployment lives in `.github/workflows/non-azure-deploy.yml`.
 - Local infrastructure remains in `ops/local/docker-compose.yml`.
 - Runtime provider choices remain in app configuration.
+
+## Database provider
+
+Migrations and the app follow the provider resolved by the workflow. In the template that is `vars.DATABASE_PROVIDER`, defaulting to PostgreSql. A single-provider fork always uses its provider.
+<!-- <db:PostgreSql> -->
+- PostgreSQL: set the `POSTGRES_CONNECTION_STRING` secret. The App Platform spec is `ops/digitalocean/app.yaml`.
+<!-- </db:PostgreSql> -->
+<!-- <db:SqlServer> -->
+- SQL Server: set the `SQLSERVER_CONNECTION_STRING` secret. DigitalOcean has no managed SQL Server, so use `ops/digitalocean/app.sqlserver.yaml` with an externally hosted database.
+<!-- </db:SqlServer> -->

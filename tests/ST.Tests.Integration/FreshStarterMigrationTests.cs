@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.SharedKernel.Features.ControlPlane;
 using MassTransit.EntityFrameworkCoreIntegration;
+using ST.Domain.Shared;
 using ST.Persistence.Features.ControlPlane.DataContext;
 using ST.Persistence.Features.IAM.DataContext;
 using ST.Persistence.Features.Shared.DataContext;
@@ -10,8 +11,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Data.SqlClient;
-using Npgsql;
 using Quartz;
 using ST.Domain.Features.ControlPlane.Tenants.Entities;
 using ST.Domain.Shared.Contracts.Common;
@@ -27,19 +26,11 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
     [InlineData(true)]
     public async Task AllRetainedContextsMigrateAndRerunIdempotently(bool upgrade)
     {
-        bool postgres = fixture is PostgreSqlDbFixture;
+        var dbProvider = TestDatabaseProvider.ProviderOf(fixture);
         string connection = fixture.GetConnectionString();
         var database = upgrade ? "StarterUpgrade" : "StarterCertification";
 
-        if (postgres)
-        {
-            connection = new NpgsqlConnectionStringBuilder(connection) { Database = database }.ConnectionString;
-        }
-        else
-        {
-            var builder = new SqlConnectionStringBuilder(connection) { InitialCatalog = database };
-            connection = builder.ConnectionString;
-        }
+        connection = TestDatabaseProvider.WithDatabase(fixture, database);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
@@ -47,33 +38,51 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
         services.AddSingleton<ICurrentActorProvider, MigrationActorProvider>();
         void Configure(DbContextOptionsBuilder options, string context)
         {
-            if (postgres)
+            // <db:PostgreSql>
+            if (DatabaseProviders.Is(dbProvider, DatabaseProviders.PostgreSql))
             {
                 options.UseNpgsql(connection, provider => provider.MigrationsHistoryTable("__EFMigrationsHistory_" + context));
             }
-            else
+            // </db:PostgreSql>
+            // <db:SqlServer>
+            if (DatabaseProviders.Is(dbProvider, DatabaseProviders.SqlServer))
             {
                 options.UseSqlServer(connection, provider => provider.MigrationsHistoryTable("__EFMigrationsHistory_" + context));
             }
+            // </db:SqlServer>
         }
 
-        if (postgres)
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(dbProvider, DatabaseProviders.PostgreSql))
         {
             services.AddDbContext<ControlPlanePostgreSqlDBContext>(options => Configure(options, "ControlPlane"));
             services.AddDbContext<IamPostgreSqlDBContext>(options => Configure(options, "IAM"));
             services.AddDbContext<SharedPostgreSqlDBContext>(options => Configure(options, "Shared"));
         }
-        else
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(dbProvider, DatabaseProviders.SqlServer))
         {
             services.AddDbContext<ControlPlaneSqlServerDBContext>(options => Configure(options, "ControlPlane"));
             services.AddDbContext<IamSqlServerDBContext>(options => Configure(options, "IAM"));
             services.AddDbContext<SharedSqlServerDBContext>(options => Configure(options, "Shared"));
         }
+        // </db:SqlServer>
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
-        Type[] contexts = postgres
-            ? [typeof(ControlPlanePostgreSqlDBContext), typeof(IamPostgreSqlDBContext), typeof(SharedPostgreSqlDBContext)]
-            : [typeof(ControlPlaneSqlServerDBContext), typeof(IamSqlServerDBContext), typeof(SharedSqlServerDBContext)];
+        Type[] contexts = [];
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(dbProvider, DatabaseProviders.PostgreSql))
+        {
+            contexts = [typeof(ControlPlanePostgreSqlDBContext), typeof(IamPostgreSqlDBContext), typeof(SharedPostgreSqlDBContext)];
+        }
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(dbProvider, DatabaseProviders.SqlServer))
+        {
+            contexts = [typeof(ControlPlaneSqlServerDBContext), typeof(IamSqlServerDBContext), typeof(SharedSqlServerDBContext)];
+        }
+        // </db:SqlServer>
 
         var legacyKycId = Guid.CreateVersion7();
         var outboxId = Guid.CreateVersion7();
@@ -123,7 +132,7 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
                         var name = $"upgrade-platform-{Guid.CreateVersion7():N}";
                         var account = AppUser.CreateSystemUser(DateTimeOffset.UnixEpoch, Tenant.PlatformTenantId, name, $"{name}@example.test", "MigrationCertification");
                         account.IsActive = true;
-                        await SeedLegacyAccountAsync(iam, account, postgres);
+                        await SeedLegacyAccountAsync(iam, account, dbProvider);
                         prepared.Add(account.Id);
                         iam.UserClaims.Add(new IdentityUserClaim<string> { UserId = account.Id, ClaimType = "permission", ClaimValue = "control_plane.manage" });
 
@@ -189,7 +198,13 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
             await context.Database.MigrateAsync();
             string script = context.GetService<IMigrator>().GenerateScript(options: MigrationsSqlGenerationOptions.Idempotent);
             Assert.Contains("InitialStarter", script, StringComparison.Ordinal);
-            var batches = postgres ? new[] { script } : Regex.Split(script, @"^GO\s*$", RegexOptions.Multiline);
+            var batches = new[] { script };
+            // <db:SqlServer>
+            if (DatabaseProviders.Is(dbProvider, DatabaseProviders.SqlServer))
+            {
+                batches = Regex.Split(script, @"^GO\s*$", RegexOptions.Multiline);
+            }
+            // </db:SqlServer>
 
             foreach (var batch in batches.Where(batch => !string.IsNullOrWhiteSpace(batch)))
             {
@@ -198,13 +213,14 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
 
             Assert.Equal(context.Database.GetMigrations(), await context.Database.GetAppliedMigrationsAsync());
         }
-        await VerifyQuartzAsync(connection, postgres, schedulerName, upgrade, legacyFireTime);
+        await VerifyQuartzAsync(connection, dbProvider, schedulerName, upgrade, legacyFireTime);
         await VerifyConcurrencyAsync(provider, contexts[0]);
     }
-    private static async Task SeedLegacyAccountAsync(IamDBContext context, AppUser account, bool postgres)
+    private static async Task SeedLegacyAccountAsync(IamDBContext context, AppUser account, string dbProvider)
     {
         // Exercise the historical schema, without asking today's model to insert new columns.
-        if (postgres)
+        // <db:PostgreSql>
+        if (DatabaseProviders.Is(dbProvider, DatabaseProviders.PostgreSql))
         {
             await context.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO "Users" ("Id", "TenantId", "UserName", "NormalizedUserName", "Email", "NormalizedEmail",
@@ -215,7 +231,9 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
                     {false}, {false}, {false}, {false}, {false}, {0}, {new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }})
                 """);
         }
-        else
+        // </db:PostgreSql>
+        // <db:SqlServer>
+        if (DatabaseProviders.Is(dbProvider, DatabaseProviders.SqlServer))
         {
             await context.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO "Users" ("Id", "TenantId", "UserName", "NormalizedUserName", "Email", "NormalizedEmail",
@@ -226,6 +244,7 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
                     {false}, {false}, {false}, {false}, {false}, {0})
                 """);
         }
+        // </db:SqlServer>
     }
 
     private static async Task SeedQuartzTriggerAsync(DbContext context, string schedulerName, DateTimeOffset fireTime)
@@ -246,7 +265,7 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
     }
 
     private static async Task VerifyQuartzAsync(
-        string connection, bool postgres, string schedulerName, bool upgrade, DateTimeOffset legacyFireTime)
+        string connection, string dbProvider, string schedulerName, bool upgrade, DateTimeOffset legacyFireTime)
     {
         var completed = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var services = new ServiceCollection();
@@ -260,14 +279,18 @@ public abstract class FreshStarterMigrationTests<TFixture>(TFixture fixture) : I
                 store.ConfigureStore(settings => settings.StoreJobDataAsStrings = true);
                 store.UseNewtonsoftJsonSerializer();
 
-                if (postgres)
+                // <db:PostgreSql>
+                if (DatabaseProviders.Is(dbProvider, DatabaseProviders.PostgreSql))
                 {
                     store.UsePostgres(connection);
                 }
-                else
+                // </db:PostgreSql>
+                // <db:SqlServer>
+                if (DatabaseProviders.Is(dbProvider, DatabaseProviders.SqlServer))
                 {
                     store.UseSqlServer(connection);
                 }
+                // </db:SqlServer>
             });
         });
 

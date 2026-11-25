@@ -1,0 +1,81 @@
+{
+  "$comment": "Database provider manifest for scripts/select-database-provider.ps1. Every provider-specific file must match one of the provider's 'paths'; provider-specific lines in shared files must sit inside <db:Provider> markers. See docs/architecture/database-provider-selection.md.",
+  "selectedProvider": null,
+  "providers": {
+    "SqlServer": {
+      "paths": [
+        "src/Backend/Persistence/ST.Persistence/Features/*/DataContext/*SqlServerDBContext.cs",
+        "src/Backend/Persistence/ST.Persistence/Features/*/DataContext/*SqlServerDBContextFactory.cs",
+        "src/Backend/Persistence/ST.Persistence/Features/*/Migrations/SqlServer/",
+        "src/Backend/Persistence/ST.Persistence/Features/*/EntityConfigurations/SqlServer/",
+        "src/Backend/Persistence/ST.Persistence/Features/Shared/Migrations/Generators/IdempotentSqlServerMigrationsSqlGenerator.cs",
+        "src/Backend/Api/ST.Api/Health/SqlServerHealthCheck.cs",
+        "tests/ST.Tests.Integration/**/*SqlServer*.cs",
+        "tests/ST.Tests.Integration/**/*_SqlServer.cs",
+        "tests/ST.Tests.Integration/TestFixtures/MsSqlDbFixture.cs",
+        "ops/azure/modules/sql.bicep",
+        "ops/digitalocean/app.sqlserver.yaml"
+      ],
+      "packages": [
+        "Microsoft.EntityFrameworkCore.SqlServer",
+        "Testcontainers.MsSql",
+        "OpenTelemetry.Instrumentation.SqlClient"
+      ],
+      "leftoverPattern": "SqlServer|SQL Server|MsSql|mssql|SqlClient|sqlcmd",
+      "keepReplacements": []
+    },
+    "PostgreSql": {
+      "paths": [
+        "src/Backend/Persistence/ST.Persistence/Features/*/DataContext/*PostgreSqlDBContext.cs",
+        "src/Backend/Persistence/ST.Persistence/Features/*/DataContext/*PostgreSqlDBContextFactory.cs",
+        "src/Backend/Persistence/ST.Persistence/Features/*/Migrations/PostgreSql/",
+        "src/Backend/Persistence/ST.Persistence/Features/*/EntityConfigurations/PostgreSql/",
+        "src/Backend/Persistence/ST.Persistence/Features/Shared/Migrations/Generators/IdempotentNpgsqlMigrationsSqlGenerator.cs",
+        "src/Backend/Api/ST.Api/Health/PostgreSqlHealthCheck.cs",
+        "tests/ST.Tests.Integration/**/*PostgreSql*.cs",
+        "tests/ST.Tests.Integration/**/*_Postgres.cs",
+        "tests/ST.Tests.Integration/TestFixtures/PostgreSqlDbFixture.cs",
+        "ops/azure/modules/postgres.bicep",
+        "ops/digitalocean/app.yaml"
+      ],
+      "packages": [
+        "Npgsql.EntityFrameworkCore.PostgreSQL",
+        "Testcontainers.PostgreSql"
+      ],
+      "leftoverPattern": "PostgreSql|Postgres|Npgsql|psql|pgadmin",
+      "keepReplacements": [
+        {
+          "path": "src/Backend/Api/ST.Api/appsettings*.json",
+          "pattern": "(\"DatabaseSettings\"\\s*:\\s*\\{\\s*\"Provider\"\\s*:\\s*)\"SqlServer\"",
+          "replacement": "$1\"PostgreSql\""
+        },
+        {
+          "path": "src/Backend/Persistence/ST.Persistence/Common/Configuration/DatabaseSettings.cs",
+          "pattern": "DefaultProvider = \"SqlServer\"",
+          "replacement": "DefaultProvider = \"PostgreSql\""
+        }
+      ]
+    }
+  },
+  "templateOnly": [
+    ".github/workflows/template-fork-check.yml",
+    "scripts/test-database-provider-selection.ps1",
+    "ops/azure/main.json"
+  ],
+  "markerTooling": [
+    "tests/ST.Tests.Architecture/Template/"
+  ],
+  "leftoverScanExclusions": [
+    "**/*.md",
+    "scripts/database-providers.json",
+    "scripts/select-database-provider.ps1",
+    "scripts/rename-template.ps1",
+    "scripts/test-rename-template.ps1",
+    "scripts/lib/TemplateFiles.ps1",
+    "PLAN.html"
+  ],
+  "markerProcessingExclusions": [
+    "scripts/test-rename-template.ps1",
+    "docs/architecture/database-provider-selection.md"
+  ]
+}

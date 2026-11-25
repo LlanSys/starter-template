@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+// <db:PostgreSql>
 using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
+// </db:PostgreSql>
 
 namespace ST.Persistence.Common.DesignTime;
 
@@ -39,6 +41,7 @@ internal static class DesignTimeConfigurationFactory
         return connectionString;
     }
 
+    // <db:SqlServer>
     public static void ConfigureSqlServer(
         SqlServerDbContextOptionsBuilder sqlOptions,
         string migrationsHistoryTable)
@@ -49,7 +52,9 @@ internal static class DesignTimeConfigurationFactory
         sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
         sqlOptions.MigrationsHistoryTable(migrationsHistoryTable);
     }
+    // </db:SqlServer>
 
+    // <db:PostgreSql>
     public static void ConfigurePostgreSql(
         NpgsqlDbContextOptionsBuilder pgOptions,
         string migrationsHistoryTable)
@@ -60,6 +65,7 @@ internal static class DesignTimeConfigurationFactory
         pgOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorCodesToAdd: null);
         pgOptions.MigrationsHistoryTable(migrationsHistoryTable);
     }
+    // </db:PostgreSql>
 
     private static string GetUserSecretsPath()
     {
