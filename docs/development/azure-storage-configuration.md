@@ -184,8 +184,8 @@ Profile image storage URI is saved on the IAM user:
 
 ```sql
 select Id, Email, ProfilePictureUrl
-from AspNetUsers
-where Email = 'aamodhiambo@gmail.com';
+from Users
+where Email = '<account-email>';
 ```
 
 It is not saved in `AppUserProfiles`. `AppUserProfiles` is for additional profile/contact metadata.
@@ -220,49 +220,20 @@ For the API managed identity:
 
 ## Smoke Test
 
+### Administrator Flow
+
+Sign in with the bootstrap administrator configured in the API user-secrets (`DevelopmentSeed:AdminUserName` or `DevelopmentSeed:AdminEmail`, with `DevelopmentSeed:AdminPassword`). No administrator identity or password is built in. See [Find the local administrator credentials](starter-setup.md#find-the-local-administrator-credentials).
+
+Administrators must enrol in MFA before admin-only actions such as profile upload when `SecuritySettings:Mfa:EnforceEnrollment=true`.
+
 ### Non-Admin Flow
 
-Seeded non-admin employee users are intentionally inactive until an admin grants system access.
+1. As the administrator, create an account in IAM account administration with the roles you want and an initial password.
+2. Activate the account, then use **Send Invitation**. Email delivery must be configured; locally, Mailpit captures it.
+3. Sign out, open the invitation link, choose a password and complete MFA enrolment.
+4. Sign in as that user.
 
-Seeded employees:
-
-- `allan.alex0803@gmail.com`
-- `omitolaura469@gmail.com`
-
-Flow:
-
-1. Sign in as admin.
-2. Go to **Admin Center** -> **Employees**.
-3. Use **Grant System Access** for Allan or Laura.
-4. Assign a role such as `Employee`.
-5. Confirm the activation email is sent.
-6. Sign out.
-7. Sign in as the non-admin user with `IamProvisioning:TemporaryPassword`.
-
-To confirm or change the temporary password:
-
-```powershell
-dotnet user-secrets list --project src\Backend\Api\ST.Api\ST.Api.csproj
-dotnet user-secrets set "IamProvisioning:TemporaryPassword" "<new-temp-password>" --project src\Backend\Api\ST.Api\ST.Api.csproj
-```
-
-### Admin Flow
-
-Seeded admin:
-
-```text
-aamodhiambo@gmail.com
-```
-
-The seeded admin password comes from `DevelopmentSeed:AdminPassword`.
-
-Current development default:
-
-```text
-Admin@12345
-```
-
-Admins are in the MFA-required role list. Enable MFA for admin before testing admin-only actions such as profile upload if `SecuritySettings:Mfa:EnforceEnrollment=true`.
+See [Invite an independent account](starter-setup.md#invite-an-independent-account) for the full behaviour.
 
 ### Profile Image Flow
 

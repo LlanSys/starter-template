@@ -23,10 +23,10 @@ public sealed class ModuleHierarchyTests
     [Fact]
     public void DependenciesFailClosedForMissingEntitlementsAndCycles()
     {
-        var graph = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase) { ["core"] = [], ["iam"] = ["core"], ["loans"] = ["iam"], ["members"] = ["core"] };
-        var available = ModuleDependencyGraph.Resolve(graph, new HashSet<string>(["core", "loans", "members"], StringComparer.OrdinalIgnoreCase));
-        Assert.Contains("members", available); Assert.DoesNotContain("loans", available);
-        graph["core"] = ["loans"];
+        var graph = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase) { ["core"] = [], ["iam"] = ["core"], ["orders"] = ["iam"], ["customers"] = ["core"] };
+        var available = ModuleDependencyGraph.Resolve(graph, new HashSet<string>(["core", "orders", "customers"], StringComparer.OrdinalIgnoreCase));
+        Assert.Contains("customers", available); Assert.DoesNotContain("orders", available);
+        graph["core"] = ["orders"];
         Assert.False(ModuleDependencyGraph.IsAcyclic(graph));
         Assert.Empty(ModuleDependencyGraph.Resolve(graph, graph.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase)));
     }

@@ -283,7 +283,7 @@ EventIds are structured by architectural layer to simplify searching in logs:
 - [x] **Azure Deployment Workflows:** Wire Blue/Green deployment slot switches for API services in GitHub Actions after Azure subscription/billing is active.
 
 ### Phase 5 - Template Extensibility
-*Goal: complete reusable extension points without adding product-specific SACCO/domain features to the template.*
+*Goal: complete reusable extension points without adding product-specific domain features to the template.*
 - [x] **Dynamic Permissions-Based Menus:** Implement backend menu/module API that constructs the UI layout based on user permissions, roles, and active feature flags.
 - [x] **MudBlazor UI Shell:** Implement responsive theme, layouts, and auth pages in the Shared Razor Class Library (RCL).
 - [x] **Feature Flags:** Generic fail-closed feature-flag abstraction is registered with configuration-backed evaluation.
@@ -435,7 +435,7 @@ Guide: [owner operator checklist](docs/development/operator-acceptance-two-tenan
 ### Platform operator acceptance follow-through (2026-11-14)
 
 - Implement protected platform staff administration, conservative two-provider upgrade, invitations, mandatory MFA, audited direct grants and last-manager protection.
-- Verify through real JWT/MFA integration tests and local Docker product workflows; record actual outcomes separately from the independent Allan Run pack.
+- Verify through real JWT/MFA integration tests and local Docker product workflows; record actual outcomes separately from the independent operator run pack.
 - Onboard two synthetic customers on the same pooled stamp and exercise tenant IAM and cross-customer denials. Cloud and dedicated-runtime certification remain separate.
 
 ## Local operator acceptance (2026-11-15)

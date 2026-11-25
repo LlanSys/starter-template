@@ -39,7 +39,7 @@ $fixtureManifest = @'
       ]
     }
   },
-  "templateOnly": [ "scripts/template-only.ps1" ],
+  "templateOnly": [ "scripts/template-only.ps1", "docs/evidence-2026-01-01.md" ],
   "markerTooling": [ "tests/Markers/" ],
   "leftoverScanExclusions": [ "scripts/**", "**/*.md" ]
 }
@@ -68,6 +68,9 @@ function New-Fixture {
     }
     Write-FixtureFile $root 'scripts/database-providers.json' $fixtureManifest
     Write-FixtureFile $root 'scripts/template-only.ps1' '# template only'
+    Write-FixtureFile $root 'docs/evidence-2026-01-01.md' '# Template evidence'
+    Write-FixtureFile $root 'docs/guide.md' 'See [the evidence](evidence-2026-01-01.md#results) and [the other guide](other.md).'
+    Write-FixtureFile $root 'docs/other.md' '# Other'
     Write-FixtureFile $root 'AGENTS.md' ('- Product: ExampleSource' + "`n" + '- Root namespace prefix: `SRC`')
     Write-FixtureFile $root 'ExampleSource.slnx' '<Solution />'
     Write-FixtureFile $root 'src/Backend/Api/SRC.Api/SRC.Api.csproj' '<Project><PropertyGroup><UserSecretsId>api-original</UserSecretsId></PropertyGroup></Project>'
@@ -126,6 +129,8 @@ try {
     Assert-Condition ((Read-FixtureFile $fixtureRoot 'src/appsettings.json').Contains('"Provider": "PostgreSql"')) 'Kept provider configuration was not applied.'
     Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $fixtureRoot 'scripts/template-only.ps1'))) 'Template-only tooling was not removed.'
     Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $fixtureRoot 'tests/Markers'))) 'Marker tooling was not removed.'
+    Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $fixtureRoot 'docs/evidence-2026-01-01.md'))) 'Template-only evidence was not removed.'
+    Assert-Condition ((Read-FixtureFile $fixtureRoot 'docs/guide.md') -ceq 'See the evidence and [the other guide](other.md).') 'Links to removed template-only documents were not unlinked, or other links changed.'
     Assert-Condition ((Read-FixtureFile $fixtureRoot 'scripts/database-providers.json').Contains('"selectedProvider": "PostgreSql"')) 'Selected provider was not recorded.'
 
     $hashes = @{}

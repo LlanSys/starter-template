@@ -61,6 +61,30 @@ function Remove-MatchingPaths([string[]]$Globs, [string]$Reason) {
         $removed.Add($relative)
     }
     Write-Host ("{0}: {1} path(s)" -f $Reason, $removed.Count)
+    $script:RemovedPaths.AddRange($removed)
+}
+
+$script:RemovedPaths = [System.Collections.Generic.List[string]]::new()
+
+function Remove-LinksToRemovedPaths {
+    # Turns Markdown links that point at removed files into plain text, so forks keep no broken links.
+    if ($script:RemovedPaths.Count -eq 0) { return }
+    $linkPattern = '\[(?<text>[^\]]+)\]\((?<target>[^)#\s]+)(?<anchor>#[^)\s]*)?\)'
+    foreach ($file in (Get-TemplateTextFiles $repoRoot $excludedFiles | Where-Object { $_.Extension -eq '.md' })) {
+        $directory = Split-Path -Parent (Get-TemplateRelativePath $repoRoot $file.FullName)
+        $content = [System.IO.File]::ReadAllText($file.FullName)
+        $updated = [regex]::Replace($content, $linkPattern, {
+            param($match)
+            $target = $match.Groups['target'].Value
+            if ($target -match '^[a-z][a-z0-9+.-]*:') { return $match.Value }
+            $resolved = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $repoRoot $directory) $target))
+            $relative = Get-TemplateRelativePath $repoRoot $resolved
+            $isRemoved = $script:RemovedPaths | Where-Object { $relative -eq $_ -or $relative.StartsWith($_ + '/') }
+            if ($isRemoved) { return $match.Groups['text'].Value }
+            return $match.Value
+        })
+        if ($updated -ne $content) { Write-TextFile $file.FullName $updated 'Unlink removed template-only documents' }
+    }
 }
 
 function Write-TextFile([string]$Path, [string]$Content, [string]$Action) {
@@ -126,6 +150,7 @@ Remove-MatchingPaths @($manifest.templateOnly) 'remove template-only tooling'
 if ($Provider -ne 'Both') {
     Remove-MatchingPaths @($manifest.markerTooling) 'remove provider marker tooling'
 }
+Remove-LinksToRemovedPaths
 
 # Record the choice so a rerun cannot remove the kept provider.
 $manifestText = [System.IO.File]::ReadAllText($manifestPath)

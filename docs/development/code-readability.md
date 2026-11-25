@@ -1,6 +1,6 @@
 # Source readability and formatting
 
-StarterTemplate uses the .NET formatter, private Roslynator formatting analyzers, and a build-only source layout tool adapted from LebreseConsultants. The script applies an explicit list of layout diagnostics so a formatting pass stays separate from unrelated analyzer fixes.
+StarterTemplate uses the .NET formatter, private Roslynator formatting analyzers, and a build-only source layout tool. The script applies an explicit list of layout diagnostics so a formatting pass stays separate from unrelated analyzer fixes.
 
 ## Commands
 

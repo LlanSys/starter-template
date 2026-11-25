@@ -36,7 +36,7 @@ Deployment/configuration checklist:
 - The UI supplies `X-Frontend-Origin` from the browser address on JSON, upload and download calls. This is routing metadata, never identity proof; live JWT, tenant, MFA and operation-permission checks still apply. Direct API clients may omit this UI header and retain the existing signed-tenant boundary.
 - SSO permits a registered active tenant's company return origin only for that same tenant and the exact `/iam/sso-callback` route. Provider callback URLs remain on the configured public API origin (`/signin-google`, `/signin-oidc`); company frontend aliases do not require one provider callback per customer. Shared return origins stay explicitly allowlisted in `ExternalSignIn:ClientOrigins`.
 - Keep pre-activation KYC submission links on the shared/vendor collection portal. Company runtime access still requires KYC approval and completed provisioning. A company address grants no invitation, evidence or account access.
-- Verify both customers, mismatched query/header/session rejection, unknown/suspended addresses, fresh password/MFA, uploads/downloads and SSO return validation after deployment. Fresh real Google/Microsoft provider sign-in remains in Allan Run as agreed.
+- Verify both customers, mismatched query/header/session rejection, unknown/suspended addresses, fresh password/MFA, uploads/downloads and SSO return validation after deployment. Fresh real Google/Microsoft provider sign-in remains in the independent operator run as agreed.
 
 A shared app address is useful for vendor/platform operations, a central SaaS sign-in/intake portal, people who work across companies, and local diagnostics. It does not require companies to share login emails, passwords or accounts.
 
@@ -52,7 +52,7 @@ WorkspaceSelection keeps branding metadata circuit-scoped and emits changes only
 
 ## Verification and boundaries
 
-Run the focused initials tests and public resolver metadata/ingress regression tests; build API/Blazor and check source formatting. Local browser acceptance should exercise both customer links, a failed selection, switching organizations with cleared credentials, a real password/MFA sign-in and the matching sidebar/Profile identity. Keep Google/Microsoft fresh-provider sign-in in Allan Run as already agreed. No logo upload, dynamic favicon, DNS/TLS provisioning or new IAM model is part of this change.
+Run the focused initials tests and public resolver metadata/ingress regression tests; build API/Blazor and check source formatting. Local browser acceptance should exercise both customer links, a failed selection, switching organizations with cleared credentials, a real password/MFA sign-in and the matching sidebar/Profile identity. Keep Google/Microsoft fresh-provider sign-in in the independent operator run. No logo upload, dynamic favicon, DNS/TLS provisioning or new IAM model is part of this change.
 
 ## Earlier branding-only acceptance - 15 November 2026
 
@@ -60,7 +60,7 @@ Implemented and exercised in the existing local Docker deployment. Unit suite: 2
 
 Browser observations: the initial shell was neutral; Alderfield showed AQS/name in the auth brand area without a Signing In To line; switching to an unavailable code kept credentials hidden; switching to Brookmere showed BQS/name and cleared the draft username. The default vendor entry used ST/StarterTemplate. A tenant-scoped Alder link selected the company without manual code entry. Real synthetic administrator password/MFA sign-in retained company branding on the verification step and sidebar. Profile displayed Organization with Alderfield QA Services, and the dashboard account summary is named Your Account. The header shows page context instead of repeating the company name.
 
-Screenshots are in output/tenant-branding/st-alder-branding.jpg, st-brook-branding.jpg, st-platform-branding.jpg and st-signed-in-branding.jpg. TRX evidence is tenant-branding-unit.trx, tenant-branding-architecture.trx and tenant-branding-integration.trx under the corresponding test project's TestResults folder. These are local acceptance results, not a full device/browser or cloud-domain certification. Fresh Google/Microsoft sign-in remains in Allan Run as previously agreed.
+Screenshots are in output/tenant-branding/st-alder-branding.jpg, st-brook-branding.jpg, st-platform-branding.jpg and st-signed-in-branding.jpg. TRX evidence is tenant-branding-unit.trx, tenant-branding-architecture.trx and tenant-branding-integration.trx under the corresponding test project's TestResults folder. These are local acceptance results, not a full device/browser or cloud-domain certification. Fresh Google/Microsoft sign-in remains in the independent operator run as previously agreed.
 
 Company branding never changes DataProtection:ApplicationName, signing keys, issuer/audience, tenant IDs or permission grants. No accounts, passwords or MFA enrollments were changed. The existing working tree remains uncommitted; no push or cloud deployment was performed.
 

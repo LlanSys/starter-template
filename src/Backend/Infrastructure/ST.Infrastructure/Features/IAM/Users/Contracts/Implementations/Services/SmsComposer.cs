@@ -16,7 +16,7 @@ internal sealed class SmsComposer : ISmsComposer
 
     public async Task<string> ComposePasswordResetSmsAsync(RequestPasswordResetEvent evt)
     {
-        var message = $"Dear {evt.FirstName}, your SACCO security code is {evt.ValidationCode}. " +
+        var message = $"Dear {evt.FirstName}, your security code is {evt.ValidationCode}. " +
                       $"Valid for 10 mins. Do not share this code.";
 
         return await Task.FromResult(message).ConfigureAwait(false);

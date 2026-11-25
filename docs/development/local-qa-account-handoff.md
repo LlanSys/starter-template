@@ -21,7 +21,7 @@ The command intentionally displays that QA account's password and current authen
 
 Keep platform, client submission and tenant sessions separate. The two customer administrators now have distinct emails and usernames, with separate tenant-scoped identities, passwords and authenticators. The original shared-email isolation check remains historical acceptance evidence.
 
-For your own independent acceptance use `output/pdf/allan-run` and `startertemplate-allan-run.zip`; all results there remain NOT RUN. Reuse the platform operators after fresh sign-in, then create the Allan workspaces from the checklist. Their future customer credentials belong in your password manager unless separately captured by an authorized local QA setup run.
+For an independent operator run, keep a separate results pack whose cases all start as NOT RUN. Reuse the platform operators after a fresh sign-in, then create that run's own workspaces from the checklist. Their future customer credentials belong in your password manager unless separately captured by an authorized local QA setup run.
 
 Keep the established two QA tenants as successful baselines. Perform expiry/deletion/restore exercises separately. After acceptance, deactivate test operators through the protected product screens and remove the private handoff if it is no longer needed. Never migrate this local QA credential store into cloud deployment configuration.
 

@@ -1,4 +1,4 @@
-# Organization settings - Allan Run supplement
+# Organization settings - independent operator run supplement
 
 Use this alongside your independent operator pack. These are fresh manual checks, not pre-filled pass results. Reuse generated QA identities through scripts/Get-LocalQaLogin.ps1; do not place passwords, seeds or codes in results files.
 
