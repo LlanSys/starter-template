@@ -2,7 +2,10 @@
 
 Rename a freshly cloned repository before you do anything else in it: before the first run, first commit or first deployment.
 
+Clone from GitHub rather than copying a local StarterTemplate folder. A copy can bring along branches, uncommitted changes, build output and local `.env` values, and `-ResetGitHistory` refuses to run when there are uncommitted changes.
+
 ```powershell
+git clone https://github.com/LlanSys/starter-template.git E:\Repos\InsurHub
 cd E:\Repos\InsurHub
 .\scripts\rename-template.ps1 -NewName InsurHub -NamespacePrefix IH -DatabaseProvider PostgreSql -ResetGitHistory -WhatIf
 .\scripts\rename-template.ps1 -NewName InsurHub -NamespacePrefix IH -DatabaseProvider PostgreSql -ResetGitHistory

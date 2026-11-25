@@ -21,20 +21,25 @@ It is designed to be cloned, renamed, configured, and extended into a real appli
 
 ## Clone And Rename
 
-Rename a cloned repository before its first application run or deployment:
+Clone the template from GitHub, then rename it before doing anything else in the new folder. Run with `-WhatIf` first to preview the changes:
 
 ```powershell
-cd path/to/StarterTemplate
-.\scripts\rename-template.ps1 -NewName InsurHub -NamespacePrefix IH
+git clone https://github.com/LlanSys/starter-template.git E:\Repos\InsurHub
+cd E:\Repos\InsurHub
+.\scripts\rename-template.ps1 -NewName InsurHub -NamespacePrefix IH -DatabaseProvider PostgreSql -ResetGitHistory -WhatIf
+.\scripts\rename-template.ps1 -NewName InsurHub -NamespacePrefix IH -DatabaseProvider PostgreSql -ResetGitHistory
+git remote add origin <new-remote-url>
+git push -u origin main
 ```
 
 This produces names such as `IH.Domain`, `IH.Application`, and `IH.Api`.
 
-Use `-WhatIf` first to preview changes:
+- `-DatabaseProvider` is required. `SqlServer` or `PostgreSql` keeps only that provider; `Both` keeps both. See [database provider selection](docs/architecture/database-provider-selection.md).
+- `-ResetGitHistory` replaces the template's git history with a fresh repository that has one initial commit, ready for the new remote.
 
-```powershell
-.\scripts\rename-template.ps1 -NewName InsurHub -NamespacePrefix IH -WhatIf
-```
+Clone from GitHub rather than copying a local StarterTemplate folder. A copy can bring along branches, uncommitted changes, build output and local `.env` values, and `-ResetGitHistory` refuses to run when there are uncommitted changes.
+
+Then work through the [downstream configuration checklist](docs/development/downstream-configuration-checklist.md).
 
 Read [Renaming the template](docs/development/renaming-the-template.md) before cloning for a real product, especially the `DataProtection:ApplicationName` warning.
 
