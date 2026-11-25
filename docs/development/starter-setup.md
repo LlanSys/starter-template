@@ -8,9 +8,11 @@ Use the [downstream configuration and release checklist](downstream-configuratio
 
 ## Rename before first run
 
-Clone StarterTemplate into the new application's directory and run its rename script from that root:
+Clone StarterTemplate from GitHub (not a copy of a local working folder) into the new application's directory and run its rename script from that root:
 
 ```powershell
+git clone https://github.com/LlanSys/starter-template.git E:\Repos\MyApplication
+cd E:\Repos\MyApplication
 .\scripts\rename-template.ps1 -NewName MyApplication -NamespacePrefix MA -DatabaseProvider PostgreSql -ResetGitHistory -WhatIf
 .\scripts\rename-template.ps1 -NewName MyApplication -NamespacePrefix MA -DatabaseProvider PostgreSql -ResetGitHistory
 git remote add origin <new-remote-url>
