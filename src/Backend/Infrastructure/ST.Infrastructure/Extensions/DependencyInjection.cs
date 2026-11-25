@@ -928,15 +928,7 @@ public static class DependencyInjection
 
             if (hasOtlp)
             {
-                tracing.AddOtlpExporter(options =>
-                {
-                    options.Endpoint = new Uri(observabilitySettings.Otlp!.Endpoint);
-
-                    if (!string.IsNullOrWhiteSpace(observabilitySettings.Otlp.Headers))
-                    {
-                        options.Headers = observabilitySettings.Otlp.Headers;
-                    }
-                });
+                tracing.AddOtlpExporter(options => OtlpExport.ConfigureExporter(options, observabilitySettings.Otlp!, OtlpExport.Traces));
             }
         });
 
@@ -951,15 +943,7 @@ public static class DependencyInjection
 
             if (hasOtlp)
             {
-                metrics.AddOtlpExporter(options =>
-                {
-                    options.Endpoint = new Uri(observabilitySettings.Otlp!.Endpoint);
-
-                    if (!string.IsNullOrWhiteSpace(observabilitySettings.Otlp.Headers))
-                    {
-                        options.Headers = observabilitySettings.Otlp.Headers;
-                    }
-                });
+                metrics.AddOtlpExporter(options => OtlpExport.ConfigureExporter(options, observabilitySettings.Otlp!, OtlpExport.Metrics));
             }
         });
 
