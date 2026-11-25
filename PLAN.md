@@ -7,15 +7,24 @@
 
 > Architecture adoption and downstream setup: [StarterTemplate architecture and downstream delivery plan](docs/architecture/downstream-architecture-adoption-plan.md). Follow its phase ledger for this work.
 
-> Current work: [domain-neutral refactor plan](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
+> Domain-neutral refactor: complete (Phases 0-5 certified); history in [domain-neutral-refactor-plan.md](docs/architecture/domain-neutral-refactor-plan.md). Clone setup and verification limits: [starter-setup.md](docs/development/starter-setup.md). StarterTemplate is self-contained; no separate repository or extraction revision is required.
 
-> Last updated: 2026-11-09
+> Last updated: 2026-11-25
 >
 > This file is the canonical roadmap for the StarterTemplate solution.
 > It defines the architectural guardrails, execution order, and production-hardening specifications.
 > Update it at the end of every meaningful work session.
 
 ---
+
+## Database provider selection at fork time — 2026-11-25
+
+`scripts/rename-template.ps1` requires `-DatabaseProvider SqlServer|PostgreSql|Both` and accepts `-ResetGitHistory`. Single-provider forks drop the other provider's code, migrations, tests, packages, infrastructure and CI branches via `scripts/database-providers.json` and `<db:Provider>` markers. The template-only `template-fork-check.yml` forks the template for each provider on every PR, and nightly with integration tests. See [database provider selection](docs/architecture/database-provider-selection.md).
+
+## Open operational follow-ups (from the 2026-09-02 observability review)
+
+- **Retired publish-profile credentials.** Two Visual Studio publish profiles for development App Services once held deployment credentials on a workstation. They were never tracked in git and the files no longer exist in the working tree. Still open: rotate or reset those App Services' publishing credentials, or confirm the App Services no longer exist and record that. Keep deploying via GitHub OIDC and managed identity; never reintroduce publish profiles or long-lived deployment credentials.
+- **Azure observability mode.** Application logs, traces and metrics already export through OTLP (`Observability__Otlp__Endpoint` / `__Headers`), and that provider-neutral boundary stays. However, `ops/azure/modules/containerapps.bicep` always sends Container Apps platform logs to Log Analytics, and the root deployment always provisions Log Analytics and Application Insights. Still open: make the platform-log destination an explicit deployment choice, including a cost-controlled `none` mode that relies on OTLP; provision Log Analytics and Application Insights only when the chosen mode needs them; and document the trade-off (live log streaming remains, but historical Container Apps system/console log queries are lost).
 
 ## Downstream baseline release — 2026-11-20
 
@@ -300,7 +309,7 @@ EventIds are structured by architectural layer to simplify searching in logs:
 **Start of Session:**
 1. Review this document.
 2. Ensure Docker containers for SQL, Redis, and Seq are running locally.
-3. Run `tests/checks.ps1` or run tests locally via Visual Studio to ensure base health.
+3. Run `scripts/checks.ps1` or run tests locally via Visual Studio to ensure base health.
 
 **End of Session:**
 1. Update this roadmap to check off completed capabilities.
