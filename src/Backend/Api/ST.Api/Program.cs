@@ -418,7 +418,7 @@ try
     app.MapApiGraphQL();
     app.MapHub<NotificationHub>("/hubs/notifications", options => options.CloseOnAuthenticationExpiration = true);
 
-    Log.Information("ST API started successfully");
+    Log.Information("{ProductPrefix} API started successfully", ProductIdentity.Prefix);
 
     await app.RunAsync().ConfigureAwait(false);
 }

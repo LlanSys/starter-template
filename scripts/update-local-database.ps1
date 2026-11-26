@@ -2,12 +2,14 @@
 param(
     # Defaults to the first supported provider.
     [string]$Provider,
-    [switch]$Apply
+    [switch]$Apply,
+    # With -Apply: create a missing (or never-migrated) local database from this checkout's baseline.
+    [switch]$CreateMissing
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$operation = if ($Apply) { 'local-upgrade' } else { 'local-status' }
+$operation = if ($Apply -and $CreateMissing) { 'local-ensure' } elseif ($Apply) { 'local-upgrade' } else { 'local-status' }
 $supportedDatabaseProviders = @(
     # <db:SqlServer>
     'SqlServer'

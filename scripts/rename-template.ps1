@@ -21,6 +21,16 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Renaming rewrites and deletes files (and .git with -ResetGitHistory), so it asks before changing anything.
+# A shell that cannot show that prompt (CI, scripts, AI coding tools) would otherwise stop at the first change
+# with PowerShell's NonInteractive error. Stop before any change and say what to run instead.
+$launchedNonInteractive = [bool]([Environment]::GetCommandLineArgs() | Where-Object { $_ -imatch '^-noni' })
+$canPrompt = [Environment]::UserInteractive -and -not $launchedNonInteractive
+if (-not $WhatIfPreference -and $ConfirmPreference -ne 'None' -and -not $canPrompt) {
+    throw 'This shell cannot show the rename confirmation prompt. Preview with -WhatIf, then rerun with -Confirm:$false.'
+}
+
 . (Join-Path $PSScriptRoot 'lib/TemplateFiles.ps1')
 
 $repoRoot = Split-Path -Parent $PSScriptRoot

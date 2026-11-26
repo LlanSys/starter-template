@@ -1,5 +1,6 @@
 using ST.Domain.Features.Shared.OrgSettings.Contracts.Repositories;
 using ST.Domain.Features.Shared.OrgSettings.Entities;
+using ST.Domain.Shared;
 using ST.Persistence.Common.Repositories;
 using ST.Persistence.Features.Shared.DataContext;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +21,7 @@ public class OrgSettingRepository(SharedDBContext dbContext)
 {
     public async Task LockSettingAsync(string key, CancellationToken cancellationToken)
     {
-        var resource = $"ST:OrgSetting:{dbContext.CurrentTenantId:D}:{key}";
+        var resource = $"{ProductIdentity.Prefix}:OrgSetting:{dbContext.CurrentTenantId:D}:{key}";
 
         // <db:SqlServer>
         if (dbContext.Database.IsSqlServer())

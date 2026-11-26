@@ -16,6 +16,9 @@ $script:TemplateProviderExtraExtensions = @('.bicep', '.bicepparam', '.example',
 
 $script:TemplateTextFileNames = @('Dockerfile', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md')
 
+# Every file in these directories is text, including extensionless git hook scripts.
+$script:TemplateTextDirectoryNames = @('.husky')
+
 function Get-TemplateRelativePath([string]$RepoRoot, [string]$Path) {
     return $Path.Substring($RepoRoot.Length).TrimStart('\', '/').Replace('\', '/')
 }
@@ -35,7 +38,8 @@ function Test-TemplateExcludedPath([string]$RepoRoot, [string]$Path, [string[]]$
 }
 
 function Test-TemplateTextFile([System.IO.FileInfo]$File, [switch]$IncludeProviderExtras) {
-    if (($script:TemplateTextExtensions -contains $File.Extension) -or ($script:TemplateTextFileNames -contains $File.Name)) {
+    if (($script:TemplateTextExtensions -contains $File.Extension) -or ($script:TemplateTextFileNames -contains $File.Name) -or
+        ($script:TemplateTextDirectoryNames -contains $File.Directory.Name)) {
         return $true
     }
     return $IncludeProviderExtras -and ($script:TemplateProviderExtraExtensions -contains $File.Extension)

@@ -85,6 +85,7 @@ function New-Fixture {
     Write-FixtureFile $root 'src/appsettings.json' '{ "DatabaseSettings": { "Provider": "SqlServer" } }'
     Write-FixtureFile $root 'Directory.Packages.props' ("<Project>`n  <ItemGroup>`n    <PackageVersion Include=`"Fixture.SqlServer`" Version=`"1.0.0`" />`n    <PackageVersion Include=`"Fixture.Npgsql`" Version=`"1.0.0`" />`n    <PackageVersion Include=`"Fixture.Neutral`" Version=`"1.0.0`" />`n  </ItemGroup>`n</Project>`n")
     Write-FixtureFile $root 'ops/local/.env' 'APP=ExampleSource SRC.Api api-original'
+    Write-FixtureFile $root '.husky/pre-commit' 'dotnet test tests/SRC.Tests.Architecture/SRC.Tests.Architecture.csproj'
     return $root
 }
 
@@ -106,6 +107,10 @@ try {
     Assert-Condition ((Get-FileHash -LiteralPath $originalFile).Hash -eq $originalHash) 'WhatIf changed the original project.'
     Assert-Condition (Test-Path -LiteralPath (Join-Path $fixtureRoot 'src/Db/SqlServer/Context.cs')) 'WhatIf removed provider files.'
 
+    # A shell that cannot prompt stops before any change and names -Confirm:$false.
+    $nonInteractive = & pwsh -NoProfile -NonInteractive -File $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -SkipLocalPortAllocation 2>&1 | Out-String
+    Assert-Condition ($nonInteractive.Contains('-Confirm:$false') -and (Get-FileHash -LiteralPath $originalFile).Hash -eq $originalHash) 'A non-interactive rename without -Confirm:$false did not stop with guidance before changing files.'
+
     & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -SkipLocalPortAllocation -Confirm:$false *> (Join-Path $fixtureRoot 'rename.log')
     $api = Join-Path $fixtureRoot 'src/Backend/Api/RP.Api/RP.Api.csproj'
     $ui = Join-Path $fixtureRoot 'src/Frontend/Web/RP.UI.Blazor/RP.UI.Blazor.csproj'
@@ -116,6 +121,8 @@ try {
 
     $renamedSource = Read-FixtureFile $fixtureRoot 'src/Backend/Api/RP.Api/Identity.cs'
     Assert-Condition ($renamedSource.Contains('namespace RP.Api;') -and $renamedSource.Contains($apiId) -and $renamedSource.Contains($uiId)) 'Technical namespace or design-time secret references were not updated.'
+
+    Assert-Condition ((Read-FixtureFile $fixtureRoot '.husky/pre-commit') -ceq 'dotnet test tests/RP.Tests.Architecture/RP.Tests.Architecture.csproj') 'Extensionless git hook was not renamed.'
 
     # Provider selection results.
     $db = Read-FixtureFile $fixtureRoot 'src/Backend/Api/RP.Api/Db.cs'

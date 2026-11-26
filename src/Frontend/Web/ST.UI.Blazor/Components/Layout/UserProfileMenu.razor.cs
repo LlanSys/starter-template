@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components.Routing;
 using MudBlazor;
+using ST.SharedKernel;
 
 namespace ST.UI.Blazor.Components.Layout;
 
@@ -33,7 +34,7 @@ public partial class UserProfileMenu
             }
 
             var email = AuthSession.CurrentUser?.Email;
-            return string.IsNullOrWhiteSpace(email) ? "ST" : email[..1].ToUpperInvariant();
+            return string.IsNullOrWhiteSpace(email) ? ProductIdentity.Prefix : email[..1].ToUpperInvariant();
         }
     }
 

@@ -6,7 +6,9 @@ param(
     # <db:PostgreSql>
     [switch]$IncludePostgreSql,
     # </db:PostgreSql>
+    # Seq starts by default; -SkipSeq leaves it out. -IncludeSeq is accepted for older commands.
     [switch]$IncludeSeq,
+    [switch]$SkipSeq,
     [switch]$SkipPull,
     [switch]$UseSharedLocalKeyRing
 )
@@ -234,7 +236,7 @@ if ($IncludePostgreSql) {
     }
 }
 # </db:PostgreSql>
-if ($IncludeSeq) {
+if (-not $SkipSeq) {
     $profiles += @('--profile', 'observability')
     dotnet user-secrets set 'Serilog:WriteTo:1:Args:serverUrl' "http://localhost:$($environment.SEQ_HOST_PORT)" --project $apiProject
 }
@@ -273,7 +275,7 @@ Write-Host "  RabbitMQ:  amqp://localhost:$($environment.RABBITMQ_HOST_PORT)"
 Write-Host "  Management: http://localhost:$($environment.RABBITMQ_MANAGEMENT_HOST_PORT)"
 Write-Host "  Redis:      localhost:$($environment.REDIS_HOST_PORT)"
 Write-Host "  Mailpit:    http://localhost:$($environment.MAILPIT_UI_HOST_PORT)"
-if ($IncludeSeq) { Write-Host "  Seq:        http://localhost:$($environment.SEQ_HOST_PORT)" }
+if (-not $SkipSeq) { Write-Host "  Seq:        http://localhost:$($environment.SEQ_HOST_PORT)" }
 Write-Host "  Azurite:    http://localhost:$($environment.AZURITE_BLOB_HOST_PORT)"
 Write-Host "  KYC scanner: localhost:$($environment.CLAMAV_HOST_PORT) (private ClamAV; first signature load can take several minutes)"
 # <db:SqlServer>

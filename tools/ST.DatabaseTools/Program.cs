@@ -14,17 +14,18 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         if (args is not [var requestedProvider,
-            "local-status" or "local-upgrade" or "check-local-authenticator" or "reprotect-local-authenticator"]
+            "local-status" or "local-upgrade" or "local-ensure" or "check-local-authenticator" or "reprotect-local-authenticator"]
             || !DatabaseProviders.Supported.Contains(requestedProvider, StringComparer.Ordinal))
         {
             Console.Error.WriteLine(
-                $"Usage: ST.DatabaseTools {string.Join('|', DatabaseProviders.Supported)} local-status|local-upgrade|check-local-authenticator|reprotect-local-authenticator");
+                $"Usage: ST.DatabaseTools {string.Join('|', DatabaseProviders.Supported)} local-status|local-upgrade|local-ensure|check-local-authenticator|reprotect-local-authenticator");
+
             return 2;
         }
 
         var provider = requestedProvider;
         var operation = args[1];
-        var isMigrationOperation = operation is "local-status" or "local-upgrade";
+        var isMigrationOperation = operation is "local-status" or "local-upgrade" or "local-ensure";
 
         if (!isMigrationOperation && !OperatingSystem.IsWindows())
         {
@@ -42,11 +43,17 @@ internal static class Program
         try
         {
             var clock = TimeProvider.System;
+
             if (isMigrationOperation)
             {
                 var target = LocalDatabaseTarget.ResolveForMigrations(provider);
                 var valid = await LocalMigrationWorkflow.RunAsync(
-                    target, clock, apply: operation == "local-upgrade", cancellation.Token).ConfigureAwait(false);
+                    target,
+                    clock,
+                    apply: operation is "local-upgrade" or "local-ensure",
+                    createMissing: operation == "local-ensure",
+                    cancellation.Token).ConfigureAwait(false);
+
                 return valid ? 0 : 1;
             }
 

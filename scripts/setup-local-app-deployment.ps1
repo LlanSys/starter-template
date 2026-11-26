@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [switch]$UseContainerSql,
+    # Seq starts by default; -SkipSeq leaves it out. -IncludeSeq is accepted for older commands.
     [switch]$IncludeSeq,
+    [switch]$SkipSeq,
     [switch]$SkipPull,
     [switch]$UseSharedLocalKeyRing
 )
@@ -73,8 +75,8 @@ $platformArguments = @{}
 if ($UseContainerSql) {
     $platformArguments["Include$containerDatabaseProvider"] = $true
 }
-if ($IncludeSeq) {
-    $platformArguments.IncludeSeq = $true
+if ($SkipSeq) {
+    $platformArguments.SkipSeq = $true
 }
 if ($SkipPull) {
     $platformArguments.SkipPull = $true
@@ -154,6 +156,14 @@ $composeArguments = @(
 
 & (Join-Path $PSScriptRoot 'check-local-endpoints.ps1') -ComposeFiles @($composeFile, $appsComposeFile) -FocusSupplied
 
+if ($UseContainerSql) {
+    # The API container neither creates nor migrates its database; without this step a fresh clone's API
+    # restarts forever on "database does not exist". Create the database from the baseline when it is
+    # missing, otherwise apply only pending migrations (with history and model-drift checks). It uses the
+    # host user-secrets connection that setup-local-platform.ps1 pointed at the same container database.
+    & (Join-Path $PSScriptRoot 'update-local-database.ps1') -Provider $containerDatabaseProvider -Apply -CreateMissing
+}
+
 & docker @composeArguments up -d --build --wait
 if ($LASTEXITCODE -ne 0) {
     throw "Local app deployment failed with exit code $LASTEXITCODE."
@@ -166,3 +176,6 @@ Write-Host "  API:    http://localhost:$($environment.APP_API_HOST_PORT)"
 Write-Host "  Scalar: http://localhost:$($environment.APP_API_HOST_PORT)/scalar/v1"
 Write-Host "  UI:     http://localhost:$($environment.APP_BLAZOR_HOST_PORT)"
 Write-Host "  Mail:   http://localhost:$($environment.MAILPIT_UI_HOST_PORT)"
+if (-not $SkipSeq) {
+    Write-Host "  Seq:    http://localhost:$($environment.SEQ_HOST_PORT)"
+}

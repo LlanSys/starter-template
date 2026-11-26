@@ -51,17 +51,19 @@ cd path\to\StarterTemplate
 
 It is a repository script, not a globally installed PowerShell command. You may invoke it from another folder only by supplying its full path.
 
+Seq starts by default on `SEQ_HOST_PORT` (default 5344), and the API's Development Serilog sink is pointed at it. Sign in as `admin` with `SEQ_PASSWORD` from `ops/local/.env`; Seq asks you to change it on first sign-in.
+
 Optional profiles:
 
 ```powershell
-# Add Seq when port 5344 is not already used by a local Seq installation.
-./scripts/setup-local-platform.ps1 -IncludeSeq
+# Leave Seq out, for example when another Seq already uses the port.
+./scripts/setup-local-platform.ps1 -SkipSeq
 
 # Add SQL Server on localhost,14335 and update the API connection-string secret.
 ./scripts/setup-local-platform.ps1 -IncludeSqlServer
 
 # Start every local dependency.
-./scripts/setup-local-platform.ps1 -IncludeSqlServer -IncludeSeq
+./scripts/setup-local-platform.ps1 -IncludeSqlServer
 ```
 
 <!-- <db:PostgreSql> -->
@@ -96,6 +98,22 @@ If you want a fully containerized stack including SQL Server, run:
 
 ```powershell
 ./scripts/setup-local-app-deployment.ps1 -UseContainerSql
+```
+
+With `-UseContainerSql` the script prepares the database before it starts the app containers. A missing local database is created from the checkout's migration baseline (ControlPlane, IAM, then Shared). An existing one gets only its pending migrations, after the history and model-drift checks in `scripts/update-local-database.ps1`.
+
+### Automatic refresh after a pull, merge, rebase or branch switch
+
+The committed `.husky` hooks `post-merge`, `post-rewrite` (rebase) and `post-checkout` (branch switch) run `scripts/refresh-local-stack.ps1`, as do `git pull` and `git switch`. It only updates what is already running:
+
+- the local database container gets pending migrations (a missing local database is created);
+- existing API and Blazor containers are rebuilt from the new checkout and restarted.
+
+A failure is reported but never fails the Git operation. Set `SKIP_LOCAL_STACK_REFRESH=1` to skip it, for example during a long rebase, and run the script by hand afterwards. Enable the hooks once per clone:
+
+```powershell
+dotnet tool restore
+dotnet husky install
 ```
 
 The app deployment overlay:
@@ -191,8 +209,8 @@ docker compose --env-file ops/local/.env -f ops/local/docker-compose.yml ps
 # Stop containers while preserving data volumes.
 ./scripts/stop-local-platform.ps1
 
-# Include the same optional profiles that were started.
-./scripts/stop-local-platform.ps1 -IncludeSeq
+# Seq stops too; add -SkipSeq to leave it running.
+./scripts/stop-local-platform.ps1 -SkipSeq
 
 # Restart the core platform.
 docker compose --env-file ops/local/.env -f ops/local/docker-compose.yml up -d --wait

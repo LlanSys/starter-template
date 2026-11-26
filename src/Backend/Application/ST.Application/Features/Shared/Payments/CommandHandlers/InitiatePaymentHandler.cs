@@ -2,6 +2,7 @@ using ST.Application.Features.Shared.Payments.Contracts.Interfaces;
 using ST.Domain.Features.Shared.Contracts;
 using ST.Domain.Features.Shared.Payments.Entities;
 using ST.Domain.Features.Shared.Payments.Enums;
+using ST.Domain.Shared;
 using ST.Domain.Shared.ValueObjects;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.Shared.Payments.Dtos;
@@ -61,7 +62,7 @@ internal sealed class InitiatePaymentHandler(
         // Format example: ST-STR-USD-260709-A1B2C3
         var timestamp = timeProvider.GetUtcNow().ToString("yyMMdd", CultureInfo.InvariantCulture);
         var uniqueSuffix = paymentId.ToString("N")[^6..].ToUpperInvariant();
-        var customerReference = $"ST-{providerPrefix}-{req.Currency}-{timestamp}-{uniqueSuffix}";
+        var customerReference = $"{ProductIdentity.Prefix}-{providerPrefix}-{req.Currency}-{timestamp}-{uniqueSuffix}";
 
         var money = new Money(request.Request.Amount, request.Request.Currency);
         var paymentRecord = new PaymentRecord(
