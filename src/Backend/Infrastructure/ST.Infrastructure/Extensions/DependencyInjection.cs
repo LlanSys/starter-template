@@ -26,6 +26,7 @@ using ST.Domain.Features.IAM.Users.Contracts.Repositories;
 using ST.Domain.Shared.Contracts.Repositories;
 using ST.Domain.Shared.Contracts.Settings;
 using ST.Infrastructure.Configuration;
+using ST.Infrastructure.Observability;
 using ST.Infrastructure.Contracts.Implementations.Common;
 using ST.Infrastructure.Contracts.Implementations.Settings;
 using ST.Infrastructure.Contracts.Implementations.Caching;
@@ -928,6 +929,13 @@ public static class DependencyInjection
 
             if (hasOtlp)
             {
+                // Keep requests whole; sample work outside requests (e.g. background polling).
+                // Azure Monitor installs its own sampler, so this applies to OTLP-only export.
+                if (!hasAzureMonitor)
+                {
+                    tracing.SetSampler(RequestFocusedSampler.Create(observabilitySettings.Sampling));
+                }
+
                 tracing.AddOtlpExporter(options => OtlpExport.ConfigureExporter(options, observabilitySettings.Otlp!, OtlpExport.Traces));
             }
         });
