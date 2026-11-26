@@ -137,6 +137,8 @@
             <MudPagination Count="@Math.Max(1, (int)Math.Ceiling((double)_total / PageSize))"
                            Selected="_page"
                            SelectedChanged="ChangePageAsync"
+                           ShowFirstButton="true"
+                           ShowLastButton="true"
                            Size="Size.Small"
                            Disabled="_busy || _loading" />
         </div>

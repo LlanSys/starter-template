@@ -160,7 +160,8 @@
                               IsLoading="_isLoading"
                               OnFirstPage="GoToFirstPageAsync"
                               OnPreviousPage="GoToPreviousPageAsync"
-                              OnNextPage="GoToNextPageAsync" />
+                              OnNextPage="GoToNextPageAsync"
+                              OnLastPage="GoToLastPageAsync" />
         </PagerContent>
     </MudTable>
 </div>
@@ -253,6 +254,17 @@
         _currentCursor = _cursorHistory.Pop();
         _currentPage = Math.Max(1, _currentPage - 1);
         await LoadUsersAsync();
+    }
+
+    private async Task GoToLastPageAsync()
+    {
+        // Cursor paging cannot jump to the end; step forward until the server reports the last page.
+        // The step count is bounded by the known total so a failed load cannot loop indefinitely.
+        var remaining = Math.Max(0, (int)Math.Ceiling((double)_totalRecords / PageSize) - _currentPage);
+        while (remaining-- > 0 && !_isLastPage && !string.IsNullOrWhiteSpace(_nextCursor))
+        {
+            await GoToNextPageAsync();
+        }
     }
 
     private async Task GoToNextPageAsync()

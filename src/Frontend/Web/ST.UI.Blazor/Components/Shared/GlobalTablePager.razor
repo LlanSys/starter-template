@@ -3,10 +3,12 @@
     <div class="pagination-actions">
         <MudIconButton Icon="@Icons.Material.Filled.FirstPage"
                        Size="Size.Small"
+                       aria-label="First page"
                        Disabled="@(IsFirstPage || IsLoading)"
                        OnClick="OnFirstPage" />
         <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft"
                        Size="Size.Small"
+                       aria-label="Previous page"
                        Disabled="@(IsFirstPage || IsLoading)"
                        OnClick="OnPreviousPage" />
         <MudChip T="string"
@@ -15,8 +17,14 @@
                  Variant="Variant.Text">Page @CurrentPage</MudChip>
         <MudIconButton Icon="@Icons.Material.Filled.ChevronRight"
                        Size="Size.Small"
+                       aria-label="Next page"
                        Disabled="@(IsLastPage || IsLoading)"
                        OnClick="OnNextPage" />
+        <MudIconButton Icon="@Icons.Material.Filled.LastPage"
+                       Size="Size.Small"
+                       aria-label="Last page"
+                       Disabled="@(IsLastPage || IsLoading)"
+                       OnClick="OnLastPage" />
     </div>
 </div>
 
@@ -29,6 +37,7 @@
     [Parameter] public EventCallback OnFirstPage { get; set; }
     [Parameter] public EventCallback OnPreviousPage { get; set; }
     [Parameter] public EventCallback OnNextPage { get; set; }
+    [Parameter] public EventCallback OnLastPage { get; set; }
 
     private bool IsFirstPage => CurrentPage <= 1;
     private bool IsLastPage => TotalRecords == 0 || CurrentPage >= Math.Ceiling((double)TotalRecords / PageSize);

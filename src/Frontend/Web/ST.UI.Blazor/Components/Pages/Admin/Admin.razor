@@ -18,25 +18,24 @@
         }
         else
         {
-            <MudPaper Class="poc-panel"
-                      Elevation="0">
-                <div class="panel-heading">
-                    <h2>Admin Center</h2>
-                </div>
-                <MudList T="string"
-                         Dense="true"
-                         Class="admin-center-list">
+            <div class="panel-heading"><h1 class="platform-page-title">Admin Center</h1></div>
+            <MudText Class="mb-4">Manage navigation, organization settings, identity, access and support for this workspace.</MudText>
+            @if (_modules.Count == 0)
+            {
+                <MudText Typo="Typo.body2">No administration options are available for your account.</MudText>
+            }
+            else
+            {
+                <div class="control-panel-grid">
                     @foreach (var item in _modules)
                     {
-                        <MudListItem Href="@item.Url"
-                                     Icon="@MenuIconMapper.Resolve(item.Icon)">@MenuTitle(item)</MudListItem>
+                        <a class="control-panel-tile" href="@item.Url">
+                            <MudIcon Icon="@MenuIconMapper.Resolve(item.Icon)" Size="Size.Small" />
+                            <span>@MenuTitle(item)</span>
+                        </a>
                     }
-                </MudList>
-                @if (_modules.Count == 0)
-                {
-                    <MudText Typo="Typo.body2">No administration options are available for your account.</MudText>
-                }
-            </MudPaper>
+                </div>
+            }
         }
     </section>
 </RequireAuthenticated>
