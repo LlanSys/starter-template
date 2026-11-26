@@ -1,0 +1,9 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# After git pull --rebase or git rebase; amend also rewrites but changes nothing to refresh.
+if [ "$1" = "rebase" ]; then
+    exec "$(dirname "$0")/refresh-local-stack"
+fi
+
+exit 0

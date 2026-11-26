@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [switch]$UseContainerSql,
+    # Seq starts by default; -SkipSeq leaves it out. -IncludeSeq is accepted for older commands.
     [switch]$IncludeSeq,
+    [switch]$SkipSeq,
     [switch]$SkipPull,
     [switch]$UseSharedLocalKeyRing
 )
@@ -73,8 +75,8 @@ $platformArguments = @{}
 if ($UseContainerSql) {
     $platformArguments["Include$containerDatabaseProvider"] = $true
 }
-if ($IncludeSeq) {
-    $platformArguments.IncludeSeq = $true
+if ($SkipSeq) {
+    $platformArguments.SkipSeq = $true
 }
 if ($SkipPull) {
     $platformArguments.SkipPull = $true
@@ -156,29 +158,10 @@ $composeArguments = @(
 
 if ($UseContainerSql) {
     # The API container neither creates nor migrates its database; without this step a fresh clone's API
-    # restarts forever on "database does not exist". Apply the baseline (or any pending migrations) through
-    # the host user-secrets connection that setup-local-platform.ps1 pointed at the same container database,
-    # in the documented ControlPlane, IAM, Shared order. Already-applied migrations are skipped.
-    $persistenceProject = Join-Path $repoRoot 'src/Backend/Persistence/ST.Persistence/ST.Persistence.csproj'
-    Push-Location $repoRoot
-    try {
-        & dotnet tool restore
-        if ($LASTEXITCODE -ne 0) {
-            throw "dotnet tool restore failed with exit code $LASTEXITCODE."
-        }
-
-        foreach ($context in @('ControlPlane', 'Iam', 'Shared')) {
-            $contextName = "$context${containerDatabaseProvider}DBContext"
-            Write-Host "Applying $contextName migrations to the local $containerDatabaseProvider container..."
-            & dotnet ef database update --project $persistenceProject --startup-project $apiProject --context $contextName
-            if ($LASTEXITCODE -ne 0) {
-                throw "Applying $contextName migrations failed with exit code $LASTEXITCODE."
-            }
-        }
-    }
-    finally {
-        Pop-Location
-    }
+    # restarts forever on "database does not exist". Create the database from the baseline when it is
+    # missing, otherwise apply only pending migrations (with history and model-drift checks). It uses the
+    # host user-secrets connection that setup-local-platform.ps1 pointed at the same container database.
+    & (Join-Path $PSScriptRoot 'update-local-database.ps1') -Provider $containerDatabaseProvider -Apply -CreateMissing
 }
 
 & docker @composeArguments up -d --build --wait
@@ -193,6 +176,6 @@ Write-Host "  API:    http://localhost:$($environment.APP_API_HOST_PORT)"
 Write-Host "  Scalar: http://localhost:$($environment.APP_API_HOST_PORT)/scalar/v1"
 Write-Host "  UI:     http://localhost:$($environment.APP_BLAZOR_HOST_PORT)"
 Write-Host "  Mail:   http://localhost:$($environment.MAILPIT_UI_HOST_PORT)"
-if ($IncludeSeq) {
+if (-not $SkipSeq) {
     Write-Host "  Seq:    http://localhost:$($environment.SEQ_HOST_PORT)"
 }

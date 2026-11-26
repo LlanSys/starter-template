@@ -6,7 +6,9 @@ param(
     # <db:PostgreSql>
     [switch]$IncludePostgreSql,
     # </db:PostgreSql>
-    [switch]$IncludeSeq
+    # Seq stops with the platform by default; -SkipSeq leaves it running. -IncludeSeq is accepted for older commands.
+    [switch]$IncludeSeq,
+    [switch]$SkipSeq
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +28,7 @@ if ($IncludeSqlServer) { $profiles += @('--profile', 'database') }
 # <db:PostgreSql>
 if ($IncludePostgreSql) { $profiles += @('--profile', 'postgres') }
 # </db:PostgreSql>
-if ($IncludeSeq) { $profiles += @('--profile', 'observability') }
+if (-not $SkipSeq) { $profiles += @('--profile', 'observability') }
 
 $composeArguments = @('compose', '--env-file', $envFile, '-f', $composeFile)
 $composeArguments += $profiles

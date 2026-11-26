@@ -1,0 +1,5 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# After git pull (merge) or git merge.
+exec "$(dirname "$0")/refresh-local-stack"

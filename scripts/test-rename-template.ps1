@@ -107,6 +107,10 @@ try {
     Assert-Condition ((Get-FileHash -LiteralPath $originalFile).Hash -eq $originalHash) 'WhatIf changed the original project.'
     Assert-Condition (Test-Path -LiteralPath (Join-Path $fixtureRoot 'src/Db/SqlServer/Context.cs')) 'WhatIf removed provider files.'
 
+    # A shell that cannot prompt stops before any change and names -Confirm:$false.
+    $nonInteractive = & pwsh -NoProfile -NonInteractive -File $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -SkipLocalPortAllocation 2>&1 | Out-String
+    Assert-Condition ($nonInteractive.Contains('-Confirm:$false') -and (Get-FileHash -LiteralPath $originalFile).Hash -eq $originalHash) 'A non-interactive rename without -Confirm:$false did not stop with guidance before changing files.'
+
     & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -SkipLocalPortAllocation -Confirm:$false *> (Join-Path $fixtureRoot 'rename.log')
     $api = Join-Path $fixtureRoot 'src/Backend/Api/RP.Api/RP.Api.csproj'
     $ui = Join-Path $fixtureRoot 'src/Frontend/Web/RP.UI.Blazor/RP.UI.Blazor.csproj'

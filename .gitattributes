@@ -64,3 +64,6 @@
 
 # Native Linux scanner configuration must not acquire Windows CR characters.
 ops/local/clamd.conf text eol=lf
+
+# Git hook scripts run under sh; keep LF so the shebang and commands work on every platform.
+.husky/* text eol=lf

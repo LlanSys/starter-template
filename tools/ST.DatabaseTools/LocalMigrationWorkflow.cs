@@ -14,6 +14,7 @@ internal static class LocalMigrationWorkflow
         LocalDatabaseTarget target,
         TimeProvider clock,
         bool apply,
+        bool createMissing,
         CancellationToken cancellationToken)
     {
         var controlPlane = target.CreateControlPlaneContext(clock);
@@ -29,14 +30,32 @@ internal static class LocalMigrationWorkflow
         var connection = controlPlane.Database.GetDbConnection();
         Console.WriteLine($"Local database '{connection.Database}' on '{connection.DataSource}'.");
 
+        DbContext[] contexts = [controlPlane, iam, shared];
         var databaseCreator = controlPlane.GetService<IRelationalDatabaseCreator>();
-        if (!await databaseCreator.ExistsAsync(cancellationToken).ConfigureAwait(false))
+        var databaseExists = await databaseCreator.ExistsAsync(cancellationToken).ConfigureAwait(false);
+
+        // A missing database, or one with no migration history in any context, gets the fresh baseline in the
+        // documented ControlPlane, IAM, Shared order. A partial or foreign history still goes through the checks below.
+        if (createMissing && (!databaseExists || await HasNoAppliedMigrationsAsync(contexts, cancellationToken).ConfigureAwait(false)))
+        {
+            Console.WriteLine("Creating the local database from this checkout's migration baseline.");
+
+            foreach (var context in contexts)
+            {
+                Console.WriteLine($"Applying migrations for {context.GetType().Name}.");
+                await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var created = await ReportAsync(contexts, cancellationToken).ConfigureAwait(false);
+            return created is { Count: 0 };
+        }
+
+        if (!databaseExists)
         {
             throw new LocalDatabaseOperationException("The local database is missing. Use the documented fresh database setup.");
         }
-
-        DbContext[] contexts = [controlPlane, iam, shared];
         var pendingContexts = await ReportAsync(contexts, cancellationToken).ConfigureAwait(false);
+
         if (pendingContexts is null)
         {
             return false;
@@ -57,13 +76,30 @@ internal static class LocalMigrationWorkflow
         return remaining is { Count: 0 };
     }
 
+    private static async Task<bool> HasNoAppliedMigrationsAsync(DbContext[] contexts, CancellationToken cancellationToken)
+    {
+        foreach (var context in contexts)
+        {
+            var applied = await context.Database.GetAppliedMigrationsAsync(cancellationToken).ConfigureAwait(false);
+
+            if (applied.Any())
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static async Task<List<DbContext>?> ReportAsync(DbContext[] contexts, CancellationToken cancellationToken)
     {
         var valid = true;
         var pendingContexts = new List<DbContext>();
+
         foreach (var context in contexts)
         {
             var pending = await CheckContextAsync(context, cancellationToken).ConfigureAwait(false);
+
             if (pending is null)
             {
                 valid = false;
@@ -91,6 +127,7 @@ internal static class LocalMigrationWorkflow
         }
 
         var unknown = applied.Except(known, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+
         if (unknown.Length > 0)
         {
             Console.Error.WriteLine($"{name}: migrations absent from this checkout: {string.Join(", ", unknown)}.");
@@ -98,6 +135,7 @@ internal static class LocalMigrationWorkflow
         }
 
         var firstGap = known.Take(applied.Count).FirstOrDefault(migration => !applied.Contains(migration));
+
         if (firstGap is not null)
         {
             Console.Error.WriteLine($"{name}: the history skips '{firstGap}' before a later applied migration.");
@@ -112,6 +150,7 @@ internal static class LocalMigrationWorkflow
 
         var pending = known.Skip(applied.Count).ToArray();
         Console.WriteLine($"{name}: {pending.Length} pending migrations.");
+
         foreach (var migration in pending)
         {
             Console.WriteLine($"  {migration}");

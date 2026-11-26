@@ -1,0 +1,15 @@
+#!/bin/sh
+# Shared by post-merge, post-rewrite and post-checkout: brings a running local Docker stack up to date
+# with this checkout (migrations, app images). Never fails the Git operation.
+# Set SKIP_LOCAL_STACK_REFRESH=1 to skip it.
+[ "${SKIP_LOCAL_STACK_REFRESH:-0}" = "1" ] && exit 0
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+
+if command -v pwsh >/dev/null 2>&1; then
+    pwsh -NoLogo -NoProfile -File "$repo_root/scripts/refresh-local-stack.ps1" -FromGitHook
+else
+    printf '%s\n' "Local stack refresh skipped: install PowerShell 7 (pwsh) to run scripts/refresh-local-stack.ps1."
+fi
+
+exit 0
