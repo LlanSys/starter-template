@@ -44,7 +44,7 @@ foreach ($name in $Provider) {
             }
         }
 
-        & (Join-Path $forkRoot 'scripts/rename-template.ps1') -NewName 'Fork Probe' -NamespacePrefix FP -DatabaseProvider $name -Confirm:$false
+        & (Join-Path $forkRoot 'scripts/rename-template.ps1') -NewName 'Fork Probe' -NamespacePrefix FP -DatabaseProvider $name -SkipLocalPortAllocation -Confirm:$false
 
         $solution = Join-Path $forkRoot 'ForkProbe.slnx'
         Invoke-Checked "[$name] restore" { dotnet restore $solution }

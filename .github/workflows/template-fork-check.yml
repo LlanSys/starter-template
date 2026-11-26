@@ -40,6 +40,10 @@ jobs:
         shell: pwsh
         run: ./scripts/test-rename-template.ps1
 
+      - name: Local port allocation fixture
+        shell: pwsh
+        run: ./scripts/test-local-port-allocation.ps1
+
       - name: Fork, build and test
         shell: pwsh
         run: |

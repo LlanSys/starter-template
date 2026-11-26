@@ -165,4 +165,4 @@ Write-Host 'Local app deployment is ready:'
 Write-Host "  API:    http://localhost:$($environment.APP_API_HOST_PORT)"
 Write-Host "  Scalar: http://localhost:$($environment.APP_API_HOST_PORT)/scalar/v1"
 Write-Host "  UI:     http://localhost:$($environment.APP_BLAZOR_HOST_PORT)"
-Write-Host '  Mail:   http://localhost:8030'
+Write-Host "  Mail:   http://localhost:$($environment.MAILPIT_UI_HOST_PORT)"
