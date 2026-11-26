@@ -29,7 +29,7 @@ function New-App([string]$name, [string]$product) {
     Write-FixtureFile $root 'AGENTS.md' "- Product: $product"
     Write-FixtureFile $root 'src/Backend/Api/PP.Api/Properties/launchSettings.json' '{ "profiles": { "http": { "applicationUrl": "http://localhost:5257" }, "https": { "applicationUrl": "https://localhost:7229;http://localhost:5257" } } }'
     Write-FixtureFile $root 'src/Frontend/Web/PP.UI.Blazor/Properties/launchSettings.json' '{ "profiles": { "http": { "applicationUrl": "http://localhost:5206" }, "https": { "applicationUrl": "https://localhost:7149;http://localhost:5206" } } }'
-    Write-FixtureFile $root 'src/Backend/Api/PP.Api/appsettings.json' '{ "AllowedOrigins": [ "https://localhost:7149", "http://localhost:5206" ], "CentralFrontendOrigins": [ "http://localhost:8181", "http://alder.localhost:8181" ], "Other": "localhost:72290" }'
+    Write-FixtureFile $root 'src/Backend/Api/PP.Api/appsettings.json' '{ "AllowedOrigins": [ "https://localhost:7149", "http://localhost:5206" ], "CentralFrontendOrigins": [ "http://localhost:8181", "http://alder.localhost:8181" ], "Other": "localhost:72290", "Seq": "http://localhost:5344" }'
     Write-FixtureFile $root 'src/Frontend/Web/PP.UI.Blazor/appsettings.json' '{ "BackendApi": { "BaseUrl": "https://localhost:7229/" } }'
     Write-FixtureFile $root 'scripts/Get-LocalQaLogin.ps1' "`$signIn = 'http://localhost:8181/iam/sign-in'"
     Write-FixtureFile $root 'ops/local/.env' "RABBITMQ_USER=probe`nREDIS_HOST_PORT=6382`n"
@@ -71,6 +71,7 @@ try {
     Assert-Condition ((Read-Fixture $first 'src/Frontend/Web/PP.UI.Blazor/Properties/launchSettings.json').Contains('https://localhost:7159;http://localhost:5216')) 'Web launch ports were not updated.'
     $api = Read-Fixture $first 'src/Backend/Api/PP.Api/appsettings.json'
     Assert-Condition ($api.Contains('"https://localhost:7159", "http://localhost:5216"') -and $api.Contains('"http://localhost:8191"')) 'API settings URLs were not updated.'
+    Assert-Condition ($api.Contains('"http://localhost:5354"')) 'Seq URL was not updated.'
     Assert-Condition ($api.Contains('alder.localhost:8181') -and $api.Contains('localhost:72290')) 'Unrelated localhost values were changed.'
     Assert-Condition ((Read-Fixture $first 'src/Frontend/Web/PP.UI.Blazor/appsettings.json').Contains('https://localhost:7239/')) 'Blazor API base URL was not updated.'
     Assert-Condition ((Read-Fixture $first 'scripts/Get-LocalQaLogin.ps1').Contains('http://localhost:8191/iam/sign-in')) 'Script URL was not updated.'
