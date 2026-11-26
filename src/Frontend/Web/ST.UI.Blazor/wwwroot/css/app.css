@@ -1030,20 +1030,6 @@ h1:focus {
     background: #F7F8FA;
 }
 
-.admin-center-list .mud-list-item {
-    border-bottom: 1px solid var(--st-line);
-    border-radius: .25rem;
-    padding-block: .75rem;
-}
-
-.admin-center-list .mud-list-item:last-child {
-    border-bottom: 0;
-}
-
-.admin-center-list .mud-list-item:hover {
-    background: #F2F4F6;
-}
-
 .control-panel-tools {
     margin-bottom: .75rem;
     display: flex;
@@ -1121,6 +1107,8 @@ body:has([data-app-interactive]) #app-startup { display: none; }
 .attention-action { color: var(--mud-palette-primary); font-size: .875rem; }
 .attention-section-title { font-size: .95rem; margin: 1rem 0 .3rem; }
 .attention-count { min-width: 1.75rem; padding: .1rem .5rem; text-align: center; background: var(--mud-palette-action-default-hover); border-radius: 999px; font-weight: 600; }
+/* Dashboard cards use the shaded card header used by dialogs and listings, spanning the full card width. */
+.attention-panel > .panel-heading { margin: -1.15rem -1.15rem 1rem; padding: .6rem 1.15rem; background: var(--st-header-surface, #F2F4F6); border-bottom: 1px solid var(--st-line); border-radius: 1.15rem 1.15rem 0 0; }
 
 .task-category { max-width: 30rem; }
 .task-actions-heading { width: 16rem; text-align: center; }

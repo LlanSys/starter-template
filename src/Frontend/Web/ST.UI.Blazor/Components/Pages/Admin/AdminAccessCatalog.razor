@@ -120,7 +120,8 @@
                                       PageSize="_table?.RowsPerPage ?? Presentation.PageSize"
                                       OnFirstPage="@(() => _table?.NavigateTo(0))"
                                       OnPreviousPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 1) - 1))"
-                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))" />
+                                      OnNextPage="@(() => _table?.NavigateTo((_table?.CurrentPage ?? 0) + 1))"
+                                      OnLastPage="@(() => _table?.NavigateTo(Page.Last))" />
                 </PagerContent>
             </MudTable>
         </div>

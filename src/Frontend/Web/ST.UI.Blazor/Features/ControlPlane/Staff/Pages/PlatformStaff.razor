@@ -87,6 +87,8 @@
                     <MudPagination Count="@Math.Max(1, (_total + 24) / 25)"
                                    Selected="_page"
                                    SelectedChanged="PageAsync"
+                                   ShowFirstButton="true"
+                                   ShowLastButton="true"
                                    Size="Size.Small" />
                 </div>
             </PagerContent>
