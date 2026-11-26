@@ -18,6 +18,11 @@ namespace ST.Tests.Integration.ApiTests;
 [Collection("Starter API")]
 public sealed class FrontendHostnameRoutingTests(StarterTemplateWebApplicationFactory factory)
 {
+    // The shared portal is the first configured central frontend origin. Read it from the test host's
+    // configuration: clones get their own local ports, so a literal port would not match.
+    private string SharedPortalOrigin => factory.Services.GetRequiredService<IConfiguration>()
+        .GetSection("Tenant:CentralFrontendOrigins").Get<string[]>()![0];
+
     [Fact]
     public async Task RegisteredCompanyAddressBindsAnonymousDiscoveryAndRejectsOtherSelectorsAndSessions()
     {
@@ -67,7 +72,7 @@ public sealed class FrontendHostnameRoutingTests(StarterTemplateWebApplicationFa
         Assert.Equal(HttpStatusCode.Conflict, (await staff.PutAsJsonAsync(Path(a), new SaveTenantFrontendAddressRequest(null, revision.Revision))).StatusCode);
         var other = await ReadAddressAsync(staff, b);
         Assert.Equal(HttpStatusCode.Conflict, (await staff.PutAsJsonAsync(Path(b), new SaveTenantFrontendAddressRequest(origin, other.Revision))).StatusCode);
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await staff.PutAsJsonAsync(Path(b), new SaveTenantFrontendAddressRequest("http://localhost:8181", other.Revision))).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await staff.PutAsJsonAsync(Path(b), new SaveTenantFrontendAddressRequest(SharedPortalOrigin, other.Revision))).StatusCode);
         staff.DefaultRequestHeaders.Remove("X-Test-Permissions");
         staff.DefaultRequestHeaders.Add("X-Test-Permissions", PlatformPermissions.ViewTenants);
         Assert.Equal(HttpStatusCode.Forbidden, (await staff.PutAsJsonAsync(Path(b), new SaveTenantFrontendAddressRequest(null, other.Revision))).StatusCode);
@@ -90,7 +95,7 @@ public sealed class FrontendHostnameRoutingTests(StarterTemplateWebApplicationFa
         {
             ("https://unknown.example.test", HttpStatusCode.NotFound),
             ("https://app.example.test/path", HttpStatusCode.BadRequest),
-            ("http://localhost:8181", HttpStatusCode.OK)
+            (SharedPortalOrigin, HttpStatusCode.OK)
         })
         {
             browser.DefaultRequestHeaders.Remove(FrontendOrigin.HeaderName);
