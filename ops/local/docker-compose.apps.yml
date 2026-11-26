@@ -52,6 +52,9 @@ services:
       Observability__Enabled: ${APP_OBSERVABILITY_ENABLED:-false}
       Observability__Otlp__Endpoint: ${APP_OTLP_ENDPOINT:-}
       Observability__Otlp__Headers: ${APP_OTLP_HEADERS:-}
+      # Serilog's Seq sink (WriteTo index 1 in appsettings.Development.json) must use the Compose service
+      # name inside the container; localhost is the container itself. Runs only with the observability profile.
+      Serilog__WriteTo__1__Args__serverUrl: http://seq:80
     ports:
       - "${APP_API_HOST_PORT:-8180}:8080"
     depends_on:

@@ -141,7 +141,7 @@ if ($PSCmdlet.ShouldProcess($envFile, 'Write local port settings')) {
 }
 
 # Local URLs that embed the Visual Studio or Docker app ports.
-$urlPortKeys = @('API_HTTP', 'API_HTTPS', 'WEB_HTTP', 'WEB_HTTPS', 'APP_API_HOST_PORT', 'APP_BLAZOR_HOST_PORT')
+$urlPortKeys = @('API_HTTP', 'API_HTTPS', 'WEB_HTTP', 'WEB_HTTPS', 'APP_API_HOST_PORT', 'APP_BLAZOR_HOST_PORT', 'SEQ_HOST_PORT')
 $files = @(
     (Get-StLaunchSettingsPath $repoRoot 'API'),
     (Get-StLaunchSettingsPath $repoRoot 'WEB'),
@@ -173,7 +173,7 @@ foreach ($file in ($files | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 Save-Registry $plan $chosen
 Write-PortTable $plan "Local ports for $product (slot $chosen):"
 Write-Host "Visual Studio: API https://localhost:$($plan.API_HTTPS)  Web https://localhost:$($plan.WEB_HTTPS)"
-Write-Host "Docker:        API http://localhost:$($plan.APP_API_HOST_PORT)  Web http://localhost:$($plan.APP_BLAZOR_HOST_PORT)  Mail http://localhost:$($plan.MAILPIT_UI_HOST_PORT)"
+Write-Host "Docker:        API http://localhost:$($plan.APP_API_HOST_PORT)  Web http://localhost:$($plan.APP_BLAZOR_HOST_PORT)  Mail http://localhost:$($plan.MAILPIT_UI_HOST_PORT)  Seq http://localhost:$($plan.SEQ_HOST_PORT)"
 if ($alreadyConfigured -and -not $WhatIfPreference) {
     Write-Host 'If this application already ran locally, rerun scripts/setup-local-platform.ps1 so its user-secrets use the new ports, and recreate its containers.'
 }
