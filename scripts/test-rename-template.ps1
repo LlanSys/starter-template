@@ -85,6 +85,7 @@ function New-Fixture {
     Write-FixtureFile $root 'src/appsettings.json' '{ "DatabaseSettings": { "Provider": "SqlServer" } }'
     Write-FixtureFile $root 'Directory.Packages.props' ("<Project>`n  <ItemGroup>`n    <PackageVersion Include=`"Fixture.SqlServer`" Version=`"1.0.0`" />`n    <PackageVersion Include=`"Fixture.Npgsql`" Version=`"1.0.0`" />`n    <PackageVersion Include=`"Fixture.Neutral`" Version=`"1.0.0`" />`n  </ItemGroup>`n</Project>`n")
     Write-FixtureFile $root 'ops/local/.env' 'APP=ExampleSource SRC.Api api-original'
+    Write-FixtureFile $root '.husky/pre-commit' 'dotnet test tests/SRC.Tests.Architecture/SRC.Tests.Architecture.csproj'
     return $root
 }
 
@@ -116,6 +117,8 @@ try {
 
     $renamedSource = Read-FixtureFile $fixtureRoot 'src/Backend/Api/RP.Api/Identity.cs'
     Assert-Condition ($renamedSource.Contains('namespace RP.Api;') -and $renamedSource.Contains($apiId) -and $renamedSource.Contains($uiId)) 'Technical namespace or design-time secret references were not updated.'
+
+    Assert-Condition ((Read-FixtureFile $fixtureRoot '.husky/pre-commit') -ceq 'dotnet test tests/RP.Tests.Architecture/RP.Tests.Architecture.csproj') 'Extensionless git hook was not renamed.'
 
     # Provider selection results.
     $db = Read-FixtureFile $fixtureRoot 'src/Backend/Api/RP.Api/Db.cs'
