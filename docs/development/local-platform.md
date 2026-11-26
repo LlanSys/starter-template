@@ -148,6 +148,23 @@ For Docker sign-in, configure the `APP_GOOGLE_SSO_*` and `APP_ENTRA_SSO_*` value
 
 Apply the Shared `Quartz46SchemaCompatibility` migration before starting the scheduler on an older database. It adds the required Quartz 4.6.2 tables and columns for SQL Server and PostgreSQL and keeps existing jobs, triggers and JSON job data. Rolling back the migration history retains the added schema to protect scheduler data. The Docker API enables background jobs by default. `APP_BACKGROUND_JOBS_ENABLED=false` remains available for local troubleshooting.
 
+### Sending Docker telemetry to Grafana Cloud
+
+The Docker API exports nothing by default. To try an OTLP backend such as Grafana Cloud, set these values in the ignored `ops/local/.env`, then rerun the app deployment script:
+
+```text
+APP_OBSERVABILITY_ENABLED=true
+APP_OTLP_ENDPOINT=https://otlp-gateway-<region>.grafana.net/otlp
+APP_OTLP_HEADERS=Authorization=Basic <base64 of instanceId:token>
+```
+
+- Use the endpoint exactly as Grafana shows it. The API sends HTTP/protobuf to `/v1/traces`, `/v1/metrics` and `/v1/logs` itself, and accepts `%20` or a plain space after `Basic`.
+- Use a token created for local testing, so you can revoke it without affecting production.
+- Data is labelled `deployment.environment = Development` and `service.name = StarterTemplate.API`, which keeps it apart from production.
+- To stop exporting, set `APP_OBSERVABILITY_ENABLED=false`, clear `APP_OTLP_ENDPOINT`, and rerun the script. Clearing the endpoint is needed to stop logs.
+
+For an API run from Visual Studio, set the same three values in the API user-secrets as `Observability:Enabled`, `Observability:Otlp:Endpoint` and `Observability:Otlp:Headers`.
+
 The full app deployment is for deployability confidence and local smoke tests. For day-to-day breakpoint debugging, continue running API and Blazor from Visual Studio while keeping the infrastructure containers running.
 
 ## Local Endpoints
