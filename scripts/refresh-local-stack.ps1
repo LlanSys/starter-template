@@ -62,12 +62,16 @@ try {
 
     $running = Get-ComposeServices 'running'
     $databaseProvider = $null
-    if ($running -contains 'sqlserver') {
+    # <db:SqlServer>
+    if (-not $databaseProvider -and $running -contains 'sqlserver') {
         $databaseProvider = 'SqlServer'
     }
-    elseif ($running -contains 'postgres') {
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    if (-not $databaseProvider -and $running -contains 'postgres') {
         $databaseProvider = 'PostgreSql'
     }
+    # </db:PostgreSql>
 
     if ($databaseProvider) {
         Write-Host "Updating the local $databaseProvider database for this checkout..."
