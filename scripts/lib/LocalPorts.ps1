@@ -8,6 +8,10 @@
 $script:StPortSlotStep = 10
 $script:StPortMaxSlot = 40
 
+# The template's own product name, split so rename-template.ps1 (which rewrites the product name in
+# every text file) leaves it intact. Clones must still recognise the template and share its registry.
+$script:StTemplateProduct = 'Starter' + 'Template'
+
 # Infrastructure ports in ops/local/.env (consumed by docker-compose.yml / docker-compose.apps.yml).
 $script:StEnvPortDefaults = [ordered]@{
     REDIS_HOST_PORT = 6382
@@ -49,7 +53,7 @@ function Get-StPortPlan([int]$Slot) {
 function Get-StPortRegistryPath {
     if ($env:ST_PORT_REGISTRY) { return $env:ST_PORT_REGISTRY }
     $base = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
-    return Join-Path (Join-Path $base 'StarterTemplate') 'port-allocations.json'
+    return Join-Path (Join-Path $base $script:StTemplateProduct) 'port-allocations.json'
 }
 
 function ConvertTo-StRepositoryKey([string]$Path) {

@@ -103,7 +103,22 @@ try {
     Invoke-Allocate $second -Force
     Assert-Condition ((Read-Fixture $second 'src/Frontend/Web/PP.UI.Blazor/appsettings.json').Contains('https://localhost:7249/')) 'Force re-allocation did not rewrite URLs from the previous ports.'
 
-    Write-Host 'PASS: template registration, clone allocation and file updates, registry-based avoidance, idempotent rerun, WhatIf, release of deleted clones, and forced re-allocation.'
+    # 8. A renamed clone (product name rewritten in its scripts) is still not treated as the template
+    #    and still uses the shared registry.
+    $renamed = New-App 'Renamed' 'RenamedApp'
+    foreach ($relative in 'scripts/allocate-local-ports.ps1', 'scripts/lib/LocalPorts.ps1') {
+        $path = Join-Path $renamed $relative
+        [IO.File]::WriteAllText($path, [IO.File]::ReadAllText($path).Replace('StarterTemplate', 'RenamedApp'), [Text.UTF8Encoding]::new($false))
+    }
+    Invoke-Allocate $renamed
+    Assert-Condition ((Read-EnvPort $renamed 'APP_API_HOST_PORT') -ne 0 -and (Read-EnvPort $renamed 'APP_API_HOST_PORT') -ne 8180) 'A renamed clone kept the template default ports.'
+    $registryOverride = $env:ST_PORT_REGISTRY
+    $env:ST_PORT_REGISTRY = $null
+    $renamedRegistry = & { . (Join-Path $renamed 'scripts/lib/LocalPorts.ps1'); Get-StPortRegistryPath }
+    $env:ST_PORT_REGISTRY = $registryOverride
+    Assert-Condition ($renamedRegistry -like ('*\' + 'Starter' + 'Template' + '\port-allocations.json')) 'A renamed clone does not use the shared port registry.'
+
+    Write-Host 'PASS: template registration, clone allocation and file updates, registry-based avoidance, idempotent rerun, WhatIf, release of deleted clones, forced re-allocation, and rename survival.'
 }
 finally {
     foreach ($name in $previous.Keys) { [Environment]::SetEnvironmentVariable($name, $previous[$name]) }
