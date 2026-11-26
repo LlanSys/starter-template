@@ -27,7 +27,7 @@ Use a fresh copy of this checklist for every application, environment and deploy
 
 - [ ] Allocate native HTTP/HTTPS ports for both hosts in `Properties/launchSettings.json`. Update the UI's API addresses and integration callback registrations accordingly.
 - [ ] Allocate different Docker host ports for API/UI. Keep these distinct from native ports if both modes can run together. Container-internal ports remain unchanged.
-- [ ] Set every infrastructure `*_HOST_PORT` override in the ignored `ops/local/.env`, using the keys in `.env.example`. Include SQL Server, RabbitMQ/management, Redis, Mailpit SMTP/UI, Seq, all three Azurite ports and ClamAV. The setup script carries these values into native host settings.
+- [ ] Confirm the clone's own local ports. The rename script allocates them automatically (see [workstation endpoint allocations](workstation-endpoints.md#automatic-port-allocation)); check the summary it printed, or run `.\scriptsllocate-local-ports.ps1` to see the registered block. The setup script carries these values into native host settings.
 - [ ] Confirm a distinct Compose project name, all explicitly named external volumes, the Blazor key volume, cache/key-ring prefixes, storage account/container prefixes and local profile-image paths. Do not reuse another application's data volumes.
 - [ ] Create ignored `ops/local/.env` with this application's credentials and port overrides. Required API container values include `APP_SQL_CONNECTION_STRING` and `APP_JWT_SECRET`. Optional SSO values use the `APP_GOOGLE_SSO_*` and `APP_ENTRA_SSO_*` mappings already present in the apps Compose file; an extra stdin override is unnecessary.
 - [ ] Run the endpoint audit with **both** new Compose files before startup:

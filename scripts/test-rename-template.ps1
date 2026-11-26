@@ -102,11 +102,11 @@ try {
     $rename = Join-Path $fixtureRoot 'scripts/rename-template.ps1'
     $originalFile = Join-Path $fixtureRoot 'src/Backend/Api/SRC.Api/SRC.Api.csproj'
     $originalHash = (Get-FileHash -LiteralPath $originalFile).Hash
-    & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -WhatIf *> (Join-Path $fixtureRoot 'dry-run.log')
+    & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -SkipLocalPortAllocation -WhatIf *> (Join-Path $fixtureRoot 'dry-run.log')
     Assert-Condition ((Get-FileHash -LiteralPath $originalFile).Hash -eq $originalHash) 'WhatIf changed the original project.'
     Assert-Condition (Test-Path -LiteralPath (Join-Path $fixtureRoot 'src/Db/SqlServer/Context.cs')) 'WhatIf removed provider files.'
 
-    & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -Confirm:$false *> (Join-Path $fixtureRoot 'rename.log')
+    & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -SkipLocalPortAllocation -Confirm:$false *> (Join-Path $fixtureRoot 'rename.log')
     $api = Join-Path $fixtureRoot 'src/Backend/Api/RP.Api/RP.Api.csproj'
     $ui = Join-Path $fixtureRoot 'src/Frontend/Web/RP.UI.Blazor/RP.UI.Blazor.csproj'
     Assert-Condition (Test-Path -LiteralPath (Join-Path $fixtureRoot 'RenameProbe.slnx')) 'Solution rename failed.'
@@ -137,12 +137,12 @@ try {
     foreach ($file in @($api, $ui, (Join-Path $fixtureRoot 'AGENTS.md'), (Join-Path $fixtureRoot 'src/Backend/Api/RP.Api/Db.cs'))) {
         $hashes[$file] = (Get-FileHash -LiteralPath $file).Hash
     }
-    & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -Confirm:$false *> (Join-Path $fixtureRoot 'rerun.log')
+    & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider PostgreSql -SkipLocalPortAllocation -Confirm:$false *> (Join-Path $fixtureRoot 'rerun.log')
     foreach ($file in $hashes.Keys) {
         Assert-Condition ((Get-FileHash -LiteralPath $file).Hash -eq $hashes[$file]) 'Identical rename rerun changed source or secret identities.'
     }
     $switchRefused = $false
-    try { & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider SqlServer -Confirm:$false *> $null } catch { $switchRefused = $true }
+    try { & $rename -NewName RenameProbe -NamespacePrefix RP -DatabaseProvider SqlServer -SkipLocalPortAllocation -Confirm:$false *> $null } catch { $switchRefused = $true }
     Assert-Condition $switchRefused 'Rerun with a different provider was not refused.'
     Assert-Condition (Test-Path -LiteralPath (Join-Path $fixtureRoot 'src/Db/PostgreSql/Context.cs')) 'Provider switch removed the kept provider.'
 
@@ -153,7 +153,7 @@ try {
 
     # --- Scenario 2: Both keeps every provider and its markers. ---
     $bothRoot = New-Fixture
-    & (Join-Path $bothRoot 'scripts/rename-template.ps1') -NewName BothProbe -NamespacePrefix BP -DatabaseProvider Both -Confirm:$false *> (Join-Path $bothRoot 'rename.log')
+    & (Join-Path $bothRoot 'scripts/rename-template.ps1') -NewName BothProbe -NamespacePrefix BP -DatabaseProvider Both -SkipLocalPortAllocation -Confirm:$false *> (Join-Path $bothRoot 'rename.log')
     $bothDb = Read-FixtureFile $bothRoot 'src/Backend/Api/BP.Api/Db.cs'
     Assert-Condition ($bothDb.Contains('SqlServerName') -and $bothDb.Contains('PostgreSqlName') -and $bothDb.Contains('<db:SqlServer>')) 'Both removed provider code or markers.'
     Assert-Condition ((Test-Path -LiteralPath (Join-Path $bothRoot 'src/Db/SqlServer/Context.cs')) -and (Test-Path -LiteralPath (Join-Path $bothRoot 'src/Db/PostgreSql/Context.cs'))) 'Both removed provider files.'
@@ -188,20 +188,20 @@ try {
 
         Write-FixtureFile $gitRoot 'untracked.txt' 'dirty'
         $dirtyRefused = $false
-        try { & $gitRename -NewName GitProbe -NamespacePrefix GP -DatabaseProvider SqlServer -ResetGitHistory -Confirm:$false *> $null } catch { $dirtyRefused = $true }
+        try { & $gitRename -NewName GitProbe -NamespacePrefix GP -DatabaseProvider SqlServer -SkipLocalPortAllocation -ResetGitHistory -Confirm:$false *> $null } catch { $dirtyRefused = $true }
         Assert-Condition ($dirtyRefused -and (Test-Path -LiteralPath (Join-Path $gitRoot '.git'))) 'Git reset ran on a dirty working tree.'
         Remove-Item -LiteralPath (Join-Path $gitRoot 'untracked.txt')
 
         git -C $gitRoot remote set-url origin 'https://example.invalid/acme/some-other-product.git'
         $foreignRefused = $false
-        try { & $gitRename -NewName GitProbe -NamespacePrefix GP -DatabaseProvider SqlServer -ResetGitHistory -Confirm:$false *> $null } catch { $foreignRefused = $true }
+        try { & $gitRename -NewName GitProbe -NamespacePrefix GP -DatabaseProvider SqlServer -SkipLocalPortAllocation -ResetGitHistory -Confirm:$false *> $null } catch { $foreignRefused = $true }
         Assert-Condition ($foreignRefused -and ((git -C $gitRoot rev-list --count HEAD) -eq '2')) 'Git reset ran against a non-template origin.'
         git -C $gitRoot remote set-url origin 'https://example.invalid/acme/example-source.git'
 
-        & $gitRename -NewName GitProbe -NamespacePrefix GP -DatabaseProvider SqlServer -ResetGitHistory -WhatIf *> $null
+        & $gitRename -NewName GitProbe -NamespacePrefix GP -DatabaseProvider SqlServer -SkipLocalPortAllocation -ResetGitHistory -WhatIf *> $null
         Assert-Condition ((git -C $gitRoot rev-list --count HEAD) -eq '2') 'WhatIf reset git history.'
 
-        & $gitRename -NewName GitProbe -NamespacePrefix GP -DatabaseProvider SqlServer -ResetGitHistory -Confirm:$false *> (Join-Path $temporaryRoot ('git-rename-' + [IO.Path]::GetFileName($gitRoot) + '.log'))
+        & $gitRename -NewName GitProbe -NamespacePrefix GP -DatabaseProvider SqlServer -SkipLocalPortAllocation -ResetGitHistory -Confirm:$false *> (Join-Path $temporaryRoot ('git-rename-' + [IO.Path]::GetFileName($gitRoot) + '.log'))
         Assert-Condition ((git -C $gitRoot rev-list --count HEAD) -eq '1') 'Fresh repository does not have exactly one commit.'
         Assert-Condition ((git -C $gitRoot branch --show-current) -eq 'main') 'Fresh repository is not on main.'
         Assert-Condition (-not (git -C $gitRoot remote)) 'Fresh repository kept a remote.'

@@ -14,7 +14,10 @@ param(
     [string]$DatabaseProvider,
 
     # Deletes the template's .git directory first, then creates a fresh repository with one initial commit.
-    [switch]$ResetGitHistory
+    [switch]$ResetGitHistory,
+
+    # Skip giving the renamed application its own local ports (used by tests and CI).
+    [switch]$SkipLocalPortAllocation
 )
 
 $ErrorActionPreference = 'Stop'
@@ -152,6 +155,11 @@ else {
             Rename-Item -LiteralPath $path.FullName -NewName $newLeafName
         }
     }
+}
+
+# --- Local ports (before the initial commit, so launch settings are committed with them). ---
+if (-not $SkipLocalPortAllocation) {
+    & (Join-Path $PSScriptRoot 'allocate-local-ports.ps1') -WhatIf:$WhatIfPreference
 }
 
 # --- Fresh repository. ---

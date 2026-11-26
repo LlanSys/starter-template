@@ -203,7 +203,7 @@ Keep these files short and aligned with this file. Do not let them become indepe
 
 ## Local application isolation
 
-- Each application host must have its own UserSecretsId; clones must regenerate identities and allocate distinct host ports and Compose project/volume names. Identical rename reruns retain the generated identities. Configure infrastructure host ports with the `*_HOST_PORT` values in the ignored local environment file. The setup scripts derive the SQL database name from the API prefix unless `LOCAL_DATABASE_NAME` is set.
+- Each application host must have its own UserSecretsId; clones must regenerate identities and use distinct host ports and Compose project/volume names. The rename script and `scripts/allocate-local-ports.ps1` allocate a clone's ports automatically and record them in the per-user registry; local setup re-checks them. Identical rename reruns retain the generated identities. Infrastructure host ports live in the `*_HOST_PORT` values in the ignored local environment file. The setup scripts derive the SQL database name from the API prefix unless `LOCAL_DATABASE_NAME` is set.
 - Run scripts/check-local-endpoints.ps1 before starting local infrastructure; supply new Compose files explicitly. Use -FocusSupplied to validate the proposed application against discovered reservations while reporting unrelated conflicts. Omit it for a full-workstation audit. See docs/development/workstation-endpoints.md.
 
 - Local platform setup initializes missing optional payment fields through `scripts/initialize-payment-settings.ps1`. Preserve existing API user-secrets; keep provider credentials blank until supplied and record external-provider certification separately from core starter certification.

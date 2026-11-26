@@ -51,25 +51,30 @@ function Read-EnvironmentFile([string]$path) {
     return $values
 }
 
+# Generate each missing local credential. ops/local/.env may already exist with port settings
+# written by allocate-local-ports.ps1, so credentials are added key by key.
 if (-not (Test-Path -LiteralPath $envFile)) {
-    $rabbitPassword = New-LocalSecret
-    $redisPassword = New-LocalSecret
-    # <db:SqlServer>
-    $sqlPassword = "St!$(New-LocalSecret)"
-    # </db:SqlServer>
-
-    @(
-        'RABBITMQ_USER=stdev'
-        "RABBITMQ_PASSWORD=$rabbitPassword"
-        "REDIS_PASSWORD=$redisPassword"
-        'REDIS_HOST_PORT=6382'
-        # <db:SqlServer>
-        "MSSQL_SA_PASSWORD=$sqlPassword"
-        # </db:SqlServer>
-        'AZURITE_ACCOUNT_NAME=stdevstorage'
-        "AZURITE_ACCOUNT_KEY=$(New-LocalBase64Secret)"
-    ) | Set-Content -LiteralPath $envFile -Encoding ascii
+    New-Item -ItemType File -Path $envFile | Out-Null
 }
+$environment = Read-EnvironmentFile $envFile
+$generatedSettings = [ordered]@{
+    RABBITMQ_USER = 'stdev'
+    RABBITMQ_PASSWORD = New-LocalSecret
+    REDIS_PASSWORD = New-LocalSecret
+    # <db:SqlServer>
+    MSSQL_SA_PASSWORD = "St!$(New-LocalSecret)"
+    # </db:SqlServer>
+    AZURITE_ACCOUNT_NAME = 'stdevstorage'
+    AZURITE_ACCOUNT_KEY = New-LocalBase64Secret
+}
+foreach ($key in $generatedSettings.Keys) {
+    if ([string]::IsNullOrWhiteSpace($environment[$key])) {
+        Add-Content -LiteralPath $envFile -Value "$key=$($generatedSettings[$key])"
+    }
+}
+
+# Give this application its own local ports (registers the template's defaults for the template).
+& (Join-Path $PSScriptRoot 'allocate-local-ports.ps1')
 
 $environment = Read-EnvironmentFile $envFile
 if (-not $environment.ContainsKey('SEQ_PASSWORD')) {

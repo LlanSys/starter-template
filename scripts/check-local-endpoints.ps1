@@ -141,6 +141,16 @@ foreach ($container in $containers) {
         }
     }
 }
+# Applications recorded by allocate-local-ports.ps1 keep their ports even without containers.
+. (Join-Path $PSScriptRoot 'lib/LocalPorts.ps1')
+$knownRoots = @($roots + $focusedRoots | Where-Object { $_ } | ForEach-Object { ConvertTo-StRepositoryKey $_ })
+foreach ($registered in (Read-StPortRegistry)) {
+    $registeredRoot = ConvertTo-StRepositoryKey $registered.repository
+    if ($registeredRoot -in $knownRoots) { continue }
+    foreach ($property in $registered.ports.PSObject.Properties) {
+        $ports += [pscustomobject]@{ Owner = "Registered $registeredRoot"; Port = [int]$property.Value; Protocol = 'tcp' }
+    }
+}
 $failures = [Collections.Generic.List[string]]::new()
 function Add-AllocationFailure([string]$message, [string[]]$owners) {
     $relevant = !$FocusSupplied
@@ -195,4 +205,4 @@ if ($FocusSupplied) {
 } else {
     Write-Host "PASS: $($ports.Count) distinct service/app allocations and $($secrets.Count) independent secret stores."
 }
-Write-Host 'Scope: discovered Compose groups (all profiles), supplied files, launch ports and secret-store identities. This does not validate credentials, database contents or external/native applications.'
+Write-Host 'Scope: discovered Compose groups (all profiles), registered local allocations, supplied files, launch ports and secret-store identities. This does not validate credentials, database contents or external/native applications.'
