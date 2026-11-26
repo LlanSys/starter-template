@@ -48,17 +48,20 @@ function Read-EnvPort([string]$root, [string]$key) {
 
 function Read-Registry { Get-Content -Raw -LiteralPath $env:ST_PORT_REGISTRY | ConvertFrom-Json }
 
+# The template's product name, split so rename-template.ps1 leaves it intact in clones.
+$templateProduct = 'Starter' + 'Template'
+
 try {
     [IO.Directory]::CreateDirectory($workRoot) | Out-Null
     $env:ST_PORT_REGISTRY = Join-Path $workRoot 'registry/port-allocations.json'
     $env:ST_PORT_SKIP_MACHINE = '1'
 
     # 1. The template registers its defaults and changes nothing.
-    $template = New-App 'Template' 'StarterTemplate'
+    $template = New-App 'Template' $templateProduct
     $templateApi = Read-Fixture $template 'src/Backend/Api/PP.Api/appsettings.json'
     Invoke-Allocate $template
     Assert-Condition ((Read-Fixture $template 'src/Backend/Api/PP.Api/appsettings.json') -ceq $templateApi) 'Template files changed.'
-    $entry = (Read-Registry).allocations | Where-Object product -eq 'StarterTemplate'
+    $entry = (Read-Registry).allocations | Where-Object product -eq $templateProduct
     Assert-Condition ($entry.slot -eq 0 -and $entry.ports.API_HTTPS -eq 7229 -and $entry.ports.APP_BLAZOR_HOST_PORT -eq 8181) 'Template defaults were not registered as slot 0.'
 
     # 2. A clone with the defaults gets slot 1, written everywhere.
@@ -109,7 +112,7 @@ try {
     $renamed = New-App 'Renamed' 'RenamedApp'
     foreach ($relative in 'scripts/allocate-local-ports.ps1', 'scripts/lib/LocalPorts.ps1') {
         $path = Join-Path $renamed $relative
-        [IO.File]::WriteAllText($path, [IO.File]::ReadAllText($path).Replace('StarterTemplate', 'RenamedApp'), [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText($path, [IO.File]::ReadAllText($path).Replace($templateProduct, 'RenamedApp'), [Text.UTF8Encoding]::new($false))
     }
     Invoke-Allocate $renamed
     Assert-Condition ((Read-EnvPort $renamed 'APP_API_HOST_PORT') -ne 0 -and (Read-EnvPort $renamed 'APP_API_HOST_PORT') -ne 8180) 'A renamed clone kept the template default ports.'
