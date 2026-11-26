@@ -10,4 +10,6 @@ public sealed class ObservabilitySettings
     public AzureMonitorSettings AzureMonitor { get; set; } = new();
 
     public OtlpSettings Otlp { get; set; } = new();
+
+    public TraceSamplingSettings Sampling { get; set; } = new();
 }
