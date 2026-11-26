@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using MudBlazor;
 using ST.UI.Blazor.Features.IAM.Users.Utilities;
 using ST.UI.Blazor.Features.Shared.Messaging;
+using ST.SharedKernel;
 
 namespace ST.UI.Blazor.Features.IAM.Users.Pages;
 
@@ -34,7 +35,7 @@ public partial class Profile
             }
 
             var email = AuthSession.CurrentUser?.Email;
-            return string.IsNullOrWhiteSpace(email) ? "ST" : email[..1].ToUpperInvariant();
+            return string.IsNullOrWhiteSpace(email) ? ProductIdentity.Prefix : email[..1].ToUpperInvariant();
         }
     }
 

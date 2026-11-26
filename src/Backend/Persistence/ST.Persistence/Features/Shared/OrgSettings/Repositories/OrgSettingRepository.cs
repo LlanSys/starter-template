@@ -11,6 +11,7 @@ using System.Security.Cryptography;
 // </db:PostgreSql>
 // <db:PostgreSql>
 using System.Text;
+using ST.Domain.Shared;
 // </db:PostgreSql>
 
 namespace ST.Persistence.Features.Shared.OrgSettings.Repositories;
@@ -20,7 +21,7 @@ public class OrgSettingRepository(SharedDBContext dbContext)
 {
     public async Task LockSettingAsync(string key, CancellationToken cancellationToken)
     {
-        var resource = $"ST:OrgSetting:{dbContext.CurrentTenantId:D}:{key}";
+        var resource = $"{ProductIdentity.Prefix}:OrgSetting:{dbContext.CurrentTenantId:D}:{key}";
 
         // <db:SqlServer>
         if (dbContext.Database.IsSqlServer())

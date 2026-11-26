@@ -9,6 +9,7 @@ using ST.SharedKernel.Features.Shared.Payments.Dtos;
 using MediatR;
 
 using System.Globalization;
+using ST.Domain.Shared;
 
 namespace ST.Application.Features.Shared.Payments.CommandHandlers;
 
@@ -61,7 +62,7 @@ internal sealed class InitiatePaymentHandler(
         // Format example: ST-STR-USD-260709-A1B2C3
         var timestamp = timeProvider.GetUtcNow().ToString("yyMMdd", CultureInfo.InvariantCulture);
         var uniqueSuffix = paymentId.ToString("N")[^6..].ToUpperInvariant();
-        var customerReference = $"ST-{providerPrefix}-{req.Currency}-{timestamp}-{uniqueSuffix}";
+        var customerReference = $"{ProductIdentity.Prefix}-{providerPrefix}-{req.Currency}-{timestamp}-{uniqueSuffix}";
 
         var money = new Money(request.Request.Amount, request.Request.Currency);
         var paymentRecord = new PaymentRecord(

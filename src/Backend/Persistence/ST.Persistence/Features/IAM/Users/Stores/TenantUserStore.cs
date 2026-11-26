@@ -17,6 +17,7 @@ using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Features.IAM.Users.Enums;
 using ST.Persistence.Features.IAM.DataContext;
+using ST.Domain.Shared;
 
 namespace ST.Persistence.Features.IAM.Users.Stores;
 
@@ -135,7 +136,7 @@ public sealed class TenantUserStore(
 
     private async Task LockTenantAsync(Guid tenantId, CancellationToken cancellationToken)
     {
-        var resource = $"ST:IAM:AccountAdmission:{tenantId:N}";
+        var resource = $"{ProductIdentity.Prefix}:IAM:AccountAdmission:{tenantId:N}";
 
         // <db:SqlServer>
         if (context.Database.IsSqlServer())
