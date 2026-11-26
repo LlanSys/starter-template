@@ -32,7 +32,7 @@ $repoKey = ConvertTo-StRepositoryKey $repoRoot
 $envFile = Join-Path $repoRoot 'ops/local/.env'
 $productMatch = [regex]::Match([IO.File]::ReadAllText((Join-Path $repoRoot 'AGENTS.md')), '(?m)^- Product: (.+)$')
 $product = if ($productMatch.Success) { $productMatch.Groups[1].Value.Trim() } else { Split-Path -Leaf $repoRoot }
-$isTemplate = $product -eq 'StarterTemplate'
+$isTemplate = $product -eq $script:StTemplateProduct
 
 $registry = Read-StPortRegistry
 $entry = $registry | Where-Object { (ConvertTo-StRepositoryKey $_.repository) -eq $repoKey } | Select-Object -First 1
