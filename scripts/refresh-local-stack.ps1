@@ -30,9 +30,15 @@ function Write-Skip([string]$Reason) {
 function Get-ComposeServices([string]$Status) {
     $arguments = @(
         'compose', '--env-file', $envFile, '-f', $composeFile, '-f', $appsComposeFile,
-        '--profile', 'apps', '--profile', 'database', '--profile', 'postgres', '--profile', 'observability',
-        'ps', '--services'
+        '--profile', 'apps', '--profile', 'observability'
     )
+    # <db:SqlServer>
+    $arguments += @('--profile', 'database')
+    # </db:SqlServer>
+    # <db:PostgreSql>
+    $arguments += @('--profile', 'postgres')
+    # </db:PostgreSql>
+    $arguments += @('ps', '--services')
     if ($Status) {
         $arguments += @('--status', $Status)
     }

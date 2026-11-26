@@ -1,5 +1,6 @@
 using ST.Domain.Features.Shared.OrgSettings.Contracts.Repositories;
 using ST.Domain.Features.Shared.OrgSettings.Entities;
+using ST.Domain.Shared;
 using ST.Persistence.Common.Repositories;
 using ST.Persistence.Features.Shared.DataContext;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,6 @@ using System.Security.Cryptography;
 // </db:PostgreSql>
 // <db:PostgreSql>
 using System.Text;
-using ST.Domain.Shared;
 // </db:PostgreSql>
 
 namespace ST.Persistence.Features.Shared.OrgSettings.Repositories;

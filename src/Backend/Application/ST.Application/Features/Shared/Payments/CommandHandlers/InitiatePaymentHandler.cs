@@ -2,6 +2,7 @@ using ST.Application.Features.Shared.Payments.Contracts.Interfaces;
 using ST.Domain.Features.Shared.Contracts;
 using ST.Domain.Features.Shared.Payments.Entities;
 using ST.Domain.Features.Shared.Payments.Enums;
+using ST.Domain.Shared;
 using ST.Domain.Shared.ValueObjects;
 using ST.SharedKernel.Dtos.Common;
 using ST.SharedKernel.Features.Shared.Payments.Dtos;
@@ -9,7 +10,6 @@ using ST.SharedKernel.Features.Shared.Payments.Dtos;
 using MediatR;
 
 using System.Globalization;
-using ST.Domain.Shared;
 
 namespace ST.Application.Features.Shared.Payments.CommandHandlers;
 

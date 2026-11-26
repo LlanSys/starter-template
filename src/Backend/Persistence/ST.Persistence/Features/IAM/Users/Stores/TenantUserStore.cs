@@ -16,8 +16,8 @@ using Npgsql;
 using ST.Domain.Features.IAM.Contracts;
 using ST.Domain.Features.IAM.Users.Entities;
 using ST.Domain.Features.IAM.Users.Enums;
-using ST.Persistence.Features.IAM.DataContext;
 using ST.Domain.Shared;
+using ST.Persistence.Features.IAM.DataContext;
 
 namespace ST.Persistence.Features.IAM.Users.Stores;
 
