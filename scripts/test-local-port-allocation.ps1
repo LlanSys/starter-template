@@ -116,7 +116,7 @@ try {
     $env:ST_PORT_REGISTRY = $null
     $renamedRegistry = & { . (Join-Path $renamed 'scripts/lib/LocalPorts.ps1'); Get-StPortRegistryPath }
     $env:ST_PORT_REGISTRY = $registryOverride
-    Assert-Condition ($renamedRegistry -like ('*\' + 'Starter' + 'Template' + '\port-allocations.json')) 'A renamed clone does not use the shared port registry.'
+    Assert-Condition ((Split-Path -Leaf (Split-Path -Parent $renamedRegistry)) -ceq ('Starter' + 'Template') -and (Split-Path -Leaf $renamedRegistry) -eq 'port-allocations.json') 'A renamed clone does not use the shared port registry.'
 
     Write-Host 'PASS: template registration, clone allocation and file updates, registry-based avoidance, idempotent rerun, WhatIf, release of deleted clones, forced re-allocation, and rename survival.'
 }
