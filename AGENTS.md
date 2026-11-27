@@ -143,7 +143,7 @@ This file is the canonical source of truth and working contract for AI coding to
 - Authentication pages share AuthLayout and the compact centred auth-card composition, with AuthBrand inside the card. Publish sign-in controls only after workspace/provider initialization; preserve protected prerendering restrictions and avoid same-origin initialization reloads. Keep instructions task-specific; do not expose implementation explanations in product copy.
 - Account actions live in the top-right header, with the user name and no role label. Sidebar navigation uses inset spacing and plain branding.
 
-- The supported frontend is ST.UI.Blazor, a Blazor Web App with global Interactive Server rendering with prerendering disabled so protected browser tokens can be restored after the circuit starts.
+- The supported frontend is ST.UI.Blazor, a Blazor Web App with global Interactive Server rendering with prerendering disabled so protected browser tokens can be restored after the circuit starts. Clicks before the router is ready are held by wwwroot/js/appStartup.js until Routes sets data-app-ready. Keep that script ahead of blazor.web.js (docs/development/ui-conventions.md, Startup click gate).
 - UI contracts belong in Features/{Context}/{Feature}/Contracts/Interfaces inside ST.UI.Blazor. Shared API DTOs remain in ST.SharedKernel.
 - MAUI and a separate Razor Class Library are not part of this template.
 
