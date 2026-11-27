@@ -24,7 +24,7 @@
         @if (_status is not null)
         {
             <MudText Typo="Typo.caption"
-                     Class="d-block mb-3">Link expires @_status.ExpiresAt.UtcDateTime.ToString("dd MMM yyyy HH:mm") UTC.</MudText>
+                     Class="d-block mb-3">Link expires @Presentation.Format(_status.ExpiresAt).</MudText>
             <KycDocumentUploads @key="TenantId"
                                 Types="_status.DocumentTypes"
                                 Root="@Root"
