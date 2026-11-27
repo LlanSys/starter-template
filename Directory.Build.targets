@@ -1,0 +1,18 @@
+<Project>
+
+  <!--
+    Installs the committed Husky.Net git hooks (.husky) on the first local build, so a fresh clone
+    can commit without running `dotnet tool restore` and `dotnet husky install` by hand.
+    It runs only while .husky/_/husky.sh is missing, and is skipped when:
+      - HUSKY=0 is set (opt out),
+      - CI is set (pipelines),
+      - the repository has no .git (Docker builds and other source-only copies).
+  -->
+  <Target Name="InstallHuskyHooks"
+          BeforeTargets="Restore;CollectPackageReferences;BeforeBuild"
+          Condition="'$(HUSKY)' != '0' and '$(CI)' == '' and Exists('$(MSBuildThisFileDirectory).git') and !Exists('$(MSBuildThisFileDirectory).husky/_/husky.sh')">
+    <Exec Command="dotnet tool restore" WorkingDirectory="$(MSBuildThisFileDirectory)" StandardOutputImportance="Low" ContinueOnError="true" />
+    <Exec Command="dotnet husky install" WorkingDirectory="$(MSBuildThisFileDirectory)" StandardOutputImportance="Low" ContinueOnError="true" />
+  </Target>
+
+</Project>
