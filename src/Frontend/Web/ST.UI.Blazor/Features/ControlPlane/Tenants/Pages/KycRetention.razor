@@ -89,14 +89,14 @@
         <MudText>Assigned Policy: @(_policies.FirstOrDefault(x => x.Id == _case.PolicyId)?.Name ?? _case.PolicyId.ToString())</MudText>
         @if (AssignedPolicy is { } pinned)
         {
-            <MudText Typo="Typo.body2">Version published @pinned.PublishedAt.ToString("u"). @ScheduleSummary(pinned)</MudText>
+            <MudText Typo="Typo.body2">Version published @Presentation.Format(pinned.PublishedAt). @ScheduleSummary(pinned)</MudText>
         }
-        <MudText>Retention Deadline: @(_case.RetainUntil?.ToString("u") ?? "Active relationship; no end recorded")</MudText>
-        <MudText>Recovery Deadline: @(_case.RecoveryUntil?.ToString("u") ?? "—")</MudText>
-        <MudText>Hold Review Due: @(_case.HoldReviewDue?.ToString("u") ?? "—")</MudText>
+        <MudText>Retention Deadline: @(_case.RetainUntil is null ? "Active relationship; no end recorded" : Presentation.Format(_case.RetainUntil))</MudText>
+        <MudText>Recovery Deadline: @Presentation.Format(_case.RecoveryUntil)</MudText>
+        <MudText>Hold Review Due: @Presentation.Format(_case.HoldReviewDue)</MudText>
         @if (_case.FailureCode is not null)
         {
-            <MudAlert Severity="Severity.Warning">Deletion pending: @_case.FailureCode. Next attempt: @_case.NextAttemptAt?.ToString("u").</MudAlert>
+            <MudAlert Severity="Severity.Warning">Deletion pending: @_case.FailureCode. Next attempt: @Presentation.Format(_case.NextAttemptAt).</MudAlert>
         }
         <MudTextField @bind-Value="_caseReason"
                       Label="Case Reference / Reason"
@@ -158,7 +158,7 @@
             @foreach (var item in _policies)
             {
                 <tr>
-                    <td>@item.PublishedAt.ToString("u")</td>
+                    <td>@Presentation.Format(item.PublishedAt)</td>
                     <td>@item.Name</td>
                     <td>@ScheduleSummary(item)</td>
                     <td>@item.Reason</td>

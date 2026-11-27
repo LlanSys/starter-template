@@ -6,13 +6,13 @@ OrganizationSettingCatalog is the vendor-owned allowlist in SharedKernel. The ca
 
 | Key | Default | Consumer |
 | --- | --- | --- |
-| presentation.time-zone | UTC | Profile, payments, KYC review, device, support and task/staff history timestamps |
+| presentation.time-zone | UTC | Profile, security (passkeys), payments, KYC review, retention and submission-link expiry, device, support and task/staff history timestamps |
 | presentation.regional-format | en-GB | Explicit date/month and number formatting, including payment amounts |
 | presentation.date-format | dd MMM yyyy | Timestamp date part and calendar-date formatter |
 | presentation.time-format | 24 | Timestamp time part; supported 12/24-hour choices |
 | presentation.page-size | 25 | Initial page size in administration and operational listings |
 
-Time zones use IANA identifiers on Windows and Linux. The catalogue translates Windows system identifiers before publishing choices. Supported regional formats initially include en-GB, en-US, en-KE and fr-FR. These control presentation, not translated interface resources or currency conversion. Use PresentationPreferences rather than changing process-wide culture in a pooled Blazor Server host. The service is circuit-scoped; never share one tenant's preferences through a singleton.
+Time zones use IANA identifiers on Windows and Linux. The catalogue translates Windows system identifiers before publishing choices. Supported regional formats initially include en-GB, en-US, en-KE and fr-FR. These control presentation, not translated interface resources or currency conversion. Use PresentationPreferences rather than changing process-wide culture in a pooled Blazor Server host. The service is circuit-scoped; never share one tenant's preferences through a singleton. Pages never hard-code date formats (`ToString("u")`, `"dd MMM yyyy"` and the like); use `Presentation.Format` or `Presentation.FormatDate`. Anonymous pages such as the KYC submission link load no tenant preferences and therefore show the catalogue defaults.
 
 ## UTC and TimeProvider
 
