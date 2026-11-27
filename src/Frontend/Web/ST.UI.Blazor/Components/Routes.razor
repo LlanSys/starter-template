@@ -4,7 +4,9 @@
 @inject IBackendApiClient Api
 @inject IOptions<BackendApiSettings> ApiSettings
 @inject IAuthSession AuthSession
-<div data-app-interactive>
+@* data-app-ready releases the startup click gate in wwwroot/js/appStartup.js once routed content (or the host error) can take input. *@
+<div data-app-interactive
+     data-app-ready="@(_sessionReady || _hostError is not null ? "true" : null)">
     @if (_hostError is not null)
     {
         <main class="auth-page">

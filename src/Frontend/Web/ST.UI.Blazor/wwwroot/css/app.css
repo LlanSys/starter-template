@@ -1092,6 +1092,7 @@ h1:focus {
 .auth-loading { display: flex; min-height: 28rem; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: var(--st-muted); text-align: center; }
 .auth-loading-spinner { display: inline-block; width: 1.75rem; height: 1.75rem; border: 2px solid var(--st-line); border-top-color: var(--st-primary); border-radius: 50%; animation: auth-spin .8s linear infinite; }
 body:has([data-app-interactive]) #app-startup { display: none; }
+html.app-starting, html.app-starting * { cursor: progress !important; }
 .auth-provider-note { font-size: .8rem; color: var(--st-muted); margin: 0; }
 .dashboard-page { animation: none; }
 @keyframes auth-spin { to { transform: rotate(360deg); } }

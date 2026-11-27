@@ -157,7 +157,36 @@ window.webauthn = {
 
     _conditionalAbortController: null,
 
+    _conditionalRestartListener: null,
+
+    _clearConditionalRestart: function () {
+        const listener = window.webauthn._conditionalRestartListener;
+        if (listener) {
+            window.removeEventListener("focus", listener);
+            document.removeEventListener("visibilitychange", listener);
+            window.webauthn._conditionalRestartListener = null;
+        }
+    },
+
+    // The browser ends a conditional request with NotAllowedError when its timeout elapses, when another
+    // tab or frame starts its own WebAuthn request, or when the user dismisses the picker. That is a normal
+    // end of passkey autofill, not a failure: ask .NET for fresh options once the page is in use again.
+    _scheduleConditionalRestart: function (dotNetRef) {
+        window.webauthn._clearConditionalRestart();
+        const listener = () => {
+            if (document.visibilityState !== "visible" || !document.hasFocus()) {
+                return;
+            }
+            window.webauthn._clearConditionalRestart();
+            dotNetRef.invokeMethodAsync("RestartConditionalAssertionAsync").catch(() => { });
+        };
+        window.webauthn._conditionalRestartListener = listener;
+        window.addEventListener("focus", listener);
+        document.addEventListener("visibilitychange", listener);
+    },
+
     cancelConditionalAssertion: function () {
+        window.webauthn._clearConditionalRestart();
         if (window.webauthn._conditionalAbortController) {
             window.webauthn._conditionalAbortController.abort();
             window.webauthn._conditionalAbortController = null;
@@ -179,14 +208,21 @@ window.webauthn = {
             }));
         }
 
-        window.webauthn._conditionalAbortController = new AbortController();
+        // Only one WebAuthn request may be pending; end ours before starting its replacement.
+        window.webauthn.cancelConditionalAssertion();
+        const controller = new AbortController();
+        window.webauthn._conditionalAbortController = controller;
 
         try {
             const credential = await navigator.credentials.get({
                 publicKey,
                 mediation: "conditional",
-                signal: window.webauthn._conditionalAbortController.signal
+                signal: controller.signal
             });
+
+            if (window.webauthn._conditionalAbortController === controller) {
+                window.webauthn._conditionalAbortController = null;
+            }
 
             const result = {
                 id: credential.id,
@@ -202,9 +238,24 @@ window.webauthn = {
 
             await dotNetRef.invokeMethodAsync("OnConditionalAssertionCompleted", result);
         } catch (err) {
-            if (err.name !== "AbortError") {
-                console.error("Conditional passkey assertion failed:", err);
+            const isCurrent = window.webauthn._conditionalAbortController === controller;
+            if (isCurrent) {
+                window.webauthn._conditionalAbortController = null;
             }
+
+            if (err.name === "AbortError") {
+                return; // We cancelled it: workspace change, explicit passkey sign-in, replacement or dispose.
+            }
+
+            if (err.name === "NotAllowedError") {
+                console.debug("Passkey autofill request ended; it restarts when the page is focused.", err.message);
+                if (isCurrent) {
+                    window.webauthn._scheduleConditionalRestart(dotNetRef);
+                }
+                return;
+            }
+
+            console.error("Conditional passkey assertion failed:", err);
         }
     },
 
