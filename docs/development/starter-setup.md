@@ -21,6 +21,8 @@ git push -u origin main
 
 `-DatabaseProvider` (`SqlServer`, `PostgreSql` or `Both`) keeps only the chosen database provider; see [database provider selection](../architecture/database-provider-selection.md). `-ResetGitHistory` deletes the template's git history first and finishes with a fresh repository and one initial commit, ready for the new remote. The script updates product/project/namespace names, Dockerfiles, and assigns fresh host UserSecretsId values. It does not copy local secret contents or configure live cloud resources. It also gives the clone its own local ports, so it can run alongside other applications (see [workstation endpoint allocations](workstation-endpoints.md#automatic-port-allocation)). Infrastructure ports live in the `*_HOST_PORT` values of the ignored `ops/local/.env`. The setup script uses those same values for native host settings. `LOCAL_DATABASE_NAME` overrides the SQL database name. When blank or absent, the setup scripts derive the name from the API project prefix.
 
+Git hooks need no manual step: the first local `dotnet build` or `dotnet restore` runs `dotnet tool restore` and `dotnet husky install` through `Directory.Build.targets`. It is skipped when `HUSKY=0` or `CI` is set and when `.git` is absent, as in Docker builds. Until it has run, `git commit` fails with `.husky/_/husky.sh: No such file or directory`.
+
 Keep DataProtection:ApplicationName stable after the first protected cookie, token or TOTP secret is issued. See [Renaming the template](renaming-the-template.md).
 
 ## Configure the local application

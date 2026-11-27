@@ -284,3 +284,10 @@ if ($IncludeSqlServer) { Write-Host "  SQL Server: localhost,$($environment.SQLS
 # <db:PostgreSql>
 if ($IncludePostgreSql) { Write-Host "  PostgreSQL: localhost:$($environment.POSTGRES_HOST_PORT)" }
 # </db:PostgreSql>
+
+# Git hooks (.husky) are installed by the first local `dotnet build` or `dotnet restore` through
+# Directory.Build.targets; HUSKY=0 skips that. Report it here so a fresh clone knows commits need it.
+if (-not (Test-Path (Join-Path $repoRoot '.husky/_/husky.sh'))) {
+    Write-Host ''
+    Write-Host 'Git hooks are not installed yet. Run `dotnet build` once, or `dotnet tool restore; dotnet husky install`, before committing.'
+}

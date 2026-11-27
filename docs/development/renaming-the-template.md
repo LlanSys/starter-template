@@ -24,6 +24,8 @@ The choice can't be changed later in the fork. See [database provider selection]
 
 `-ResetGitHistory` discards the template's history. It first checks that the working tree is clean and that `origin` points at the template. It then deletes `.git` before anything else, and after renaming creates a fresh repository on `main` with a single initial commit. It adds no remote, so connect the new one yourself. Because `.git` is deleted first, recover from a failed run by cloning again. Leave the switch out if you want to handle git yourself.
 
+The new repository's git hooks (`.husky`) are installed by its first local `dotnet build` or `dotnet restore`, so commits made after that run the pre-commit architecture check. The initial commit made by `-ResetGitHistory` runs no hooks. Set `HUSKY=0` to skip the install.
+
 The script asks for confirmation before it changes anything, because it deletes files and can delete `.git`. In a non-interactive shell (CI, scripts or AI coding tools) that prompt fails with "PowerShell is in NonInteractive mode" and nothing changes. Add `-Confirm:$false` there, after reviewing the `-WhatIf` preview.
 
 Use `-WhatIf` first to preview changes. The script updates product-name variants in text files, reads the current prefix from AGENTS.md, changes dotted technical prefixes and updates the declared root prefix, handles the known compact `STApi` local-data path, and renames matching files and folders. It deliberately does not replace every standalone `BT`, because `BT` is also valid unrelated data such as Bhutan's ISO country code. It skips Git metadata, generated build output, logs, `output`, `tmp`, `TestResults`, dependencies, and `ops/local/.env`.

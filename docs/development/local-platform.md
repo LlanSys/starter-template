@@ -109,7 +109,7 @@ The committed `.husky` hooks `post-merge`, `post-rewrite` (rebase) and `post-che
 - the local database container gets pending migrations (a missing local database is created);
 - existing API and Blazor containers are rebuilt from the new checkout and restarted.
 
-A failure is reported but never fails the Git operation. Set `SKIP_LOCAL_STACK_REFRESH=1` to skip it, for example during a long rebase, and run the script by hand afterwards. Enable the hooks once per clone:
+A failure is reported but never fails the Git operation. Set `SKIP_LOCAL_STACK_REFRESH=1` to skip it, for example during a long rebase, and run the script by hand afterwards. The first local `dotnet build` or `dotnet restore` installs the hooks (`Directory.Build.targets` runs `dotnet tool restore` and `dotnet husky install` while `.husky/_/husky.sh` is missing). It is skipped when `HUSKY=0` or `CI` is set, and when there is no `.git` (Docker builds). To install them without building:
 
 ```powershell
 dotnet tool restore
