@@ -95,6 +95,10 @@ Because the router is not prerendered, a page shows only the static loading card
 
 `wwwroot/js/appStartup.js` loads before `blazor.web.js`. Until an element with `data-app-ready` exists, it marks `<html>` with `app-starting` and `aria-busy` (progress cursor) and holds pointer clicks. Routes sets `data-app-ready` once routed content or the host-error card can take input. On release, if the last held click landed where a form field now sits, that field receives focus. A held click is never replayed on a button or link, because the user had not seen that control. The reconnect modal and `#blazor-error-ui` are exempt. Keep `data-app-ready` on Routes, and keep the script ahead of `blazor.web.js` when changing `App.razor`. A page that shows its own loading state after the router is ready, such as sign-in provider discovery, must show controls only when they work.
 
+### Passkey autofill lifetime
+
+Sign-in starts a conditional (autofill) WebAuthn request. The browser ends it with `NotAllowedError` when the server's timeout elapses (Fido2's 60-second default), when another tab or frame starts its own WebAuthn request, or when the user dismisses the picker. `webauthn.js` treats that as a normal end and logs it at debug level, not as an error. The next time the page is visible and focused, it calls `SignIn.RestartConditionalAssertionAsync`, which asks the server for fresh options because each challenge is single-use. Starting a new conditional request always cancels the pending one first, since a browser allows only one. A restart is skipped while the page is busy, while the workspace is being changed, and after the page is disposed. Real-authenticator passkey acceptance is still recorded separately.
+
 ### Actionable work and shared responsibility
 
 Needs Your Attention separates Your Actions (currently the signed-in account's authenticator enrollment) from a Team Queue. Shared operational cases are not personal assignments, and possession of a view permission does not make someone responsible for acting. Each item states the recorded condition and gives a specific next step. No deadlines or assignments are inferred where the workflow has none.

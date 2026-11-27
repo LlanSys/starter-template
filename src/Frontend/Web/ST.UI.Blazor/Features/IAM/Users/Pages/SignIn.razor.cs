@@ -357,6 +357,19 @@ public partial class SignIn
     }
 
     [JSInvokable]
+    public async Task RestartConditionalAssertionAsync()
+    {
+        // The browser ended passkey autofill (timeout, another tab's request or a dismissed picker).
+        // Fresh options are requested because each challenge is single-use.
+        if (_disposed || _changingWorkspace || _isBusy || _selectedWorkspace is null)
+        {
+            return;
+        }
+
+        await StartConditionalPasskeyAsync();
+    }
+
+    [JSInvokable]
     public async Task OnConditionalAssertionCompleted(JsonElement assertionResponse)
     {
         if (_changingWorkspace || _selectedWorkspace is null || _conditionalCorrelationId == Guid.Empty)
